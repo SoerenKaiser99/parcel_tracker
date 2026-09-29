@@ -1,0 +1,16 @@
+{
+  "shipments": [
+    {
+      "id": "00340999999999999901",
+      "service": "parcel-de",
+      "status": {
+        "timestamp": "2026-09-29T14:37:00",
+        "location": {"address": {"addressLocality": "Wachtberg"}},
+        "statusCode": "delivered",
+        "status": "Die Sendung wurde erfolgreich zugestellt.",
+        "description": "Die Sendung wurde erfolgreich zugestellt."
+      },
+      "events": []
+    }
+  ]
+}

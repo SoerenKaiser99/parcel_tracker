@@ -1,0 +1,996 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: *.4dex.io 4dex.io *.abtasty.com abtasty.com *.adnxs.com adnxs.com *.adnxs.com adnxs.com *.adsafeprotected.com adsafeprotected.com *.adup-tech.com adup-tech.com *.alturing.eu alturing.eu *.amazon.com amazon.com *.amazon.de amazon.de *.ampproject.org ampproject.org *.appmotion-dev.de appmotion-dev.de *.bidswitch.net bidswitch.net *.casalemedia.com casalemedia.com *.clean.gg clean.gg *.click-performance.com click-performance.com *.commander1.com commander1.com *.consensu.org consensu.org *.criteo.com criteo.com *.criteo.net criteo.net *.doubleclick.net doubleclick.net *.dpd.com dpd.com *.dpd.de dpd.de *.dpd-grussbotschaft.de dpd-grussbotschaft.de *.dpd-paketnavigator.de dpd-paketnavigator.de *.flashtalking.com flashtalking.com *.google.com google.com *.google.de google.de *.googleadservices.com googleadservices.com *.google-analytics.com google-analytics.com *.googleapis.com googleapis.com *.googlesyndication.com googlesyndication.com *.googletagmanager.com googletagmanager.com *.googletagservices.com googletagservices.com *.gstatic.com gstatic.com *.iloxx.de iloxx.de *.indexexchange.com indexexchange.com *.indexww.com indexww.com *.jquery.com jquery.com *.jsdelivr.net jsdelivr.net *.lijit.com lijit.com *.moatads.com moatads.com *.notion.site notion.site *.onetag-sys.com onetag-sys.com *.paketnavigator.de paketnavigator.de *.paypal.com paypal.com *.pbstck.com pbstck.com *.privacy-mgmt.com privacy-mgmt.com *.pubmatic.com pubmatic.com *.rubiconproject.com rubiconproject.com *.sabio.de sabio.de *.script.ac script.ac *.servenobid.com servenobid.com *.sourcepoint.com sourcepoint.com *.sp-prod.net sp-prod.net *.tagcommander.com tagcommander.com *.teads.com teads.com *.teads.tv teads.tv *.trustcommander.com trustcommander.com *.trustcommander.net trustcommander.net *.yieldlab.net yieldlab.net *.prebid.a-mo.net prebid.a-mo.net *.kueezrtb.com kueezrtb.com *.sparteo.com sparteo.com *.fast.nexx360.io fast.nexx360.io *.mouseflow.com mouseflow.com *.consentmanager.net consentmanager.net *.smilewanted.com smilewanted.com *.adform.net adform.net *.admanmedia.com admanmedia.com *.pem-teads.tv pem-teads.tv; frame-ancestors 'none';" /><meta http-equiv="X-Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: *.4dex.io 4dex.io *.abtasty.com abtasty.com *.adnxs.com adnxs.com *.adnxs.com adnxs.com *.adsafeprotected.com adsafeprotected.com *.adup-tech.com adup-tech.com *.alturing.eu alturing.eu *.amazon.com amazon.com *.amazon.de amazon.de *.ampproject.org ampproject.org *.appmotion-dev.de appmotion-dev.de *.bidswitch.net bidswitch.net *.casalemedia.com casalemedia.com *.clean.gg clean.gg *.click-performance.com click-performance.com *.commander1.com commander1.com *.consensu.org consensu.org *.criteo.com criteo.com *.criteo.net criteo.net *.doubleclick.net doubleclick.net *.dpd.com dpd.com *.dpd.de dpd.de *.dpd-grussbotschaft.de dpd-grussbotschaft.de *.dpd-paketnavigator.de dpd-paketnavigator.de *.flashtalking.com flashtalking.com *.google.com google.com *.google.de google.de *.googleadservices.com googleadservices.com *.google-analytics.com google-analytics.com *.googleapis.com googleapis.com *.googlesyndication.com googlesyndication.com *.googletagmanager.com googletagmanager.com *.googletagservices.com googletagservices.com *.gstatic.com gstatic.com *.iloxx.de iloxx.de *.indexexchange.com indexexchange.com *.indexww.com indexww.com *.jquery.com jquery.com *.jsdelivr.net jsdelivr.net *.lijit.com lijit.com *.moatads.com moatads.com *.notion.site notion.site *.onetag-sys.com onetag-sys.com *.paketnavigator.de paketnavigator.de *.paypal.com paypal.com *.pbstck.com pbstck.com *.privacy-mgmt.com privacy-mgmt.com *.pubmatic.com pubmatic.com *.rubiconproject.com rubiconproject.com *.sabio.de sabio.de *.script.ac script.ac *.servenobid.com servenobid.com *.sourcepoint.com sourcepoint.com *.sp-prod.net sp-prod.net *.tagcommander.com tagcommander.com *.teads.com teads.com *.teads.tv teads.tv *.trustcommander.com trustcommander.com *.trustcommander.net trustcommander.net *.yieldlab.net yieldlab.net *.prebid.a-mo.net prebid.a-mo.net *.kueezrtb.com kueezrtb.com *.sparteo.com sparteo.com *.fast.nexx360.io fast.nexx360.io *.mouseflow.com mouseflow.com *.consentmanager.net consentmanager.net *.smilewanted.com smilewanted.com *.adform.net adform.net *.admanmedia.com admanmedia.com *.pem-teads.tv pem-teads.tv; frame-ancestors 'none';" /><meta http-equiv="X-WebKit-CSP" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: *.4dex.io 4dex.io *.abtasty.com abtasty.com *.adnxs.com adnxs.com *.adnxs.com adnxs.com *.adsafeprotected.com adsafeprotected.com *.adup-tech.com adup-tech.com *.alturing.eu alturing.eu *.amazon.com amazon.com *.amazon.de amazon.de *.ampproject.org ampproject.org *.appmotion-dev.de appmotion-dev.de *.bidswitch.net bidswitch.net *.casalemedia.com casalemedia.com *.clean.gg clean.gg *.click-performance.com click-performance.com *.commander1.com commander1.com *.consensu.org consensu.org *.criteo.com criteo.com *.criteo.net criteo.net *.doubleclick.net doubleclick.net *.dpd.com dpd.com *.dpd.de dpd.de *.dpd-grussbotschaft.de dpd-grussbotschaft.de *.dpd-paketnavigator.de dpd-paketnavigator.de *.flashtalking.com flashtalking.com *.google.com google.com *.google.de google.de *.googleadservices.com googleadservices.com *.google-analytics.com google-analytics.com *.googleapis.com googleapis.com *.googlesyndication.com googlesyndication.com *.googletagmanager.com googletagmanager.com *.googletagservices.com googletagservices.com *.gstatic.com gstatic.com *.iloxx.de iloxx.de *.indexexchange.com indexexchange.com *.indexww.com indexww.com *.jquery.com jquery.com *.jsdelivr.net jsdelivr.net *.lijit.com lijit.com *.moatads.com moatads.com *.notion.site notion.site *.onetag-sys.com onetag-sys.com *.paketnavigator.de paketnavigator.de *.paypal.com paypal.com *.pbstck.com pbstck.com *.privacy-mgmt.com privacy-mgmt.com *.pubmatic.com pubmatic.com *.rubiconproject.com rubiconproject.com *.sabio.de sabio.de *.script.ac script.ac *.servenobid.com servenobid.com *.sourcepoint.com sourcepoint.com *.sp-prod.net sp-prod.net *.tagcommander.com tagcommander.com *.teads.com teads.com *.teads.tv teads.tv *.trustcommander.com trustcommander.com *.trustcommander.net trustcommander.net *.yieldlab.net yieldlab.net *.prebid.a-mo.net prebid.a-mo.net *.kueezrtb.com kueezrtb.com *.sparteo.com sparteo.com *.fast.nexx360.io fast.nexx360.io *.mouseflow.com mouseflow.com *.consentmanager.net consentmanager.net *.smilewanted.com smilewanted.com *.adform.net adform.net *.admanmedia.com admanmedia.com *.pem-teads.tv pem-teads.tv; frame-ancestors 'none';" /><meta name="google-site-verification" content="7TLHIxBlZUto15YDcqOSifabobfaiQT_eG8vNAg0E5A" /><link rel="apple-touch-icon" sizes="180x180" href="images/favicon/apple-touch-icon.png?v=m2dYjxzro8" /><link rel="icon" type="image/png" href="images/favicon/favicon-32x32.png?v=m2dYjxzro8" sizes="32x32" /><link rel="icon" type="image/png" href="images/favicon/favicon-16x16.png?v=m2dYjxzro8" sizes="16x16" /><link rel="manifest" href="manifest.json?v=m2dYjxzro8" /><link rel="mask-icon" href="images/favicon/safari-pinned-tab.svg?v=m2dYjxzro8" color="#dc0032" /><link rel="shortcut icon" href="images/favicon/favicon.ico?v=m2dYjxzro8" /><meta name="msapplication-TileColor" content="#dc0032" /><meta name="msapplication-TileImage" content="~/images/favicon/mstile-144x144.png?v=m2dYjxzro8" /><meta name="theme-color" content="#dc0032" /><meta name="format-detection" content="telephone=no" /><title>
+	Sendungsverfolgung und Live-Tracking | Meine Pakete » myDPD
+</title>
+
+    <script type="text/javascript" src='js/jquery-3.7.1.min.js?ver=1.000'></script>
+    <script type="text/javascript" src='js/DPDDefault.js?ver=3.622'></script>
+    <link rel="stylesheet" href="less/StyleSheet.less?ver=3.605" />
+
+    
+    
+    
+
+    
+    
+    
+
+    <script type="text/javascript" data-cmp-ab="1" src="https://cdn.consentmanager.net/delivery/js/semiautomatic.min.js" data-cmp-cdid="f667222b52ecb" data-cmp-host="b.delivery.consentmanager.net" data-cmp-cdn="cdn.consentmanager.net" data-cmp-codesrc="0"></script>
+
+    <!-- Google Tag Manager -->
+    <script data-cmp-vendor="s905" type="text/plain" class="cmplazyload">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-KK5NPR8P');</script>
+    <!-- End Google Tag Manager -->
+
+    <!-- Google Tag Manager -->
+    <script data-cmp-vendor="s905" type="text/plain" class="cmplazyload">(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-K5X7PV7R');</script>
+    <!-- End Google Tag Manager -->
+
+
+    
+    
+    
+
+    
+    
+    
+
+    
+    
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $('.panContentPlaceHolder2').addClass("myParcelFix"); //Seite für Breakpoint ExtraLarge2 an den Linken Rand schieben
+            $('.firstNavContainer').addClass("myParcelFix"); //Header für Breakpoint ExtraLarge2 an den Linken Rand schieben
+            $('.DPDSecondNav').addClass("myParcelFix"); //Header für Breakpoint ExtraLarge2 an den Linken Rand schieben
+            $('.footerContainer').addClass("myParcelFix"); //Footer für Breakpoint ExtraLarge2 an den Linken Rand schieben
+
+            if (document.getElementById("map-canvas") !== null) {
+                initialize('map-canvas');
+                setMarker();
+            }
+        });
+
+        $(document).ready(function () {
+            if (document.getElementById('map-Shop') !== null) {
+                initialize('map-Shop');
+                getParcelShopList();
+            }
+        });
+
+        var interval
+        function valueSlider(slider) {
+            var pos = $(slider).offset().top - $(slider).children().last().offset().top
+            $(slider).children().last().children().each(function (index) {
+                var h = $(this).height() + 20;
+                if ((h * index) - 10 < pos && (h * (index + 1)) - 10 > pos) {
+                    if ($(this).hasClass("active") != true) {
+                        $(slider).children().last().children('.active').removeClass("active")
+                        $(this).addClass("active")
+
+                        $('[ID*="hidTippingAmount"]').val($(this).text().replace(' €', ''))
+
+                        if (interval) {
+                            clearTimeout(interval)
+                        }
+                        interval = setTimeout(function () {
+                            $('.valueSlider').animate({
+                                scrollTop: h * index
+                            }, 500);
+                        }, 500)
+                    }
+                }
+            });
+        }
+    </script>
+<meta name="description" content="Versenden und Empfangen Sie Pakete online und verfolgen Sie den Status der einzelnen Sendungen live und auf die Stunde genau mit unserer Sendungsverfolgung." /></head>
+<body>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript>
+        <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-KK5NPR8P"
+            height="0" width="0" style="display: none; visibility: hidden"></iframe>
+    </noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+
+    <!-- Google Tag Manager (noscript) -->
+    <noscript>
+        <iframe src="https://www.googletagmanager.com/ns.html?id=GTM-K5X7PV7R"
+            height="0" width="0" style="display: none; visibility: hidden"></iframe>
+    </noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    
+    
+
+    
+    
+
+    
+    
+    
+    <script type="text/javascript" async="async" src='js/adds/DPD_framework_core.js?ver=1.027'></script>
+    
+
+    <form name="form1" method="post" action="./myParcel-tracking.aspx?parcelno=09999999999999" id="form1">
+<div>
+<input type="hidden" name="__EVENTTARGET" id="__EVENTTARGET" value="" />
+<input type="hidden" name="__EVENTARGUMENT" id="__EVENTARGUMENT" value="" />
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="REMOVED" />
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var theForm = document.forms['form1'];
+if (!theForm) {
+    theForm = document.form1;
+}
+function __doPostBack(eventTarget, eventArgument) {
+    if (!theForm.onsubmit || (theForm.onsubmit() != false)) {
+        theForm.__EVENTTARGET.value = eventTarget;
+        theForm.__EVENTARGUMENT.value = eventArgument;
+        theForm.submit();
+    }
+}
+//]]>
+</script>
+
+
+<script src="/WebResource.axd?d=BoPn_WqjlfZjXFNP6IpK6gdrOcro0YFq8AVohAqRNwKMTi5C39Du5hxLgyuE2gm-VxP_SvgtOc3kq6r5eiTKE-LAy2M1&amp;t=639190905332169432" type="text/javascript"></script>
+
+
+<script src="/ScriptResource.axd?d=u4F1ySeFaBT_pY-pJHlaqiH2a6_x-gPSYa83xFsUuod1mgyPI5Ktctoc1-XeugoLU-kWEz6HPk9Ufyhfyay1Bd9pQiunGEd7bn8jdHDOwfAdoRqOXgODeJGuc8PgH2W7oCBjn9LUD8yg4yO-kJ4MPZOU2Qg1&amp;t=ffffffffbec1863d" type="text/javascript"></script>
+<script src="/ScriptResource.axd?d=07MyJP1y5Sn0BZJxP0QizgV9JBwQwFF3hovlUv098CAptUtENhNfoGcARv-DmySNxDf1Hl_XjK08Mrdid7KgmN5jIVFPdAR1XBpfnlajV4mOFF3no_2szvuX3YdsEg0B6c_oOK5vaEWM59iVeOtId8CnVraY-62zfO00KKP-0lWM5g1_0&amp;t=ffffffffbec1863d" type="text/javascript"></script>
+<script src="js/ajax_script.js?ver=3.562" type="text/javascript"></script>
+<div>
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="9C07181A" />
+	<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="REMOVED" />
+</div>
+        <script type="text/javascript">
+//<![CDATA[
+Sys.WebForms.PageRequestManager._initialize('ctl00$myScriptManager01', 'form1', ['tctl00$modHeader$ctl00','modHeader_ctl00','tctl00$ContentPlaceHolder1$uptMyParcel','ContentPlaceHolder1_uptMyParcel'], [], ['ctl00$ContentPlaceHolder1$repParcelList$ctl00$btnSelectParcel','ContentPlaceHolder1_repParcelList_btnSelectParcel_0','ctl00$ContentPlaceHolder1$btnAuthorizeParcel','ContentPlaceHolder1_btnAuthorizeParcel'], 90, 'ctl00');
+//]]>
+</script>
+
+        <div style="display: inline-block; width: 100%;">
+            <div id="modHeader_panHeader" class="panHeader" style="margin-bottom: 13px;">
+	
+    <link rel="stylesheet" href=less/DPDHeader.less />
+   
+    <script type="text/javascript">
+        //need jquery;
+        $(document).ready(function () {
+            function openDPDBurgerNav() {
+                $('.DPDBurgerNavPanel').addClass("active");
+            }
+            function closeDPDBurgerNav() {
+                $('.DPDBurgerNavPanel').removeClass("active");
+            }
+
+            $('.DPDBurgerImageBtn').click(function () {
+                openDPDBurgerNav();
+            });
+
+            $('.DPDCloseBurger, .DPDBurgerNavOverlayer').click(function () {
+                closeDPDBurgerNav();
+            });
+
+            $('.panToogleBurger').click(function () {
+                $(this).parent().find('.panBurgerSubNav').toggle();
+                $(this).toggleClass('active');
+            });
+
+            $('.toogleDPDSearch').click(function () {
+                if ($('.DPDSearch').hasClass('active')) {
+                    document.getElementById("btnDPDSearch").click();
+                } else {
+                    $(this).parent().find('.txtDPDSearch').focus();
+                }
+            });
+
+            $('.DPDSearch .txtDPDSearch').focusin(function () {
+                $(this).parent().parent().addClass("active");
+            }).focusout(function () {
+                var element = $(this);
+                setTimeout(function () {
+                    element.parent().parent().removeClass("active");
+                }, 300);
+            });
+        });
+    </script>
+    
+    <div id="modHeader_panDPDMainNavPanel" class="DPDMainNavPanel">
+		
+        
+        
+        <div class="firstNavContainer">
+            <div class="DPDHeader">
+                <div style="float:left;">
+                    <a id="modHeader_btnHomeIcon" href="javascript:__doPostBack(&#39;ctl00$modHeader$btnHomeIcon&#39;,&#39;&#39;)" style="display:block; width: 75px; height:32px;margin: 16px 0 17px;"><img id="modHeader_imgHomeIcon" src="images/DPD_logo_redgrad_rgb_76px-01_v2.svg" style="height:33px;width:76px;border-width:0px;" /></a>
+                </div>
+                <div class="DPDFirstNav">
+                    
+                            <ul class="ulMainNav">
+                        
+                            <li class="sub">
+                                <a id="modHeader_repMainNav_hplNavLink_0" class="DPDNav1" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$hplNavLink&#39;,&#39;&#39;)">Versenden</a>
+                                <div id="modHeader_repMainNav_panDPDMainFlyout_0" class="DPDMainFlyout">
+			
+                                    <div style="background-color: #fff; width: 100%; max-width: 1200px; margin:0 auto; z-index:9;">
+                                        <div style="margin: 20px auto 75px;max-width:1124px; width: calc(100% - 74px)">
+                                            <div style="display:inline-block; width: 100%;margin-top: 30px;">
+                                                
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_0" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl00$hplMainNavFlyout&#39;,&#39;&#39;)">Paketversand</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_1" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl01$hplMainNavFlyout&#39;,&#39;&#39;)">Express</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_2" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl02$hplMainNavFlyout&#39;,&#39;&#39;)">Internationaler Versand</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_3" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl03$hplMainNavFlyout&#39;,&#39;&#39;)">E-Commerce</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_4" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl04$hplMainNavFlyout&#39;,&#39;&#39;)">Brief</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_5" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl05$hplMainNavFlyout&#39;,&#39;&#39;)">Fulfillment</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_6" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl06$hplMainNavFlyout&#39;,&#39;&#39;)">Branchenlösungen</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_0_hplMainNavFlyout_7" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl01$repMainFlyout$ctl07$hplMainNavFlyout&#39;,&#39;&#39;)">Out of Home Versand</a>
+                                                    
+                                            </div>
+                                        </div>
+                                    </div>
+                                
+		</div>
+                            </li>
+                        
+                            <li class="sub">
+                                <a id="modHeader_repMainNav_hplNavLink_1" class="DPDNav1" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl02$hplNavLink&#39;,&#39;&#39;)">Empfangen</a>
+                                <div id="modHeader_repMainNav_panDPDMainFlyout_1" class="DPDMainFlyout">
+			
+                                    <div style="background-color: #fff; width: 100%; max-width: 1200px; margin:0 auto; z-index:9;">
+                                        <div style="margin: 20px auto 75px;max-width:1124px; width: calc(100% - 74px)">
+                                            <div style="display:inline-block; width: 100%;margin-top: 30px;">
+                                                
+                                                        <a id="modHeader_repMainNav_repMainFlyout_1_hplMainNavFlyout_0" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl02$repMainFlyout$ctl00$hplMainNavFlyout&#39;,&#39;&#39;)">Paketverfolgung</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_1_hplMainNavFlyout_1" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl02$repMainFlyout$ctl01$hplMainNavFlyout&#39;,&#39;&#39;)">Paketshop/Station finden</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_1_hplMainNavFlyout_2" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl02$repMainFlyout$ctl02$hplMainNavFlyout&#39;,&#39;&#39;)">DPD App</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_1_hplMainNavFlyout_3" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl02$repMainFlyout$ctl03$hplMainNavFlyout&#39;,&#39;&#39;)">Abstell-Okay</a>
+                                                    
+                                            </div>
+                                        </div>
+                                    </div>
+                                
+		</div>
+                            </li>
+                        
+                            <li class="sub">
+                                <a id="modHeader_repMainNav_hplNavLink_2" class="DPDNav1" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl03$hplNavLink&#39;,&#39;&#39;)">Retournieren</a>
+                                <div id="modHeader_repMainNav_panDPDMainFlyout_2" class="DPDMainFlyout">
+			
+                                    <div style="background-color: #fff; width: 100%; max-width: 1200px; margin:0 auto; z-index:9;">
+                                        <div style="margin: 20px auto 75px;max-width:1124px; width: calc(100% - 74px)">
+                                            <div style="display:inline-block; width: 100%;margin-top: 30px;">
+                                                
+                                                        <a id="modHeader_repMainNav_repMainFlyout_2_hplMainNavFlyout_0" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl03$repMainFlyout$ctl00$hplMainNavFlyout&#39;,&#39;&#39;)">Paketshop/Station finden</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_2_hplMainNavFlyout_1" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl03$repMainFlyout$ctl01$hplMainNavFlyout&#39;,&#39;&#39;)">Retouren-Management</a>
+                                                    
+                                            </div>
+                                        </div>
+                                    </div>
+                                
+		</div>
+                            </li>
+                        
+                            <li class="sub">
+                                <a id="modHeader_repMainNav_hplNavLink_3" class="active DPDNav1" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl04$hplNavLink&#39;,&#39;&#39;)">myDPD</a>
+                                <div id="modHeader_repMainNav_panDPDMainFlyout_3" class="DPDMainFlyout">
+			
+                                    <div style="background-color: #fff; width: 100%; max-width: 1200px; margin:0 auto; z-index:9;">
+                                        <div style="margin: 20px auto 75px;max-width:1124px; width: calc(100% - 74px)">
+                                            <div style="display:inline-block; width: 100%;margin-top: 30px;">
+                                                
+                                                        <a id="modHeader_repMainNav_repMainFlyout_3_hplMainNavFlyout_0" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl04$repMainFlyout$ctl00$hplMainNavFlyout&#39;,&#39;&#39;)">Meine Pakete</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_3_hplMainNavFlyout_1" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl04$repMainFlyout$ctl01$hplMainNavFlyout&#39;,&#39;&#39;)">Paket versenden</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_3_hplMainNavFlyout_2" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl04$repMainFlyout$ctl02$hplMainNavFlyout&#39;,&#39;&#39;)">Paketshop/Station finden</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_3_hplMainNavFlyout_3" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl04$repMainFlyout$ctl03$hplMainNavFlyout&#39;,&#39;&#39;)">Anmelden / Registrieren</a>
+                                                    
+                                            </div>
+                                        </div>
+                                    </div>
+                                
+		</div>
+                            </li>
+                        
+                            <li class="sub">
+                                <a id="modHeader_repMainNav_hplNavLink_4" class="DPDNav1" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl05$hplNavLink&#39;,&#39;&#39;)">Support</a>
+                                <div id="modHeader_repMainNav_panDPDMainFlyout_4" class="DPDMainFlyout">
+			
+                                    <div style="background-color: #fff; width: 100%; max-width: 1200px; margin:0 auto; z-index:9;">
+                                        <div style="margin: 20px auto 75px;max-width:1124px; width: calc(100% - 74px)">
+                                            <div style="display:inline-block; width: 100%;margin-top: 30px;">
+                                                
+                                                        <a id="modHeader_repMainNav_repMainFlyout_4_hplMainNavFlyout_0" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl05$repMainFlyout$ctl00$hplMainNavFlyout&#39;,&#39;&#39;)">Hilfe für Empfänger</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_4_hplMainNavFlyout_1" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl05$repMainFlyout$ctl01$hplMainNavFlyout&#39;,&#39;&#39;)">Hilfe für Privatversender</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_4_hplMainNavFlyout_2" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl05$repMainFlyout$ctl02$hplMainNavFlyout&#39;,&#39;&#39;)">Hilfe für Geschäftskunden</a>
+                                                    
+                                                        <a id="modHeader_repMainNav_repMainFlyout_4_hplMainNavFlyout_3" class="DPDMainFlyoutLink" href="javascript:__doPostBack(&#39;ctl00$modHeader$repMainNav$ctl05$repMainFlyout$ctl03$hplMainNavFlyout&#39;,&#39;&#39;)">FAQ</a>
+                                                    
+                                            </div>
+                                        </div>
+                                    </div>
+                                
+		</div>
+                            </li>
+                        
+                            <li>
+                                <div id="modHeader_repMainNav_panDPDNavOverlayer" class="DPDNavOverlayer">
+
+		</div>
+                            </li>
+                            </ul>
+                        
+                </div>
+                <div id="modHeader_DPDSearch" class="DPDSearch" onkeypress="javascript:return WebForm_FireDefaultButton(event, &#39;btnDPDSearch&#39;)">
+			
+                    <div style="float:right; width: 100%; overflow:hidden;">
+                        <input name="ctl00$modHeader$txtDPDSearch" type="text" id="modHeader_txtDPDSearch" class="txtDPDSearch" required="true" placeholder="Sucheingabe" style="padding-left:47px;" />
+                        <a href="#" class="clearBtn" tabindex="-1">X</a>
+                    </div>
+                    <a class="DPDShortGlassBtn2 toogleDPDSearch" style="float: left; margin-top: -46px; cursor:pointer;"></a>
+                    <a id="btnDPDSearch" class="DPDShortGlassBtn2" href="javascript:__doPostBack(&#39;ctl00$modHeader$btnDPDSearch&#39;,&#39;&#39;)" style="float: left; margin-top: -46px; display:none;"></a>
+                
+		</div>
+                <div style="float:right;">
+                    <div id="modHeader_ctl00" style="float:left;">
+			
+                            <a id="modHeader_btnNotificationCenter" disabled="disabled" class="btnNotificationCenter"></a>
+                            
+                        
+		</div>
+                    <a id="modHeader_btnProfil" class="btnMainNaviCustomer" href="javascript:__doPostBack(&#39;ctl00$modHeader$btnProfil&#39;,&#39;&#39;)"></a>
+                    <div style="float:left; width: 21px; height: 47px; margin: 9px 0;">
+                        <img id="modHeader_imgBurger" class="DPDBurgerImageBtn" src="images/burger-menu.svg" style="border-width:0px;" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+	</div>
+    
+    <div id="modHeader_panDPDSecondNav" class="DPDSecondNav">
+		
+        <div style="margin:auto; height:100%; max-width:988px; width: calc(100% - 212px); padding: 0 38px 0 174px; overflow:hidden;">
+            <div style="float:left;height:22px;margin: 10px 0 6px">
+                
+                        <ul class="ulSubNav">
+                    
+                        <li>
+                            <a id="modHeader_repSecondNav_hplNavLink_0" class="DPDNav2" href="javascript:__doPostBack(&#39;ctl00$modHeader$repSecondNav$ctl01$hplNavLink&#39;,&#39;&#39;)">Meine Pakete</a>
+                            
+                        </li>
+                    
+                        <li>
+                            <a id="modHeader_repSecondNav_hplNavLink_1" class="DPDNav2" href="javascript:__doPostBack(&#39;ctl00$modHeader$repSecondNav$ctl02$hplNavLink&#39;,&#39;&#39;)">Paket versenden</a>
+                            
+                        </li>
+                    
+                        <li>
+                            <a id="modHeader_repSecondNav_hplNavLink_2" class="DPDNav2" href="javascript:__doPostBack(&#39;ctl00$modHeader$repSecondNav$ctl03$hplNavLink&#39;,&#39;&#39;)">Paketshop/Station finden</a>
+                            
+                        </li>
+                    
+                        <li>
+                            <a id="modHeader_repSecondNav_hplNavLink_3" class="DPDNav2" href="javascript:__doPostBack(&#39;ctl00$modHeader$repSecondNav$ctl04$hplNavLink&#39;,&#39;&#39;)">Anmelden / Registrieren</a>
+                            
+                        </li>
+                    
+                        </ul>
+                    
+            </div>
+        </div>
+    
+	</div>
+  
+
+</div>
+            
+
+ <link rel="stylesheet" href=less/DPDHeader.less />
+   
+    <script type="text/javascript">
+        //need jquery;
+        $(document).ready(function () {
+            $('.DPDBurgerContentImageBtn').click(function () {
+                openDPDBurgerNav();
+            });
+
+            $('.DPDBurgerImageBtn').click(function () {
+                openDPDBurgerNav();
+            });
+
+            $('.DPDCloseBurger, .DPDBurgerNavOverlayer').click(function () {
+                closeDPDBurgerNav();
+            });
+
+            $('.panToogleBurgerMob').click(function () {
+                $(this).parent().find('.panBurgerSubNavMob').toggle();
+                $(this).toggleClass('active');
+            });
+        });
+    </script>
+
+
+ 
+    <div class="DPDBurgerNavPanel">
+        <div class="DPDBurgerNav">
+            <div id="modBurgerNavi_panDPDNavLoginPanel" class="DPDNavLoginPanel">
+                <a id="modBurgerNavi_hplAccountDetails" href="javascript:__doPostBack(&#39;ctl00$modBurgerNavi$hplAccountDetails&#39;,&#39;&#39;)" style="display:inline-block; margin: 23px 0 22px 20px;">
+                    <div style="float:left;width:17px;height:21px;">
+                        <img id="modBurgerNavi_imgAccountDetails" src="images/profile-inactive-desktop.svg" style="border-width:0px;" />
+                    </div>
+                    <div style="float:left;margin: 2px 0 2px 10px;">
+                        <span id="modBurgerNavi_labAccountDetails" style="font-size: 14px; color:#fff;">Anmelden</span>
+                    </div>
+                </a>
+                <img id="modBurgerNavi_imgCloseBtn" class="DPDCloseBurger" src="images/x-black.svg" style="border-width:0px;" />
+            </div>
+            <div>
+                
+                <div class="DPDMobileBurgerNav">
+                    
+                        <ul class="DPDBurgerNavList">
+                    
+                        <li id="modBurgerNavi_repMobileBurgerNav_liDPDBurgerNavLevel1_0" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMobileBurgerNav_hplBurgerNav_0" href="https://www.dpd.com/de/de/versenden/">Versenden</a>
+                            <div id="modBurgerNavi_repMobileBurgerNav_panToogleBurger_0" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/versenden/paketversand/">Paketversand</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/versenden/expressversand/">Express</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_2" href="https://www.dpd.com/de/de/versenden/internationaler-versand/">Internationaler Versand</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_3" href="https://www.dpd.com/de/de/versenden/e-commerce-versand/">E-Commerce</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_4" href="https://www.dpd.com/de/de/versenden/briefversand-geschaeftspost-versenden/">Brief</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_5" href="https://www.dpd.com/de/de/fulfillment/">Fulfillment</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_6" href="https://www.dpd.com/de/de/versenden/branchenloesungen/">Branchenlösungen</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_7" href="https://www.dpd.com/de/de/versenden/out-of-home-versand/">Out of Home Versand</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMobileBurgerNav_liDPDBurgerNavLevel1_1" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMobileBurgerNav_hplBurgerNav_1" href="https://www.dpd.com/de/de/empfangen/">Empfangen</a>
+                            <div id="modBurgerNavi_repMobileBurgerNav_panToogleBurger_1" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_1_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/empfangen/sendungsverfolgung-und-live-tracking/">Paketverfolgung</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_1_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/pickup-paketshops/paketshop-finden/">Paketshop/Station finden</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_1_hplBurgerNav2Sub_2" href="https://www.dpd.com/de/de/empfangen/dpd-app/">DPD App</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_1_hplBurgerNav2Sub_3" href="https://www.dpd.com/de/de/support/abstell-okay-bei-dpd/">Abstell-Okay</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMobileBurgerNav_liDPDBurgerNavLevel1_2" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMobileBurgerNav_hplBurgerNav_2" href="https://www.dpd.com/de/de/retoure/">Retournieren</a>
+                            <div id="modBurgerNavi_repMobileBurgerNav_panToogleBurger_2" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_2_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/pickup-paketshops/paketshop-finden/">Paketshop/Station finden</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_2_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/retoure/">Retouren-Management</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMobileBurgerNav_liDPDBurgerNavLevel1_3" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMobileBurgerNav_hplBurgerNav_3" href="https://www.dpd.com/de/de/mydpd-anmelden-und-registrieren/">myDPD</a>
+                            <div id="modBurgerNavi_repMobileBurgerNav_panToogleBurger_3" class="panToogleBurgerMob active">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_3_hplBurgerNav2Sub_0" href="https://my.dpd.de/myParcel.aspx">Meine Pakete</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_3_hplBurgerNav2Sub_1" href="https://my.dpd.de/sending/sendparcel.aspx">Paket versenden</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_3_hplBurgerNav2Sub_2" href="https://my.dpd.de/shopfinder.aspx">Paketshop/Station finden</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_3_hplBurgerNav2Sub_3" href="https://my.dpd.de/register/myLogin.aspx">Anmelden / Registrieren</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMobileBurgerNav_liDPDBurgerNavLevel1_4" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMobileBurgerNav_hplBurgerNav_4" href="https://www.dpd.com/de/de/support/">Support</a>
+                            <div id="modBurgerNavi_repMobileBurgerNav_panToogleBurger_4" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_4_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/support/empfaenger/">Hilfe für Empfänger</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_4_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/support/privatversender/">Hilfe für Privatversender</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_4_hplBurgerNav2Sub_2" href="https://www.dpd.com/de/de/support/geschaeftskunde/">Hilfe für Geschäftskunden</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMobileBurgerNav_repBurgerNavLevel2_4_hplBurgerNav2Sub_3" href="https://www.dpd.com/de/de/support/faq/">FAQ</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        </ul>
+                    
+                </div>
+                
+                
+                        <ul class="DPDBurgerNavList">
+                    
+                        <li id="modBurgerNavi_repMainBurgerNav_liDPDBurgerNavLevel1_0" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMainBurgerNav_hplBurgerNav_0" href="https://www.dpd.com/de/de/unternehmen/">Unternehmen</a>
+                            <div id="modBurgerNavi_repMainBurgerNav_panToogleBurger_0" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/unternehmen/news/">DPD News</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/unternehmen/presse/">Presse</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_2" href="https://www.dpd.com/de/de/unternehmen/innovationen/">Innovationen</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_3" href="https://www.dpd.com/de/de/unternehmen/soziale-verantwortung/">Soziale Verantwortung</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_4" href="https://www.dpd.com/de/de/unternehmen/messen-und-events/">Messen und Events</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_0_hplBurgerNav2Sub_5" href="https://www.dpd.com/de/de/unternehmen/zertifikate-von-dpd/">Zertifikate von DPD</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMainBurgerNav_liDPDBurgerNavLevel1_1" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMainBurgerNav_hplBurgerNav_1" href="https://www.dpd.com/de/de/nachhaltigkeit/">Nachhaltigkeit</a>
+                            
+                            
+                            
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMainBurgerNav_liDPDBurgerNavLevel1_2" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMainBurgerNav_hplBurgerNav_2" href="https://www.dpd.com/de/de/karriere/">Karriere bei DPD</a>
+                            <div id="modBurgerNavi_repMainBurgerNav_panToogleBurger_2" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_2_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/karriere/aktuelle-stellenangebote-und-jobs/">Jobs</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_2_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/karriere/bewerbung-und-tipps/">Bewerbungstipps</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_2_hplBurgerNav2Sub_2" href="https://www.dpd.com/de/de/support/faq/unternehmen-faq/#faq_unternehmen_karriere">Karriere FAQ</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMainBurgerNav_liDPDBurgerNavLevel1_3" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMainBurgerNav_hplBurgerNav_3" href="https://www.dpd.com/de/de/pickup-paketshops/">Pickup Paketshops</a>
+                            <div id="modBurgerNavi_repMainBurgerNav_panToogleBurger_3" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_3_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/pickup-paketshops/paketshop-finden/">Paketshop/Station finden</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_3_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/pickup-paketshops/paketshop-werden/">Paketshop werden</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_3_hplBurgerNav2Sub_2" href="https://www.dpd.com/de/de/dpd-paketstation-partner-werden/">Paketstation</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMainBurgerNav_liDPDBurgerNavLevel1_4" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMainBurgerNav_hplBurgerNav_4" href="https://www.dpd.com/de/de/lieferant-fuer-dpd/">Partner Einkauf</a>
+                            
+                            
+                            
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMainBurgerNav_liDPDBurgerNavLevel1_5" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMainBurgerNav_hplBurgerNav_5" href="https://www.dpd.com/de/de/logistikpartner/">Logistikpartner</a>
+                            <div id="modBurgerNavi_repMainBurgerNav_panToogleBurger_5" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_5_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/logistikpartner-nahverkehr-werden/">Partner Nahverkehr</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_5_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/logistikpartner-im-fernverkehr/">Partner Fernverkehr</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        <li id="modBurgerNavi_repMainBurgerNav_liDPDBurgerNavLevel1_6" class="DPDBurgerNavLevel1">
+                            <a id="modBurgerNavi_repMainBurgerNav_hplBurgerNav_6" href="https://www.dpd.com/de/de/entwickler-integration-in-ihre-versandloesung/">Entwickler</a>
+                            <div id="modBurgerNavi_repMainBurgerNav_panToogleBurger_6" class="panToogleBurgerMob">
+
+</div>
+                            
+                            
+                                    <div class="panBurgerSubNavMob">
+                                        <ul>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_6_hplBurgerNav2Sub_0" href="https://www.dpd.com/de/de/support/it-anbindung-und-dpd-schnittstellen/">IT Anbindung</a>
+                                        </li>
+                                
+                                        <li class="DPDBurgerNavLevel2">
+                                            <a id="modBurgerNavi_repMainBurgerNav_repBurgerNavLevel2_6_hplBurgerNav2Sub_1" href="https://www.dpd.com/de/de/support/it-anbindung-und-dpd-schnittstellen/partner-versandsysteme/">Versandsysteme</a>
+                                        </li>
+                                
+                                        </ul>
+                                    </div>
+                                
+                        </li>
+                    
+                        </ul>
+                    
+            </div>
+            <div style="display:inline-block; width: calc(100% - 54px); margin: 15px 34px 0 20px;">
+                 
+                <div style="float:right;">
+                    
+                </div>
+            </div>
+        </div>
+        <div class="DPDBurgerNavOverlayer"></div>
+    </div>
+            <div class="panContentPlaceHolder2">
+
+                
+    
+    <script type="text/javascript" async="async" defer="defer" src='js/adds/DPD_parcel-details_mapping.js?ver=1.027'></script>
+
+    <script type="text/javascript">console.log("FullPostbackTest");</script>
+    <!-- Add Integration End -->
+
+    <div id="ContentPlaceHolder1_uptMyParcel">
+	
+            <div id="ContentPlaceHolder1_ctl01" style="display:none;">
+		
+                    <div class="progressContainer">
+                        <div class="progressBackground">
+                        </div>
+                        <div class="loading">
+                            <img id="ContentPlaceHolder1_imgLoading" src="images/loading_big.gif" style="height:55px;width:55px;border-width:0px;" />
+                        </div>
+                    </div>
+                
+	</div>
+
+            <div class="panMobilHeaderPanel">
+                <div class="mobileHeaderText">
+                    <span id="ContentPlaceHolder1_labHeaderMobil" class="labSub16">Meine Pakete</span>
+                </div>
+                <div style="float: right; width: 21px; height: 47px; margin: 5px 10px;">
+                    <img id="ContentPlaceHolder1_imgBurger" class="DPDBurgerContentImageBtn" src="images/burger-menu.svg" style="border-width:0px;" />
+                </div>
+            </div>
+
+            
+
+            <div id="ContentPlaceHolder1_panParcelDetails" class="panParcelDetails" style="">
+		
+                <div id="ContentPlaceHolder1_panParcelListContainer" class="parcelListContainer">
+			
+                    <div id="ContentPlaceHolder1_panParcelList" class="parcelList">
+				
+                        
+                                <a id="ContentPlaceHolder1_repParcelList_btnSelectParcel_0" disabled="disabled" class="active btnSelectParcel" style="border-top: 0px !important;">
+                                    <div>
+                                        <span id="ContentPlaceHolder1_repParcelList_labParcelName_0" class="parcelName">DPD Paket</span><input type="hidden" name="ctl00$ContentPlaceHolder1$repParcelList$ctl00$hidParcelNo" id="ContentPlaceHolder1_repParcelList_hidParcelNo_0" value="09999999999999" /><span id="ContentPlaceHolder1_repParcelList_labParcelNo_0" class="parcelNo">09999999999999</span><span id="ContentPlaceHolder1_repParcelList_labDeliveryStatus_0" class="parcelDeliveryStatus">Auftragsdaten übermittelt </span><img id="ContentPlaceHolder1_repParcelList_imgDeliverStatus_0" src="images/status_1.svg" style="width:95px;border-width:0px;" />
+                                    </div>
+                                </a>
+                                <div id="ContentPlaceHolder1_repParcelList_panTestRepeaterAdd_0">
+
+				</div>
+                            
+                    
+			</div>
+                
+		</div>
+                <div class="parcelDetailsContainer">
+                    <input type="hidden" name="ctl00$ContentPlaceHolder1$hidParcelNo" id="ContentPlaceHolder1_hidParcelNo" value="09999999999999" />
+                    <input type="hidden" name="ctl00$ContentPlaceHolder1$hidZipCode" id="ContentPlaceHolder1_hidZipCode" />
+                    <input type="hidden" name="ctl00$ContentPlaceHolder1$hidParcelFlowTypeID" id="ContentPlaceHolder1_hidParcelFlowTypeID" value="0" />
+                    <input type="hidden" name="ctl00$ContentPlaceHolder1$hidUCID" id="ContentPlaceHolder1_hidUCID" />
+                    <input type="hidden" name="ctl00$ContentPlaceHolder1$hidWeight" id="ContentPlaceHolder1_hidWeight" />
+                    <input type="hidden" name="ctl00$ContentPlaceHolder1$hidParcelNoClicked" id="ContentPlaceHolder1_hidParcelNoClicked" />
+                    
+
+                    <div id="ContentPlaceHolder1_panNoAuthorization" class="parcelDetails" onkeypress="javascript:return WebForm_FireDefaultButton(event, &#39;ContentPlaceHolder1_btnAuthorizeParcel&#39;)">
+			
+                        
+                        <span id="ContentPlaceHolder1_labNoAuthorizationParcelName" class="labSub20"></span>
+                        <div>
+                            <span id="ContentPlaceHolder1_labNoAuthorizationParcelNo" class="labSub13"></span>
+                        </div>
+                        <div style="margin: 15px 0 20px 0;">
+                            <div style="display: inline-block; max-width: 350px; width: 100%;">
+                                <div style="float: left; width: 26px;" class="imgParcelStatus">
+                                    <img id="ContentPlaceHolder1_imgParcelStatus" src="images/status_1.svg" style="border-width:0px;" />
+                                </div>
+                                <div style="float: left; width: calc(100% - 20px);">
+                                    <div style="line-height: 20px">
+                                        <span id="ContentPlaceHolder1_labStatusStart" class="labSub13">Auftragsdaten an DPD übermittelt</span>
+                                        <span id="ContentPlaceHolder1_labStatusStartDate" class="labSub13 lSBold" style="float: right; margin-top: 3px;">27.09.</span>
+                                    </div>
+                                    <div style="margin-top: 6px; line-height: 20px">
+                                        <span id="ContentPlaceHolder1_labStatusOnTheRoad" class="labSub13">Paket unterwegs</span>
+                                        <span id="ContentPlaceHolder1_labStatusOnTheRoadDate" class="labSub13 lSBold" style="float: right; margin-top: 3px;"></span>
+                                    </div>
+                                    <div style="margin-top: 7px; line-height: 20px">
+                                        <span id="ContentPlaceHolder1_labStatusDeliveryDepot" class="labSub13">Paket im Paketzustellzentrum</span>
+                                        <span id="ContentPlaceHolder1_labStatusDeliveryDepotDate" class="labSub13 lSBold" style="float: right; margin-top: 3px;"></span>
+                                    </div>
+                                    <div style="margin-top: 6px; line-height: 20px">
+                                        <span id="ContentPlaceHolder1_labStatusCarLoad" class="labSub13">Paket in Zustellung</span>
+                                        <span id="ContentPlaceHolder1_labStatusCarLoadDate" class="labSub13 lSBold" style="float: right; margin-top: 3px;"></span>
+                                    </div>
+                                    <div style="margin-top: 6px; line-height: 20px">
+                                        <span id="ContentPlaceHolder1_labStatusDelivered" class="labSub13">Paket zugestellt</span>
+                                        <span id="ContentPlaceHolder1_labStatusDeliveredDate" class="labSub13 lSBold" style="float: right; margin-top: 3px;"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="ContentPlaceHolder1_divRedirectParcel" class="redirectPanel">
+                            <div>
+                                <span id="ContentPlaceHolder1_labMoreDetailsHead" class="labSub20">Benötigen Sie detailliertere Infos?</span>
+                            </div>
+                            <div style="margin: 10px 0 0">
+                                <span id="ContentPlaceHolder1_labMoreDetailsSub" class="labSub13">Bitte geben Sie die Postleitzahl der Empfangsadresse ein, um sich zu identifizieren.</span>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <span id="ContentPlaceHolder1_labSecuritysSub" class="labSub13">Die Abfrage der Postleitzahl dient zu Ihrer Sicherheit, damit Unbefugte keinen Zugriff auf Ihre Pakete haben.</span>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <input name="ctl00$ContentPlaceHolder1$txtPostcode" type="text" id="ContentPlaceHolder1_txtPostcode" class="lightTextbox" required="true" style="margin-top: 3px;" />
+                                <label for="txtPostcode">
+                                    <span id="ContentPlaceHolder1_labPostcode">Postleitzahl</span></label>
+                                <a href="#" class="clearBtn" tabindex="-1">X</a>
+                            </div>
+                            
+                            <input type="hidden" name="ctl00$ContentPlaceHolder1$hidDisplayCaptcha" id="ContentPlaceHolder1_hidDisplayCaptcha" />
+                            <div class="form2Colum">
+                                <div>
+                                    <a id="ContentPlaceHolder1_btnAuthorizeParcel" class="btnDefaultRed" href="javascript:__doPostBack(&#39;ctl00$ContentPlaceHolder1$btnAuthorizeParcel&#39;,&#39;&#39;)">Weiter</a>
+                                </div>
+                            </div>
+                        </div>
+                    
+		</div>
+                </div>
+            
+	</div>
+        
+</div>
+    <div id="ContentPlaceHolder1_divParcelDetailsVertical">
+        <div id="de_parcel-details_vertical-left_extralarge3"></div>
+        <div id="de_parcel-details_vertical-right_extralarge2"></div>
+        <div id="de_parcel-details_vertical-right_extralarge3"></div>
+    </div>
+
+            </div>
+        </div>
+        
+<div style="width: 100%; position: absolute; bottom: 0;">
+    <link rel="stylesheet" href='less/DPDFooter.less' />
+    
+    <div class="footerContainer">
+        <div class="DPDFooter">
+            <div style="float: left; width: 120px; height: 30px;">
+                <a id="modFooter_hplDPDGroup" href="https://www.geopost.com/en/" target="_blank"><img id="modFooter_imgDPDGroup" src="images/DPD_Group_Logo.svg" style="border-width:0px;float: left; width: 120px; height: 30px;" /></a>
+            </div>
+            
+            <div class="DPDFootDisclaimer">
+                <div>
+                    <a id="modFooter_btnImprint" href="javascript:__doPostBack(&#39;ctl00$modFooter$btnImprint&#39;,&#39;&#39;)">Legal and Copyright Notice / Dispute Settlement</a>
+                </div>
+                <div>
+                    <a id="modFooter_btnLegal" href="javascript:__doPostBack(&#39;ctl00$modFooter$btnLegal&#39;,&#39;&#39;)">Legal notices</a>
+                </div>
+                <div>
+                    <a id="modFooter_btnGTC" href="javascript:__doPostBack(&#39;ctl00$modFooter$btnGTC&#39;,&#39;&#39;)">GTC</a>
+                </div>
+                <div>
+                   
+                    <a id="modFooter_hplCancelOrder" href="sending/cancellation.aspx" target="_blank">Cancel the contract</a>
+                </div>
+                <div>
+                    <a id="modFooter_btnAccessibility" href="javascript:__doPostBack(&#39;ctl00$modFooter$btnAccessibility&#39;,&#39;&#39;)">Accessibility</a>
+                </div>
+                <div>
+                    <a id="modFooter_btnDataprotection" href="javascript:__doPostBack(&#39;ctl00$modFooter$btnDataprotection&#39;,&#39;&#39;)">Data protection</a>
+                </div>
+                <div>
+                    
+                    
+                    <a id="modFooter_btnCookie" href="javascript:window.__cmp(&#39;showScreen&#39;);">Cookies</a>
+                </div>
+                <div>
+                    <a id="modFooter_btnSecurity" href="javascript:__doPostBack(&#39;ctl00$modFooter$btnSecurity&#39;,&#39;&#39;)">Security</a>
+                </div>
+                
+                <div>
+                    <a id="modFooter_btnDPDgroup" href="https://www.geopost.com/en/">Geopost</a>
+                </div>
+
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+        <div class="overlayerBurger"></div>
+    
+<script type="text/javascript">var adHandler = adHandler || { cmd: [] };adHandler.cmd.push(function () {console.log('scriptloadtest'); });</script><script type ='text/javascript'>console.log("UpdatepanelTest");</script>
+<script type="text/javascript">
+//<![CDATA[
+Sys.Application.add_init(function() {
+    $create(Sys.UI._UpdateProgress, {"associatedUpdatePanelId":null,"displayAfter":500,"dynamicLayout":true}, null, null, $get("ContentPlaceHolder1_ctl01"));
+});
+//]]>
+</script>
+</form>
+</body>
+</html>

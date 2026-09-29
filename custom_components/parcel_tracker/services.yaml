@@ -1,0 +1,34 @@
+add_parcel:
+  fields:
+    number:
+      required: true
+      selector:
+        text:
+    carrier:
+      default: auto
+      selector:
+        select:
+          options: ["auto", "dhl", "dpd"]
+    name:
+      selector:
+        text:
+remove_parcel:
+  fields:
+    number:
+      required: true
+      selector:
+        text:
+rename_parcel:
+  fields:
+    number:
+      required: true
+      selector:
+        text:
+    name:
+      selector:
+        text:
+refresh:
+  fields:
+    number:
+      selector:
+        text:

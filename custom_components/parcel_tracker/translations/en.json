@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Parcel Tracker",
+        "description": "DHL needs a free API key from developer.dhl.com (API \"Shipment Tracking – Unified\"); you can add it later. The postcode (optional, e.g. 10115) lets DHL return more details.",
+        "data": {
+          "dhl_api_key": "DHL API key (optional)",
+          "postcode": "Postcode (optional)",
+          "keep_delivered_days": "Hide delivered parcels after (days)"
+        },
+        "data_description": {
+          "postcode": "e.g. 10115"
+        }
+      },
+      "reauth_confirm": {
+        "title": "DHL API key rejected",
+        "description": "Enter a valid DHL API key.",
+        "data": {"dhl_api_key": "DHL API key"}
+      }
+    },
+    "error": {
+      "invalid_key": "DHL rejected this API key.",
+      "cannot_connect": "Couldn't reach DHL. Try again later.",
+      "invalid_postcode": "Enter a 5-digit postcode."
+    },
+    "abort": {
+      "single_instance_allowed": "Parcel Tracker is already set up.",
+      "reauth_successful": "API key updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Parcel Tracker options",
+        "data": {
+          "dhl_api_key": "DHL API key",
+          "postcode": "Postcode (optional)",
+          "keep_delivered_days": "Hide delivered parcels after (days)"
+        },
+        "data_description": {
+          "postcode": "e.g. 10115"
+        }
+      }
+    },
+    "error": {
+      "invalid_key": "DHL rejected this API key.",
+      "cannot_connect": "Couldn't reach DHL. Try again later.",
+      "invalid_postcode": "Enter a 5-digit postcode."
+    }
+  },
+  "issues": {
+    "dhl_auth": {
+      "title": "DHL API key rejected",
+      "description": "DHL no longer accepts the API key. Open the Parcel Tracker integration and enter a new key."
+    },
+    "carrier_broken": {
+      "title": "{carrier} tracking not working",
+      "description": "Every {carrier} request failed for 24 hours. The carrier may have changed its website. Check for an update of Parcel Tracker."
+    }
+  },
+  "exceptions": {
+    "duplicate": {"message": "This parcel is already in the list."},
+    "amazon": {"message": "Amazon's own tracking numbers aren't supported yet."},
+    "empty": {"message": "Enter a tracking number."},
+    "unknown_carrier": {"message": "Unknown carrier."},
+    "not_tracked": {"message": "This parcel isn't in the list."}
+  },
+  "entity": {
+    "sensor": {
+      "parcel": {
+        "state": {
+          "pre_transit": "Announced",
+          "in_transit": "In transit",
+          "at_delivery_depot": "At delivery depot",
+          "out_for_delivery": "Out for delivery",
+          "awaiting_pickup": "Ready for pickup",
+          "delivered": "Delivered",
+          "exception": "Problem",
+          "unknown": "Unknown"
+        }
+      },
+      "today": {"name": "Parcels today"}
+    },
+    "calendar": {"deliveries": {"name": "Parcels"}}
+  },
+  "services": {
+    "add_parcel": {
+      "name": "Add parcel",
+      "description": "Start tracking a parcel.",
+      "fields": {
+        "number": {"name": "Tracking number", "description": "As printed, spaces allowed."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl or dpd."},
+        "name": {"name": "Name", "description": "Optional label."}
+      }
+    },
+    "remove_parcel": {
+      "name": "Remove parcel",
+      "description": "Stop tracking a parcel.",
+      "fields": {"number": {"name": "Tracking number", "description": "Parcel to remove."}}
+    },
+    "rename_parcel": {
+      "name": "Rename parcel",
+      "description": "Change a parcel's label.",
+      "fields": {
+        "number": {"name": "Tracking number", "description": "Parcel to rename."},
+        "name": {"name": "Name", "description": "New label, empty to clear."}
+      }
+    },
+    "refresh": {
+      "name": "Refresh",
+      "description": "Poll now.",
+      "fields": {"number": {"name": "Tracking number", "description": "Empty for all parcels."}}
+    }
+  }
+}

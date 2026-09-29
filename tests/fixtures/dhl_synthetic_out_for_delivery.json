@@ -1,0 +1,42 @@
+{
+  "shipments": [
+    {
+      "id": "00340999999999999901",
+      "service": "parcel-de",
+      "status": {
+        "timestamp": "2026-09-29T08:12:00",
+        "location": {"address": {"addressLocality": "Bonn", "countryCode": "DE"}},
+        "statusCode": "transit",
+        "status": "Die Sendung wurde in das Zustellfahrzeug geladen.",
+        "description": "Die Sendung wurde in das Zustellfahrzeug geladen."
+      },
+      "estimatedTimeOfDelivery": "2026-09-29T14:00:00",
+      "estimatedTimeOfDeliveryTimeFrame": {
+        "estimatedFrom": "2026-09-29T14:00:00",
+        "estimatedThrough": "2026-09-29T16:00:00"
+      },
+      "events": [
+        {
+          "timestamp": "2026-09-29T08:12:00",
+          "location": {"address": {"addressLocality": "Bonn"}},
+          "statusCode": "transit",
+          "status": "Die Sendung wurde in das Zustellfahrzeug geladen.",
+          "description": "Die Sendung wurde in das Zustellfahrzeug geladen."
+        },
+        {
+          "timestamp": "2026-09-29T04:30:00",
+          "location": {"address": {"addressLocality": "Bonn"}},
+          "statusCode": "transit",
+          "status": "Die Sendung ist in der Zustellbasis eingetroffen.",
+          "description": "Die Sendung ist in der Zustellbasis eingetroffen."
+        },
+        {
+          "timestamp": "2026-09-28T19:02:00",
+          "statusCode": "pre-transit",
+          "status": "Die Auftragsdaten zu dieser Sendung wurden vom Absender elektronisch an DHL übermittelt.",
+          "description": "Die Auftragsdaten zu dieser Sendung wurden vom Absender elektronisch an DHL übermittelt."
+        }
+      ]
+    }
+  ]
+}
