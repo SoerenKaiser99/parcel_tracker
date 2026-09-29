@@ -31,6 +31,23 @@ const ERROR_TEXT = {
   rate_limited: "Zu viele Abfragen – nächster Versuch später",
 };
 
+const SERVICE_ERRORS = {
+  duplicate: "Dieses Paket ist schon in der Liste.",
+  amazon: "Amazon-eigene Nummern werden noch nicht unterstützt.",
+  empty: "Gib eine Sendungsnummer ein.",
+  unknown_carrier: "Unbekannter Carrier.",
+  not_tracked: "Dieses Paket ist nicht in der Liste.",
+};
+
+function errorText(e) {
+  const keys = [e && e.translation_key, e && e.code, e && e.error && e.error.translation_key, e && e.error && e.error.code];
+  for (const k of keys) {
+    if (typeof k === "string" && Object.prototype.hasOwnProperty.call(SERVICE_ERRORS, k)) return SERVICE_ERRORS[k];
+  }
+  const msg = e && (e.message || (e.error && e.error.message));
+  return "Das hat nicht geklappt: " + esc(msg == null ? "" : msg);
+}
+
 function etaText(state, a) {
   if (state === DONE) {
     if (!a.delivered_at) return "Zugestellt";
@@ -50,6 +67,8 @@ class ParcelTrackerCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
     this._open = new Set();
+    this._renaming = new Map(); // number -> current input text
+    this._confirming = new Set(); // numbers awaiting delete confirmation
     this._error = "";
   }
 
@@ -73,7 +92,9 @@ class ParcelTrackerCard extends HTMLElement {
     const parcels = this._parcels();
     return parcels.map((st) => `${st.entity_id}:${st.last_updated}`).join(",")
       + "|today:" + (today ? today.last_updated : "")
-      + "|open:" + Array.from(this._open).sort().join(",");
+      + "|open:" + Array.from(this._open).sort().join(",")
+      + "|ren:" + Array.from(this._renaming.keys()).sort().join(",")
+      + "|del:" + Array.from(this._confirming).sort().join(",");
   }
 
   _parcels() {
@@ -113,6 +134,8 @@ class ParcelTrackerCard extends HTMLElement {
         .done { opacity:.55; }
         .detail { margin-top:10px; font-size:12px; color:var(--secondary-text-color); line-height:1.6; }
         .actions { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+        .actions input { flex:1 1 140px; }
+        button.danger { color:var(--error-color); border-color:var(--error-color); }
         .stale { font-size:12px; color:var(--warning-color); }
         svg { width:18px; height:18px; flex:none; }
       </style>
@@ -130,7 +153,7 @@ class ParcelTrackerCard extends HTMLElement {
         <div id="list"></div>
       </ha-card>`;
     const $ = (id) => this._root.getElementById(id);
-    $("num").addEventListener("input", () => { this._error = ""; $("err").textContent = ""; });
+    $("num").addEventListener("input", () => { this._setError(""); });
     $("add").addEventListener("click", () => this._add());
     $("num").addEventListener("keydown", (e) => { if (e.key === "Enter") this._add(); });
   }
@@ -138,14 +161,31 @@ class ParcelTrackerCard extends HTMLElement {
   async _add() {
     const $ = (id) => this._root.getElementById(id);
     const number = $("num").value.trim();
-    if (!number) { $("err").textContent = "Gib eine Sendungsnummer ein."; return; }
+    if (!number) { this._setError(SERVICE_ERRORS.empty); return; }
     try {
       await this._hass.callService("parcel_tracker", "add_parcel", {
         number, carrier: $("car").value, ...($("nm").value.trim() ? { name: $("nm").value.trim() } : {}),
-      });
+      }, undefined, false);
+      this._setError("");
       $("num").value = ""; $("nm").value = ""; $("car").value = "auto";
     } catch (e) {
-      $("err").textContent = e.message || "Paket konnte nicht hinzugefügt werden.";
+      this._setError(errorText(e));
+    }
+  }
+
+  _setError(html) {
+    this._error = html;
+    this._root.getElementById("err").innerHTML = html;
+  }
+
+  async _call(service, data) {
+    try {
+      await this._hass.callService("parcel_tracker", service, data, undefined, false);
+      this._setError("");
+      return true;
+    } catch (e) {
+      this._setError(errorText(e));
+      return false;
     }
   }
 
@@ -155,12 +195,65 @@ class ParcelTrackerCard extends HTMLElement {
     return `<svg viewBox="0 0 24 24" aria-label="${esc(carrier)}"><path fill="${ic.color}" d="${ic.path}"/></svg>`;
   }
 
+  _actionsHtml(a) {
+    const n = esc(a.number);
+    if (this._renaming.has(a.number)) {
+      return `<div class="actions">
+        <input type="text" data-a="rename-input" data-number="${n}" aria-label="Neuer Name" value="${esc(this._renaming.get(a.number))}" autocomplete="off">
+        <button type="button" data-a="rename-save" data-number="${n}">Speichern</button>
+        <button type="button" data-a="rename-cancel" data-number="${n}">Abbrechen</button></div>`;
+    }
+    if (this._confirming.has(a.number)) {
+      return `<div class="actions" role="group" aria-label="Löschen bestätigen">
+        <button type="button" class="danger" data-a="remove-confirm" data-number="${n}">Wirklich löschen?</button>
+        <button type="button" data-a="remove-cancel" data-number="${n}">Abbrechen</button></div>`;
+    }
+    return `<div class="actions"><button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
+  }
+
+  _wireActions(item, a) {
+    const on = (act, fn) => {
+      const el = item.querySelector(`[data-a="${act}"]`);
+      if (el) el.addEventListener("click", fn);
+    };
+    const num = a.number;
+    on("rename", () => { this._confirming.delete(num); this._renaming.set(num, a.name || ""); this._renderList(); });
+    on("rename-cancel", () => { this._renaming.delete(num); this._renderList(); });
+    const save = async () => {
+      const name = this._renaming.get(num);
+      if (name === undefined) return;
+      if (await this._call("rename_parcel", { number: num, name: name.trim() })) {
+        this._renaming.delete(num);
+        this._renderList();
+      }
+    };
+    on("rename-save", save);
+    const input = item.querySelector('[data-a="rename-input"]');
+    if (input) {
+      input.addEventListener("input", () => this._renaming.set(num, input.value));
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); save(); }
+        else if (e.key === "Escape") { e.preventDefault(); this._renaming.delete(num); this._renderList(); }
+      });
+    }
+    on("remove", () => { this._renaming.delete(num); this._confirming.add(num); this._renderList(); });
+    on("remove-cancel", () => { this._confirming.delete(num); this._renderList(); });
+    on("remove-confirm", async () => {
+      if (await this._call("remove_parcel", { number: num })) {
+        this._confirming.delete(num);
+        this._open.delete(num);
+        this._renderList();
+      }
+    });
+  }
+
   _renderList() {
     const list = this._root.getElementById("list");
     const focused = this._root.activeElement;
     const focusKey =
       focused && list.contains(focused) && focused.dataset && focused.dataset.number != null
-        ? { number: focused.dataset.number, a: focused.dataset.a }
+        ? { number: focused.dataset.number, a: focused.dataset.a,
+            selStart: focused.selectionStart, selEnd: focused.selectionEnd }
         : null;
     const parcels = this._parcels();
     const today = this._hass.states["sensor.pakete_heute"];
@@ -191,35 +284,12 @@ class ParcelTrackerCard extends HTMLElement {
           <span class="top"><span class="name">${this._icon(a.carrier)}<span>${esc(a.name || a.number)}</span></span>${right}</span>
         </button>
         <div class="sub">${sub}</div>${bar}${stale}
-        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>
-          <div class="actions"><button type="button" data-a="rename" data-number="${esc(a.number)}">Umbenennen</button><button type="button" data-a="remove" data-number="${esc(a.number)}">Löschen</button></div>` : ""}`;
+        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${this._actionsHtml(a)}` : ""}`;
       item.querySelector(".row-toggle").addEventListener("click", () => {
         open ? this._open.delete(a.number) : this._open.add(a.number);
         this._renderList();
       });
-      const renameBtn = item.querySelector('[data-a="rename"]');
-      if (renameBtn) {
-        renameBtn.addEventListener("click", async () => {
-          const n = prompt("Neuer Name", a.name || "");
-          if (n === null) return;
-          try {
-            await this._hass.callService("parcel_tracker", "rename_parcel", { number: a.number, name: n });
-          } catch (e) {
-            this._root.getElementById("err").textContent = e.message || "Paket konnte nicht umbenannt werden.";
-          }
-        });
-      }
-      const removeBtn = item.querySelector('[data-a="remove"]');
-      if (removeBtn) {
-        removeBtn.addEventListener("click", async () => {
-          if (!confirm(`${a.name || a.number} entfernen?`)) return;
-          try {
-            await this._hass.callService("parcel_tracker", "remove_parcel", { number: a.number });
-          } catch (e) {
-            this._root.getElementById("err").textContent = e.message || "Paket konnte nicht entfernt werden.";
-          }
-        });
-      }
+      this._wireActions(item, a);
       list.appendChild(item);
     }
     if (!parcels.length) list.innerHTML = `<div class="sub">Noch keine Pakete. Trag oben eine Sendungsnummer ein.</div>`;
@@ -227,6 +297,9 @@ class ParcelTrackerCard extends HTMLElement {
       for (const el of list.querySelectorAll("[data-a]")) {
         if (el.dataset.number === focusKey.number && el.dataset.a === focusKey.a) {
           el.focus();
+          if (focusKey.selStart != null && el.setSelectionRange) {
+            try { el.setSelectionRange(focusKey.selStart, focusKey.selEnd); } catch (_) { /* not a text input */ }
+          }
           break;
         }
       }
