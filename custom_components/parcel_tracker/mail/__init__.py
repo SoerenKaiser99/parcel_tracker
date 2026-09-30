@@ -4,8 +4,16 @@ from __future__ import annotations
 
 from email.message import EmailMessage
 
-from .amazon import AMAZON_SENDERS, LEGACY_PREFIX, parse_amazon, parse_amazon_legacy, subject_status
+from .amazon import (
+    AMAZON_SENDERS,
+    LEGACY_PREFIXES,
+    parse_amazon,
+    parse_amazon_legacy,
+    subject_status,
+)
 from .base import MailResult, body_text, sender, subject
+from .ebay import EBAY_SENDER, parse_ebay
+from .hermes import HERMES_SENDER, parse_hermes_mail
 from .shipping import DHL_SENDER, UPS_SENDER, parse_dhl_mail, parse_generic, parse_ups_mail
 
 IGNORED_SENDERS = frozenset(
@@ -30,13 +38,17 @@ def parse_mail(msg: EmailMessage, read_otp: bool = False) -> MailResult:
     address, _ = sender(msg)
     if is_ignored(address):
         return MailResult(ignored=True)
+    if address == EBAY_SENDER:
+        # eBay mails never go to the generic parser: their item numbers look like
+        # tracking numbers. Unknown subjects are simply unrecognised.
+        return MailResult(updates=parse_ebay(msg))
     subj = subject(msg)
     # Only mails Amazon sent itself count towards the "Amazon unrecognised" issue;
     # a hand-forwarded mail that doesn't parse is just an ordinary unknown mail.
     real_amazon = address.endswith("@amazon.de")
     forwarded_amazon = subject_status(subj) is not None and "Bestellnr." in body_text(msg)
     if address in AMAZON_SENDERS or forwarded_amazon:
-        if subj.startswith(LEGACY_PREFIX):
+        if subj.startswith(LEGACY_PREFIXES):
             updates = parse_amazon_legacy(msg)
         else:
             updates = parse_amazon(msg, read_otp)
@@ -46,5 +58,7 @@ def parse_mail(msg: EmailMessage, read_otp: bool = False) -> MailResult:
     if address == DHL_SENDER and (updates := parse_dhl_mail(msg)):
         return MailResult(updates=updates)
     if address == UPS_SENDER and (updates := parse_ups_mail(msg)):
+        return MailResult(updates=updates)
+    if address == HERMES_SENDER and (updates := parse_hermes_mail(msg)):
         return MailResult(updates=updates)
     return MailResult(updates=parse_generic(msg))

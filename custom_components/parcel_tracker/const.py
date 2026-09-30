@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
@@ -15,6 +15,10 @@ CONF_IMAP_PASSWORD = "imap_password"
 CONF_MOVE_PROCESSED = "move_processed"
 CONF_READ_OTP = "read_otp"
 CONF_MAIL_INTERVAL = "mail_interval"
+CONF_UPS_SECTION = "ups"
+CONF_UPS_CLIENT_ID = "ups_client_id"
+CONF_UPS_CLIENT_SECRET = "ups_client_secret"
+CONF_UPS_BUDGET = "ups_monthly_budget"
 
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
@@ -27,6 +31,9 @@ DEFAULT_READ_OTP = False
 DEFAULT_MAIL_INTERVAL = 5
 MIN_MAIL_INTERVAL = 1
 MAX_MAIL_INTERVAL = 60
+DEFAULT_UPS_BUDGET = 100
+MIN_UPS_BUDGET = 0
+MAX_UPS_BUDGET = 10000
 
 TICK = timedelta(minutes=1)
 DHL_DAILY_SOFT_LIMIT = 200
@@ -43,9 +50,22 @@ LOCAL_CARD_URL = "/local/parcel_tracker/parcel-tracker-card.js"
 CARRIER_AUTO = "auto"
 MAX_EVENTS = 5
 
-# Carriers whose status only comes from mails; they are never polled.
-MAIL_CARRIERS = frozenset({"amazon", "ups"})
-CARRIER_NAMES = {"dhl": "DHL", "dpd": "DPD", "amazon": "Amazon", "ups": "UPS"}
+# Shops whose orders become parcels ("AMZ…", "EBAY…"); only mails or a merged
+# carrier number (tracking_ref) tell their status, the order itself is never polled.
+SHOP_CARRIERS = frozenset({"amazon", "ebay"})
+MAIL_CARRIERS = SHOP_CARRIERS
+# Polled only while their optional API is configured; otherwise mail-only.
+OPTIONAL_API_CARRIERS = frozenset({"ups"})
+# Carriers a user can pick for a manually added parcel.
+SELECTABLE_CARRIERS = ("dhl", "dpd", "hermes", "ups")
+CARRIER_NAMES = {
+    "dhl": "DHL",
+    "dpd": "DPD",
+    "hermes": "Hermes",
+    "ups": "UPS",
+    "amazon": "Amazon",
+    "ebay": "eBay",
+}
 
 # Base of the error backoff (5, 10, 20, 40, 60 min); the regular schedule is an option.
 MAIL_INTERVAL = timedelta(minutes=5)

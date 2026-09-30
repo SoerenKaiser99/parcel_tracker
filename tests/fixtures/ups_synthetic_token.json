@@ -1,0 +1,13 @@
+{
+  "_synthetic": "Synthetic: built from the official UPS Track API schema (OpenAPI Tracking.yaml, github.com/UPS-API/api-documentation, operation getSingleTrackResponseUsingGET); not a real UPS response.",
+  "response": {
+    "token_type": "Bearer",
+    "issued_at": "1790000000000",
+    "client_id": "synthetic-client",
+    "access_token": "synthetic-token-1",
+    "scope": "",
+    "expires_in": "14399",
+    "refresh_count": "0",
+    "status": "approved"
+  }
+}

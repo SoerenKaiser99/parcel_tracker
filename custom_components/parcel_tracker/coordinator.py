@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import email
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from email import policy
 
@@ -19,11 +19,13 @@ from .carriers.base import (
     AuthError,
     Carrier,
     CarrierUnavailable,
+    Match,
     MissingCredentials,
     NotFound,
     ParseError,
     RateLimited,
 )
+from .carriers.ups import BudgetExhausted, UpsCarrier, next_month_start
 from .const import (
     AMAZON_UNRECOGNIZED_LIMIT,
     CARRIER_AUTO,
@@ -45,6 +47,7 @@ from .const import (
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
     MAIL_MAX_BACKOFF,
+    OPTIONAL_API_CARRIERS,
     TICK,
 )
 from .detect import candidates, normalize
@@ -52,7 +55,7 @@ from .mail import parse_mail
 from .mail.apply import Change, apply_update
 from .mail.base import MailResult, sent_at
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
-from .models import Parcel
+from .models import Parcel, ParcelStatus, TrackingResult
 from .schedule import backoff, poll_interval, should_remove
 from .store import ParcelStore
 
@@ -147,10 +150,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     async def _async_update_data(self) -> dict[str, Parcel]:
         async with self._lock:
             now = dt_util.utcnow()
+            self._check_ups_budget(now)
             changed = self._cleanup(now)
             for parcel in list(self.store.parcels.values()):
-                if parcel.poll_target is None:
-                    continue  # mail-only carrier: status comes from mails
+                if not self._pollable(parcel):
+                    continue  # mail-only: status comes from mails
                 if parcel.next_poll_at is None or parcel.next_poll_at <= now:
                     if parcel.status is not None and poll_interval(parcel.status, now) is None:
                         continue
@@ -294,6 +298,35 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self._fire(parcel, change.old_status)
 
     # ----- polling -----
+    def _check_ups_budget(self, now: datetime) -> None:
+        """Once UPS calls are possible again (new month, higher budget), poll waiting parcels."""
+        ups = self.carriers.get("ups")
+        if isinstance(ups, UpsCarrier) and not ups.exhausted(now):
+            ir.async_delete_issue(self.hass, DOMAIN, "ups_budget")
+            for parcel in self.store.parcels.values():
+                if parcel.last_error == "ups_budget":
+                    parcel.next_poll_at = None
+
+    def _budget_used_up(self, parcel: Parcel, now: datetime) -> None:
+        """UPS only from mails until the month is over."""
+        parcel.last_error = "ups_budget"
+        parcel.next_poll_at = next_month_start(now)
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            "ups_budget",
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="ups_budget",
+        )
+
+    def _pollable(self, parcel: Parcel) -> bool:
+        """A carrier can be asked (UPS only while its API is configured)."""
+        target = parcel.poll_target
+        if target is None:
+            return False
+        return target[0] not in OPTIONAL_API_CARRIERS or target[0] in self.carriers
+
     def _count_dhl(self, now: datetime) -> None:
         today = dt_util.as_local(now).date()
         if self._dhl_day != today:
@@ -302,51 +335,64 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     async def _poll_safely(self, parcel: Parcel, now: datetime) -> None:
         """Poll one parcel, never letting an unexpected error take down the refresh."""
+        tried: list[str] = []
         try:
-            await self._poll(parcel, now)
+            await self._poll(parcel, now, tried)
         except Exception:  # noqa: BLE001 - isolate one bad parcel from the rest
             _LOGGER.exception("Unexpected error polling %s", parcel.number)
             self._fail(parcel, now, parcel.carrier or "unknown", "unavailable", backoff_only=True)
+        if "ups" in tried:
+            self._ups_floor(parcel, now)
 
-    async def _poll(self, parcel: Parcel, now: datetime) -> None:
-        target = parcel.poll_target
-        if target is None:
+    def _ups_floor(self, parcel: Parcel, now: datetime) -> None:
+        """Every UPS call costs budget: never ask again sooner than the UPS interval,
+        whatever went wrong (not found, errors, backoff)."""
+        if parcel.next_poll_at is None:
             return
-        carrier_key, number = target
+        interval = poll_interval(parcel.status, now, "ups")
+        if interval is not None and parcel.next_poll_at < now + interval:
+            parcel.next_poll_at = now + interval
+
+    async def _poll(self, parcel: Parcel, now: datetime, tried: list[str]) -> None:
+        if not self._pollable(parcel):
+            return
+        carrier_key, number = parcel.poll_target
         if carrier_key:
             keys = [carrier_key] if carrier_key in self.carriers else []
         else:
             keys = candidates(number, self.carriers)
+        probing = carrier_key is None  # "Automatisch": no carrier failure counted yet
         parcel.last_poll_at = now
         if not keys:
             parcel.last_error = "carrier_not_found"
             parcel.next_poll_at = now + timedelta(hours=1)
             return
         last_error = "not_found"
+        # With several candidates a failing one must not stop the others.
+        deferred: tuple[str, Exception] | None = None
         for key in keys:
             carrier = self.carriers[key]
+            tried.append(key)
             if key == "dhl":
                 self._count_dhl(now)
             try:
                 result = await carrier.fetch(number, self._postcode)
             except NotFound:
                 continue
+            except BudgetExhausted:
+                self._budget_used_up(parcel, now)
+                return
             except MissingCredentials:
                 last_error = "missing_key"
                 continue
             except AuthError:
                 self._fail(parcel, now, key, "auth", backoff_only=True)
-                if key == "dhl":
-                    self._auth_issue()
+                self._auth_issue(key)
                 return
-            except RateLimited as err:
-                parcel.last_error = "rate_limited"
-                parcel.next_poll_at = now + timedelta(seconds=err.retry_after or 3600)
-                return
-            except (CarrierUnavailable, ParseError) as err:
+            except (RateLimited, CarrierUnavailable, ParseError) as err:
                 _LOGGER.debug("%s failed for %s: %s", key, parcel.number, err)
-                self._fail(parcel, now, key, "unavailable")
-                return
+                deferred = deferred or (key, err)
+                continue
             except Exception:  # noqa: BLE001 - never let one carrier bug break polling
                 _LOGGER.exception("Unexpected error polling %s", parcel.number)
                 self._fail(parcel, now, key, "unavailable", backoff_only=True)
@@ -354,6 +400,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             else:
                 self._success(parcel, now, key, result)
                 return
+        if deferred is not None:
+            key, err = deferred
+            if isinstance(err, RateLimited):
+                parcel.last_error = "rate_limited"
+                parcel.next_poll_at = now + timedelta(seconds=err.retry_after or 3600)
+            else:
+                self._fail(parcel, now, key, "unavailable", backoff_only=probing)
+            return
         parcel.last_error = last_error
         parcel.next_poll_at = now + timedelta(hours=1)
 
@@ -378,11 +432,27 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 translation_placeholders={"carrier": self.carriers[key].name},
             )
 
-    def _success(self, parcel: Parcel, now: datetime, key: str, result) -> None:
+    def _success(self, parcel: Parcel, now: datetime, key: str, result: TrackingResult) -> None:
         self._first_fail.pop(key, None)
         ir.async_delete_issue(self.hass, DOMAIN, f"carrier_broken_{key}")
-        if key == "dhl":
-            ir.async_delete_issue(self.hass, DOMAIN, "dhl_auth")
+        if key in ("dhl", "ups"):
+            ir.async_delete_issue(self.hass, DOMAIN, f"{key}_auth")
+        known = parcel.result
+        if (
+            key == "hermes"
+            and result.eta_date is None
+            and known is not None
+            and known.eta_date is not None
+            and result.status is not ParcelStatus.DELIVERED
+        ):
+            # The Hermes API tells no day: keep what a mail said.
+            result = replace(
+                result,
+                eta_date=known.eta_date,
+                eta_latest=known.eta_latest,
+                eta_from=known.eta_from,
+                eta_to=known.eta_to,
+            )
         old = parcel.status
         if parcel.carrier is None:
             parcel.carrier = key
@@ -392,7 +462,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel.last_error = None
         parcel.error_streak = 0
         parcel.first_error_at = None
-        interval = poll_interval(result.status, now)
+        interval = poll_interval(result.status, now, key)
         if interval and key == "dhl" and self._dhl_calls > DHL_DAILY_SOFT_LIMIT:
             interval *= 2
         parcel.next_poll_at = now + interval if interval else None
@@ -416,28 +486,38 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             },
         )
 
-    def _auth_issue(self) -> None:
+    def _auth_issue(self, key: str) -> None:
+        if key not in ("dhl", "ups"):
+            return
         ir.async_create_issue(
             self.hass,
             DOMAIN,
-            "dhl_auth",
+            f"{key}_auth",
             is_fixable=False,
             severity=ir.IssueSeverity.ERROR,
-            translation_key="dhl_auth",
+            translation_key=f"{key}_auth",
         )
-        self.entry.async_start_reauth(self.hass)
+        if key == "dhl":
+            self.entry.async_start_reauth(self.hass)
 
     # ----- public API used by services -----
     async def async_add(self, number: str, carrier: str, name: str | None) -> Parcel:
         norm = normalize(number)
         keys = candidates(norm, self.carriers)  # raises UnsupportedNumber
-        if carrier != CARRIER_AUTO and carrier not in self.carriers:
+        mode = "auto" if carrier == CARRIER_AUTO else "manual"
+        if carrier == CARRIER_AUTO and not keys and UpsCarrier.matches(norm) is Match.SURE:
+            carrier = "ups"  # mail-only until UPS API credentials are configured
+        if (
+            carrier != CARRIER_AUTO
+            and carrier not in self.carriers
+            and carrier not in OPTIONAL_API_CARRIERS
+        ):
             raise ValueError("unknown_carrier")
         now = dt_util.utcnow()
         parcel = Parcel(
             number=norm,
             carrier=None if carrier == CARRIER_AUTO else carrier,
-            carrier_mode="auto" if carrier == CARRIER_AUTO else "manual",
+            carrier_mode=mode,
             name=(name or "").strip() or None,
             added_at=now,
             last_change_at=now,

@@ -8,7 +8,7 @@ add_parcel:
       default: auto
       selector:
         select:
-          options: ["auto", "dhl", "dpd"]
+          options: ["auto", "dhl", "dpd", "hermes", "ups"]
     name:
       selector:
         text:

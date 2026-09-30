@@ -1,0 +1,91 @@
+{
+  "_synthetic": "Synthetic: built from the official UPS Track API schema (OpenAPI Tracking.yaml, github.com/UPS-API/api-documentation, operation getSingleTrackResponseUsingGET); not a real UPS response.",
+  "response": {
+    "trackResponse": {
+      "shipment": [
+        {
+          "inquiryNumber": "1Z999AA10123456784",
+          "package": [
+            {
+              "trackingNumber": "1Z999AA10123456784",
+              "currentStatus": {
+                "type": "I",
+                "description": "Wird heute zugestellt",
+                "code": "OT",
+                "statusCode": "021",
+                "simplifiedTextDescription": "In Zustellung"
+              },
+              "activity": [
+                {
+                  "location": {
+                    "address": {
+                      "city": "Bonn",
+                      "country": "DE",
+                      "countryCode": "DE"
+                    },
+                    "slic": "5310"
+                  },
+                  "status": {
+                    "type": "I",
+                    "description": "Wird heute zugestellt",
+                    "code": "OT",
+                    "statusCode": "021"
+                  },
+                  "date": "20260930",
+                  "time": "074500",
+                  "gmtDate": "20260930",
+                  "gmtOffset": "+02:00",
+                  "gmtTime": "00:00:00"
+                },
+                {
+                  "location": {
+                    "address": {
+                      "city": "Köln",
+                      "country": "DE",
+                      "countryCode": "DE"
+                    },
+                    "slic": "5310"
+                  },
+                  "status": {
+                    "type": "I",
+                    "description": "Im Zielpaketzentrum eingetroffen",
+                    "code": "AR",
+                    "statusCode": "005"
+                  },
+                  "date": "20260930",
+                  "time": "031500",
+                  "gmtDate": "20260930",
+                  "gmtOffset": "+02:00",
+                  "gmtTime": "00:00:00"
+                }
+              ],
+              "packageCount": 1,
+              "service": {
+                "code": "011",
+                "description": "UPS Standard",
+                "levelCode": "011"
+              },
+              "deliveryDate": [
+                {
+                  "type": "SDD",
+                  "date": "20261001"
+                },
+                {
+                  "type": "RDD",
+                  "date": "20260930"
+                }
+              ],
+              "deliveryTime": {
+                "type": "EDW",
+                "startTime": "140000",
+                "endTime": "163000"
+              }
+            }
+          ],
+          "userRelation": [],
+          "warnings": []
+        }
+      ]
+    }
+  }
+}

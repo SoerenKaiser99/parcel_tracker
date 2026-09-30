@@ -1,0 +1,58 @@
+{
+  "_synthetic": "Synthetic: built from the official UPS Track API schema (OpenAPI Tracking.yaml, github.com/UPS-API/api-documentation, operation getSingleTrackResponseUsingGET); not a real UPS response.",
+  "response": {
+    "trackResponse": {
+      "shipment": [
+        {
+          "inquiryNumber": "1Z999AA10123456784",
+          "package": [
+            {
+              "trackingNumber": "1Z999AA10123456784",
+              "currentStatus": {
+                "type": "I",
+                "description": "In UPS Access Point abholbereit",
+                "code": "ZP",
+                "statusCode": "023",
+                "simplifiedTextDescription": "Abholbereit"
+              },
+              "activity": [
+                {
+                  "location": {
+                    "address": {
+                      "city": "Bonn",
+                      "country": "DE",
+                      "countryCode": "DE"
+                    },
+                    "slic": "5310"
+                  },
+                  "status": {
+                    "type": "I",
+                    "description": "In UPS Access Point abholbereit",
+                    "code": "ZP",
+                    "statusCode": "023"
+                  },
+                  "date": "20260930",
+                  "time": "101500",
+                  "gmtDate": "20260930",
+                  "gmtOffset": "+02:00",
+                  "gmtTime": "00:00:00"
+                }
+              ],
+              "packageCount": 1,
+              "service": {
+                "code": "011",
+                "description": "UPS Standard",
+                "levelCode": "011"
+              },
+              "accessPointInformation": {
+                "pickupByDate": "20261007"
+              }
+            }
+          ],
+          "userRelation": [],
+          "warnings": []
+        }
+      ]
+    }
+  }
+}

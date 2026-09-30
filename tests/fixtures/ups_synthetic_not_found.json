@@ -1,0 +1,18 @@
+{
+  "_synthetic": "Synthetic: built from the official UPS Track API schema (OpenAPI Tracking.yaml, github.com/UPS-API/api-documentation, operation getSingleTrackResponseUsingGET); not a real UPS response.",
+  "response": {
+    "trackResponse": {
+      "shipment": [
+        {
+          "inquiryNumber": "1Z999AA10123456784",
+          "warnings": [
+            {
+              "code": "TW0001",
+              "message": "Tracking Information Not Found"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

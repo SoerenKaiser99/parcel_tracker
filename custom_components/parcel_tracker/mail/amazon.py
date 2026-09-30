@@ -28,7 +28,8 @@ AMAZON_SENDERS = frozenset(
         "order-update@amazon.de",
     }
 )
-LEGACY_PREFIX = "Ihre Amazon.de Bestellung von"
+# Old "… wurde versandt!" subjects (before ~2021), in two wordings.
+LEGACY_PREFIXES = ("Ihre Amazon.de Bestellung von", "Ihre Amazon.de-Bestellung mit")
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
@@ -62,8 +63,11 @@ _ETA = re.compile(
 _ETA_DATES = re.compile(r"^(?:Zustellung:|Ankunft:?)\s+(?P<rest>\S.*)$", re.MULTILINE)
 _OTP = re.compile(r"Einmalpasswort lautet\s*(\d{4,8})\b")
 _LEGACY_ORDER = re.compile(r"Bestellnummer:\s*#?(\d{3}-\d{7}-\d{7})")
-_LEGACY_NUMBER = re.compile(r"Paketverfolgungsnummer:\s*([0-9A-Z]{10,30})")
-_LEGACY_ETA = re.compile(r"^Zustellung:\s*\n\w+,\s*(\d{1,2})\.\s*([A-Za-zä]+)", re.MULTILINE)
+_LEGACY_NUMBER = re.compile(r"Paketverfolgungsnummern?:\s*([0-9A-Z]{10,30})")
+_LEGACY_ETA = re.compile(r"^Zustellung:\s*\n\w+,\s*(\d{1,2})\.?\s*([A-Za-zä]+)", re.MULTILINE)
+_LEGACY_MORE = re.compile(r"\"\s*und\s+(\d+)\s+weiteren\s+Artikel")
+_LEGACY_HERMES = re.compile(r"mit Hermes versandt")
+_HERMES_14 = re.compile(r"\d{14}")
 
 
 def order_number(order: str) -> str:
@@ -150,31 +154,52 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     return updates
 
 
+def _legacy_title(subj: str) -> str | None:
+    quoted = re.search(r"\"(.+)\"", subj)  # greedy: keeps a 27" inside the title
+    if not quoted:
+        return None
+    raw = quoted.group(1).strip()
+    core = raw.rstrip(".…").strip()
+    title = f"{core}…" if core != raw else core
+    if more := _LEGACY_MORE.search(subj):
+        count = more.group(1)
+        suffix = f" und {count} {'weiterer' if count == '1' else 'weitere'} Artikel"
+        return shorten(title, 60 - len(suffix)) + suffix
+    return shorten(title)
+
+
 def parse_amazon_legacy(msg: EmailMessage) -> list[MailUpdate]:
-    """Old 'Ihre Amazon.de Bestellung von "…" wurde versandt!' mails (carrier number inside)."""
+    """Old '… wurde versandt!' mails (carrier number inside).
+
+    UPS/DHL numbers become their own parcel (as before); a Hermes number stays with the
+    Amazon order as ``tracking_ref`` so the order is followed via Hermes.
+    """
     subj = subject(msg)
     text = body_text(msg)
     sent = sent_at(msg)
-    quoted = re.search(r"\"(.+)\"", subj)  # greedy: keeps a 27" inside the title
-    title = None
-    if quoted:
-        raw = quoted.group(1).strip()
-        core = raw.rstrip(".…").strip()
-        title = shorten(f"{core}…" if core != raw else core)
+    title = _legacy_title(subj)
     eta_date = None
     if eta := _LEGACY_ETA.search(text):
         month = MONTHS.get(eta.group(2).lower())
         if month:
             eta_date = upcoming_date(int(eta.group(1)), month, sent.date())
     number_match = _LEGACY_NUMBER.search(text)
-    carrier = carrier_for(number_match.group(1)) if number_match else None
-    if number_match and carrier:
-        number = number_match.group(1)
-    else:
-        order = _LEGACY_ORDER.search(text)
-        if not order:
-            return []
+    raw_number = number_match.group(1) if number_match else None
+    carrier = carrier_for(raw_number) if raw_number else None
+    if raw_number and carrier is None and _LEGACY_HERMES.search(text):
+        if _HERMES_14.fullmatch(raw_number):
+            carrier = "hermes"
+    order = _LEGACY_ORDER.search(text)
+    tracking_ref = tracking_carrier = None
+    if raw_number and carrier == "hermes" and order:
+        number, tracking_ref, tracking_carrier = order_number(order.group(1)), raw_number, carrier
+        carrier = "amazon"
+    elif raw_number and carrier:
+        number = raw_number
+    elif order:
         number, carrier = order_number(order.group(1)), "amazon"
+    else:
+        return []
     return [
         MailUpdate(
             number=number,
@@ -183,5 +208,7 @@ def parse_amazon_legacy(msg: EmailMessage) -> list[MailUpdate]:
             sent_at=sent,
             title=title,
             eta_date=eta_date,
+            tracking_ref=tracking_ref,
+            tracking_carrier=tracking_carrier,
         )
     ]

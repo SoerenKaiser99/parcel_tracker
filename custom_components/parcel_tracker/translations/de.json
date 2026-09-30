@@ -59,6 +59,20 @@
               "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
               "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf."
             }
+          },
+          "ups": {
+            "name": "UPS-Live-Status (optional)",
+            "description": "Fragt UPS-Pakete über die offizielle UPS Track API ab. Leg auf developer.ups.com eine App mit dem Produkt „Tracking“ an und trag Client-ID und Secret ein. Ohne sie kommen UPS-Pakete nur aus Mails.",
+            "data": {
+              "ups_client_id": "Client-ID",
+              "ups_client_secret": "Client-Secret",
+              "ups_monthly_budget": "Monatsbudget (UPS-Abfragen)"
+            },
+            "data_description": {
+              "ups_client_id": "Leer lassen schaltet die UPS-API aus.",
+              "ups_client_secret": "Leer lassen behält das gespeicherte Secret.",
+              "ups_monthly_budget": "0–10000. Ist es verbraucht, kommen UPS-Pakete bis Monatsende nur aus Mails. 0 schaltet die API aus."
+            }
           }
         }
       }
@@ -69,7 +83,10 @@
       "invalid_postcode": "Gib eine 5-stellige PLZ ein.",
       "imap_auth": "Der Mailserver hat Benutzername oder Passwort abgelehnt.",
       "imap_cannot_connect": "Der Mailserver ist nicht erreichbar. Prüf den Servernamen.",
-      "imap_password_missing": "Gib das Passwort des Postfachs ein."
+      "imap_password_missing": "Gib das Passwort des Postfachs ein.",
+      "ups_auth": "UPS hat Client-ID oder Secret abgelehnt.",
+      "ups_cannot_connect": "UPS ist gerade nicht erreichbar. Versuch es später noch einmal.",
+      "ups_secret_missing": "Gib das UPS-Client-Secret ein."
     }
   },
   "issues": {
@@ -88,6 +105,14 @@
     "amazon_unrecognized": {
       "title": "Amazon-Mails nicht erkannt",
       "description": "Paket Tracker konnte die letzten 5 Amazon-Mails nicht lesen. Vermutlich hat Amazon das Mail-Format geändert. Prüf, ob es ein Update für Paket Tracker gibt; die Mails liegen im Ordner Paket-Tracker-Nicht-erkannt."
+    },
+    "ups_auth": {
+      "title": "UPS-Zugangsdaten abgelehnt",
+      "description": "UPS akzeptiert Client-ID oder Secret nicht mehr. Öffne die Optionen von Paket Tracker und prüf sie. Bis dahin kommen UPS-Pakete nur aus Mails."
+    },
+    "ups_budget": {
+      "title": "UPS-Monatsbudget verbraucht",
+      "description": "Paket Tracker hat alle für diesen Monat erlaubten UPS-Abfragen verbraucht. UPS-Pakete kommen bis Monatsende nur aus Mails; der Hinweis verschwindet am 1. des nächsten Monats. Erhöh bei Bedarf das Budget in den Optionen."
     }
   },
   "exceptions": {
@@ -121,7 +146,7 @@
       "description": "Ein Paket verfolgen.",
       "fields": {
         "number": {"name": "Sendungsnummer", "description": "Wie aufgedruckt, Leerzeichen erlaubt."},
-        "carrier": {"name": "Carrier", "description": "auto, dhl oder dpd."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes oder ups."},
         "name": {"name": "Name", "description": "Optionale Bezeichnung."}
       }
     },

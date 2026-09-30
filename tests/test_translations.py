@@ -50,3 +50,18 @@ def test_mail_translations_present():
         strings["options"]["error"]
     )
     assert {"imap_auth", "amazon_unrecognized"} <= set(strings["issues"])
+
+
+def test_ups_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        strings = _load(name)
+        section = strings["options"]["step"]["init"]["sections"]["ups"]
+        assert set(section["data"]) == {
+            "ups_client_id", "ups_client_secret", "ups_monthly_budget",
+        }
+        assert {"ups_auth", "ups_cannot_connect", "ups_secret_missing"} <= set(
+            strings["options"]["error"]
+        )
+        assert {"ups_auth", "ups_budget"} <= set(strings["issues"])
+    services = _load("strings.json")["services"]["add_parcel"]["fields"]["carrier"]
+    assert services["description"] == "auto, dhl, dpd, hermes or ups."

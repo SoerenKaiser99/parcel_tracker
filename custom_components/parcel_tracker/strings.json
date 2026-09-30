@@ -59,6 +59,20 @@
               "move_processed": "Folders Paket-Tracker-Verarbeitet and Paket-Tracker-Nicht-erkannt.",
               "read_otp": "The card shows a code only after a tap and a confirmation. It never goes into the history."
             }
+          },
+          "ups": {
+            "name": "UPS live status (optional)",
+            "description": "Asks the official UPS Track API for UPS parcels. Create an app with the product \"Tracking\" on developer.ups.com and enter its Client ID and Secret. Without them, UPS parcels come from mails only.",
+            "data": {
+              "ups_client_id": "Client ID",
+              "ups_client_secret": "Client secret",
+              "ups_monthly_budget": "Monthly budget (UPS requests)"
+            },
+            "data_description": {
+              "ups_client_id": "Leave empty to switch the UPS API off.",
+              "ups_client_secret": "Leave empty to keep the saved secret.",
+              "ups_monthly_budget": "0–10000. When used up, UPS parcels come from mails only until the month ends. 0 switches the API off."
+            }
           }
         }
       }
@@ -69,7 +83,10 @@
       "invalid_postcode": "Enter a 5-digit postcode.",
       "imap_auth": "The mail server rejected username or password.",
       "imap_cannot_connect": "Couldn't reach the mail server. Check the server name.",
-      "imap_password_missing": "Enter the mailbox password."
+      "imap_password_missing": "Enter the mailbox password.",
+      "ups_auth": "UPS rejected Client ID or Secret.",
+      "ups_cannot_connect": "Couldn't reach UPS. Try again later.",
+      "ups_secret_missing": "Enter the UPS Client Secret."
     }
   },
   "issues": {
@@ -88,6 +105,14 @@
     "amazon_unrecognized": {
       "title": "Amazon mails not recognised",
       "description": "Parcel Tracker couldn't read the last 5 Amazon mails. Amazon may have changed its mail layout. Check for an update of Parcel Tracker; the mails are in the folder Paket-Tracker-Nicht-erkannt."
+    },
+    "ups_auth": {
+      "title": "UPS credentials rejected",
+      "description": "UPS no longer accepts the Client ID or Secret. Open the Parcel Tracker options and check them. Until then UPS parcels come from mails only."
+    },
+    "ups_budget": {
+      "title": "UPS monthly budget used up",
+      "description": "Parcel Tracker used all UPS requests allowed for this month. UPS parcels come from mails only until the month ends; this notice disappears on the 1st. Raise the budget in the options if needed."
     }
   },
   "exceptions": {
@@ -121,7 +146,7 @@
       "description": "Start tracking a parcel.",
       "fields": {
         "number": {"name": "Tracking number", "description": "As printed, spaces allowed."},
-        "carrier": {"name": "Carrier", "description": "auto, dhl or dpd."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes or ups."},
         "name": {"name": "Name", "description": "Optional label."}
       }
     },

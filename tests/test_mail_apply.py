@@ -155,7 +155,7 @@ def test_ups_announcement_then_delivery():
     ups = parcels["1Z999AA11026832876"]
     assert change.created
     assert (ups.carrier, ups.name) == ("ups", "Beispiel Versand GmbH")
-    assert ups.poll_target is None
+    assert ups.poll_target == ("ups", "1Z999AA11026832876")  # only polled with UPS API
     assert ups.result.status_text == "Angekündigt"
     _apply(parcels, "071_pkginfo_ups_zustellbenachrichtigung_kont.eml")
     assert ups.status is ParcelStatus.DELIVERED
@@ -166,7 +166,7 @@ def test_ups_announcement_then_delivery():
 def test_generic_number_creates_pollable_parcel_without_result():
     parcels: dict[str, Parcel] = {}
     [dhl] = _updates("045_noreply_ihre_amazon_sendung_ist_unterweg.eml")
-    generic = replace(dhl, status=None, title="Shop", amazon_shipment=False, eta_date=None)
+    generic = replace(dhl, status=None, title="Shop", shop=None, eta_date=None)
     change = apply_update(parcels, generic, NOW)
     assert change.created
     p = parcels[JJD]
@@ -198,3 +198,115 @@ def test_eta_range_is_carried_and_cleared():
     update = replace(update, eta_date=date(2026, 10, 3))
     apply_update(parcels, update, NOW)
     assert (p.result.eta_date, p.result.eta_latest) == (date(2026, 10, 3), None)
+
+
+EBAY_SHIPPED = "104_ebay_ihre_sendung_ist_jetzt_beim_versand.eml"
+EBAY_ORDER = "EBAY992179315376"
+HERMES_ON_THE_WAY = "103_noreply_ihre_hermes_sendung_ist_auf_dem_.eml"
+HERMES_ANNOUNCED = "105_noreply_information_zur_zustellung_an_de.eml"
+HERMES_DELIVERED = "099_noreply_dein_hermes_paket_von_amazon_eu_.eml"
+HERMES_2023 = "H9999767129584220767"
+
+
+def test_ebay_order_is_created_with_hint_and_moves_forward():
+    parcels: dict[str, Parcel] = {}
+    [change] = _apply(parcels, EBAY_SHIPPED)
+    p = parcels[EBAY_ORDER]
+    assert change.created
+    assert (p.carrier, p.carrier_mode, p.shipping_carrier_hint) == ("ebay", "mail", "hermes")
+    assert p.name == "Bambu Lab PLA Basic Filament Blue Bl… und 1 weiterer Artikel"
+    assert (p.status, p.result.status_text) == (ParcelStatus.IN_TRANSIT, "Versendet")
+    assert (p.result.eta_date, p.result.eta_latest) == (date(2026, 1, 28), date(2026, 1, 29))
+    assert p.poll_target is None
+    [update] = _updates(EBAY_SHIPPED)
+    apply_update(parcels, replace(update, status=ParcelStatus.DELIVERED, title=None), NOW)
+    assert (p.status, p.result.status_text) == (ParcelStatus.DELIVERED, "Zugestellt")
+
+
+def test_hermes_mail_merges_into_ebay_order_by_hint_within_window():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, EBAY_SHIPPED)
+    [hermes] = _updates(HERMES_ON_THE_WAY)
+    in_window = replace(hermes, eta_date=date(2026, 1, 29), eta_from=None, eta_to=None)
+    change = apply_update(parcels, in_window, NOW)
+    p = parcels[EBAY_ORDER]
+    assert change.parcel is p and not change.created
+    assert (p.tracking_ref, p.tracking_carrier) == ("H9999978276078000836", "hermes")
+    assert p.poll_target == ("hermes", "H9999978276078000836")
+    assert p.result.eta_date == date(2026, 1, 29)
+    assert len(parcels) == 1
+
+
+def test_hermes_mail_outside_the_window_stays_separate():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, EBAY_SHIPPED)
+    [hermes] = _updates(HERMES_ON_THE_WAY)  # ETA 2020-04-02
+    change = apply_update(parcels, hermes, NOW)
+    assert change.created and change.parcel.carrier == "hermes"
+    assert parcels[EBAY_ORDER].tracking_ref is None
+
+
+def test_legacy_amazon_hermes_number_catches_the_hermes_mail():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "102_versandbestaetigung_ihre_amazon_de_beste.eml")
+    p = parcels["AMZ99900779704106459"]
+    assert (p.tracking_ref, p.tracking_carrier) == ("H9999978276078000836", "hermes")
+    assert p.next_poll_at is None
+    [change] = _apply(parcels, HERMES_ON_THE_WAY)
+    assert change.parcel is p
+    assert p.result.eta_from == datetime(2020, 4, 2, 14, 0, tzinfo=BERLIN)
+    assert len(parcels) == 1
+
+
+def test_amazon_order_takes_the_hermes_number_and_delivery():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "074_versandbestaetigung_versendet.eml")
+    [change] = _apply(parcels, HERMES_ANNOUNCED)  # shop Amazon, no day
+    p = parcels[PLAETTCHEN]
+    assert change.parcel is p
+    assert (p.tracking_ref, p.tracking_carrier) == (HERMES_2023, "hermes")
+    assert p.status is ParcelStatus.IN_TRANSIT  # an announcement never moves it back
+    _apply(parcels, HERMES_DELIVERED)
+    assert p.status is ParcelStatus.DELIVERED
+    assert p.name == "4 Ersatz Metallplättchen…"
+    assert len(parcels) == 1
+
+
+def test_hermes_mail_is_separate_when_two_amazon_orders_are_open():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "074_versandbestaetigung_versendet.eml")
+    _apply(parcels, "075_versandbestaetigung_versendet.eml")
+    [change] = _apply(parcels, HERMES_ANNOUNCED)
+    assert change.created
+    hermes = parcels[HERMES_2023]
+    assert (hermes.carrier, hermes.name, hermes.status) == (
+        "hermes",
+        "Amazon EU SARL",
+        ParcelStatus.PRE_TRANSIT,
+    )
+    assert hermes.result.status_text == "Angekündigt"
+
+
+def test_carrier_mail_names_an_unnamed_parcel_once():
+    parcels = {HERMES_2023: Parcel(HERMES_2023, "hermes", "auto", None, NOW, NOW)}
+    _apply(parcels, HERMES_DELIVERED)
+    assert parcels[HERMES_2023].name == "Amazon EU SARL"
+    parcels[HERMES_2023].name = "Oma"
+    _apply(parcels, HERMES_ANNOUNCED)
+    assert parcels[HERMES_2023].name == "Oma"
+
+
+def test_dhl_mail_without_shop_does_not_merge_into_amazon():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "074_versandbestaetigung_versendet.eml")
+    [dhl] = _updates("045_noreply_ihre_amazon_sendung_ist_unterweg.eml")
+    change = apply_update(parcels, replace(dhl, shop=None, title=None), NOW)
+    assert change.created
+    assert parcels[PLAETTCHEN].tracking_ref is None
+
+
+def test_ups_mail_does_not_trigger_an_extra_ups_call():
+    ups = "1Z999AA11026832876"
+    parcels = {ups: Parcel(ups, "ups", "auto", "Schuhe", NOW, NOW, next_poll_at=NOW)}
+    _apply(parcels, "070_pkginfo_ups_versandbenachrichtigung_kont.eml")
+    assert parcels[ups].next_poll_at == NOW

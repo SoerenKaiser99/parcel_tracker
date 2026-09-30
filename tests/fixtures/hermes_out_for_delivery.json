@@ -1,0 +1,28 @@
+{
+  "_source": "Converted from tests/payloads.py of github.com/ha-parcel-integrations/ha-hermes (MIT License, Copyright (c) 2026 ha-hermes contributors). active_sample(): latest event DELIVERY_TOUR_STARTED.",
+  "response": [
+    {
+      "barcode": "12345678909999",
+      "parcelProgress": [
+        {
+          "timestamp": "2026-04-29T08:46:00Z",
+          "status": "Out for delivery",
+          "parcelStatus": "DELIVERY_TOUR_STARTED",
+          "historyText": "Out for delivery"
+        },
+        {
+          "timestamp": "2026-04-28T15:52:17Z",
+          "status": "At the sorting facility",
+          "parcelStatus": "SORTED",
+          "historyText": "At the sorting facility"
+        },
+        {
+          "timestamp": "2026-04-27T23:03:58Z",
+          "status": "Shipment announced",
+          "parcelStatus": "ANNOUNCED",
+          "historyText": "Shipment announced"
+        }
+      ]
+    }
+  ]
+}

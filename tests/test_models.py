@@ -98,7 +98,9 @@ def test_poll_target():
     assert Parcel("123", "dpd", "manual", None, now, now).poll_target == ("dpd", "123")
     assert _mail_parcel().poll_target is None
     ups = Parcel("1Z999AA11026832876", "ups", "mail", None, now, now)
-    assert ups.poll_target is None
+    assert ups.poll_target == ("ups", "1Z999AA11026832876")  # coordinator skips it without API
+    ebay = Parcel("EBAY990000000001", "ebay", "mail", None, now, now)
+    assert ebay.poll_target is None
     merged = _mail_parcel(tracking_ref="JJD000012978217606560", tracking_carrier="dhl")
     assert merged.poll_target == ("dhl", "JJD000012978217606560")
 
@@ -113,3 +115,12 @@ def test_eta_latest_roundtrip_and_backward_compat():
     old = r.to_dict()
     del old["eta_latest"]
     assert TrackingResult.from_dict(old).eta_latest is None
+
+
+def test_shipping_carrier_hint_roundtrip_and_backward_compat():
+    p = _mail_parcel(shipping_carrier_hint="hermes")
+    assert p.to_dict()["shipping_carrier_hint"] == "hermes"
+    assert Parcel.from_dict(p.to_dict()) == p
+    old = _mail_parcel().to_dict()
+    del old["shipping_carrier_hint"]
+    assert Parcel.from_dict(old).shipping_carrier_hint is None

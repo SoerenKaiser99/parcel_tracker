@@ -20,6 +20,7 @@ from homeassistant.util.ssl import client_context
 
 from .card_install import BUNDLED_CARD, CARD_FILE, card_hash, card_url, install_card
 from .carriers import build_carriers
+from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
     CARD_URL,
     CARRIER_AUTO,
@@ -27,8 +28,13 @@ from .const import (
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
+    CONF_UPS_BUDGET,
+    CONF_UPS_CLIENT_ID,
+    CONF_UPS_CLIENT_SECRET,
     DEFAULT_IMAP_HOST,
+    DEFAULT_UPS_BUDGET,
     DOMAIN,
+    SELECTABLE_CARRIERS,
 )
 from .coordinator import ParcelCoordinator
 from .detect import UnsupportedNumber
@@ -72,6 +78,16 @@ def _mailbox(entry: ConfigEntry) -> MailboxClient | None:
         password,
         ssl_context=client_context(),
     )
+
+
+def _ups_carrier(hass: HomeAssistant, entry: ConfigEntry, budget: ApiBudget) -> UpsCarrier | None:
+    """UPS Track API client when ID and secret (data) and a budget > 0 (options) are set."""
+    client_id = entry.data.get(CONF_UPS_CLIENT_ID)
+    secret = entry.data.get(CONF_UPS_CLIENT_SECRET)
+    limit = int(entry.options.get(CONF_UPS_BUDGET, DEFAULT_UPS_BUDGET))
+    if not client_id or not secret or limit <= 0:
+        return None
+    return UpsCarrier(async_get_clientsession(hass), client_id, secret, budget, limit)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -145,7 +161,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, "add_parcel", add,
         schema=vol.Schema({
             vol.Required("number"): number,
-            vol.Optional("carrier", default=CARRIER_AUTO): vol.In([CARRIER_AUTO, "dhl", "dpd"]),
+            vol.Optional("carrier", default=CARRIER_AUTO): vol.In(
+                [CARRIER_AUTO, *SELECTABLE_CARRIERS]
+            ),
             vol.Optional("name"): cv.string,
         }),
     )
@@ -167,6 +185,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bo
     store = ParcelStore(hass)
     await store.async_load()
     carriers = build_carriers(async_get_clientsession(hass), _dhl_key(entry))
+    if ups := _ups_carrier(hass, entry, store.ups_budget):
+        carriers["ups"] = ups
+    else:
+        for issue in ("ups_auth", "ups_budget"):
+            ir.async_delete_issue(hass, DOMAIN, issue)
     mailbox = _mailbox(entry)
     if mailbox is None:
         _mail_import_off(hass, entry)

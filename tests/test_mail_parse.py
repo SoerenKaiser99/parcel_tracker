@@ -111,3 +111,11 @@ def test_generic_fallback():
     assert [(u.carrier, u.number, u.title) for u in result.updates] == [
         ("dhl", "JJD000012978217606560", None)
     ]
+
+
+def test_legacy_amazon_with_other_subject_form_is_routed():
+    result = parse_mail(load_mail("102_versandbestaetigung_ihre_amazon_de_beste.eml"))
+    assert [(u.number, u.tracking_carrier) for u in result.updates] == [
+        ("AMZ99900779704106459", "hermes")
+    ]
+    assert result.amazon is True

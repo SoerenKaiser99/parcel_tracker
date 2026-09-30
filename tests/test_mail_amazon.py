@@ -241,3 +241,53 @@ def test_today_tomorrow_and_windows_unchanged():
     assert u.eta_date == date(2026, 8, 20) and u.eta_latest is None
     assert u.eta_from == datetime(2026, 8, 20, 18, 0, tzinfo=BERLIN)
     assert _eta("Ankunft morgen") == (date(2026, 10, 1), None)
+
+
+@pytest.mark.parametrize(
+    ("name", "number", "ref", "eta", "title"),
+    [
+        (
+            "100_versandbestaetigung_ihre_amazon_de_beste.eml",
+            "AMZ99942584722619639",
+            "99992958672143",
+            date(2017, 7, 6),
+            "Logitech Slim Folio…",
+        ),
+        (
+            "101_versandbestaetigung_ihre_amazon_de_beste.eml",
+            "AMZ99942535315689263",
+            "99995859260802",
+            date(2018, 1, 20),
+            "Raspberry Pi 3 Model B…",
+        ),
+        (
+            "102_versandbestaetigung_ihre_amazon_de_beste.eml",
+            "AMZ99900779704106459",
+            "H9999978276078000836",
+            date(2020, 4, 2),
+            "Profi Cook SV-1112… und 1 weiterer Artikel",
+        ),
+    ],
+)
+def test_legacy_hermes_keeps_the_order_and_refers_to_hermes(name, number, ref, eta, title):
+    [u] = parse_amazon_legacy(load_mail(name))
+    assert (u.number, u.carrier, u.status) == (number, "amazon", ParcelStatus.IN_TRANSIT)
+    assert (u.tracking_ref, u.tracking_carrier) == (ref, "hermes")
+    assert (u.eta_date, u.title) == (eta, title)
+
+
+def test_legacy_14_digits_without_hermes_stay_an_order():
+    msg = load_mail("100_versandbestaetigung_ihre_amazon_de_beste.eml")
+    text = msg.get_body(preferencelist=("plain",)).get_content()
+    msg.set_content(text.replace("mit Hermes versandt", "versandt"))
+    [u] = parse_amazon_legacy(msg)
+    assert (u.number, u.tracking_ref, u.tracking_carrier) == (
+        "AMZ99942584722619639",
+        None,
+        None,
+    )
+
+
+def test_legacy_ups_numbers_keep_their_own_parcel():
+    [u] = parse_amazon_legacy(load_mail("046_versandbestaetigung_ihre_amazon_de_beste.eml"))
+    assert (u.carrier, u.tracking_ref) == ("ups", None)

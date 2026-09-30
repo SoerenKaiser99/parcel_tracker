@@ -23,7 +23,8 @@ vm.createContext(sandbox);
 vm.runInContext(
   fs.readFileSync(process.argv[1], "utf8")
     + "\n;globalThis.__icons = CARRIER_ICONS; globalThis.__label = stateLabel;"
-    + "globalThis.__eta = etaText;",
+    + "globalThis.__eta = etaText; globalThis.__sub = subText; globalThis.__err = errorLine;"
+    + "globalThis.__labels = CARRIER_LABEL;",
   sandbox,
 );
 const Card = defined["parcel-tracker-card"];
@@ -55,7 +56,27 @@ out.eta = {
   days: eta("in_transit", { days_until: 3, eta_date: "2026-10-02" }),
   none: eta("in_transit", { days_until: null }),
 };
-out.icon = { dhl: card._icon("dhl"), dpd: card._icon("dpd") };
+out.icon = { dhl: card._icon("dhl"), dpd: card._icon("dpd"), hermes: card._icon("hermes"),
+  ebay: card._icon("ebay") };
+out.ebayLabel = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "ebay" } });
+out.labels = sandbox.__labels;
+out.sub = {
+  hint: sandbox.__sub("Unterwegs", { carrier: "ebay", shipping_carrier_hint: "hermes" },
+    "in_transit"),
+  rawHint: sandbox.__sub("Unterwegs", { carrier: "ebay", shipping_carrier_hint: "GLS <Paket>" },
+    "in_transit"),
+  place: sandbox.__sub("Unterwegs", { carrier: "dhl", location: "Bonn" }, "in_transit"),
+  pickup: sandbox.__sub("Abholbereit", { carrier: "ups", pickup_point: "Kiosk", location: "X" },
+    "awaiting_pickup"),
+};
+out.err = {
+  upsAuth: sandbox.__err({ last_error: "auth", carrier: "ups" }),
+  dhlAuth: sandbox.__err({ last_error: "auth", carrier: "dhl" }),
+  mergedUpsAuth: sandbox.__err({ last_error: "auth", carrier: "amazon", tracking_carrier: "ups" }),
+  mergedDhlAuth: sandbox.__err({ last_error: "auth", carrier: "amazon", tracking_carrier: "dhl" }),
+  budget: sandbox.__err({ last_error: "ups_budget", carrier: "ups" }),
+  none: sandbox.__err({ last_error: null }),
+};
 console.log(JSON.stringify(out));
 """
 
@@ -76,6 +97,7 @@ def test_icons_include_mail_carriers(card):
         "dpd": "#DC0032",
         "amazon": "#FF9900",
         "ups": "#150400",
+        "ebay": "#E53238",
     }
 
 
@@ -121,3 +143,43 @@ def test_eta_single_dates_unchanged(card):
 def test_dhl_icon_is_wide_others_square(card):
     assert 'width="28" height="18"' in card["icon"]["dhl"]
     assert 'width="18" height="18"' in card["icon"]["dpd"]
+
+
+def test_hermes_has_a_coloured_dot_instead_of_a_logo(card):
+    hermes = card["icon"]["hermes"]
+    assert 'fill="#0091CD"' in hermes and ">H</text>" in hermes
+    assert 'aria-label="hermes"' in hermes and "<path" not in hermes
+    assert 'fill="#E53238"' in card["icon"]["ebay"]
+
+
+def test_labels_and_ebay_order_state(card):
+    assert card["labels"] == {
+        "dhl": "DHL", "dpd": "DPD", "hermes": "Hermes", "ups": "UPS", "amazon": "Amazon",
+        "ebay": "eBay",
+    }
+    assert card["ebayLabel"] == "Bestellt"
+
+
+def test_subline_shows_the_shipping_carrier_hint(card):
+    assert card["sub"]["hint"] == "eBay · Unterwegs · via Hermes"
+    assert card["sub"]["rawHint"] == "eBay · Unterwegs · via GLS &lt;Paket&gt;"
+    assert card["sub"]["place"] == "DHL · Unterwegs · Bonn"
+    assert card["sub"]["pickup"] == "UPS · Abholbereit · Kiosk"
+
+
+def test_ups_error_texts(card):
+    assert card["err"]["upsAuth"].startswith("UPS-Zugangsdaten abgelehnt")
+    assert card["err"]["dhlAuth"].startswith("DHL-API-Key abgelehnt")
+    assert card["err"]["mergedUpsAuth"].startswith("UPS-Zugangsdaten abgelehnt")
+    assert card["err"]["mergedDhlAuth"].startswith("DHL-API-Key abgelehnt")
+    assert card["err"]["budget"].startswith("UPS-Monatsbudget verbraucht")
+    assert card["err"]["none"] is None
+
+
+def test_carrier_select_offers_hermes_and_ups():
+    text = BUNDLED_CARD.read_text(encoding="utf-8")
+    assert (
+        '<option value="auto">Automatisch</option><option value="dhl">DHL</option>'
+        '<option value="dpd">DPD</option><option value="hermes">Hermes</option>'
+        '<option value="ups">UPS</option>'
+    ) in text

@@ -4,7 +4,9 @@ import json
 import re
 import urllib.request
 
-ICONS = {"dhl": "#FFCC00", "dpd": "#DC0032", "amazon": "#FF9900", "ups": "#150400"}
+ICONS = {
+    "dhl": "#FFCC00", "dpd": "#DC0032", "amazon": "#FF9900", "ups": "#150400", "ebay": "#E53238"
+}
 
 out = {}
 for slug, color in ICONS.items():

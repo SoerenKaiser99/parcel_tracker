@@ -14,6 +14,7 @@ from custom_components.parcel_tracker.carriers.base import (
     Match,
     MissingCredentials,
     NotFound,
+    ParseError,
     RateLimited,
 )
 from custom_components.parcel_tracker.const import DOMAIN, EVENT_STATUS_CHANGED
@@ -325,9 +326,12 @@ async def test_mail_only_parcels_are_never_polled(hass):
     coord = await _new_coordinator(hass, {"dhl": dhl})
     coord.store.add(_mail_parcel("AMZ99991565342587125", "amazon"))
     coord.store.add(_mail_parcel("1Z999AA11026832876", "ups"))
+    coord.store.add(_mail_parcel("EBAY990000000001", "ebay"))
     await coord.async_refresh()
     assert dhl.numbers == []
-    assert coord.store.get("AMZ99991565342587125").last_poll_at is None
+    for number in ("AMZ99991565342587125", "1Z999AA11026832876", "EBAY990000000001"):
+        parcel = coord.store.get(number)
+        assert (parcel.last_poll_at, parcel.last_error) == (None, None)
 
 
 async def test_parcel_with_tracking_ref_is_polled_by_that_number(hass):
@@ -359,3 +363,56 @@ async def test_expired_delivery_code_is_dropped(hass, freezer):
     await coord.async_refresh()
     assert old.delivery_code is None and old.delivery_code_day is None
     assert today.delivery_code == "654"
+
+
+class FakeDpd(FakeCarrier):
+    key = "dpd"
+    name = "DPD"
+
+
+class FakeHermes(FakeCarrier):
+    key = "hermes"
+    name = "Hermes"
+
+
+async def test_auto_tries_the_next_candidate_after_a_carrier_error(hass, freezer):
+    freezer.move_to(DAYTIME)
+    dpd, hermes = FakeDpd(), FakeHermes()
+    dpd.answers = [ParseError("odd page")]
+    hermes.answers = [result(ParcelStatus.IN_TRANSIT)]
+    coord = await _new_coordinator(hass, {"dpd": dpd, "hermes": hermes})
+    parcel = await coord.async_add("99999999999901", "auto", None)
+    assert (dpd.calls, hermes.calls) == (1, 1)
+    assert (parcel.carrier, parcel.last_error) == ("hermes", None)
+    assert parcel.status is ParcelStatus.IN_TRANSIT
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, "carrier_broken_dpd") is None
+
+
+async def test_auto_records_the_error_only_when_all_candidates_fail(hass, freezer):
+    freezer.move_to(DAYTIME)
+    dpd, hermes = FakeDpd(), FakeHermes()
+    dpd.answers = [CarrierUnavailable("down")]
+    hermes.answers = [NotFound("x")]
+    coord = await _new_coordinator(hass, {"dpd": dpd, "hermes": hermes})
+    parcel = await coord.async_add("99999999999901", "auto", None)
+    assert (dpd.calls, hermes.calls) == (1, 1)
+    assert (parcel.carrier, parcel.last_error, parcel.error_streak) == (None, "unavailable", 1)
+    for _ in range(30):  # probing never counts as a broken carrier
+        freezer.tick(timedelta(hours=1))
+        await coord.async_refresh()
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, "carrier_broken_dpd") is None
+    assert parcel.carrier is None
+
+
+async def test_auto_rate_limit_waits_only_when_no_candidate_answers(hass, freezer):
+    freezer.move_to(DAYTIME)
+    dpd, hermes = FakeDpd(), FakeHermes()
+    dpd.answers = [RateLimited(retry_after=600)]
+    hermes.answers = [NotFound("x")]
+    coord = await _new_coordinator(hass, {"dpd": dpd, "hermes": hermes})
+    parcel = await coord.async_add("99999999999901", "auto", None)
+    assert hermes.calls == 1
+    assert parcel.last_error == "rate_limited"
+    assert parcel.next_poll_at - parcel.last_poll_at == timedelta(seconds=600)

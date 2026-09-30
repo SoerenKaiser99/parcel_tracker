@@ -27,7 +27,7 @@ def test_dhl_amazon_shipment_with_day_and_month():
     [u] = parse_dhl_mail(load_mail("045_noreply_ihre_amazon_sendung_ist_unterweg.eml"))
     assert (u.number, u.carrier) == ("JJD000012978217606560", "dhl")
     assert u.status is ParcelStatus.IN_TRANSIT
-    assert u.amazon_shipment is True
+    assert u.shop == "amazon"
     assert u.title == AMAZON_DHL_NAME == "Amazon-Sendung (DHL)"
     assert u.eta_date == date(2026, 7, 31)
     assert u.eta_from is None
@@ -36,7 +36,7 @@ def test_dhl_amazon_shipment_with_day_and_month():
 def test_dhl_today_window():
     [u] = parse_dhl_mail(load_mail("049_noreply_ihre_amazon_sendung_kommt_heute_.eml"))
     assert u.status is ParcelStatus.OUT_FOR_DELIVERY
-    assert u.amazon_shipment is True
+    assert u.shop == "amazon"
     assert u.eta_date == date(2026, 7, 31)
     assert u.eta_from == datetime(2026, 7, 31, 13, 10, tzinfo=BERLIN)
     assert u.eta_to == datetime(2026, 7, 31, 14, 40, tzinfo=BERLIN)
@@ -51,7 +51,7 @@ def test_dhl_day_without_month_and_not_amazon():
     )
     [u] = parse_dhl_mail(msg)
     assert u.number == "00340999999999999917"
-    assert u.amazon_shipment is False
+    assert u.shop is None
     assert u.title is None
     assert u.eta_date == date(2026, 10, 2)
 
@@ -138,3 +138,13 @@ def test_forwarded_shop_mail_has_no_name():
     assert [(u.carrier, u.number, u.title) for u in parse_generic(msg)] == [
         ("dhl", "JJD000012978217606560", None)
     ]
+
+
+def test_ups_shipper_names_the_shop():
+    msg = load_mail("070_pkginfo_ups_versandbenachrichtigung_kont.eml")
+    [u] = parse_ups_mail(msg)
+    assert u.shop is None
+    text = msg.get_body(preferencelist=("plain",)).get_content()
+    msg.set_content(text.replace("Beispiel Versand GmbH", "Amazon EU S.a.r.L."))
+    [u] = parse_ups_mail(msg)
+    assert (u.shop, u.title) == ("amazon", "Amazon EU S.a.r.L.")

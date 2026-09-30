@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from email.message import EmailMessage
 from email.utils import parsedate_to_datetime
+from html.parser import HTMLParser
 from typing import Literal
 
 from ..carriers.base import BERLIN
@@ -31,8 +32,8 @@ _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
 class MailUpdate:
     """One parcel fact taken from a mail."""
 
-    number: str  # "AMZ" + order digits for Amazon, else the tracking number
-    carrier: str  # "amazon" | "dhl" | "dpd" | "ups"
+    number: str  # "AMZ"/"EBAY" + order digits for shop orders, else the tracking number
+    carrier: str  # "amazon" | "ebay" | "dhl" | "dpd" | "hermes" | "ups"
     status: ParcelStatus | None
     sent_at: datetime  # Date header in Europe/Berlin
     title: str | None = None
@@ -42,7 +43,10 @@ class MailUpdate:
     eta_to: datetime | None = None
     delivered_at: datetime | None = None
     delivery_code: str | None = None
-    amazon_shipment: bool = False  # DHL "Ihre Amazon Sendung …"
+    shop: str | None = None  # "amazon" | "ebay": carrier mail names the shop (for merging)
+    shipping_carrier_hint: str | None = None  # shop mail names the carrier (display, merging)
+    tracking_ref: str | None = None  # shop mail carries the carrier's number
+    tracking_carrier: str | None = None
 
 
 @dataclass
@@ -58,6 +62,7 @@ _NUMBERS = (
     ("dhl", re.compile(r"\b(00340\d{15})\b")),
     ("dhl", re.compile(r"\b(JJD\d{12,22})\b")),
     ("ups", re.compile(r"\b(1Z[0-9A-Z]{16})\b")),
+    ("hermes", re.compile(r"\b(H\d{19})\b")),
 )
 _DPD = re.compile(r"\b(\d{14})\b")
 # 14 digits are ambiguous (order numbers, phone numbers): outside DPD's own mails
@@ -105,16 +110,102 @@ def clean(text: str) -> str:
     return "\n".join(_SPACES.sub(" ", line).strip() for line in text.splitlines())
 
 
-def body_text(msg: EmailMessage) -> str:
-    """Cleaned text/plain body ('' if there is none)."""
-    part = msg.get_body(preferencelist=("plain",))
-    if part is None:
-        return ""
+_BLOCK_TAGS = frozenset({"br", "p", "div", "tr", "li", "h1", "h2", "h3", "h4", "table", "td", "th"})
+_SKIP_TAGS = frozenset({"style", "script", "head", "title"})
+
+
+class _HtmlText(HTMLParser):
+    """Collects visible text; block elements become line breaks."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skip = 0
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip += 1
+        elif tag in _BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in _SKIP_TAGS:
+            self._skip = max(self._skip - 1, 0)
+        elif tag in _BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._skip:
+            self.parts.append(data)
+
+
+def html_text(markup: str) -> str:
+    """Visible text of an HTML body: one line per block, cleaned, no empty lines."""
+    parser = _HtmlText()
+    parser.feed(markup)
+    parser.close()
+    return "\n".join(line for line in clean("".join(parser.parts)).splitlines() if line)
+
+
+def _content(part: EmailMessage) -> str:
     try:
-        content = part.get_content()
+        return part.get_content()
     except (LookupError, ValueError):
-        content = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
-    return clean(content)
+        return (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
+
+
+def body_text(msg: EmailMessage) -> str:
+    """Cleaned text/plain body, else the text of the HTML body ('' if there is neither)."""
+    part = msg.get_body(preferencelist=("plain",))
+    if part is not None:
+        return clean(_content(part))
+    part = msg.get_body(preferencelist=("html",))
+    return html_text(_content(part)) if part is not None else ""
+
+
+_CARRIER_WORDS = (
+    ("hermes", "hermes"),
+    ("dhl", "dhl"),
+    ("deutsche post", "dhl"),
+    ("dpd", "dpd"),
+    ("ups", "ups"),
+)
+
+
+def carrier_key(text: str) -> str | None:
+    """Our carrier key for a carrier name in a mail ('Hermes Germany' -> 'hermes')."""
+    lower = text.lower()
+    for word, key in _CARRIER_WORDS:
+        if re.search(rf"\b{word}\b", lower):
+            return key
+    return None
+
+
+def shop_of(text: str) -> str | None:
+    """'amazon' / 'ebay' when a shop we track orders for is named in ``text``."""
+    lower = text.lower()
+    if "amazon" in lower:
+        return "amazon"
+    if "ebay" in lower:
+        return "ebay"
+    return None
+
+
+# Well-known shops besides Amazon/eBay, only as the whole name (optionally with a legal
+# form or domain): "Otto" alone is a shop, "Otto Beispiel" is a person.
+_KNOWN_SHOP = re.compile(
+    r"(?:otto|zalando|about you|media ?markt|saturn|ikea|lidl|tchibo|bonprix|thomann"
+    r"|notebooksbilliger|alternate|cyberport|galaxus|decathlon|conrad|kaufland|shein|temu"
+    r"|aliexpress)(?:\.(?:de|com))?(?:\s+(?:gmbh|ag|se|kg|sarl|&|co\b|versand|online|shop"
+    r"|deutschland|germany|electronic)\b.*)?",
+    re.IGNORECASE,
+)
+
+
+def known_shop(text: str) -> bool:
+    """True if ``text`` names a shop or company we know (never a private person)."""
+    text = text.strip()
+    return shop_of(text) is not None or _KNOWN_SHOP.fullmatch(text) is not None
 
 
 def _raw_subject(msg: EmailMessage) -> str:

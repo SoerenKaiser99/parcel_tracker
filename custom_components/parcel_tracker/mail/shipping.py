@@ -17,6 +17,7 @@ from .base import (
     is_forwarded,
     sender,
     sent_at,
+    shop_of,
     shorten,
     subject,
     upcoming_date,
@@ -69,7 +70,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             eta_date=eta_date,
             eta_from=eta_from,
             eta_to=eta_to,
-            amazon_shipment=amazon,
+            shop="amazon" if amazon else None,
         )
     ]
 
@@ -89,6 +90,7 @@ def parse_ups_mail(msg: EmailMessage) -> list[MailUpdate]:
         status=ParcelStatus.PRE_TRANSIT,
         sent_at=sent,
         title=shorten(shipper.group(1)) if shipper else None,
+        shop=shop_of(shipper.group(1)) if shipper else None,
     )
     if "zustellbenachrichtigung" in subj.lower():
         update.status = ParcelStatus.DELIVERED

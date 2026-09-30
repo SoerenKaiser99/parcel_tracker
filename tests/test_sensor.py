@@ -154,6 +154,7 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     assert state.attributes["friendly_name"] == "Amazon AMZ99905626221455530"
     assert state.attributes["carrier"] == "amazon"
     assert state.attributes["tracking_ref"] == "JJD000012978217606560"
+    assert state.attributes["tracking_carrier"] == "dhl"
     assert state.attributes["delivery_code"] == "123456"
     expired = hass.states.get("sensor.paket_amz99991565342587125")
     assert expired.attributes["delivery_code"] is None

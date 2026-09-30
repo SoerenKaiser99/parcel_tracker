@@ -9,11 +9,15 @@ from custom_components.parcel_tracker.mail.base import (
     at,
     body_text,
     carrier_for,
+    carrier_key,
     clean,
     find_numbers,
+    html_text,
+    known_shop,
     relative_day,
     sender,
     sent_at,
+    shop_of,
     shorten,
     subject,
     title_key,
@@ -123,3 +127,80 @@ def test_dpd_probe_with_order_and_hotline_numbers():
         "Paketnummer: 09999999999901\nHotline 08001234567890"
     )
     assert find_numbers(text, "labelled") == [("dpd", "09999999999901")]
+
+
+def test_html_text_keeps_blocks_as_lines_and_drops_styles():
+    markup = (
+        "<html><head><style>p {color: red}</style><title>t</title></head><body>"
+        "<table><tr><td>Lieferung ca.:</td></tr><tr><td>Mi, 28. Jan&nbsp;- Do, 29. Jan</td></tr>"
+        "</table><p>A<br>B</p><div>  C  &amp; D </div><script>x()</script></body></html>"
+    )
+    assert html_text(markup) == "Lieferung ca.:\nMi, 28. Jan - Do, 29. Jan\nA\nB\nC & D"
+
+
+def test_body_text_falls_back_to_html():
+    msg = EmailMessage(policy=policy.default)
+    msg["From"] = "eBay <ebay@ebay.com>"
+    msg.set_content("<p>Bestellnummer:</p><p>\u200c99-00000-00001</p>", subtype="html")
+    assert body_text(msg) == "Bestellnummer:\n99-00000-00001"
+    both = _msg("x", "nur Text")
+    both.add_alternative("<p>HTML</p>", subtype="html")
+    assert body_text(both) == "nur Text"
+
+
+def test_body_text_of_html_fixture():
+    text = body_text(load_mail("104_ebay_ihre_sendung_ist_jetzt_beim_versand.eml"))
+    assert "Lieferung ca.:\nMi, 28. Jan - Do, 29. Jan" in text
+    assert "<p>" not in text
+
+
+def test_hermes_numbers_are_safe_on_their_own():
+    assert carrier_for("H9999999999999999901") == "hermes"
+    assert carrier_for("H999999999999999999") is None
+    assert find_numbers("Sendungsnummer H9999767129584220767.") == [
+        ("hermes", "H9999767129584220767")
+    ]
+    # 14 digits stay ambiguous: never Hermes without context
+    assert find_numbers("Nummer 99992958672143") == []
+
+
+@pytest.mark.parametrize(
+    ("text", "key"),
+    [
+        ("Hermes Germany", "hermes"),
+        ("DHL Paket", "dhl"),
+        ("Deutsche Post", "dhl"),
+        ("DPD Deutschland", "dpd"),
+        ("UPS Standard", "ups"),
+        ("GLS", None),
+        ("", None),
+    ],
+)
+def test_carrier_key(text, key):
+    assert carrier_key(text) == key
+
+
+@pytest.mark.parametrize(
+    ("text", "shop"),
+    [("Amazon EU SARL", "amazon"), ("eBay-Verkäufer", "ebay"), ("Beispiel Versand GmbH", None)],
+)
+def test_shop_of(text, shop):
+    assert shop_of(text) == shop
+
+
+@pytest.mark.parametrize(
+    ("text", "known"),
+    [
+        ("Amazon EU SARL", True),
+        ("eBay-Händler", True),
+        ("Otto", True),
+        ("otto.de", True),
+        ("Zalando SE", True),
+        ("MediaMarkt Online", True),
+        ("Otto Beispiel", False),
+        ("Erika Musterfrau", False),
+        ("Beispiel Versand GmbH", False),
+    ],
+)
+def test_known_shop(text, known):
+    assert known_shop(text) is known

@@ -21,8 +21,9 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util.ssl import client_context
 
-from .carriers.base import CarrierUnavailable
+from .carriers.base import CarrierError, CarrierUnavailable
 from .carriers.dhl import DhlCarrier
+from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
     CONF_DHL_API_KEY,
     CONF_IMAP_HOST,
@@ -34,17 +35,24 @@ from .const import (
     CONF_MOVE_PROCESSED,
     CONF_POSTCODE,
     CONF_READ_OTP,
+    CONF_UPS_BUDGET,
+    CONF_UPS_CLIENT_ID,
+    CONF_UPS_CLIENT_SECRET,
+    CONF_UPS_SECTION,
     DEFAULT_IMAP_HOST,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
     DEFAULT_POSTCODE,
     DEFAULT_READ_OTP,
+    DEFAULT_UPS_BUDGET,
     DOMAIN,
     MAX_KEEP_DELIVERED_DAYS,
     MAX_MAIL_INTERVAL,
+    MAX_UPS_BUDGET,
     MIN_KEEP_DELIVERED_DAYS,
     MIN_MAIL_INTERVAL,
+    MIN_UPS_BUDGET,
 )
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
 
@@ -60,6 +68,29 @@ _MINUTES = NumberSelector(
         min=MIN_MAIL_INTERVAL, max=MAX_MAIL_INTERVAL, mode=NumberSelectorMode.BOX
     )
 )
+
+_BUDGET = NumberSelector(
+    NumberSelectorConfig(min=MIN_UPS_BUDGET, max=MAX_UPS_BUDGET, mode=NumberSelectorMode.BOX)
+)
+
+
+def _ups_section(current: Mapping[str, Any]) -> section:
+    """Collapsible 'UPS live status' block of the options form."""
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_UPS_CLIENT_ID,
+                    description={"suggested_value": current.get(CONF_UPS_CLIENT_ID, "")},
+                ): str,
+                vol.Optional(CONF_UPS_CLIENT_SECRET): _KEY,
+                vol.Optional(
+                    CONF_UPS_BUDGET, default=current.get(CONF_UPS_BUDGET, DEFAULT_UPS_BUDGET)
+                ): _BUDGET,
+            }
+        ),
+        {"collapsed": not current.get(CONF_UPS_CLIENT_ID)},
+    )
 
 
 def _mail_section(current: Mapping[str, Any]) -> section:
@@ -97,6 +128,7 @@ def _schema(
     with_key: bool,
     suggested_postcode: str | None = None,
     mail: Mapping[str, Any] | None = None,
+    ups: Mapping[str, Any] | None = None,
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
@@ -117,6 +149,8 @@ def _schema(
     ] = _DAYS
     if mail is not None:
         fields[vol.Optional(CONF_MAIL_SECTION, default={})] = _mail_section(mail)
+    if ups is not None:
+        fields[vol.Optional(CONF_UPS_SECTION, default={})] = _ups_section(ups)
     return vol.Schema(fields)
 
 
@@ -146,6 +180,16 @@ async def _check_mailbox(hass, host: str, user: str, password: str) -> str | Non
     except ImapUnavailable:
         return "imap_cannot_connect"
     return None
+
+
+async def _check_ups(hass, client_id: str, secret: str) -> str | None:
+    """Ask UPS for a token (no tracking call, no budget); return an error code or None."""
+    carrier = UpsCarrier(async_get_clientsession(hass), client_id, secret, ApiBudget(), 1)
+    try:
+        ok = await carrier.validate()
+    except CarrierError:
+        return "ups_cannot_connect"
+    return None if ok else "ups_auth"
 
 
 class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -203,12 +247,12 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(OptionsFlow):
-    """Change key, postcode, keep days and the mail import.
+    """Change key, postcode, keep days, the mail import and the UPS API.
 
-    Secrets (DHL key, IMAP password) are stored in the config entry's ``data``
-    (the same place reauth writes the key) so flows never disagree about which
-    secret is current; an empty secret field keeps the stored one. Everything
-    else lives in ``options``.
+    Secrets (DHL key, IMAP password, UPS client ID and secret) are stored in the
+    config entry's ``data`` (the same place reauth writes the key) so flows never
+    disagree about which secret is current; an empty secret field keeps the stored
+    one. Everything else lives in ``options``.
     """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -228,6 +272,15 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 or user != (self.config_entry.options.get(CONF_IMAP_USER) or "")
                 or (bool(new_password) and new_password != stored_password)
             )
+            ups = user_input.get(CONF_UPS_SECTION) or {}
+            ups_id = (ups.get(CONF_UPS_CLIENT_ID) or "").strip()
+            new_secret = (ups.get(CONF_UPS_CLIENT_SECRET) or "").strip()
+            stored_secret = self.config_entry.data.get(CONF_UPS_CLIENT_SECRET, "")
+            ups_secret = new_secret or stored_secret
+            # Only ask UPS again when ID or secret changed (saving works while UPS is down).
+            ups_changed = ups_id != self.config_entry.data.get(CONF_UPS_CLIENT_ID, "") or (
+                bool(new_secret) and new_secret != stored_secret
+            )
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             if postcode and not _POSTCODE.match(postcode):
@@ -242,6 +295,14 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 and (err := await _check_mailbox(self.hass, host, user, password))
             ):
                 errors["base"] = err
+            elif ups_id and not ups_secret:
+                errors["base"] = "ups_secret_missing"
+            elif (
+                ups_id
+                and ups_changed
+                and (err := await _check_ups(self.hass, ups_id, ups_secret))
+            ):
+                errors["base"] = err
             else:
                 new_options = {
                     CONF_POSTCODE: postcode,
@@ -253,6 +314,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     ),
                     CONF_READ_OTP: bool(mail.get(CONF_READ_OTP, DEFAULT_READ_OTP)),
                     CONF_MAIL_INTERVAL: int(mail.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL)),
+                    CONF_UPS_BUDGET: int(ups.get(CONF_UPS_BUDGET, DEFAULT_UPS_BUDGET)),
                 }
                 data = dict(self.config_entry.data)
                 if key_value:
@@ -261,6 +323,13 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     data[CONF_IMAP_PASSWORD] = new_password
                 if not user:
                     data.pop(CONF_IMAP_PASSWORD, None)  # mail import off: drop the secret
+                if ups_id:
+                    data[CONF_UPS_CLIENT_ID] = ups_id
+                    if new_secret:
+                        data[CONF_UPS_CLIENT_SECRET] = new_secret
+                else:  # UPS API off: drop ID and secret
+                    data.pop(CONF_UPS_CLIENT_ID, None)
+                    data.pop(CONF_UPS_CLIENT_SECRET, None)
                 if data != self.config_entry.data:
                     # Update data and options together so this is a single reload,
                     # not one from async_update_entry and another from the options save.
@@ -270,6 +339,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 return self.async_create_entry(data=new_options)
         shown = {**current, **(user_input or {})}
         mail_shown = {**current, **((user_input or {}).get(CONF_MAIL_SECTION) or {})}
+        ups_shown = {**current, **((user_input or {}).get(CONF_UPS_SECTION) or {})}
         return self.async_show_form(
             step_id="init",
             data_schema=_schema(
@@ -277,6 +347,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 True,
                 suggested_postcode=shown.get(CONF_POSTCODE, ""),
                 mail=mail_shown,
+                ups=ups_shown,
             ),
             errors=errors,
         )

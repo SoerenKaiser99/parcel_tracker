@@ -1,0 +1,62 @@
+{
+  "_source": "Converted from tests/payloads.py of github.com/ha-parcel-integrations/ha-hermes (MIT License, Copyright (c) 2026 ha-hermes contributors). dropoff_delivered_sample(): real redacted response from ha-hermes issue #1.",
+  "response": [
+    {
+      "barcode": "12345678901234",
+      "parcelAttributes": {
+        "delivered": true,
+        "deliveredTimestamp": "2026-08-10T08:16:21.025Z"
+      },
+      "parcelProgress": [
+        {
+          "timestamp": "2026-08-10T08:16:21.025Z",
+          "status": "FINISHED",
+          "parcelStatus": "DELIVERED_DROPOFF",
+          "historyText": "Die Sendung wurde an einem Ablageort hinterlegt."
+        },
+        {
+          "timestamp": "2026-08-10T06:59:25Z",
+          "status": "HAPPY",
+          "parcelStatus": "DELIVERY_TOUR_STARTED",
+          "historyText": "Die Sendung wurde ins Zustellfahrzeug geladen."
+        },
+        {
+          "timestamp": "2026-08-10T02:20:50Z",
+          "status": "HAPPY",
+          "parcelStatus": "ARRIVED_IN_DESTINATION_REGION",
+          "historyText": "Die Sendung ist in der Zielregion angekommen."
+        },
+        {
+          "timestamp": "2026-08-08T15:36:02Z",
+          "status": "HAPPY",
+          "parcelStatus": "SORTED",
+          "historyText": "Die Sendung wurde für den Weiterversand vorbereitet."
+        },
+        {
+          "timestamp": "2026-08-08T09:27:41Z",
+          "status": "HAPPY",
+          "parcelStatus": "PARCELSHOP_COLLECTED_BY_DRIVER",
+          "historyText": "Die Sendung wurde von Hermes im PaketShop abgeholt."
+        },
+        {
+          "timestamp": "2026-08-07T16:00:12Z",
+          "status": "HAPPY",
+          "parcelStatus": "EDL_BOOKED_DROPOFF",
+          "historyText": "Für die Sendung wurde ein WunschAblageort gebucht."
+        },
+        {
+          "timestamp": "2026-08-07T14:29:35Z",
+          "status": "HAPPY",
+          "parcelStatus": "PARCELSHOP_DROP_OFF",
+          "historyText": "Die Sendung wurde vom Absender im PaketShop abgegeben."
+        },
+        {
+          "timestamp": "2026-08-07T10:57:11Z",
+          "status": "HAPPY",
+          "parcelStatus": "ANNOUNCED",
+          "historyText": "Die Sendung wurde Hermes elektronisch angekündigt."
+        }
+      ]
+    }
+  ]
+}

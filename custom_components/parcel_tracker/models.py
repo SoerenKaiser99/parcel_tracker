@@ -131,6 +131,7 @@ class Parcel:
     tracking_ref: str | None = None
     tracking_carrier: str | None = None
     mail_title: str | None = None
+    shipping_carrier_hint: str | None = None  # carrier a shop mail named, e.g. "hermes"
     # Delivery one-time code: kept in memory only, never written by to_dict().
     delivery_code: str | None = None
     delivery_code_day: date | None = None
@@ -171,6 +172,7 @@ class Parcel:
             "tracking_ref": self.tracking_ref,
             "tracking_carrier": self.tracking_carrier,
             "mail_title": self.mail_title,
+            "shipping_carrier_hint": self.shipping_carrier_hint,
         }
 
     @classmethod
@@ -191,4 +193,5 @@ class Parcel:
             tracking_ref=data.get("tracking_ref"),
             tracking_carrier=data.get("tracking_carrier"),
             mail_title=data.get("mail_title"),
+            shipping_carrier_hint=data.get("shipping_carrier_hint"),
         )

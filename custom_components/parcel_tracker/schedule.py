@@ -16,13 +16,21 @@ _INTERVALS = {
 }
 _DEFAULT = timedelta(minutes=60)
 _NIGHT_MIN = timedelta(minutes=60)
+# The UPS API counts against a monthly budget: ask rarely, more often only on the day.
+_UPS_INTERVALS = {ParcelStatus.OUT_FOR_DELIVERY: timedelta(minutes=30)}
+_UPS_DEFAULT = timedelta(hours=4)
 
 
-def poll_interval(status: ParcelStatus | None, now: datetime) -> timedelta | None:
+def poll_interval(
+    status: ParcelStatus | None, now: datetime, carrier: str | None = None
+) -> timedelta | None:
     """Return the time until the next poll, None if polling stops."""
     if status is ParcelStatus.DELIVERED:
         return None
-    interval = _INTERVALS.get(status, _DEFAULT) if status else _DEFAULT
+    if carrier == "ups":
+        interval = _UPS_INTERVALS.get(status, _UPS_DEFAULT) if status else _UPS_DEFAULT
+    else:
+        interval = _INTERVALS.get(status, _DEFAULT) if status else _DEFAULT
     local_hour = now.astimezone(BERLIN).hour
     if local_hour >= 22 or local_hour < 6:
         interval = max(interval, _NIGHT_MIN)

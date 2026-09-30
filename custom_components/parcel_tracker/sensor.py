@@ -133,6 +133,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "delivered_at": _iso(r.delivered_at) if r else None,
             "events": [e.to_dict() for e in r.events] if r else [],
             "tracking_ref": p.tracking_ref,
+            "tracking_carrier": p.tracking_carrier,
+            "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
         }
 

@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from custom_components.parcel_tracker.carriers.ups import ApiBudget
 from custom_components.parcel_tracker.models import Parcel
 from custom_components.parcel_tracker.store import DuplicateParcel, ParcelStore
 
@@ -92,3 +93,18 @@ async def test_old_storage_without_message_ids_loads(hass, hass_storage):
     store = ParcelStore(hass)
     await store.async_load()
     assert store.message_ids == []
+
+
+async def test_ups_budget_persists_and_old_storage_starts_empty(hass, hass_storage):
+    store = ParcelStore(hass)
+    await store.async_load()
+    assert store.ups_budget == ApiBudget()
+    store.ups_budget.month, store.ups_budget.count = "2026-09", 42
+    await store.async_save()
+    assert hass_storage["parcel_tracker"]["data"]["ups_budget"] == {"month": "2026-09", "count": 42}
+    fresh = ParcelStore(hass)
+    await fresh.async_load()
+    assert fresh.ups_budget == ApiBudget("2026-09", 42)
+    hass_storage["parcel_tracker"]["data"]["ups_budget"] = "garbage"
+    await fresh.async_load()
+    assert fresh.ups_budget == ApiBudget()

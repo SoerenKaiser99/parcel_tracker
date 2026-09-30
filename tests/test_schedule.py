@@ -34,6 +34,30 @@ def test_poll_interval_delivered_never():
     assert poll_interval(ParcelStatus.DELIVERED, NOON) is None
 
 
+@pytest.mark.parametrize(
+    ("status", "minutes"),
+    [
+        (ParcelStatus.OUT_FOR_DELIVERY, 30),
+        (ParcelStatus.IN_TRANSIT, 240),
+        (ParcelStatus.AWAITING_PICKUP, 240),
+        (ParcelStatus.PRE_TRANSIT, 240),
+        (None, 240),
+    ],
+)
+def test_ups_api_is_asked_sparingly(status, minutes):
+    assert poll_interval(status, NOON, "ups") == timedelta(minutes=minutes)
+    assert poll_interval(ParcelStatus.DELIVERED, NOON, "ups") is None
+
+
+def test_ups_night_rule_still_applies():
+    assert poll_interval(ParcelStatus.OUT_FOR_DELIVERY, NIGHT, "ups") == timedelta(minutes=60)
+    assert poll_interval(ParcelStatus.IN_TRANSIT, NIGHT, "ups") == timedelta(hours=4)
+
+
+def test_other_carriers_keep_their_intervals():
+    assert poll_interval(ParcelStatus.IN_TRANSIT, NOON, "hermes") == timedelta(minutes=30)
+
+
 def test_poll_interval_night_at_least_hourly():
     assert poll_interval(ParcelStatus.OUT_FOR_DELIVERY, NIGHT) == timedelta(minutes=60)
 
