@@ -55,3 +55,9 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 def load_fixture(name: str) -> dict:
     """Load a JSON fixture from tests/fixtures."""
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def hass_config_dir(hass_tmp_config_dir: str) -> str:
+    """Isolated temp config dir so tests never touch the shared testing_config."""
+    return hass_tmp_config_dir

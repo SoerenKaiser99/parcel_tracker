@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
@@ -25,6 +25,7 @@ STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1
 
 CARD_URL = "/parcel_tracker/parcel-tracker-card.js"
+LOCAL_CARD_URL = "/local/parcel_tracker/parcel-tracker-card.js"
 
 CARRIER_AUTO = "auto"
 MAX_EVENTS = 5

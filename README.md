@@ -47,6 +47,8 @@ Dashboard bearbeiten → Karte hinzufügen → "Paket Tracker" auswählen. Alter
 type: custom:parcel-tracker-card
 ```
 
+Die Integration kopiert die Karte beim Start nach `www/parcel_tracker/` und trägt sie automatisch als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`). Falls der Ordner `www` vorher nicht existierte, wird die Karte zunächst direkt von der Integration ausgeliefert; ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad.
+
 ## Beispiel-Automation
 
 Benachrichtigung, sobald ein Paket in Zustellung geht:

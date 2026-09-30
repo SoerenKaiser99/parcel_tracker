@@ -7,23 +7,33 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import CARD_URL, VERSION
+from .const import CARD_URL, LOCAL_CARD_URL
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def plan_resource(items: list[dict[str, Any]], url: str) -> tuple[str, str | None]:
-    """Decide what to do: ("create", None), ("update", id) or ("none", None)."""
-    for item in items:
-        current = str(item.get("url", ""))
-        if current.split("?", 1)[0] == CARD_URL:
-            if current == url:
-                return "none", None
-            return "update", item.get("id")
-    return "create", None
+def _is_ours(item: dict[str, Any]) -> bool:
+    return str(item.get("url", "")).split("?", 1)[0] in (CARD_URL, LOCAL_CARD_URL)
 
 
-async def async_ensure_resource(hass: HomeAssistant, *_: Any) -> None:
+def plan_resource(
+    items: list[dict[str, Any]], url: str
+) -> tuple[str, str | None, list[str]]:
+    """Decide what to do: (action, kept_id, ids_to_delete).
+
+    action is "create", "update" or "none". Of several of our resources one is
+    kept (preferring one already at ``url``); the others are deleted.
+    """
+    ours = [i for i in items if _is_ours(i)]
+    if not ours:
+        return "create", None, []
+    keep = next((i for i in ours if i.get("url") == url), ours[0])
+    extras = [str(i["id"]) for i in ours if i is not keep]
+    action = "none" if keep.get("url") == url else "update"
+    return action, keep.get("id"), extras
+
+
+async def async_ensure_resource(hass: HomeAssistant, url: str) -> None:
     """Create or update the module resource. Never raises."""
     try:
         from homeassistant.components.lovelace.const import LOVELACE_DATA  # noqa: PLC0415
@@ -39,8 +49,7 @@ async def async_ensure_resource(hass: HomeAssistant, *_: Any) -> None:
             _LOGGER.info("Lovelace resources in YAML mode, card resource not registered")
             return
         await resources.async_get_info()  # ensures the collection is loaded
-        url = f"{CARD_URL}?v={VERSION}"
-        action, item_id = plan_resource(resources.async_items(), url)
+        action, item_id, extras = plan_resource(resources.async_items(), url)
         if action == "create":
             await resources.async_create_item({"res_type": "module", "url": url})
             _LOGGER.info("Registered card resource %s", url)
@@ -49,5 +58,8 @@ async def async_ensure_resource(hass: HomeAssistant, *_: Any) -> None:
             _LOGGER.info("Updated card resource to %s", url)
         else:
             _LOGGER.debug("Card resource %s already registered", url)
+        for extra_id in extras:
+            await resources.async_delete_item(extra_id)
+            _LOGGER.info("Removed duplicate card resource %s", extra_id)
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Could not register the Paket Tracker card as a Lovelace resource: %s", err)

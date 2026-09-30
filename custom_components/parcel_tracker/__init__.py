@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import voluptuous as vol
@@ -15,12 +16,15 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
+from .card_install import BUNDLED_CARD, CARD_FILE, card_hash, card_url, install_card
 from .carriers import build_carriers
-from .const import CARD_URL, CARRIER_AUTO, CONF_DHL_API_KEY, DOMAIN, VERSION
+from .const import CARD_URL, CARRIER_AUTO, CONF_DHL_API_KEY, DOMAIN
 from .coordinator import ParcelCoordinator
 from .detect import UnsupportedNumber
 from .lovelace_resource import async_ensure_resource
 from .store import DuplicateParcel, ParcelStore
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -49,16 +53,36 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # In the test harness `http` may not be set up, so hass.http can be None.
     # Guard the static-path registration; the card is exercised in a real HA.
     if getattr(hass, "http", None) is not None:
-        card_path = str(Path(__file__).parent / "frontend" / "parcel-tracker-card.js")
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(CARD_URL, card_path, False)]
+            [StaticPathConfig(CARD_URL, str(BUNDLED_CARD), False)]
         )
+
+    # /local (config/www) is served from the very start of HA, unlike our own
+    # static path; clients that hit a not-yet-registered URL cache the failure.
+    target = Path(hass.config.path("www", "parcel_tracker", CARD_FILE))
+    try:
+        digest, www_existed, _written = await hass.async_add_executor_job(
+            install_card, BUNDLED_CARD, target
+        )
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not copy the card to %s (%s); serving it from %s", target, err, CARD_URL
+        )
+        digest = await hass.async_add_executor_job(lambda: card_hash(BUNDLED_CARD.read_bytes()))
+        www_existed = False
+    if not www_existed:
+        _LOGGER.info(
+            "Created the www folder; the card is served from %s for now and "
+            "from /local after the next Home Assistant restart",
+            CARD_URL,
+        )
+    url = card_url(digest, www_existed)
     if "frontend" in hass.config.components:
-        add_extra_js_url(hass, f"{CARD_URL}?v={VERSION}")
+        add_extra_js_url(hass, url)
 
     # Lovelace is an after_dependency, so its resource collection is ready here;
     # don't wait for EVENT_HOMEASSISTANT_STARTED, which can come very late.
-    hass.async_create_task(async_ensure_resource(hass), eager_start=False)
+    hass.async_create_task(async_ensure_resource(hass, url), eager_start=False)
 
     async def add(call: ServiceCall) -> None:
         try:
