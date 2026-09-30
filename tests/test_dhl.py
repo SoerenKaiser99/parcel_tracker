@@ -113,3 +113,33 @@ async def test_validate_key():
         with aioresponses() as m:
             m.get(probe, status=401)
             assert await DhlCarrier(session, "bad").validate_key() is False
+
+
+def test_parse_real_delivered():
+    r = parse_dhl(load_fixture("dhl_real_delivered.json"))
+    assert r.status is ParcelStatus.DELIVERED
+    assert r.delivered_at == datetime(2026, 9, 29, 15, 18, tzinfo=BERLIN)
+    assert len(r.events) == 5
+    assert r.events[0].text == "Die Sendung wurde zugestellt."
+    assert r.events[0].location is None
+    # Real fixture only carries the bare country ("Deutschland") -> no location.
+    assert all(e.location is None for e in r.events)
+    stamps = [e.timestamp for e in r.events]
+    assert stamps == sorted(stamps, reverse=True)
+
+
+def test_short_code_po_is_out_for_delivery():
+    data = {"shipments": [{"status": {"timestamp": "2026-09-29T09:51:00", "statusCode": "transit",
+                                      "status": "PO", "description": "Irgendein Text"}}]}
+    assert parse_dhl(data).status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("Neuwied, Deutschland", "Neuwied"), ("Deutschland", None), ("Germany", None),
+     ("Bonn", "Bonn")],
+)
+def test_locality_cleanup(raw, expected):
+    data = {"shipments": [{"status": {"timestamp": "2026-09-29T09:51:00", "statusCode": "transit",
+            "description": "x", "location": {"address": {"addressLocality": raw}}}}]}
+    assert parse_dhl(data).location == expected

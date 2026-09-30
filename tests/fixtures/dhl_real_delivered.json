@@ -1,0 +1,112 @@
+{
+  "shipments": [
+    {
+      "id": "00340999999999999901",
+      "service": "parcel-de",
+      "origin": {
+        "address": {
+          "countryCode": "DE"
+        }
+      },
+      "destination": {
+        "address": {
+          "countryCode": "DE"
+        }
+      },
+      "status": {
+        "timestamp": "2026-09-29T15:18:00",
+        "location": {
+          "address": {
+            "addressLocality": "Deutschland"
+          }
+        },
+        "statusCode": "delivered",
+        "status": "ZU",
+        "statusDetailed": "DLVRD_ACCPT_ZU",
+        "description": "Die Sendung wurde zugestellt.",
+        "remark": "Die Sendung wurde zugestellt."
+      },
+      "serviceUrl": "https://www.dhl.de/de/privatkunden.html?piececode=00340999999999999901",
+      "returnFlag": false,
+      "details": {
+        "product": {
+          "productName": "DHL PAKET, Filial-Routing"
+        },
+        "proofOfDeliverySignedAvailable": false,
+        "totalNumberOfPieces": 1,
+        "pieceIds": [
+          "340999999999999901"
+        ],
+        "weight": {
+          "unitText": "kg",
+          "value": 12.145
+        }
+      },
+      "events": [
+        {
+          "timestamp": "2026-09-29T15:18:00",
+          "location": {
+            "address": {
+              "addressLocality": "Deutschland"
+            }
+          },
+          "statusCode": "delivered",
+          "status": "ZU",
+          "statusDetailed": "DLVRD_ACCPT_ZU",
+          "description": "Die Sendung wurde zugestellt.",
+          "remark": "Die Sendung wurde zugestellt."
+        },
+        {
+          "timestamp": "2026-09-29T09:51:00",
+          "statusCode": "transit",
+          "status": "PO",
+          "statusDetailed": "SRTED_NRQRD_PO",
+          "description": "Die Sendung wurde in das Zustellfahrzeug geladen. Die Zustellung erfolgt voraussichtlich heute.",
+          "remark": "Die Sendung wurde in das Zustellfahrzeug geladen. Die Zustellung erfolgt voraussichtlich heute."
+        },
+        {
+          "timestamp": "2026-09-29T01:27:00",
+          "location": {
+            "address": {
+              "addressLocality": "Deutschland"
+            }
+          },
+          "statusCode": "transit",
+          "status": "EE",
+          "statusDetailed": "ULFMV_UNLDD_EE",
+          "description": "Die Sendung ist in der Region des Empfängers angekommen und wird im nächsten Schritt zur Zustellbasis transportiert.",
+          "remark": "Die Sendung ist in der Region des Empfängers angekommen und wird im nächsten Schritt zur Zustellbasis transportiert."
+        },
+        {
+          "timestamp": "2026-09-28T18:31:00",
+          "statusCode": "pre-transit",
+          "status": "VA",
+          "statusDetailed": "PARCV_NRQRD_VA",
+          "description": "Die Sendung wurde elektronisch angekündigt. Sobald die Sendung von uns bearbeitet wurde, erhalten Sie weitere Informationen.",
+          "remark": "Die Sendung wurde elektronisch angekündigt. Sobald die Sendung von uns bearbeitet wurde, erhalten Sie weitere Informationen."
+        },
+        {
+          "timestamp": "2026-09-28T15:56:00",
+          "location": {
+            "address": {
+              "addressLocality": "Deutschland"
+            }
+          },
+          "statusCode": "transit",
+          "status": "AA",
+          "statusDetailed": "LDTMV_MVMTV_AA",
+          "description": "Die Sendung wurde von DHL bearbeitet und wird für den Weitertransport in die Region des Empfängers vorbereitet.",
+          "remark": "Die Sendung wurde von DHL bearbeitet und wird für den Weitertransport in die Region des Empfängers vorbereitet."
+        },
+        {
+          "timestamp": "2026-09-28T15:56:00",
+          "statusCode": "transit",
+          "status": "AA",
+          "statusDetailed": "ADVIS_PFLOC_DD",
+          "description": "Für diese Sendung wurde ein Ablageort als Empfangsoption vorgemerkt.",
+          "remark": "Die Sendung wurde von DHL bearbeitet und wird für den Weitertransport in die Region des Empfängers vorbereitet."
+        }
+      ]
+    }
+  ]
+}

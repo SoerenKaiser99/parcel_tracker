@@ -8,8 +8,8 @@ import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
+from homeassistant.core import CoreState, Event, HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -19,6 +19,7 @@ from .carriers import build_carriers
 from .const import CARD_URL, CARRIER_AUTO, CONF_DHL_API_KEY, DOMAIN, VERSION
 from .coordinator import ParcelCoordinator
 from .detect import UnsupportedNumber
+from .lovelace_resource import async_ensure_resource
 from .store import DuplicateParcel, ParcelStore
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
@@ -54,6 +55,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
     if "frontend" in hass.config.components:
         add_extra_js_url(hass, f"{CARD_URL}?v={VERSION}")
+
+    async def _ensure_resource(_event: Event | None = None) -> None:
+        await async_ensure_resource(hass)
+
+    if hass.state is CoreState.running:
+        hass.async_create_task(_ensure_resource())
+    else:
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _ensure_resource)
 
     async def add(call: ServiceCall) -> None:
         try:

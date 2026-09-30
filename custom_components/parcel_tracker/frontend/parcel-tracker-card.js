@@ -310,6 +310,8 @@ class ParcelTrackerCard extends HTMLElement {
   static getStubConfig() { return {}; }
 }
 
-customElements.define("parcel-tracker-card", ParcelTrackerCard);
-window.customCards = window.customCards || [];
-window.customCards.push({ type: "parcel-tracker-card", name: "Paket Tracker", description: "Pakete verfolgen und eintragen" });
+if (!customElements.get("parcel-tracker-card")) {
+  customElements.define("parcel-tracker-card", ParcelTrackerCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({ type: "parcel-tracker-card", name: "Paket Tracker", description: "Pakete verfolgen und eintragen" });
+}

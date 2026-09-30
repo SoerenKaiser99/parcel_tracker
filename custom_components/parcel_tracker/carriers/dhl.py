@@ -33,6 +33,15 @@ _CODE_MAP = {
     "unknown": ParcelStatus.UNKNOWN,
 }
 
+_SHORT_CODE_MAP = {
+    "ZU": ParcelStatus.DELIVERED,
+    "PO": ParcelStatus.OUT_FOR_DELIVERY,
+    "VA": ParcelStatus.PRE_TRANSIT,
+    "EE": ParcelStatus.IN_TRANSIT,
+    "AA": ParcelStatus.IN_TRANSIT,
+}
+_COUNTRIES = {"deutschland", "germany"}
+
 
 def _ts(value: str | None) -> datetime | None:
     if not value:
@@ -42,7 +51,17 @@ def _ts(value: str | None) -> datetime | None:
 
 
 def _locality(node: dict[str, Any] | None) -> str | None:
-    return (((node or {}).get("location") or {}).get("address") or {}).get("addressLocality")
+    raw = (((node or {}).get("location") or {}).get("address") or {}).get("addressLocality")
+    if not isinstance(raw, str):
+        return raw
+    value = raw.strip()
+    for country in ("Deutschland", "Germany"):
+        if value.lower().endswith(f", {country.lower()}"):
+            value = value[: -len(country) - 2].strip()
+            break
+    if not value or value.lower() in _COUNTRIES:
+        return None
+    return value
 
 
 def _refine(status: ParcelStatus, text: str) -> ParcelStatus:
@@ -67,7 +86,8 @@ def parse_dhl(data: dict[str, Any]) -> TrackingResult:
         raise ParseError("no shipment in DHL response") from err
 
     text = current.get("description") or current.get("status") or ""
-    status = _refine(_CODE_MAP.get(current.get("statusCode"), ParcelStatus.UNKNOWN), text)
+    known = _SHORT_CODE_MAP.get(current.get("status"))
+    status = known or _refine(_CODE_MAP.get(current.get("statusCode"), ParcelStatus.UNKNOWN), text)
 
     frame = shipment.get("estimatedTimeOfDeliveryTimeFrame") or {}
     eta_from = _ts(frame.get("estimatedFrom"))
