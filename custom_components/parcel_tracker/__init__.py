@@ -8,11 +8,12 @@ import voluptuous as vol
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
-from homeassistant.core import CoreState, Event, HomeAssistant, ServiceCall
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
 from .carriers import build_carriers
@@ -56,13 +57,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if "frontend" in hass.config.components:
         add_extra_js_url(hass, f"{CARD_URL}?v={VERSION}")
 
-    async def _ensure_resource(_event: Event | None = None) -> None:
-        await async_ensure_resource(hass)
-
-    if hass.state is CoreState.running:
-        hass.async_create_task(_ensure_resource())
-    else:
-        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _ensure_resource)
+    async_at_started(hass, async_ensure_resource)
 
     async def add(call: ServiceCall) -> None:
         try:

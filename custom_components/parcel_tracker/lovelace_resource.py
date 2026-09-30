@@ -30,20 +30,24 @@ async def async_ensure_resource(hass: HomeAssistant) -> None:
 
         data = hass.data.get(LOVELACE_DATA)
         if data is None:
-            _LOGGER.debug("Lovelace not available, skipping resource registration")
+            _LOGGER.info("Lovelace not available, card resource not registered")
             return
         resources = data.resources
         if getattr(data, "resource_mode", "storage") != "storage" or not hasattr(
             resources, "async_create_item"
         ):
-            _LOGGER.debug("Lovelace in YAML mode, skipping resource registration")
+            _LOGGER.info("Lovelace resources in YAML mode, card resource not registered")
             return
         await resources.async_get_info()  # ensures the collection is loaded
         url = f"{CARD_URL}?v={VERSION}"
         action, item_id = plan_resource(resources.async_items(), url)
         if action == "create":
             await resources.async_create_item({"res_type": "module", "url": url})
+            _LOGGER.info("Registered card resource %s", url)
         elif action == "update" and item_id:
             await resources.async_update_item(item_id, {"res_type": "module", "url": url})
+            _LOGGER.info("Updated card resource to %s", url)
+        else:
+            _LOGGER.debug("Card resource %s already registered", url)
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Could not register the Paket Tracker card as a Lovelace resource: %s", err)

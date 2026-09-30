@@ -71,3 +71,21 @@ async def test_failure_only_warns(hass, lovelace, caplog):
 async def test_without_lovelace_is_silent(hass, caplog):
     await async_ensure_resource(hass)
     assert "Could not register" not in caplog.text
+
+
+async def test_registers_resource_when_set_up_during_startup(hass):
+    from homeassistant.core import CoreState
+
+    hass.set_state(CoreState.not_running)
+    assert await async_setup_component(hass, "lovelace", {})
+    e = MockConfigEntry(domain=DOMAIN, data={"postcode": "10115"})
+    e.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(e.entry_id)
+    await hass.async_block_till_done()
+    assert _card_items(hass) == []
+    hass.set_state(CoreState.running)
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+    await hass.async_block_till_done()
+    items = _card_items(hass)
+    assert len(items) == 1
+    assert items[0]["url"] == URL
