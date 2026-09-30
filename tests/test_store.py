@@ -61,3 +61,34 @@ async def test_load_skips_corrupt_entries(hass, hass_storage, caplog):
 
     # Check that warnings were logged
     assert "Skipping unreadable stored parcel" in caplog.text
+
+
+async def test_message_ids_dedup_keep_last_500_and_persist(hass, hass_storage):
+    store = ParcelStore(hass)
+    await store.async_load()
+    assert store.message_ids == []
+    assert store.remember_message("<a@example.org>") is True
+    assert store.remember_message("<a@example.org>") is False
+    for i in range(600):
+        store.remember_message(f"<{i}@example.org>")
+    assert len(store.message_ids) == 500
+    assert store.message_ids[-1] == "<599@example.org>"
+    assert "<a@example.org>" not in store.message_ids
+    await store.async_save()
+
+    fresh = ParcelStore(hass)
+    await fresh.async_load()
+    assert fresh.message_ids == store.message_ids
+    assert fresh.remember_message("<599@example.org>") is False
+
+
+async def test_old_storage_without_message_ids_loads(hass, hass_storage):
+    hass_storage["parcel_tracker"] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": "parcel_tracker",
+        "data": {"parcels": [], "message_ids": "garbage"},
+    }
+    store = ParcelStore(hass)
+    await store.async_load()
+    assert store.message_ids == []

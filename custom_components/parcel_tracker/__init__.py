@@ -13,15 +13,27 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.util.ssl import client_context
 
 from .card_install import BUNDLED_CARD, CARD_FILE, card_hash, card_url, install_card
 from .carriers import build_carriers
-from .const import CARD_URL, CARRIER_AUTO, CONF_DHL_API_KEY, DOMAIN
+from .const import (
+    CARD_URL,
+    CARRIER_AUTO,
+    CONF_DHL_API_KEY,
+    CONF_IMAP_HOST,
+    CONF_IMAP_PASSWORD,
+    CONF_IMAP_USER,
+    DEFAULT_IMAP_HOST,
+    DOMAIN,
+)
 from .coordinator import ParcelCoordinator
 from .detect import UnsupportedNumber
 from .lovelace_resource import async_ensure_resource
+from .mail.imap import MailboxClient
 from .store import DuplicateParcel, ParcelStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,6 +58,20 @@ def _err(key: str) -> ServiceValidationError:
 def _dhl_key(entry: ConfigEntry) -> str | None:
     """Read the DHL key from entry.data (the single source of truth)."""
     return entry.data.get(CONF_DHL_API_KEY)
+
+
+def _mailbox(entry: ConfigEntry) -> MailboxClient | None:
+    """IMAP client when a user (options) and a password (data) are configured."""
+    user = entry.options.get(CONF_IMAP_USER)
+    password = entry.data.get(CONF_IMAP_PASSWORD)
+    if not user or not password:
+        return None
+    return MailboxClient(
+        entry.options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST,
+        user,
+        password,
+        ssl_context=client_context(),
+    )
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -141,12 +167,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bo
     store = ParcelStore(hass)
     await store.async_load()
     carriers = build_carriers(async_get_clientsession(hass), _dhl_key(entry))
-    coordinator = ParcelCoordinator(hass, entry, store, carriers)
+    mailbox = _mailbox(entry)
+    if mailbox is None:
+        _mail_import_off(hass, entry)
+    coordinator = ParcelCoordinator(hass, entry, store, carriers, mailbox)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
     return True
+
+
+def _mail_import_off(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """No mailbox configured: drop mail repair issues and an orphaned password."""
+    for issue in ("imap_auth", "amazon_unrecognized"):
+        ir.async_delete_issue(hass, DOMAIN, issue)
+    if not entry.options.get(CONF_IMAP_USER) and CONF_IMAP_PASSWORD in entry.data:
+        data = {k: v for k, v in entry.data.items() if k != CONF_IMAP_PASSWORD}
+        hass.config_entries.async_update_entry(entry, data=data)
 
 
 async def _reload(hass: HomeAssistant, entry: ParcelConfigEntry) -> None:

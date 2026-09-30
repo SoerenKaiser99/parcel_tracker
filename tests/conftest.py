@@ -1,7 +1,10 @@
 """Shared test fixtures."""
 
+import email
 import inspect
 import json
+from email import policy
+from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -10,6 +13,8 @@ import pytest
 pytest_plugins = "pytest_homeassistant_custom_component"
 
 FIXTURES = Path(__file__).parent / "fixtures"
+# 12:00 in Berlin: outside the 22–6 night window in which poll intervals stretch to 60 min.
+DAYTIME = "2026-09-29 10:00:00+00:00"
 
 
 def _patch_aioresponses_for_new_aiohttp() -> None:
@@ -55,6 +60,12 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 def load_fixture(name: str) -> dict:
     """Load a JSON fixture from tests/fixtures."""
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+def load_mail(name: str) -> EmailMessage:
+    """Parse an anonymised mail from tests/fixtures/mail."""
+    raw = (FIXTURES / "mail" / name).read_bytes()
+    return email.message_from_bytes(raw, policy=policy.default)
 
 
 @pytest.fixture

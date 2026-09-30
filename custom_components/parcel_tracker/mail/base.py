@@ -1,0 +1,194 @@
+"""Mail parsing primitives (no Home Assistant imports)."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from datetime import date, datetime, time, timedelta
+from email.message import EmailMessage
+from email.utils import parsedate_to_datetime
+from typing import Literal
+
+from ..carriers.base import BERLIN
+from ..models import ParcelStatus
+
+TITLE_MAX = 60
+
+MONTHS = {
+    "januar": 1, "februar": 2, "märz": 3, "april": 4, "mai": 5, "juni": 6,
+    "juli": 7, "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
+}
+
+# Invisible marks Amazon/DHL put into mails: combining grapheme joiner, zero-width
+# chars, direction marks/embeddings (U+202B before the order number), soft hyphen.
+_INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­]")
+_SPACES = re.compile("[ \t   ]+")
+_FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
+_MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
+
+
+@dataclass
+class MailUpdate:
+    """One parcel fact taken from a mail."""
+
+    number: str  # "AMZ" + order digits for Amazon, else the tracking number
+    carrier: str  # "amazon" | "dhl" | "dpd" | "ups"
+    status: ParcelStatus | None
+    sent_at: datetime  # Date header in Europe/Berlin
+    title: str | None = None
+    eta_date: date | None = None
+    eta_from: datetime | None = None
+    eta_to: datetime | None = None
+    delivered_at: datetime | None = None
+    delivery_code: str | None = None
+    amazon_shipment: bool = False  # DHL "Ihre Amazon Sendung …"
+
+
+@dataclass
+class MailResult:
+    """Outcome of parsing one mail."""
+
+    updates: list[MailUpdate] = field(default_factory=list)
+    ignored: bool = False  # sender on the ignore list: no folder move, no counting
+    amazon: bool = False  # came from an Amazon shipping sender (for the unrecognised counter)
+
+
+_NUMBERS = (
+    ("dhl", re.compile(r"\b(00340\d{15})\b")),
+    ("dhl", re.compile(r"\b(JJD\d{12,22})\b")),
+    ("ups", re.compile(r"\b(1Z[0-9A-Z]{16})\b")),
+)
+_DPD = re.compile(r"\b(\d{14})\b")
+# 14 digits are ambiguous (order numbers, phone numbers): outside DPD's own mails
+# only a number right after a parcel-number label counts.
+_DPD_LABELLED = re.compile(
+    r"(?:Paketnummer|Sendungsnummer|Paket-Nr\.?|Paketscheinnummer|Sendungs-Nr\.?)"
+    r"\s*:?\s*(\d{14})\b",
+    re.IGNORECASE,
+)
+DPD_DOMAINS = ("dpd.de", "service.dpd.de")
+
+DpdMode = Literal["labelled", "any"] | None
+
+
+def carrier_for(number: str) -> str | None:
+    """Carrier of a number that is unambiguous on its own (DPD needs context)."""
+    for carrier, pattern in _NUMBERS:
+        if pattern.fullmatch(number):
+            return carrier
+    return None
+
+
+def find_numbers(text: str, dpd: DpdMode = None) -> list[tuple[str, str]]:
+    """Safe tracking numbers in ``text`` as (carrier, number), first occurrence first.
+
+    ``dpd``: None = no DPD numbers, "labelled" = only 14 digits after a parcel-number
+    label, "any" = every 14-digit number (mails from DPD itself).
+    """
+    found: list[tuple[int, str, str]] = []
+    for carrier, pattern in _NUMBERS:
+        found += [(m.start(), carrier, m.group(1)) for m in pattern.finditer(text)]
+    if dpd is not None:
+        pattern = _DPD if dpd == "any" else _DPD_LABELLED
+        found += [(m.start(1), "dpd", m.group(1)) for m in pattern.finditer(text)]
+    result: list[tuple[str, str]] = []
+    for _, carrier, number in sorted(found):
+        if all(number != known for _, known in result):
+            result.append((carrier, number))
+    return result
+
+
+def clean(text: str) -> str:
+    """Drop invisible marks, fold exotic spaces, strip every line."""
+    text = _INVISIBLE.sub("", text)
+    return "\n".join(_SPACES.sub(" ", line).strip() for line in text.splitlines())
+
+
+def body_text(msg: EmailMessage) -> str:
+    """Cleaned text/plain body ('' if there is none)."""
+    part = msg.get_body(preferencelist=("plain",))
+    if part is None:
+        return ""
+    try:
+        content = part.get_content()
+    except (LookupError, ValueError):
+        content = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
+    return clean(content)
+
+
+def _raw_subject(msg: EmailMessage) -> str:
+    return clean(str(msg.get("Subject", ""))).replace("\n", " ").strip()
+
+
+def subject(msg: EmailMessage) -> str:
+    """Cleaned one-line subject without forward/reply prefixes."""
+    return _FORWARD.sub("", _raw_subject(msg))
+
+
+def is_forwarded(msg: EmailMessage) -> bool:
+    """Subject starts with WG:/Fwd:/FW:/AW:/Re: (someone passed the mail on by hand)."""
+    return _FORWARD.match(_raw_subject(msg)) is not None
+
+
+def domain_of(address: str) -> str:
+    """Domain part of an e-mail address ('' if there is none)."""
+    return address.rpartition("@")[2] if "@" in address else ""
+
+
+def sender(msg: EmailMessage) -> tuple[str, str]:
+    """(lower-case address, display name) of the From header."""
+    header = msg.get("From")
+    addresses = getattr(header, "addresses", None)
+    if not addresses:
+        return "", ""
+    return addresses[0].addr_spec.lower(), addresses[0].display_name
+
+
+def sent_at(msg: EmailMessage) -> datetime:
+    """Date header as an aware datetime in Europe/Berlin; ValueError if missing."""
+    raw = msg.get("Date")
+    if raw is None:
+        raise ValueError("mail has no Date header")
+    value = getattr(raw, "datetime", None) or parsedate_to_datetime(str(raw))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=BERLIN)
+    return value.astimezone(BERLIN)
+
+
+def relative_day(word: str, ref: datetime) -> date:
+    """'heute'/'morgen' relative to the mail's local date."""
+    return ref.date() + timedelta(days=1 if word.lower() == "morgen" else 0)
+
+
+def at(day: date, hour: int, minute: int) -> datetime:
+    """Local Europe/Berlin time on a day."""
+    return datetime.combine(day, time(hour, minute), tzinfo=BERLIN)
+
+
+def upcoming_date(day: int, month: int | None, ref: date) -> date | None:
+    """First date with this day (and month) not more than a week before ``ref``."""
+    for offset in range(13):
+        year, month0 = divmod(ref.month - 1 + offset, 12)
+        year += ref.year
+        if month is not None and month0 + 1 != month:
+            continue
+        try:
+            candidate = date(year, month0 + 1, day)
+        except ValueError:
+            continue
+        if candidate >= ref - timedelta(days=7):
+            return candidate
+    return None
+
+
+def shorten(text: str, limit: int = TITLE_MAX) -> str:
+    """Trim to ``limit`` characters, marking a cut with '…'."""
+    text = text.strip()
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def title_key(title: str) -> str:
+    """Comparable start of an item title (subject and body titles differ in length)."""
+    core = _MORE.sub("", title.replace("…", "").replace("...", ""))
+    core = re.sub(r"\s+", " ", core.replace("‑", "-")).strip().lower()
+    return core[:15]

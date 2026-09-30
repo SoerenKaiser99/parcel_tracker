@@ -40,13 +40,35 @@
         },
         "data_description": {
           "postcode": "z. B. 10115"
+        },
+        "sections": {
+          "mail": {
+            "name": "E-Mail-Import (optional)",
+            "description": "Liest Paketmails per IMAP aus einem eigenen Paket-Postfach. Trag nur ein Postfach ein, das ausschließlich Paketmails bekommt – nie dein Hauptpostfach.",
+            "data": {
+              "imap_host": "IMAP-Server",
+              "imap_user": "Benutzername",
+              "imap_password": "Passwort",
+              "move_processed": "Verarbeitete Mails in Ordner verschieben",
+              "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen"
+            },
+            "data_description": {
+              "imap_user": "Leer lassen schaltet den E-Mail-Import aus.",
+              "imap_password": "Leer lassen behält das gespeicherte Passwort.",
+              "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
+              "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf."
+            }
+          }
         }
       }
     },
     "error": {
       "invalid_key": "DHL hat diesen API-Key abgelehnt.",
       "cannot_connect": "DHL ist gerade nicht erreichbar. Versuch es später noch einmal.",
-      "invalid_postcode": "Gib eine 5-stellige PLZ ein."
+      "invalid_postcode": "Gib eine 5-stellige PLZ ein.",
+      "imap_auth": "Der Mailserver hat Benutzername oder Passwort abgelehnt.",
+      "imap_cannot_connect": "Der Mailserver ist nicht erreichbar. Prüf den Servernamen.",
+      "imap_password_missing": "Gib das Passwort des Postfachs ein."
     }
   },
   "issues": {
@@ -57,11 +79,19 @@
     "carrier_broken": {
       "title": "{carrier}-Sendungsverfolgung funktioniert nicht",
       "description": "Seit 24 Stunden schlagen alle {carrier}-Abfragen fehl. Vermutlich hat der Carrier seine Seite geändert. Prüf, ob es ein Update für Paket Tracker gibt."
+    },
+    "imap_auth": {
+      "title": "Anmeldung am Paket-Postfach abgelehnt",
+      "description": "Der Mailserver akzeptiert die Anmeldung für das Paket-Postfach nicht mehr. Öffne die Optionen von Paket Tracker und gib das aktuelle Passwort ein."
+    },
+    "amazon_unrecognized": {
+      "title": "Amazon-Mails nicht erkannt",
+      "description": "Paket Tracker konnte die letzten 5 Amazon-Mails nicht lesen. Vermutlich hat Amazon das Mail-Format geändert. Prüf, ob es ein Update für Paket Tracker gibt; die Mails liegen im Ordner Paket-Tracker-Nicht-erkannt."
     }
   },
   "exceptions": {
     "duplicate": {"message": "Dieses Paket ist schon in der Liste."},
-    "amazon": {"message": "Amazon-eigene Nummern werden noch nicht unterstützt."},
+    "amazon": {"message": "Amazon-Nummern (TBA…) lassen sich nicht direkt verfolgen. Leite die Amazon-Mails ins Paket-Postfach weiter."},
     "empty": {"message": "Gib eine Sendungsnummer ein."},
     "unknown_carrier": {"message": "Unbekannter Carrier."},
     "not_tracked": {"message": "Dieses Paket ist nicht in der Liste."}

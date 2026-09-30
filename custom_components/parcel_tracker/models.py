@@ -7,6 +7,8 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
 
+from .const import MAIL_CARRIERS
+
 
 class ParcelStatus(StrEnum):
     """Unified parcel status."""
@@ -113,7 +115,7 @@ class Parcel:
 
     number: str
     carrier: str | None
-    carrier_mode: str  # "auto" | "manual"
+    carrier_mode: str  # "auto" | "manual" | "mail"
     name: str | None
     added_at: datetime
     last_change_at: datetime
@@ -123,10 +125,31 @@ class Parcel:
     last_error: str | None = None
     error_streak: int = 0
     first_error_at: datetime | None = None
+    tracking_ref: str | None = None
+    tracking_carrier: str | None = None
+    mail_title: str | None = None
+    # Delivery one-time code: kept in memory only, never written by to_dict().
+    delivery_code: str | None = None
+    delivery_code_day: date | None = None
 
     @property
     def status(self) -> ParcelStatus | None:
         return self.result.status if self.result else None
+
+    @property
+    def poll_target(self) -> tuple[str | None, str] | None:
+        """(carrier key or None for auto, number) to poll, or None if mail-only."""
+        if self.tracking_ref:
+            return self.tracking_carrier, self.tracking_ref
+        if self.carrier in MAIL_CARRIERS:
+            return None
+        return self.carrier, self.number
+
+    def active_code(self, today: date) -> str | None:
+        """The delivery code while it is valid (until the end of its day)."""
+        if self.delivery_code and self.delivery_code_day and today <= self.delivery_code_day:
+            return self.delivery_code
+        return None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,6 +165,9 @@ class Parcel:
             "last_error": self.last_error,
             "error_streak": self.error_streak,
             "first_error_at": _iso(self.first_error_at),
+            "tracking_ref": self.tracking_ref,
+            "tracking_carrier": self.tracking_carrier,
+            "mail_title": self.mail_title,
         }
 
     @classmethod
@@ -159,4 +185,7 @@ class Parcel:
             last_error=data.get("last_error"),
             error_streak=data.get("error_streak", 0),
             first_error_at=_dt(data.get("first_error_at")),
+            tracking_ref=data.get("tracking_ref"),
+            tracking_carrier=data.get("tracking_carrier"),
+            mail_title=data.get("mail_title"),
         )

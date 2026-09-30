@@ -1,4 +1,5 @@
-const CARRIER_ICONS = {"dhl": {"path": "M4.22 10.303l-.767 1.043h4.18c.21 0 .208.078.105.218-.105.142-.28.39-.386.534-.054.073-.154.207.171.207h1.71l.505-.69c.314-.426.028-1.312-1.095-1.312H4.22zm7.204 0l-1.475 2.002h5.39l1.473-2.002H14.61l-.843 1.146h-.985l.846-1.146h-2.203zm6.105 0l-1.474 2.002h2.334l1.472-2.002H17.53zm-12.845 1.3l-1.54 2.094h3.754c1.24 0 1.932-.844 2.145-1.136h-2.56c-.326 0-.226-.133-.172-.207.107-.143.283-.388.388-.53.104-.14.107-.22-.105-.22h-1.91zM0 12.562v.242h3.398l.176-.242H0zm9.762 0l-.836 1.136h2.203l.836-1.136H9.762zm3.185 0l-.836 1.136h2.203l.836-1.136h-2.203zm2.918 0s-.159.22-.238.326c-.276.374-.033.81.87.81h3.538l.834-1.136h-5.004zm5.408 0l-.177.242H24v-.242h-2.727zM0 13.01v.24h3.068l.178-.24H0zm20.943 0l-.175.24H24v-.24h-3.057zM0 13.457v.24h2.74l.176-.24H0zm20.615 0l-.177.24H24v-.24h-3.385z", "color": "#FFCC00"}, "dpd": {"path": "M16.01 10.71a.364.364 0 01-.343-.006l-.558-.331a.43.43 0 01-.182-.312l-.014-.65a.363.363 0 01.165-.3l6.7-3.902L12.377.085A.799.799 0 0012 0a.798.798 0 00-.377.085l-9.4 5.124 10.53 6.13c.098.054.172.181.172.295v8.944c0 .112-.08.241-.178.294l-.567.315c-.171.062-.256.043-.361 0l-.569-.315a.362.362 0 01-.175-.294v-7.973a.223.223 0 00-.095-.156L1.702 7.048v10.579c0 .236.167.528.371.648l9.556 5.636c.102.06.237.09.371.089a.745.745 0 00.371-.09l9.557-5.635a.835.835 0 00.37-.648V7.047Z", "color": "#DC0032"}};
+const CARRIER_ICONS = {"dhl": {"path": "M4.22 10.303l-.767 1.043h4.18c.21 0 .208.078.105.218-.105.142-.28.39-.386.534-.054.073-.154.207.171.207h1.71l.505-.69c.314-.426.028-1.312-1.095-1.312H4.22zm7.204 0l-1.475 2.002h5.39l1.473-2.002H14.61l-.843 1.146h-.985l.846-1.146h-2.203zm6.105 0l-1.474 2.002h2.334l1.472-2.002H17.53zm-12.845 1.3l-1.54 2.094h3.754c1.24 0 1.932-.844 2.145-1.136h-2.56c-.326 0-.226-.133-.172-.207.107-.143.283-.388.388-.53.104-.14.107-.22-.105-.22h-1.91zM0 12.562v.242h3.398l.176-.242H0zm9.762 0l-.836 1.136h2.203l.836-1.136H9.762zm3.185 0l-.836 1.136h2.203l.836-1.136h-2.203zm2.918 0s-.159.22-.238.326c-.276.374-.033.81.87.81h3.538l.834-1.136h-5.004zm5.408 0l-.177.242H24v-.242h-2.727zM0 13.01v.24h3.068l.178-.24H0zm20.943 0l-.175.24H24v-.24h-3.057zM0 13.457v.24h2.74l.176-.24H0zm20.615 0l-.177.24H24v-.24h-3.385z", "color": "#FFCC00"}, "dpd": {"path": "M16.01 10.71a.364.364 0 01-.343-.006l-.558-.331a.43.43 0 01-.182-.312l-.014-.65a.363.363 0 01.165-.3l6.7-3.902L12.377.085A.799.799 0 0012 0a.798.798 0 00-.377.085l-9.4 5.124 10.53 6.13c.098.054.172.181.172.295v8.944c0 .112-.08.241-.178.294l-.567.315c-.171.062-.256.043-.361 0l-.569-.315a.362.362 0 01-.175-.294v-7.973a.223.223 0 00-.095-.156L1.702 7.048v10.579c0 .236.167.528.371.648l9.556 5.636c.102.06.237.09.371.089a.745.745 0 00.371-.09l9.557-5.635a.835.835 0 00.37-.648V7.047Z", "color": "#DC0032"}, "amazon": {"path": "M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z", "color": "#FF9900"}, "ups": {"path": "M11.668 14.544l-.028-5.226c.138-.055.387-.111.608-.111.995 0 1.41.774 1.41 2.682 0 1.853-.47 2.765-1.438 2.765-.22 0-.441-.055-.552-.11zM3.124 7.438c4.203-3.843 9.29-4.866 14.018-4.866 1.3 0 2.544.083 3.76.194h-.028v11.253c0 2.184-.774 3.926-2.295 5.171-1.355 1.134-5.447 2.959-6.581 3.456-1.161-.525-5.253-2.378-6.581-3.456-1.493-1.244-2.295-3.014-2.295-5.171V7.438zm12.664 2.599c.028.912.276 1.576 1.687 2.406.747.442 1.051.747 1.051 1.272 0 .581-.387.94-1.023.94-.553 0-1.189-.304-1.631-.691v1.576c.553.304 1.217.525 1.88.525 1.687 0 2.433-1.189 2.461-2.267.028-.995-.249-1.742-1.659-2.571-.608-.387-1.134-.636-1.106-1.244 0-.581.525-.802.995-.802.581 0 1.161.332 1.521.691V8.378c-.304-.221-.94-.581-1.88-.553-1.135.028-2.296.829-2.296 2.212zm-5.834 9.484h1.714l-.028-3.594c.166.028.415.083.774.083 1.908 0 2.986-1.687 2.986-4.175 0-2.461-1.106-4.009-3.152-4.009-.94 0-1.687.221-2.295.608v11.087zm-5.945-6.166c0 1.797.829 2.71 2.516 2.71 1.051 0 1.908-.249 2.571-.691V7.991H7.41v6.387c-.194.138-.47.221-.802.221-.774 0-.885-.719-.885-1.189V7.991H4.009v5.364zM22.12 2.295v11.723c0 2.516-.94 4.645-2.765 6.111-1.549 1.3-6.332 3.429-7.355 3.871-1.023-.442-5.806-2.571-7.355-3.843-1.797-1.465-2.765-3.594-2.765-6.111V2.295C4.756.747 8.074 0 12 0s7.244.747 10.12 2.295zm-.304.221c-2.71-1.465-6-2.184-9.788-2.184s-7.079.746-9.788 2.184v11.502c0 2.433.912 4.452 2.627 5.862 1.576 1.3 6.581 3.484 7.161 3.76.581-.249 5.585-2.433 7.161-3.733 1.714-1.41 2.627-3.429 2.627-5.862V2.516zm-2.433 20.295c0 .47-.387.829-.829.829a.831.831 0 0 1-.829-.829c0-.47.387-.829.829-.829.441 0 .801.359.829.829zm-.166 0a.679.679 0 0 0-.664-.691c-.359 0-.664.332-.664.691 0 .359.304.664.664.664a.673.673 0 0 0 .664-.664zm-.553.055c.028.055.304.442.304.442h-.221s-.276-.387-.276-.415h-.028v.415h-.194v-.995l.304-.028c.249 0 .332.166.332.304s-.083.25-.221.277zm.027-.276c0-.055 0-.138-.166-.138h-.083v.304h.028c.194 0 .221-.083.221-.166z", "color": "#150400"}};
+const CARRIER_LABEL = { dhl: "DHL", dpd: "DPD", ups: "UPS", amazon: "Amazon" };
 const STEPS = 5;
 const PICKUP = "awaiting_pickup";
 const DONE = "delivered";
@@ -25,7 +26,7 @@ const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ESC_MA
 const ERROR_TEXT = {
   missing_key: "DHL-API-Key fehlt – in den Integrations-Optionen eintragen",
   auth: "DHL-API-Key abgelehnt – in den Integrations-Optionen prüfen",
-  carrier_not_found: "Carrier nicht gefunden – bitte auswählen",
+  carrier_not_found: "Carrier nicht gefunden – wähle den Carrier aus",
   not_found: "Noch keine Daten vom Carrier",
   unavailable: "Carrier gerade nicht erreichbar",
   rate_limited: "Zu viele Abfragen – nächster Versuch später",
@@ -33,7 +34,7 @@ const ERROR_TEXT = {
 
 const SERVICE_ERRORS = {
   duplicate: "Dieses Paket ist schon in der Liste.",
-  amazon: "Amazon-eigene Nummern werden noch nicht unterstützt.",
+  amazon: "Amazon-Nummern (TBA…) lassen sich nicht direkt verfolgen. Leite die Amazon-Mails ins Paket-Postfach weiter.",
   empty: "Gib eine Sendungsnummer ein.",
   unknown_carrier: "Unbekannter Carrier.",
   not_tracked: "Dieses Paket ist nicht in der Liste.",
@@ -47,6 +48,11 @@ function errorText(e) {
   const msg = e && (e.message || (e.error && e.error.message));
   return "Das hat nicht geklappt: " + esc(msg == null ? "" : msg);
 }
+
+// Amazon's first stage is an order, not a carrier announcement.
+const stateLabel = (hass, st) => (st.state === "pre_transit" && st.attributes.carrier === "amazon"
+  ? "Bestellt"
+  : (hass.formatEntityState ? hass.formatEntityState(st) : st.state));
 
 function etaText(state, a) {
   if (state === DONE) {
@@ -69,6 +75,8 @@ class ParcelTrackerCard extends HTMLElement {
     this._open = new Set();
     this._renaming = new Map(); // number -> current input text
     this._confirming = new Set(); // numbers awaiting delete confirmation
+    this._code = new Map(); // number -> "ask" | "show" (delivery code reveal)
+    this._pendingFocus = null; // {number, a} to focus after the next render
     this._error = "";
   }
 
@@ -94,7 +102,8 @@ class ParcelTrackerCard extends HTMLElement {
       + "|today:" + (today ? today.last_updated : "")
       + "|open:" + Array.from(this._open).sort().join(",")
       + "|ren:" + Array.from(this._renaming.keys()).sort().join(",")
-      + "|del:" + Array.from(this._confirming).sort().join(",");
+      + "|del:" + Array.from(this._confirming).sort().join(",")
+      + "|code:" + Array.from(this._code.entries()).map(([n, v]) => `${n}=${v}`).sort().join(",");
   }
 
   _parcels() {
@@ -137,6 +146,8 @@ class ParcelTrackerCard extends HTMLElement {
         .actions input { flex:1 1 140px; }
         button.danger { color:var(--error-color); border-color:var(--error-color); }
         .stale { font-size:12px; color:var(--warning-color); }
+        .code { align-items:center; font-size:13px; }
+        .code strong { font-size:16px; letter-spacing:2px; color:var(--primary-text-color); }
         svg { width:18px; height:18px; flex:none; }
       </style>
       <ha-card>
@@ -211,6 +222,24 @@ class ParcelTrackerCard extends HTMLElement {
     return `<div class="actions"><button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
   }
 
+  _codeHtml(a) {
+    if (!a.delivery_code) return "";
+    const n = esc(a.number);
+    const mode = this._code.get(a.number);
+    if (mode === "show") {
+      return `<div class="actions code" role="group" aria-label="Zustell-Code">
+        <span>Zustell-Code <strong>${esc(a.delivery_code)}</strong></span>
+        <button type="button" data-a="code-hide" data-number="${n}">Verbergen</button></div>`;
+    }
+    if (mode === "ask") {
+      return `<div class="actions code" role="group" aria-label="Zustell-Code anzeigen?">
+        <span>Zustell-Code anzeigen?</span>
+        <button type="button" data-a="code-confirm" data-number="${n}">Anzeigen</button>
+        <button type="button" data-a="code-cancel" data-number="${n}">Abbrechen</button></div>`;
+    }
+    return `<div class="actions code"><button type="button" data-a="code" data-number="${n}">Code anzeigen</button></div>`;
+  }
+
   _wireActions(item, a) {
     const on = (act, fn) => {
       const el = item.querySelector(`[data-a="${act}"]`);
@@ -236,12 +265,22 @@ class ParcelTrackerCard extends HTMLElement {
         else if (e.key === "Escape") { e.preventDefault(); this._renaming.delete(num); this._renderList(); }
       });
     }
+    const code = (mode, focus) => {
+      mode ? this._code.set(num, mode) : this._code.delete(num);
+      this._pendingFocus = { number: num, a: focus };
+      this._renderList();
+    };
+    on("code", () => code("ask", "code-confirm"));
+    on("code-cancel", () => code(null, "code"));
+    on("code-confirm", () => code("show", "code-hide"));
+    on("code-hide", () => code(null, "code"));
     on("remove", () => { this._renaming.delete(num); this._confirming.add(num); this._renderList(); });
     on("remove-cancel", () => { this._confirming.delete(num); this._renderList(); });
     on("remove-confirm", async () => {
       if (await this._call("remove_parcel", { number: num })) {
         this._confirming.delete(num);
         this._open.delete(num);
+        this._code.delete(num);
         this._renderList();
       }
     });
@@ -250,11 +289,12 @@ class ParcelTrackerCard extends HTMLElement {
   _renderList() {
     const list = this._root.getElementById("list");
     const focused = this._root.activeElement;
-    const focusKey =
+    const focusKey = this._pendingFocus || (
       focused && list.contains(focused) && focused.dataset && focused.dataset.number != null
         ? { number: focused.dataset.number, a: focused.dataset.a,
             selStart: focused.selectionStart, selEnd: focused.selectionEnd }
-        : null;
+        : null);
+    this._pendingFocus = null;
     const parcels = this._parcels();
     const today = this._hass.states["sensor.pakete_heute"];
     this._root.getElementById("today").textContent = `${today ? today.state : 0} heute`;
@@ -262,7 +302,7 @@ class ParcelTrackerCard extends HTMLElement {
     for (const st of parcels) {
       const a = st.attributes;
       const s = st.state;
-      const label = this._hass.formatEntityState ? this._hass.formatEntityState(st) : s;
+      const label = stateLabel(this._hass, st);
       const item = document.createElement("div");
       item.className = "item" + (s === DONE ? " done" : "");
       const bar = a.progress
@@ -271,7 +311,7 @@ class ParcelTrackerCard extends HTMLElement {
       const right = s === PICKUP
         ? `<span class="pickup">Abholbereit</span>`
         : `<span class="eta ${a.days_until === 0 && s !== DONE ? "today" : ""}">${esc(etaText(s, a))}</span>`;
-      const sub = [a.carrier ? a.carrier.toUpperCase() : null, label, s === PICKUP ? a.pickup_point : a.location]
+      const sub = [a.carrier ? (CARRIER_LABEL[a.carrier] || a.carrier.toUpperCase()) : null, label, s === PICKUP ? a.pickup_point : a.location]
         .filter(Boolean).map(esc).join(" · ");
       const errMsg = a.last_error && ERROR_TEXT[a.last_error] ? ERROR_TEXT[a.last_error] : null;
       const stale = errMsg
@@ -284,9 +324,14 @@ class ParcelTrackerCard extends HTMLElement {
           <span class="top"><span class="name">${this._icon(a.carrier)}<span>${esc(a.name || a.number)}</span></span>${right}</span>
         </button>
         <div class="sub">${sub}</div>${bar}${stale}
-        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${this._actionsHtml(a)}` : ""}`;
+        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${this._codeHtml(a)}${this._actionsHtml(a)}` : ""}`;
       item.querySelector(".row-toggle").addEventListener("click", () => {
-        open ? this._open.delete(a.number) : this._open.add(a.number);
+        if (open) {
+          this._open.delete(a.number);
+          this._code.delete(a.number); // hide the code again on collapse
+        } else {
+          this._open.add(a.number);
+        }
         this._renderList();
       });
       this._wireActions(item, a);

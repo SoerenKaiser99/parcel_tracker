@@ -13,6 +13,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from . import ParcelConfigEntry
+from .const import CARRIER_NAMES
 from .coordinator import ParcelCoordinator
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .schedule import days_until
@@ -76,7 +77,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_options = [s.value for s in ParcelStatus]
     _attr_translation_key = "parcel"
     _attr_icon = "mdi:package-variant-closed"
-    _unrecorded_attributes = frozenset({"events", "status_text"})
+    _unrecorded_attributes = frozenset({"events", "status_text", "delivery_code"})
 
     def __init__(self, coordinator: ParcelCoordinator, number: str) -> None:
         super().__init__(coordinator)
@@ -97,7 +98,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         p = self._parcel
         if p and p.name:
             return p.name
-        carrier = self.coordinator.carriers[p.carrier].name if p and p.carrier else "Paket"
+        carrier = CARRIER_NAMES.get(p.carrier, p.carrier) if p and p.carrier else "Paket"
         return f"{carrier} {self.number}"
 
     @property
@@ -130,6 +131,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "progress": PROGRESS_STEP[r.status] if r else 0,
             "delivered_at": _iso(r.delivered_at) if r else None,
             "events": [e.to_dict() for e in r.events] if r else [],
+            "tracking_ref": p.tracking_ref,
+            "delivery_code": p.active_code(today),
         }
 
 

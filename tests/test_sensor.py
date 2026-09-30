@@ -6,8 +6,11 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.parcel_tracker.const import CONF_POSTCODE, DOMAIN
-from custom_components.parcel_tracker.models import ParcelStatus, TrackingResult
+from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
+from custom_components.parcel_tracker.sensor import ParcelSensor
 from custom_components.parcel_tracker.store import ParcelStore
+
+from .conftest import DAYTIME
 
 FETCH = "custom_components.parcel_tracker.carriers.dhl.DhlCarrier.fetch"
 NUMBER = "00340999999999999901"
@@ -51,6 +54,7 @@ async def test_parcel_and_today_sensor(hass):
 async def test_sensors_stay_available_when_refresh_fails(hass, freezer):
     """A failed coordinator update (e.g. a store save error) must not make
     the collective sensor, parcel sensors, or the calendar unavailable."""
+    freezer.move_to(DAYTIME)
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
     entry.add_to_hass(hass)
     with patch(FETCH, return_value=_res(ParcelStatus.OUT_FOR_DELIVERY, eta_today=True)):
@@ -117,3 +121,39 @@ async def test_ghost_sensor_removed_on_setup(hass):
         await hass.async_block_till_done()
 
     assert registry.async_get(stale.entity_id) is None
+
+
+async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
+    entry.add_to_hass(hass)
+    with patch(FETCH, return_value=_res(ParcelStatus.IN_TRANSIT)):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+    now = dt_util.utcnow()
+    today = dt_util.now().date()
+    coordinator.store.add(
+        Parcel(
+            "AMZ99905626221455530", "amazon", "mail", None, now, now,
+            result=_res(ParcelStatus.OUT_FOR_DELIVERY, eta_today=True),
+            tracking_ref="JJD000012978217606560", tracking_carrier="dhl",
+            delivery_code="123456", delivery_code_day=today,
+        )
+    )
+    coordinator.store.add(
+        Parcel(
+            "AMZ99991565342587125", "amazon", "mail", None, now, now,
+            delivery_code="999999", delivery_code_day=today - timedelta(days=1),
+        )
+    )
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.paket_amz99905626221455530")
+    assert state.attributes["friendly_name"] == "Amazon AMZ99905626221455530"
+    assert state.attributes["carrier"] == "amazon"
+    assert state.attributes["tracking_ref"] == "JJD000012978217606560"
+    assert state.attributes["delivery_code"] == "123456"
+    expired = hass.states.get("sensor.paket_amz99991565342587125")
+    assert expired.attributes["delivery_code"] is None
+    assert "delivery_code" in ParcelSensor._unrecorded_attributes

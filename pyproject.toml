@@ -11,6 +11,8 @@ pythonpath = ["."]
 [tool.ruff]
 target-version = "py314"
 line-length = 100
+# One-off local helper that is run by hand on private mails; not shipped.
+extend-exclude = ["scripts/anonymize_mail.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC"]

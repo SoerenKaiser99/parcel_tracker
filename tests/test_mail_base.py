@@ -1,0 +1,125 @@
+from datetime import date, datetime
+from email import policy
+from email.message import EmailMessage
+
+import pytest
+
+from custom_components.parcel_tracker.carriers.base import BERLIN
+from custom_components.parcel_tracker.mail.base import (
+    at,
+    body_text,
+    carrier_for,
+    clean,
+    find_numbers,
+    relative_day,
+    sender,
+    sent_at,
+    shorten,
+    subject,
+    title_key,
+    upcoming_date,
+)
+
+from .conftest import load_mail
+
+
+def _msg(subject_: str, body: str, from_: str = "Shop <shop@example.org>") -> EmailMessage:
+    msg = EmailMessage(policy=policy.default)
+    msg["From"] = from_
+    msg["Subject"] = subject_
+    msg["Date"] = "Thu, 30 Jul 2026 16:57:10 +0000"
+    msg.set_content(body)
+    return msg
+
+
+def test_clean_drops_direction_marks_and_filler():
+    assert clean("Bestellnr. ‫999-9156534-2587125") == "Bestellnr. 999-9156534-2587125"
+    assert clean("a͏ ‌   ­b") == "a b"
+    assert clean("  Ankunft heute 18h – 22h  \nx") == "Ankunft heute 18h – 22h\nx"
+
+
+def test_fixture_helpers():
+    msg = load_mail("001_bestellbestaetigung_bestellt.eml")
+    assert sender(msg) == ("bestellbestaetigung@amazon.de", "Amazon.de")
+    assert subject(msg) == "Bestellt: „4 Ersatz Metallplättchen...“"
+    assert sent_at(msg) == datetime(2026, 7, 30, 18, 57, 10, tzinfo=BERLIN)
+    assert "Bestellnr. 999-9156534-2587125" in body_text(msg).splitlines()
+
+
+def test_subject_folds_spaces_and_strips_forward_prefix():
+    msg = load_mail("073_versandbestaetigung_versandt.eml")
+    assert subject(msg) == "Versandt: „greate 16A CEE Adapter mit...“ und 1 weiterer Artikel"
+    assert subject(_msg("WG: Fwd: Versendet: „X“", "b")) == "Versendet: „X“"
+
+
+def test_sent_at_requires_date():
+    msg = EmailMessage(policy=policy.default)
+    msg["Subject"] = "x"
+    with pytest.raises(ValueError):
+        sent_at(msg)
+
+
+def test_relative_day_and_at():
+    ref = datetime(2026, 7, 30, 22, 12, tzinfo=BERLIN)
+    assert relative_day("heute", ref) == date(2026, 7, 30)
+    assert relative_day("morgen", ref) == date(2026, 7, 31)
+    assert at(date(2026, 7, 31), 13, 10) == datetime(2026, 7, 31, 13, 10, tzinfo=BERLIN)
+
+
+@pytest.mark.parametrize(
+    ("day", "month", "ref", "expected"),
+    [
+        (31, 7, date(2026, 7, 31), date(2026, 7, 31)),
+        (31, None, date(2026, 7, 31), date(2026, 7, 31)),
+        (2, None, date(2026, 7, 31), date(2026, 8, 2)),
+        (14, 12, date(2016, 12, 13), date(2016, 12, 14)),
+        (2, 1, date(2026, 12, 30), date(2027, 1, 2)),
+        (31, 2, date(2026, 1, 10), None),
+    ],
+)
+def test_upcoming_date(day, month, ref, expected):
+    assert upcoming_date(day, month, ref) == expected
+
+
+def test_shorten_and_title_key():
+    assert shorten("x" * 60) == "x" * 60
+    assert shorten("x" * 70) == "x" * 59 + "…"
+    assert title_key("Apple AirPods Pro 3…") == "apple airpods p"
+    assert title_key("Apple AirPods Pro 3 Kabellose In‑Ear Kopfhörer…") == "apple airpods p"
+    assert title_key("greate 16A CEE Adapter mit… und 1 weiterer Artikel") == "greate 16a cee "
+
+
+def test_find_numbers_and_carrier_for():
+    text = "JJD000012978217606560 and 1Z999AA11026832876, 00340999999999999917 or 09999999999901"
+    assert find_numbers(text) == [
+        ("dhl", "JJD000012978217606560"),
+        ("ups", "1Z999AA11026832876"),
+        ("dhl", "00340999999999999917"),
+    ]
+    assert ("dpd", "09999999999901") in find_numbers(text, "any")
+    assert ("dpd", "09999999999901") not in find_numbers(text, "labelled")
+    assert find_numbers("1Z999AA11026832876 1Z999AA11026832876") == [
+        ("ups", "1Z999AA11026832876")
+    ]
+    assert carrier_for("1Z999AA11048020581") == "ups"
+    assert carrier_for("JJD000012978217606560") == "dhl"
+    assert carrier_for("09999999999901") is None
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["Paketnummer", "Sendungsnummer:", "Paket-Nr.", "Paket-Nr", "Paketscheinnummer :",
+     "Sendungs-Nr.", "sendungsnummer"],
+)
+def test_labelled_dpd_number(label):
+    assert find_numbers(f"DPD {label} 09999999999901 x", "labelled") == [
+        ("dpd", "09999999999901")
+    ]
+
+
+def test_dpd_probe_with_order_and_hotline_numbers():
+    text = (
+        "Bestellnummer 10105012345678\nVersand mit DPD\n"
+        "Paketnummer: 09999999999901\nHotline 08001234567890"
+    )
+    assert find_numbers(text, "labelled") == [("dpd", "09999999999901")]

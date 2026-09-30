@@ -22,6 +22,8 @@ from custom_components.parcel_tracker.detect import UnsupportedNumber
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
 from custom_components.parcel_tracker.store import DuplicateParcel, ParcelStore
 
+from .conftest import DAYTIME
+
 
 def result(status, eta=None, delivered_at=None):
     return TrackingResult(status, "txt", eta, None, None, "Bonn", None, None, delivered_at, [])
@@ -111,6 +113,7 @@ async def test_not_found_everywhere(hass, setup):
 
 
 async def test_events_suppressed_on_first_refresh(hass, setup, freezer: FrozenDateTimeFactory):
+    freezer.move_to(DAYTIME)
     coord, fake = setup
     events = async_capture_events(hass, EVENT_STATUS_CHANGED)
     fake.answers = [result(ParcelStatus.IN_TRANSIT)]
@@ -134,6 +137,7 @@ async def test_events_suppressed_on_first_refresh(hass, setup, freezer: FrozenDa
 
 
 async def test_unavailable_keeps_last_result_and_backs_off(hass, setup, freezer):
+    freezer.move_to(DAYTIME)
     coord, fake = setup
     fake.answers = [result(ParcelStatus.IN_TRANSIT)]
     await coord.async_add("123", "fake", None)
@@ -238,6 +242,7 @@ async def test_rename_and_remove(hass, setup):
 
 
 async def test_rate_limited_sets_next_poll_from_retry_after(hass, setup, freezer):
+    freezer.move_to(DAYTIME)
     coord, fake = setup
     fake.answers = [result(ParcelStatus.IN_TRANSIT)]
     await coord.async_add("123", "fake", None)
@@ -262,6 +267,7 @@ async def test_first_matching_candidate_wins(hass):
 
 
 async def test_unexpected_error_does_not_block_other_parcels(hass, setup, freezer):
+    freezer.move_to(DAYTIME)
     coord, fake = setup
     fake.answers = [result(ParcelStatus.IN_TRANSIT)]
     await coord.async_add("111", "fake", None)
@@ -294,3 +300,62 @@ async def test_unknown_stored_carrier_is_carrier_not_found(hass, setup):
     stored = coord.store.get("999")
     assert stored.last_error == "carrier_not_found"
     assert stored.next_poll_at - stored.last_poll_at == timedelta(hours=1)
+
+
+class RecordingDhl(FakeDhlCarrier):
+    """Remembers which numbers were asked for."""
+
+    def __init__(self):
+        super().__init__()
+        self.numbers: list[str] = []
+
+    async def fetch(self, number, postcode):
+        self.numbers.append(number)
+        return await super().fetch(number, postcode)
+
+
+def _mail_parcel(number, carrier, **kwargs) -> Parcel:
+    now = dt_util.utcnow()
+    return Parcel(number, carrier, "mail", None, now, now, **kwargs)
+
+
+async def test_mail_only_parcels_are_never_polled(hass):
+    dhl = RecordingDhl()
+    dhl.answers = [result(ParcelStatus.IN_TRANSIT)]
+    coord = await _new_coordinator(hass, {"dhl": dhl})
+    coord.store.add(_mail_parcel("AMZ99991565342587125", "amazon"))
+    coord.store.add(_mail_parcel("1Z999AA11026832876", "ups"))
+    await coord.async_refresh()
+    assert dhl.numbers == []
+    assert coord.store.get("AMZ99991565342587125").last_poll_at is None
+
+
+async def test_parcel_with_tracking_ref_is_polled_by_that_number(hass):
+    dhl = RecordingDhl()
+    dhl.answers = [result(ParcelStatus.OUT_FOR_DELIVERY)]
+    coord = await _new_coordinator(hass, {"dhl": dhl})
+    coord.store.add(
+        _mail_parcel(
+            "AMZ99991565342587125",
+            "amazon",
+            tracking_ref="JJD000012978217606560",
+            tracking_carrier="dhl",
+        )
+    )
+    await coord.async_refresh()
+    assert dhl.numbers == ["JJD000012978217606560"]
+    parcel = coord.store.get("AMZ99991565342587125")
+    assert parcel.carrier == "amazon"
+    assert parcel.status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+async def test_expired_delivery_code_is_dropped(hass, freezer):
+    freezer.move_to("2026-08-21 10:00:00+00:00")
+    coord = await _new_coordinator(hass, {})
+    old = _mail_parcel("AMZ1", "amazon", delivery_code="123", delivery_code_day=date(2026, 8, 20))
+    today = _mail_parcel("AMZ2", "amazon", delivery_code="654", delivery_code_day=date(2026, 8, 21))
+    coord.store.add(old)
+    coord.store.add(today)
+    await coord.async_refresh()
+    assert old.delivery_code is None and old.delivery_code_day is None
+    assert today.delivery_code == "654"

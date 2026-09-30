@@ -9,6 +9,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     NumberSelector,
@@ -18,19 +19,30 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.util.ssl import client_context
 
 from .carriers.base import CarrierUnavailable
 from .carriers.dhl import DhlCarrier
 from .const import (
     CONF_DHL_API_KEY,
+    CONF_IMAP_HOST,
+    CONF_IMAP_PASSWORD,
+    CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
+    CONF_MAIL_SECTION,
+    CONF_MOVE_PROCESSED,
     CONF_POSTCODE,
+    CONF_READ_OTP,
+    DEFAULT_IMAP_HOST,
     DEFAULT_KEEP_DELIVERED_DAYS,
+    DEFAULT_MOVE_PROCESSED,
     DEFAULT_POSTCODE,
+    DEFAULT_READ_OTP,
     DOMAIN,
     MAX_KEEP_DELIVERED_DAYS,
     MIN_KEEP_DELIVERED_DAYS,
 )
+from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
 
 _POSTCODE = re.compile(r"^\d{5}$")
 _KEY = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
@@ -41,8 +53,37 @@ _DAYS = NumberSelector(
 )
 
 
+def _mail_section(current: Mapping[str, Any]) -> section:
+    """Collapsible 'mail import' block of the options form."""
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+                ): str,
+                vol.Optional(
+                    CONF_IMAP_USER,
+                    description={"suggested_value": current.get(CONF_IMAP_USER, "")},
+                ): str,
+                vol.Optional(CONF_IMAP_PASSWORD): _KEY,
+                vol.Optional(
+                    CONF_MOVE_PROCESSED,
+                    default=current.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED),
+                ): bool,
+                vol.Optional(
+                    CONF_READ_OTP, default=current.get(CONF_READ_OTP, DEFAULT_READ_OTP)
+                ): bool,
+            }
+        ),
+        {"collapsed": not current.get(CONF_IMAP_USER)},
+    )
+
+
 def _schema(
-    defaults: Mapping[str, Any], with_key: bool, suggested_postcode: str | None = None
+    defaults: Mapping[str, Any],
+    with_key: bool,
+    suggested_postcode: str | None = None,
+    mail: Mapping[str, Any] | None = None,
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
@@ -61,6 +102,8 @@ def _schema(
             default=defaults.get(CONF_KEEP_DELIVERED_DAYS, DEFAULT_KEEP_DELIVERED_DAYS),
         )
     ] = _DAYS
+    if mail is not None:
+        fields[vol.Optional(CONF_MAIL_SECTION, default={})] = _mail_section(mail)
     return vol.Schema(fields)
 
 
@@ -78,6 +121,18 @@ async def _check_key(hass, key: str | None) -> str | None:
     except CarrierUnavailable:
         return "cannot_connect"
     return None if ok else "invalid_key"
+
+
+async def _check_mailbox(hass, host: str, user: str, password: str) -> str | None:
+    """Log in and select INBOX; return an error code or None."""
+    try:
+        client = MailboxClient(host, user, password, ssl_context=client_context())
+        await hass.async_add_executor_job(client.check_login)
+    except ImapAuthError:
+        return "imap_auth"
+    except ImapUnavailable:
+        return "imap_cannot_connect"
+    return None
 
 
 class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -135,45 +190,79 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(OptionsFlow):
-    """Change key, postcode, keep days.
+    """Change key, postcode, keep days and the mail import.
 
-    The DHL key is stored in the config entry's ``data`` (the same place
-    reauth writes it) so the two flows never disagree about which key is
-    current. Only postcode and keep-days live in ``options``.
+    Secrets (DHL key, IMAP password) are stored in the config entry's ``data``
+    (the same place reauth writes the key) so flows never disagree about which
+    secret is current; an empty secret field keeps the stored one. Everything
+    else lives in ``options``.
     """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         current = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
+            mail = user_input.get(CONF_MAIL_SECTION) or {}
+            host = (mail.get(CONF_IMAP_HOST) or "").strip() or DEFAULT_IMAP_HOST
+            user = (mail.get(CONF_IMAP_USER) or "").strip()
+            new_password = mail.get(CONF_IMAP_PASSWORD) or ""
+            stored_password = self.config_entry.data.get(CONF_IMAP_PASSWORD, "")
+            password = new_password or stored_password
+            # Only log in again when the login data changed, so saving e.g. the
+            # postcode works while the mail server is down.
+            login_changed = (
+                host != (self.config_entry.options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST)
+                or user != (self.config_entry.options.get(CONF_IMAP_USER) or "")
+                or (bool(new_password) and new_password != stored_password)
+            )
             postcode = _validate_postcode(user_input)
+            key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             if postcode and not _POSTCODE.match(postcode):
                 errors[CONF_POSTCODE] = "invalid_postcode"
+            elif key_value and (err := await _check_key(self.hass, key_value)):
+                errors[CONF_DHL_API_KEY] = err
+            elif user and not password:
+                errors["base"] = "imap_password_missing"
+            elif (
+                user
+                and login_changed
+                and (err := await _check_mailbox(self.hass, host, user, password))
+            ):
+                errors["base"] = err
             else:
-                # Only validate if a non-empty key was provided
-                key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
-                if key_value and (err := await _check_key(self.hass, key_value)):
-                    errors[CONF_DHL_API_KEY] = err
-                elif not errors:
-                    new_options = {
-                        CONF_POSTCODE: postcode,
-                        CONF_KEEP_DELIVERED_DAYS: int(user_input[CONF_KEEP_DELIVERED_DAYS]),
-                    }
-                    if key_value:
-                        # Update data and options together so this is a single reload,
-                        # not one from async_update_entry and another from the options save.
-                        self.hass.config_entries.async_update_entry(
-                            self.config_entry,
-                            data={**self.config_entry.data, CONF_DHL_API_KEY: key_value},
-                            options=new_options,
-                        )
-                    return self.async_create_entry(data=new_options)
+                new_options = {
+                    CONF_POSTCODE: postcode,
+                    CONF_KEEP_DELIVERED_DAYS: int(user_input[CONF_KEEP_DELIVERED_DAYS]),
+                    CONF_IMAP_HOST: host,
+                    CONF_IMAP_USER: user,
+                    CONF_MOVE_PROCESSED: bool(
+                        mail.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED)
+                    ),
+                    CONF_READ_OTP: bool(mail.get(CONF_READ_OTP, DEFAULT_READ_OTP)),
+                }
+                data = dict(self.config_entry.data)
+                if key_value:
+                    data[CONF_DHL_API_KEY] = key_value
+                if user and new_password:
+                    data[CONF_IMAP_PASSWORD] = new_password
+                if not user:
+                    data.pop(CONF_IMAP_PASSWORD, None)  # mail import off: drop the secret
+                if data != self.config_entry.data:
+                    # Update data and options together so this is a single reload,
+                    # not one from async_update_entry and another from the options save.
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=data, options=new_options
+                    )
+                return self.async_create_entry(data=new_options)
+        shown = {**current, **(user_input or {})}
+        mail_shown = {**current, **((user_input or {}).get(CONF_MAIL_SECTION) or {})}
         return self.async_show_form(
             step_id="init",
             data_schema=_schema(
-                user_input or current,
+                shown,
                 True,
-                suggested_postcode=(user_input or current).get(CONF_POSTCODE, ""),
+                suggested_postcode=shown.get(CONF_POSTCODE, ""),
+                mail=mail_shown,
             ),
             errors=errors,
         )
