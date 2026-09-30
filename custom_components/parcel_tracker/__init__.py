@@ -13,7 +13,6 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.typing import ConfigType
 
 from .carriers import build_carriers
@@ -57,7 +56,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if "frontend" in hass.config.components:
         add_extra_js_url(hass, f"{CARD_URL}?v={VERSION}")
 
-    async_at_started(hass, async_ensure_resource)
+    # Lovelace is an after_dependency, so its resource collection is ready here;
+    # don't wait for EVENT_HOMEASSISTANT_STARTED, which can come very late.
+    hass.async_create_task(async_ensure_resource(hass), eager_start=False)
 
     async def add(call: ServiceCall) -> None:
         try:

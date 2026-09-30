@@ -73,7 +73,7 @@ async def test_without_lovelace_is_silent(hass, caplog):
     assert "Could not register" not in caplog.text
 
 
-async def test_registers_resource_when_set_up_during_startup(hass):
+async def test_registers_resource_during_startup_without_started_event(hass):
     from homeassistant.core import CoreState
 
     hass.set_state(CoreState.not_running)
@@ -82,10 +82,7 @@ async def test_registers_resource_when_set_up_during_startup(hass):
     e.add_to_hass(hass)
     assert await hass.config_entries.async_setup(e.entry_id)
     await hass.async_block_till_done()
-    assert _card_items(hass) == []
-    hass.set_state(CoreState.running)
-    hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
-    await hass.async_block_till_done()
     items = _card_items(hass)
     assert len(items) == 1
     assert items[0]["url"] == URL
+    hass.set_state(CoreState.running)

@@ -23,7 +23,7 @@ def plan_resource(items: list[dict[str, Any]], url: str) -> tuple[str, str | Non
     return "create", None
 
 
-async def async_ensure_resource(hass: HomeAssistant) -> None:
+async def async_ensure_resource(hass: HomeAssistant, *_: Any) -> None:
     """Create or update the module resource. Never raises."""
     try:
         from homeassistant.components.lovelace.const import LOVELACE_DATA  # noqa: PLC0415
