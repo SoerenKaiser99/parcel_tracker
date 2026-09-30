@@ -29,10 +29,12 @@ from .const import (
     CARRIER_AUTO,
     CARRIER_BROKEN_AFTER,
     CONF_KEEP_DELIVERED_DAYS,
+    CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
     CONF_POSTCODE,
     CONF_READ_OTP,
     DEFAULT_KEEP_DELIVERED_DAYS,
+    DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
     DEFAULT_READ_OTP,
     DHL_DAILY_SOFT_LIMIT,
@@ -133,6 +135,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         return self.entry.options.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED)
 
     @property
+    def _mail_interval(self) -> timedelta:
+        minutes = self.entry.options.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL)
+        return timedelta(minutes=minutes)
+
+    @property
     def _read_otp(self) -> bool:
         return self.entry.options.get(CONF_READ_OTP, DEFAULT_READ_OTP)
 
@@ -182,7 +189,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if self._mail_next is not None and now < self._mail_next:
                 return
             # Set before fetching, so a failure can't make the next tick try again at once.
-            self._mail_next = now + MAIL_INTERVAL
+            self._mail_next = now + self._mail_interval
             try:
                 await self._import_mail(self.mailbox, now)
             except ImapAuthError:
@@ -462,4 +469,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         targets = [self.store.parcels[normalize(number)]] if number else self.store.parcels.values()
         for parcel in targets:
             parcel.next_poll_at = None
+        # Also check the mailbox now, even while an error backoff is running
+        # (an import already in progress still wins via the mail lock).
+        self._mail_next = None
         await self.async_refresh()

@@ -55,10 +55,11 @@ Amazon liefert viele Pakete selbst aus und bietet dafür keine öffentliche Send
    - **IMAP-Server** (Standard `imap.mailbox.org`, Port 993 mit SSL),
    - **Benutzername** und **Passwort** des Paket-Postfachs (Benutzername leer lassen schaltet den Import aus; ein leeres Passwortfeld behält das gespeicherte Passwort),
    - **Verarbeitete Mails in Ordner verschieben** (Standard: an),
-   - **Zustell-Codes (Einmalpasswörter) mitlesen** (Standard: aus).
+   - **Zustell-Codes (Einmalpasswörter) mitlesen** (Standard: aus),
+   - **Postfach abfragen alle (Minuten)** (1–60, Standard: 5).
 4. Speichern prüft die Anmeldung sofort.
 
-Der Import schaut alle 5 Minuten nach ungelesenen Mails im Posteingang. Ist das Postfach nicht erreichbar, wartet er länger (5 → 10 → 20 → 40 → 60 Minuten). Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
+Der Import schaut im eingestellten Intervall (1–60 Minuten, Standard 5) nach ungelesenen Mails im Posteingang. Der Dienst `parcel_tracker.refresh` (auf der Karte „Aktualisieren“) fragt zusätzlich das Postfach sofort ab. Ist das Postfach nicht erreichbar, wartet der Import unabhängig vom Intervall länger (5 → 10 → 20 → 40 → 60 Minuten). Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
 
 ### Welche Absender
 

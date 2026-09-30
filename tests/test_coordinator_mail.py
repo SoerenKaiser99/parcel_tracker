@@ -9,6 +9,7 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events
 
 from custom_components.parcel_tracker.const import (
+    CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
     CONF_READ_OTP,
     DOMAIN,
@@ -342,3 +343,39 @@ async def test_mails_are_parsed_in_the_executor(hass):
         await coord.async_import_mail()
     assert threads == [False]
     assert coord.store.get(PLAETTCHEN) is not None
+
+
+async def test_success_schedules_next_import_after_configured_interval(hass, freezer):
+    freezer.move_to("2026-09-30 10:00:00+00:00")
+    mailbox = FakeMailbox()
+    coord = await _coordinator(hass, mailbox, {CONF_MAIL_INTERVAL: 17})
+    await coord.async_import_mail()
+    assert coord._mail_next - dt_util.utcnow() == timedelta(minutes=17)
+    freezer.tick(timedelta(minutes=16))
+    await coord.async_import_mail()
+    assert mailbox.fetches == 1
+    freezer.tick(timedelta(minutes=1))
+    await coord.async_import_mail()
+    assert mailbox.fetches == 2
+
+
+async def test_backoff_ignores_configured_interval(hass, freezer):
+    freezer.move_to("2026-09-30 10:00:00+00:00")
+    coord = await _coordinator(
+        hass, FakeMailbox(error=ImapUnavailable("down")), {CONF_MAIL_INTERVAL: 30}
+    )
+    await coord.async_import_mail()
+    assert coord._mail_next - dt_util.utcnow() == timedelta(minutes=5)
+
+
+async def test_refresh_forces_immediate_import_even_in_backoff(hass, freezer):
+    freezer.move_to("2026-09-30 10:00:00+00:00")
+    mailbox = FakeMailbox(error=ImapAuthError("no"))
+    coord = await _coordinator(hass, mailbox)
+    await coord.async_refresh()  # first refresh: no import
+    await coord.async_refresh()
+    assert mailbox.fetches == 1
+    await coord.async_refresh()
+    assert mailbox.fetches == 1  # backing off
+    await coord.async_refresh_parcels(None)
+    assert mailbox.fetches == 2

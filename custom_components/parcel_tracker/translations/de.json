@@ -50,7 +50,8 @@
               "imap_user": "Benutzername",
               "imap_password": "Passwort",
               "move_processed": "Verarbeitete Mails in Ordner verschieben",
-              "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen"
+              "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen",
+              "mail_interval": "Postfach abfragen alle (Minuten)"
             },
             "data_description": {
               "imap_user": "Leer lassen schaltet den E-Mail-Import aus.",
@@ -139,7 +140,7 @@
     },
     "refresh": {
       "name": "Aktualisieren",
-      "description": "Jetzt abfragen.",
+      "description": "Jetzt abfragen, auch das Postfach, falls eingerichtet.",
       "fields": {"number": {"name": "Sendungsnummer", "description": "Leer für alle Pakete."}}
     }
   }

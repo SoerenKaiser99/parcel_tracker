@@ -29,18 +29,22 @@ from .const import (
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
+    CONF_MAIL_INTERVAL,
     CONF_MAIL_SECTION,
     CONF_MOVE_PROCESSED,
     CONF_POSTCODE,
     CONF_READ_OTP,
     DEFAULT_IMAP_HOST,
     DEFAULT_KEEP_DELIVERED_DAYS,
+    DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
     DEFAULT_POSTCODE,
     DEFAULT_READ_OTP,
     DOMAIN,
     MAX_KEEP_DELIVERED_DAYS,
+    MAX_MAIL_INTERVAL,
     MIN_KEEP_DELIVERED_DAYS,
+    MIN_MAIL_INTERVAL,
 )
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
 
@@ -49,6 +53,11 @@ _KEY = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 _DAYS = NumberSelector(
     NumberSelectorConfig(
         min=MIN_KEEP_DELIVERED_DAYS, max=MAX_KEEP_DELIVERED_DAYS, mode=NumberSelectorMode.BOX
+    )
+)
+_MINUTES = NumberSelector(
+    NumberSelectorConfig(
+        min=MIN_MAIL_INTERVAL, max=MAX_MAIL_INTERVAL, mode=NumberSelectorMode.BOX
     )
 )
 
@@ -73,6 +82,10 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                 vol.Optional(
                     CONF_READ_OTP, default=current.get(CONF_READ_OTP, DEFAULT_READ_OTP)
                 ): bool,
+                vol.Optional(
+                    CONF_MAIL_INTERVAL,
+                    default=current.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL),
+                ): _MINUTES,
             }
         ),
         {"collapsed": not current.get(CONF_IMAP_USER)},
@@ -239,6 +252,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                         mail.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED)
                     ),
                     CONF_READ_OTP: bool(mail.get(CONF_READ_OTP, DEFAULT_READ_OTP)),
+                    CONF_MAIL_INTERVAL: int(mail.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL)),
                 }
                 data = dict(self.config_entry.data)
                 if key_value:

@@ -43,7 +43,8 @@ def test_mail_translations_present():
     strings = _load("strings.json")
     section = strings["options"]["step"]["init"]["sections"]["mail"]
     assert set(section["data"]) == {
-        "imap_host", "imap_user", "imap_password", "move_processed", "read_otp"
+        "imap_host", "imap_user", "imap_password", "move_processed", "read_otp",
+            "mail_interval",
     }
     assert {"imap_auth", "imap_cannot_connect", "imap_password_missing"} <= set(
         strings["options"]["error"]

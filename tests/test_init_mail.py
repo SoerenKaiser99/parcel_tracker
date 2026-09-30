@@ -93,3 +93,29 @@ async def test_setup_without_mailbox_clears_mail_issues_and_password(hass):
     assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
     assert CONF_IMAP_PASSWORD not in entry.data
     assert entry.data[CONF_POSTCODE] == "10115"
+
+
+async def test_refresh_service_forces_mail_import(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
+        options={CONF_IMAP_USER: "pakete@example.org"},
+    )
+    entry.add_to_hass(hass)
+    calls = []
+
+    def fake_fetch():
+        calls.append(1)
+        return []
+
+    with patch(FETCH):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        coord = entry.runtime_data
+        coord.mailbox.fetch_unseen = fake_fetch
+        await coord.async_refresh()
+        assert len(calls) == 1  # regular schedule, next one is 5 minutes away
+        await coord.async_refresh()
+        assert len(calls) == 1
+        await hass.services.async_call(DOMAIN, "refresh", {}, blocking=True)
+        assert len(calls) == 2

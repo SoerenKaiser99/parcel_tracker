@@ -2,6 +2,7 @@ import ssl
 from unittest.mock import patch
 
 import pytest
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -13,6 +14,7 @@ from custom_components.parcel_tracker.const import (
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
+    CONF_MAIL_INTERVAL,
     CONF_MAIL_SECTION,
     CONF_MOVE_PROCESSED,
     CONF_POSTCODE,
@@ -337,6 +339,7 @@ async def test_options_mail_defaults_and_disabled_without_user(hass):
     login.assert_not_called()
     assert entry.options[CONF_IMAP_HOST] == "imap.mailbox.org"
     assert entry.options[CONF_IMAP_USER] == ""
+    assert entry.options[CONF_MAIL_INTERVAL] == 5
     assert entry.options[CONF_MOVE_PROCESSED] is True
     assert entry.options[CONF_READ_OTP] is False
     assert CONF_IMAP_PASSWORD not in entry.data
@@ -497,3 +500,50 @@ async def test_options_login_check_uses_verifying_tls(hass):
     context = client.call_args.kwargs["ssl_context"]
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.check_hostname is True
+
+
+async def test_options_saves_mail_interval(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(**{CONF_MAIL_INTERVAL: 15})
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_MAIL_INTERVAL] == 15
+
+
+@pytest.mark.parametrize("minutes", [0, 61])
+async def test_options_rejects_mail_interval_out_of_range(hass, minutes):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with pytest.raises(vol.Invalid):
+        await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(**{CONF_MAIL_INTERVAL: minutes})
+        )
+
+
+async def test_options_changing_only_interval_skips_login_check(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
+        options={CONF_IMAP_HOST: "imap.example.org", CONF_IMAP_USER: "u"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with (
+        patch(CHECK_LOGIN, side_effect=ImapUnavailable("down")) as login,
+        patch(SETUP, return_value=True),
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            _mail_input(
+                **{CONF_IMAP_HOST: "imap.example.org", CONF_IMAP_USER: "u", CONF_MAIL_INTERVAL: 30}
+            ),
+        )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    login.assert_not_called()
+    assert entry.options[CONF_MAIL_INTERVAL] == 30

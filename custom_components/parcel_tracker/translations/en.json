@@ -50,7 +50,8 @@
               "imap_user": "Username",
               "imap_password": "Password",
               "move_processed": "Move processed mails to folders",
-              "read_otp": "Read delivery codes (one-time passwords)"
+              "read_otp": "Read delivery codes (one-time passwords)",
+              "mail_interval": "Check mailbox every (minutes)"
             },
             "data_description": {
               "imap_user": "Leave empty to switch the mail import off.",
@@ -139,7 +140,7 @@
     },
     "refresh": {
       "name": "Refresh",
-      "description": "Poll now.",
+      "description": "Poll now, including the mailbox if configured.",
       "fields": {"number": {"name": "Tracking number", "description": "Empty for all parcels."}}
     }
   }

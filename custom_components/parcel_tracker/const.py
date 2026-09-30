@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
@@ -14,6 +14,7 @@ CONF_IMAP_USER = "imap_user"
 CONF_IMAP_PASSWORD = "imap_password"
 CONF_MOVE_PROCESSED = "move_processed"
 CONF_READ_OTP = "read_otp"
+CONF_MAIL_INTERVAL = "mail_interval"
 
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
@@ -23,6 +24,9 @@ STALE_REMOVE_DAYS = 30
 DEFAULT_IMAP_HOST = "imap.mailbox.org"
 DEFAULT_MOVE_PROCESSED = True
 DEFAULT_READ_OTP = False
+DEFAULT_MAIL_INTERVAL = 5
+MIN_MAIL_INTERVAL = 1
+MAX_MAIL_INTERVAL = 60
 
 TICK = timedelta(minutes=1)
 DHL_DAILY_SOFT_LIMIT = 200
@@ -43,6 +47,7 @@ MAX_EVENTS = 5
 MAIL_CARRIERS = frozenset({"amazon", "ups"})
 CARRIER_NAMES = {"dhl": "DHL", "dpd": "DPD", "amazon": "Amazon", "ups": "UPS"}
 
+# Base of the error backoff (5, 10, 20, 40, 60 min); the regular schedule is an option.
 MAIL_INTERVAL = timedelta(minutes=5)
 MAIL_MAX_BACKOFF = timedelta(minutes=60)
 # Older mails (e.g. a forwarded archive) are only marked read, never applied.
