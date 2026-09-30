@@ -54,14 +54,31 @@ const stateLabel = (hass, st) => (st.state === "pre_transit" && st.attributes.ca
   ? "Bestellt"
   : (hass.formatEntityState ? hass.formatEntityState(st) : st.state));
 
+const MONTH_SHORT = ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."];
+const parseDay = (iso) => {
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  return { y, m, d, t: Date.UTC(y, m - 1, d) };
+};
+const fmtDay = (p) => `${p.d}. ${MONTH_SHORT[p.m - 1]}`;
+
+function rangeText(a) {
+  const first = parseDay(a.eta_date);
+  const last = parseDay(a.eta_latest);
+  const lastDays = a.days_until + Math.round((last.t - first.t) / 864e5);
+  if (lastDays < 0) return "Termin überschritten";
+  if (a.days_until <= 0) return `Bis ${fmtDay(last)}`;
+  return first.m === last.m ? `${first.d}.–${fmtDay(last)}` : `${fmtDay(first)}–${fmtDay(last)}`;
+}
+
 function etaText(state, a) {
   if (state === DONE) {
     if (!a.delivered_at) return "Zugestellt";
     const d = Math.round((new Date().setHours(0,0,0,0) - new Date(a.delivered_at).setHours(0,0,0,0)) / 864e5);
     return d === 0 ? "Zugestellt heute" : d === 1 ? "Zugestellt gestern" : `Zugestellt am ${fmtDate(a.delivered_at)}`;
   }
-  if (a.days_until != null && a.days_until < 0) return "Termin überschritten";
   if (a.days_until == null) return "Noch kein Termin";
+  if (a.eta_latest && a.eta_date && a.eta_latest !== a.eta_date) return rangeText(a);
+  if (a.days_until < 0) return "Termin überschritten";
   if (a.days_until === 0) {
     return a.eta_from && a.eta_to ? `Heute ${fmtTime(a.eta_from)}–${fmtTime(a.eta_to)} Uhr` : "Heute";
   }
@@ -149,6 +166,7 @@ class ParcelTrackerCard extends HTMLElement {
         .code { align-items:center; font-size:13px; }
         .code strong { font-size:16px; letter-spacing:2px; color:var(--primary-text-color); }
         svg { width:18px; height:18px; flex:none; }
+        svg.wide { width:28px; }
       </style>
       <ha-card>
         <div class="head"><div class="title"><ha-icon icon="mdi:package-variant"></ha-icon>Pakete</div><span class="badge" id="today"></span></div>
@@ -203,7 +221,8 @@ class ParcelTrackerCard extends HTMLElement {
   _icon(carrier) {
     const ic = CARRIER_ICONS[carrier];
     if (!ic) return `<ha-icon icon="mdi:package-variant-closed"></ha-icon>`;
-    return `<svg viewBox="0 0 24 24" aria-label="${esc(carrier)}"><path fill="${ic.color}" d="${ic.path}"/></svg>`;
+    const wide = carrier === "dhl"; // the DHL glyph is wide and flat: crop the box, widen the svg
+    return `<svg class="${wide ? "wide" : ""}" viewBox="${wide ? "0 8 24 8" : "0 0 24 24"}" width="${wide ? 28 : 18}" height="18" aria-label="${esc(carrier)}"><path fill="${ic.color}" d="${ic.path}"/></svg>`;
   }
 
   _actionsHtml(a) {

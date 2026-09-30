@@ -179,3 +179,65 @@ def test_legacy_title_keeps_inch_mark():
     )
     [u] = parse_amazon_legacy(msg)
     assert u.title == 'Samsung 27" Monitor…'
+
+
+def _eta(line: str, mail_date: str = "Tue, 30 Sep 2026 19:49:54 +0000"):
+    msg = load_mail("098_bestellbestaetigung_bestellt_zeitraum.eml")
+    text = msg.get_body(preferencelist=("plain",)).get_content()
+    msg.set_content(text.replace("Zustellung: 2. Oktober - 5. Oktober", line))
+    msg.replace_header("Date", mail_date)
+    [u] = parse_amazon(msg, False)
+    return u.eta_date, u.eta_latest
+
+
+def test_range_fixture():
+    u = _one("098_bestellbestaetigung_bestellt_zeitraum.eml")
+    assert u.number == "AMZ99960312290000000"
+    assert u.status is ParcelStatus.PRE_TRANSIT
+    assert u.title == "MAS Premium Aderleitung H07…"
+    assert (u.eta_date, u.eta_latest) == (date(2026, 10, 2), date(2026, 10, 5))
+    assert u.eta_from is None and u.eta_to is None
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("Zustellung: 2. Oktober - 5. Oktober", (date(2026, 10, 2), date(2026, 10, 5))),
+        ("Zustellung: 2. Oktober – 5. Oktober", (date(2026, 10, 2), date(2026, 10, 5))),
+        ("Zustellung: Freitag, 3. Oktober", (date(2026, 10, 3), None)),
+        ("Ankunft 3. Oktober", (date(2026, 10, 3), None)),
+        ("Ankunft Freitag, 3. Oktober", (date(2026, 10, 3), None)),
+        ("Zustellung: Do., 2. Okt. – Mo., 6. Okt.", (date(2026, 10, 2), date(2026, 10, 6))),
+        ("Zustellung: 30. Sep. – 2. Okt.", (date(2026, 9, 30), date(2026, 10, 2))),
+        ("Zustellung: 30. September - 2. Oktober", (date(2026, 9, 30), date(2026, 10, 2))),
+        ("Ankunft 12. Mär.", (date(2027, 3, 12), None)),
+        ("Ankunft Freitag", (date(2026, 10, 2), None)),  # mail is a Wednesday
+        ("Ankunft Mittwoch", (date(2026, 10, 7), None)),  # same weekday: a week later
+        ("Zustellung: Montag - Mittwoch", (date(2026, 10, 5), date(2026, 10, 7))),
+        ("Zustellung: 31. Februar", (None, None)),
+        ("Zustellung: bald", (None, None)),
+    ],
+)
+def test_date_forms(line, expected):
+    assert _eta(line) == expected
+
+
+def test_range_rolls_into_next_year():
+    mail = "Sun, 28 Dec 2026 10:00:00 +0000"
+    assert _eta("Zustellung: 2. Januar - 5. Januar", mail) == (date(2027, 1, 2), date(2027, 1, 5))
+    assert _eta("Zustellung: 30. Dezember - 2. Januar", mail) == (
+        date(2026, 12, 30),
+        date(2027, 1, 2),
+    )
+
+
+def test_recent_past_date_keeps_mail_year():
+    mail = "Sun, 28 Dec 2026 10:00:00 +0000"
+    assert _eta("Ankunft 20. Dezember", mail) == (date(2026, 12, 20), None)
+
+
+def test_today_tomorrow_and_windows_unchanged():
+    u = _one("002_bestellbestaetigung_bestellt.eml")
+    assert u.eta_date == date(2026, 8, 20) and u.eta_latest is None
+    assert u.eta_from == datetime(2026, 8, 20, 18, 0, tzinfo=BERLIN)
+    assert _eta("Ankunft morgen") == (date(2026, 10, 1), None)

@@ -101,3 +101,15 @@ def test_poll_target():
     assert ups.poll_target is None
     merged = _mail_parcel(tracking_ref="JJD000012978217606560", tracking_carrier="dhl")
     assert merged.poll_target == ("dhl", "JJD000012978217606560")
+
+
+def test_eta_latest_roundtrip_and_backward_compat():
+    r = _result()
+    assert r.eta_latest is None
+    assert TrackingResult.from_dict(r.to_dict()).eta_latest is None
+    r.eta_latest = date(2026, 10, 5)
+    assert r.to_dict()["eta_latest"] == "2026-10-05"
+    assert TrackingResult.from_dict(r.to_dict()) == r
+    old = r.to_dict()
+    del old["eta_latest"]
+    assert TrackingResult.from_dict(old).eta_latest is None

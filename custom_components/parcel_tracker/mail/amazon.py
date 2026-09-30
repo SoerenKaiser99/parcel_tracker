@@ -13,6 +13,7 @@ from .base import (
     body_text,
     carrier_for,
     relative_day,
+    resolve_dates,
     sent_at,
     shorten,
     subject,
@@ -58,6 +59,7 @@ _ETA = re.compile(
     r"(?P<h2>\d{1,2})(?:[:.](?P<m2>\d{2}))?\s*h?(?:\s*Uhr)?)?$",
     re.MULTILINE,
 )
+_ETA_DATES = re.compile(r"^(?:Zustellung:|Ankunft:?)\s+(?P<rest>\S.*)$", re.MULTILINE)
 _OTP = re.compile(r"Einmalpasswort lautet\s*(\d{4,8})\b")
 _LEGACY_ORDER = re.compile(r"Bestellnummer:\s*#?(\d{3}-\d{7}-\d{7})")
 _LEGACY_NUMBER = re.compile(r"Paketverfolgungsnummer:\s*([0-9A-Z]{10,30})")
@@ -109,12 +111,17 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     if status is None or not orders:
         return []
 
-    eta_date = eta_from = eta_to = None
+    eta_date = eta_from = eta_to = eta_latest = None
     if eta := _ETA.search(text):
         eta_date = relative_day(eta.group("day"), sent)
         if eta.group("h1"):
             eta_from = at(eta_date, int(eta.group("h1")), int(eta.group("m1") or 0))
             eta_to = at(eta_date, int(eta.group("h2")), int(eta.group("m2") or 0))
+    else:
+        for line in _ETA_DATES.finditer(text):
+            if resolved := resolve_dates(line.group("rest"), sent.date()):
+                eta_date, eta_latest = resolved
+                break
     code = None
     if read_otp and (otp := _OTP.search(text)):
         code = otp.group(1)
@@ -133,6 +140,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 sent_at=sent,
                 title=title,
                 eta_date=eta_date,
+                eta_latest=eta_latest,
                 eta_from=eta_from,
                 eta_to=eta_to,
                 delivered_at=sent if status is ParcelStatus.DELIVERED else None,

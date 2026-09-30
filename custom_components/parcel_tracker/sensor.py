@@ -118,6 +118,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "number": p.number,
             "name": p.name,
             "eta_date": _iso(r.eta_date) if r else None,
+            "eta_latest": _iso(r.eta_latest) if r else None,
             "eta_from": _iso(r.eta_from) if r else None,
             "eta_to": _iso(r.eta_to) if r else None,
             "days_until": days_until(r.eta_date, today) if r else None,

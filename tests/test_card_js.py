@@ -22,7 +22,8 @@ const sandbox = {
 vm.createContext(sandbox);
 vm.runInContext(
   fs.readFileSync(process.argv[1], "utf8")
-    + "\n;globalThis.__icons = CARRIER_ICONS; globalThis.__label = stateLabel;",
+    + "\n;globalThis.__icons = CARRIER_ICONS; globalThis.__label = stateLabel;"
+    + "globalThis.__eta = etaText;",
   sandbox,
 );
 const Card = defined["parcel-tracker-card"];
@@ -40,6 +41,21 @@ out.icons = Object.fromEntries(Object.entries(sandbox.__icons).map(([k, v]) => [
 const fmt = { formatEntityState: (st) => "Angekündigt" };
 out.amazon = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "amazon" } });
 out.dhl = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "dhl" } });
+const eta = (st, a) => sandbox.__eta(st, a);
+const rg = (d, first, last) => ({ days_until: d, eta_date: first, eta_latest: last });
+out.eta = {
+  sameMonth: eta("in_transit", rg(2, "2026-10-02", "2026-10-05")),
+  twoMonths: eta("in_transit", rg(1, "2026-09-30", "2026-10-02")),
+  until: eta("in_transit", rg(0, "2026-10-02", "2026-10-05")),
+  untilMid: eta("in_transit", rg(-1, "2026-09-30", "2026-10-02")),
+  over: eta("in_transit", rg(-4, "2026-09-30", "2026-10-02")),
+  delivered: eta("delivered", { ...rg(2, "2026-10-02", "2026-10-05"), delivered_at: null }),
+  single: eta("in_transit", { days_until: 1, eta_date: "2026-10-02", eta_latest: null }),
+  same: eta("in_transit", rg(3, "2026-10-02", "2026-10-02")),
+  days: eta("in_transit", { days_until: 3, eta_date: "2026-10-02" }),
+  none: eta("in_transit", { days_until: null }),
+};
+out.icon = { dhl: card._icon("dhl"), dpd: card._icon("dpd") };
 console.log(JSON.stringify(out));
 """
 
@@ -80,3 +96,28 @@ def test_card_copy_has_no_filler_words():
     text = BUNDLED_CARD.read_text(encoding="utf-8").lower()
     assert "bitte" not in text
     assert "erfolgreich" not in text
+
+
+def test_eta_ranges(card):
+    eta = card["eta"]
+    assert eta["sameMonth"] == "2.–5. Okt."
+    assert eta["twoMonths"] == "30. Sep.–2. Okt."
+    assert eta["until"] == "Bis 5. Okt."
+    assert eta["untilMid"] == "Bis 2. Okt."
+    assert eta["over"] == "Termin überschritten"
+    assert eta["delivered"] == "Zugestellt"
+
+
+def test_eta_single_dates_unchanged(card):
+    eta = card["eta"]
+    assert (eta["single"], eta["same"], eta["days"], eta["none"]) == (
+        "Morgen",
+        "In 3 Tagen",
+        "In 3 Tagen",
+        "Noch kein Termin",
+    )
+
+
+def test_dhl_icon_is_wide_others_square(card):
+    assert 'width="28" height="18"' in card["icon"]["dhl"]
+    assert 'width="18" height="18"' in card["icon"]["dpd"]

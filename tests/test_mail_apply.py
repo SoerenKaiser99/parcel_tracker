@@ -180,3 +180,21 @@ def test_mail_for_known_pollable_parcel_asks_carrier_again():
     assert len(parcels) == 1
     assert parcels[JJD].next_poll_at is None
     assert parcels[JJD].name == "Oma"
+
+
+def test_eta_range_is_carried_and_cleared():
+    parcels: dict[str, Parcel] = {}
+    [change] = _apply(parcels, "098_bestellbestaetigung_bestellt_zeitraum.eml")
+    p = change.parcel
+    assert (p.result.eta_date, p.result.eta_latest) == (date(2026, 10, 2), date(2026, 10, 5))
+
+    # a mail without any ETA keeps the window
+    update = replace(_updates("098_bestellbestaetigung_bestellt_zeitraum.eml")[0],
+                     status=ParcelStatus.IN_TRANSIT, eta_date=None, eta_latest=None)
+    apply_update(parcels, update, NOW)
+    assert (p.result.eta_date, p.result.eta_latest) == (date(2026, 10, 2), date(2026, 10, 5))
+
+    # a later single date clears it
+    update = replace(update, eta_date=date(2026, 10, 3))
+    apply_update(parcels, update, NOW)
+    assert (p.result.eta_date, p.result.eta_latest) == (date(2026, 10, 3), None)

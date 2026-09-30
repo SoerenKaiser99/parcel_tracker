@@ -37,6 +37,7 @@ async def test_parcel_and_today_sensor(hass):
     assert state.state == "out_for_delivery"
     assert state.attributes["name"] == "Oma"
     assert state.attributes["days_until"] == 0
+    assert state.attributes["eta_latest"] is None
     assert state.attributes["progress"] == 4
     assert state.attributes["friendly_name"] == "Oma"
 
@@ -157,3 +158,27 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     expired = hass.states.get("sensor.paket_amz99991565342587125")
     assert expired.attributes["delivery_code"] is None
     assert "delivery_code" in ParcelSensor._unrecorded_attributes
+
+
+async def test_sensor_exposes_eta_latest(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
+    entry.add_to_hass(hass)
+    with patch(FETCH, return_value=_res(ParcelStatus.IN_TRANSIT)):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+    now = dt_util.utcnow()
+    today = dt_util.now().date()
+    result = _res(ParcelStatus.PRE_TRANSIT)
+    result.eta_date = today + timedelta(days=2)
+    result.eta_latest = today + timedelta(days=5)
+    coordinator.store.add(
+        Parcel("AMZ99960312290000000", "amazon", "mail", None, now, now, result=result)
+    )
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+
+    attrs = hass.states.get("sensor.paket_amz99960312290000000").attributes
+    assert attrs["eta_latest"] == (today + timedelta(days=5)).isoformat()
+    assert attrs["days_until"] == 2
+    assert hass.states.get("sensor.pakete_heute").state == "0"

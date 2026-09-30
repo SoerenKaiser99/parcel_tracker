@@ -78,12 +78,14 @@ class TrackingResult:
     pickup_until: date | None
     delivered_at: datetime | None
     events: list[TrackingEvent] = field(default_factory=list)
+    eta_latest: date | None = None  # last day of a delivery window (eta_date = first day)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status.value,
             "status_text": self.status_text,
             "eta_date": _iso(self.eta_date),
+            "eta_latest": _iso(self.eta_latest),
             "eta_from": _iso(self.eta_from),
             "eta_to": _iso(self.eta_to),
             "location": self.location,
@@ -106,6 +108,7 @@ class TrackingResult:
             pickup_until=_d(data.get("pickup_until")),
             delivered_at=_dt(data.get("delivered_at")),
             events=[TrackingEvent.from_dict(e) for e in data.get("events", [])],
+            eta_latest=_d(data.get("eta_latest")),
         )
 
 

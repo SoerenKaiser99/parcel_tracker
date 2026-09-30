@@ -37,6 +37,7 @@ class MailUpdate:
     sent_at: datetime  # Date header in Europe/Berlin
     title: str | None = None
     eta_date: date | None = None
+    eta_latest: date | None = None
     eta_from: datetime | None = None
     eta_to: datetime | None = None
     delivered_at: datetime | None = None
@@ -192,3 +193,73 @@ def title_key(title: str) -> str:
     core = _MORE.sub("", title.replace("…", "").replace("...", ""))
     core = re.sub(r"\s+", " ", core.replace("‑", "-")).strip().lower()
     return core[:15]
+
+
+_WEEKDAYS = {"mo": 0, "di": 1, "mi": 2, "do": 3, "fr": 4, "sa": 5, "so": 6}
+_MONTHS_SHORT = {
+    "jan": 1, "feb": 2, "mär": 3, "apr": 4, "mai": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "okt": 10, "nov": 11, "dez": 12,
+}
+_WEEKDAY = (
+    r"(?:Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag|Mo|Di|Mi|Do|Fr|Sa|So)"
+)
+_MONTH = (
+    r"(?:Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember"
+    r"|Jan|Feb|Mär|Apr|Jun|Jul|Aug|Sep|Okt|Nov|Dez)"
+)
+_DAY_MONTH = re.compile(
+    rf"(?:{_WEEKDAY}\.?,?\s*)?(?P<day>\d{{1,2}})\.\s*(?P<month>{_MONTH})\.?", re.IGNORECASE
+)
+_DAY_NAME = re.compile(rf"(?P<wd>{_WEEKDAY})\.?", re.IGNORECASE)
+_RANGE_SPLIT = re.compile(r"\s*[–-]\s*")
+
+
+def _on(year: int, month: int, day: int) -> date | None:
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _dated(day: int, month: int, ref: date) -> date | None:
+    """Day/month in the mail's year; more than 60 days before ``ref`` means next year."""
+    try:
+        found = date(ref.year, month, day)
+        if found < ref - timedelta(days=60):
+            found = date(ref.year + 1, month, day)
+    except ValueError:
+        return None
+    return found
+
+
+def resolve_dates(text: str, ref: date) -> tuple[date, date | None] | None:
+    """(first, last) of a German date or range ('2. Oktober - 5. Oktober', 'Freitag').
+
+    ``last`` is None for a single day. Weekday-only forms mean the next such day after ``ref``.
+    """
+    parts = _RANGE_SPLIT.split(text.strip())
+    if len(parts) > 2:
+        return None
+    days: list[date] = []
+    for part in parts:
+        base = days[0] if days else ref
+        if m := _DAY_MONTH.fullmatch(part):
+            day, month = int(m.group("day")), _MONTHS_SHORT[m.group("month").lower()[:3]]
+            if days:  # end of a range: same year as the start, or the one after
+                found = _on(days[0].year, month, day)
+                if found is not None and found < days[0]:
+                    found = _on(days[0].year + 1, month, day)
+            else:
+                found = _dated(day, month, ref)
+        elif m := _DAY_NAME.fullmatch(part):
+            weekday = _WEEKDAYS[m.group("wd").lower()[:2]]
+            shift = (weekday - base.weekday()) % 7
+            found = base + timedelta(days=shift or (0 if days else 7))
+        else:
+            return None
+        if found is None:
+            return None
+        days.append(found)
+    if len(days) == 2 and days[1] != days[0]:
+        return days[0], days[1]
+    return days[0], None

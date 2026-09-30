@@ -47,11 +47,11 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         if old is None or old.status is not update.status:
             events.insert(0, TrackingEvent(update.sent_at, text, None))
         if update.eta_date:
-            eta = (update.eta_date, update.eta_from, update.eta_to)
+            eta = (update.eta_date, update.eta_from, update.eta_to, update.eta_latest)
         elif old:
-            eta = (old.eta_date, old.eta_from, old.eta_to)
+            eta = (old.eta_date, old.eta_from, old.eta_to, old.eta_latest)
         else:
-            eta = (None, None, None)
+            eta = (None, None, None, None)
         delivered = update.status is ParcelStatus.DELIVERED
         result = TrackingResult(
             status=update.status,
@@ -59,6 +59,7 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             eta_date=eta[0],
             eta_from=eta[1],
             eta_to=eta[2],
+            eta_latest=eta[3],
             location=old.location if old else None,
             pickup_point=None,
             pickup_until=None,
