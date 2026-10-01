@@ -18,6 +18,7 @@ from homeassistant.util import dt as dt_util
 from .carriers.base import (
     AuthError,
     Carrier,
+    CarrierError,
     CarrierUnavailable,
     Match,
     MissingCredentials,
@@ -25,11 +26,22 @@ from .carriers.base import (
     ParseError,
     RateLimited,
 )
+from .carriers.track17 import (
+    NotRegistered,
+    Quota,
+    QuotaExhausted,
+    Track17Client,
+    Track17Disabled,
+    Track17Info,
+    strip_enrichment,
+    with_track17,
+)
 from .carriers.ups import BudgetExhausted, UpsCarrier, next_month_start
 from .const import (
     AMAZON_UNRECOGNIZED_LIMIT,
     CARRIER_AUTO,
     CARRIER_BROKEN_AFTER,
+    CARRIER_OTHER,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
@@ -49,15 +61,21 @@ from .const import (
     MAIL_MAX_BACKOFF,
     OPTIONAL_API_CARRIERS,
     TICK,
+    TRACK17_CARRIER_CODES,
+    TRACK17_FIRST_POLL,
+    TRACK17_INTERVAL,
+    TRACK17_QUOTA_INTERVAL,
+    TRACK17_QUOTA_LOW,
+    TRACK17_QUOTA_RETRY,
 )
 from .detect import candidates, normalize
 from .mail import parse_mail
 from .mail.apply import Change, apply_update
 from .mail.base import MailResult, sent_at
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
-from .models import Parcel, ParcelStatus, TrackingResult
+from .models import PROGRESS_STEP, Parcel, ParcelStatus, TrackingResult
 from .schedule import backoff, poll_interval, should_remove
-from .store import ParcelStore
+from .store import DuplicateParcel, ParcelStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,6 +121,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         store: ParcelStore,
         carriers: dict[str, Carrier],
         mailbox: MailboxClient | None = None,
+        track17: Track17Client | None = None,
     ) -> None:
         super().__init__(
             hass, _LOGGER, name=DOMAIN, update_interval=TICK, config_entry=entry
@@ -120,6 +139,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_next: datetime | None = None
         self._mail_streak = 0
         self._amazon_misses = 0
+        self.track17 = track17
+        self.track17_quota: Quota | None = None
+        self.track17_blocked = False  # key rejected: no 17track calls until a reload
+        self._t17_quota_next: datetime | None = None
+        self._t17_streak = 0
+        # Status 17track announced before the carrier's own, older answer took over.
+        self._announced: dict[str, ParcelStatus] = {}
 
     # ----- settings -----
     @property
@@ -160,10 +186,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                         continue
                     await self._poll_safely(parcel, now)
                     changed = True
+            # Not during the first refresh: setup must not wait for 17track.
+            if self._events_enabled and await self._poll_track17(now):
+                changed = True
             if changed:
                 await self.store.async_save()
-        # Not during the first refresh: setup must not wait for the mailbox.
+        # Not during the first refresh: setup must not wait for the mailbox or 17track.
         if self._events_enabled:
+            await self._quota_if_due()
             await self.async_import_mail()
         self._events_enabled = True
         return dict(self.store.parcels)
@@ -174,6 +204,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         ]
         for number in removed:
             self.store.remove(number)
+            self._announced.pop(number, None)
         today = dt_util.as_local(now).date()
         for parcel in self.store.parcels.values():
             if parcel.delivery_code and parcel.active_code(today) is None:
@@ -349,7 +380,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         whatever went wrong (not found, errors, backoff)."""
         if parcel.next_poll_at is None:
             return
-        interval = poll_interval(parcel.status, now, "ups")
+        # Only UPS's own status counts: a 17track "out for delivery" must not make the
+        # paid UPS calls more frequent. No own status yet: the default interval (4 h).
+        own = strip_enrichment(parcel.result)
+        interval = poll_interval(own.status if own else None, now, "ups")
         if interval is not None and parcel.next_poll_at < now + interval:
             parcel.next_poll_at = now + interval
 
@@ -437,7 +471,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         ir.async_delete_issue(self.hass, DOMAIN, f"carrier_broken_{key}")
         if key in ("dhl", "ups"):
             ir.async_delete_issue(self.hass, DOMAIN, f"{key}_auth")
-        known = parcel.result
+        known = strip_enrichment(parcel.result)  # the carrier's or a mail's own values
         if (
             key == "hermes"
             and result.eta_date is None
@@ -453,7 +487,12 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 eta_from=known.eta_from,
                 eta_to=known.eta_to,
             )
+        # 17track only fills what the carrier left empty (place, day/window, history).
+        result = with_track17(result, parcel.track17_result)
+        if result.status is ParcelStatus.DELIVERED:
+            parcel.track17_next_at = None
         old = parcel.status
+        took_over = parcel.result is not None and known is None  # shown was 17track's alone
         if parcel.carrier is None:
             parcel.carrier = key
         if parcel.result is None or parcel.result.to_dict() != result.to_dict():
@@ -466,8 +505,31 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if interval and key == "dhl" and self._dhl_calls > DHL_DAILY_SOFT_LIMIT:
             interval *= 2
         parcel.next_poll_at = now + interval if interval else None
-        if old is not None and old != result.status and self._events_enabled:
+        if old is not None and old != result.status and self._news(parcel, old, took_over):
             self._fire(parcel, old)
+
+    def _news(self, parcel: Parcel, old: ParcelStatus, took_over: bool) -> bool:
+        """Is the carrier's new status worth a status event?
+
+        A parcel shown from 17track alone may be ahead of the carrier. When the carrier's
+        first own answer is a step backwards (PROGRESS_STEP), that is no news: no event,
+        and the status 17track had announced is remembered, so the carrier reaching it
+        later is not announced a second time. Kept in memory only: after a restart in
+        between, that one status is announced again.
+        """
+        status = parcel.result.status
+        # A problem the carrier reports is always announced, also right at the takeover.
+        if (
+            took_over
+            and status is not ParcelStatus.EXCEPTION
+            and PROGRESS_STEP[status] < PROGRESS_STEP[old]
+        ):
+            self._announced[parcel.number] = old
+            return False
+        announced = self._announced.get(parcel.number)
+        if announced is not None and PROGRESS_STEP[status] >= PROGRESS_STEP[announced]:
+            del self._announced[parcel.number]  # caught up (or beyond): normal from now on
+        return status is not announced and self._events_enabled
 
     def _fire(self, parcel: Parcel, old) -> None:
         r = parcel.result
@@ -500,10 +562,226 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if key == "dhl":
             self.entry.async_start_reauth(self.hass)
 
+    # ----- 17track (optional; registration only on explicit request) -----
+    def _t17_client(self) -> Track17Client:
+        if self.track17 is None:
+            raise Track17Disabled("no 17track key configured")
+        if self.track17_blocked:
+            raise AuthError("17track key rejected; waiting for a reload")
+        return self.track17
+
+    def _track17_auth(self) -> None:
+        """Key rejected: no more 17track calls until the integration reloads."""
+        self.track17_blocked = True
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            "track17_auth",
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="track17_auth",
+        )
+        self.async_update_listeners()
+
+    def _quota_issues(self, remain: int) -> None:
+        """track17_quota_low at 10 or fewer numbers left, track17_quota_exhausted at none."""
+        if remain <= 0:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "track17_quota_exhausted",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="track17_quota_exhausted",
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, "track17_quota_exhausted")
+        if 0 < remain <= TRACK17_QUOTA_LOW:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "track17_quota_low",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="track17_quota_low",
+                translation_placeholders={"remain": str(remain)},
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, "track17_quota_low")
+
+    async def async_update_quota(self) -> None:
+        """Read the 17track quota (free) for the sensor and the repairs."""
+        if self.track17 is None or self.track17_blocked:
+            return
+        now = dt_util.utcnow()
+        self._t17_quota_next = now + TRACK17_QUOTA_INTERVAL
+        try:
+            quota = await self.track17.getquota()
+        except AuthError:
+            self._track17_auth()
+            return
+        except CarrierError as err:
+            _LOGGER.debug("17track quota not available: %s", err)
+            self._t17_quota_next = now + TRACK17_QUOTA_RETRY
+            return
+        self.track17_quota = quota
+        ir.async_delete_issue(self.hass, DOMAIN, "track17_auth")
+        self._quota_issues(quota.remain)
+        self.async_update_listeners()
+
+    async def _quota_if_due(self) -> None:
+        if self.track17 is None or self.track17_blocked:
+            return
+        if self._t17_quota_next is None or self._t17_quota_next <= dt_util.utcnow():
+            await self.async_update_quota()
+
+    async def _poll_track17(self, now: datetime) -> bool:
+        """Ask 17track (free) for registered parcels that are due, in batched calls."""
+        if self.track17 is None or self.track17_blocked:
+            return False
+        due = [
+            p
+            for p in self.store.parcels.values()
+            if p.track17
+            and p.track17_next_at is not None
+            and p.track17_next_at <= now
+            and p.track17_target is not None
+        ]
+        if not due:
+            return False
+        try:
+            infos = await self.track17.gettrackinfo(
+                [(p.track17_target[1], p.track17_carrier) for p in due]
+            )
+        except AuthError:
+            self._track17_auth()
+            return False
+        except CarrierError as err:  # network, 5xx, 429, odd answers: back off, never register
+            _LOGGER.debug("17track not reachable: %s", err)
+            self._t17_streak += 1
+            for parcel in due:
+                parcel.track17_next_at = now + backoff(self._t17_streak)
+            return True
+        self._t17_streak = 0
+        for parcel in due:
+            self._apply_track17(parcel, infos.get(parcel.track17_target[1]), now)
+        return True
+
+    def _apply_track17(
+        self, parcel: Parcel, info: Track17Info | CarrierError | None, now: datetime
+    ) -> None:
+        if isinstance(info, NotRegistered):
+            # Gone at 17track: never register again on our own; the card offers it anew.
+            parcel.track17 = False
+            parcel.track17_next_at = None
+            if parcel.carrier == CARRIER_OTHER:
+                parcel.last_error = "track17_not_registered"
+            else:
+                # Nothing of 17track stays behind; the carrier's own error is not touched.
+                parcel.track17_result = None
+                self._show(parcel, now, strip_enrichment(parcel.result))
+            return
+        if not isinstance(info, Track17Info):
+            # No data yet (-18019909) or an odd answer: quietly again in 6 h.
+            parcel.track17_next_at = now + TRACK17_INTERVAL
+            return
+        if parcel.track17_carrier is None:
+            parcel.track17_carrier = info.carrier
+        if parcel.carrier == CARRIER_OTHER:
+            # 17track is its only source.
+            self._show(parcel, now, info.result)
+            parcel.last_error = None
+        else:
+            # Fill the carrier's gaps; without any carrier answer show 17track's whole one.
+            parcel.track17_result = info.result
+            self._show(parcel, now, with_track17(strip_enrichment(parcel.result), info.result))
+        ended = info.expired or parcel.status is ParcelStatus.DELIVERED
+        parcel.track17_next_at = None if ended else now + TRACK17_INTERVAL
+
+    def _show(self, parcel: Parcel, now: datetime, result: TrackingResult | None) -> None:
+        """Take what a 17track answer made of the parcel's result."""
+        old = parcel.status
+        before = parcel.result.to_dict() if parcel.result is not None else None
+        if before != (result.to_dict() if result is not None else None):
+            parcel.last_change_at = now
+        parcel.result = result
+        if (
+            old is not None
+            and result is not None
+            and old != result.status
+            and self._events_enabled
+        ):
+            self._fire(parcel, old)
+
+    async def _register17(self, number: str, carrier_key: str | None) -> int | None:
+        """Register at 17track (costs 1 number); return the carrier code 17track uses."""
+        client = self._t17_client()
+        code = TRACK17_CARRIER_CODES.get(carrier_key) if carrier_key else None
+        try:
+            registration = await client.register(number, code)
+        except AuthError:
+            self._track17_auth()
+            raise
+        except QuotaExhausted:
+            self._quota_issues(0)
+            await self.async_update_quota()  # don't leave a stale count on the sensor
+            raise
+        return registration.carrier or code
+
+    async def async_track17(self, number: str) -> Parcel:
+        """Send a tracked parcel to 17track on explicit request."""
+        self._t17_client()
+        parcel = self.store.parcels[normalize(number)]  # KeyError: not tracked
+        # Everything is checked under the lock: a poll or a mail may change the parcel
+        # while this call waits.
+        async with self._lock:
+            if parcel.track17 or self.store.get(parcel.number) is not parcel:
+                return parcel  # already registered (nothing to spend), or removed meanwhile
+            target = parcel.track17_target
+            if target is None or parcel.status is ParcelStatus.DELIVERED:
+                raise ValueError("track17_not_possible")
+            carrier_key, poll_number = target
+            parcel.track17_carrier = await self._register17(poll_number, carrier_key)
+            parcel.track17 = True
+            if parcel.last_error == "track17_not_registered":
+                parcel.last_error = None
+            parcel.track17_next_at = dt_util.utcnow() + TRACK17_FIRST_POLL
+            await self.store.async_save()
+            self.async_set_updated_data(dict(self.store.parcels))
+        await self.async_update_quota()
+        return parcel
+
+    async def _add_other(self, number: str, name: str | None) -> Parcel:
+        """A carrier without own connection: adding it registers it at 17track first."""
+        self._t17_client()
+        async with self._lock:
+            if self.store.get(number) is not None:
+                raise DuplicateParcel(number)  # before registering: nothing spent
+            code = await self._register17(number, None)
+            now = dt_util.utcnow()
+            parcel = Parcel(
+                number=number,
+                carrier=CARRIER_OTHER,
+                carrier_mode="manual",
+                name=(name or "").strip() or None,
+                added_at=now,
+                last_change_at=now,
+                track17=True,
+                track17_carrier=code,
+                track17_next_at=now + TRACK17_FIRST_POLL,
+            )
+            self.store.add(parcel)
+            await self.store.async_save()
+            self.async_set_updated_data(dict(self.store.parcels))
+        await self.async_update_quota()
+        return parcel
+
     # ----- public API used by services -----
     async def async_add(self, number: str, carrier: str, name: str | None) -> Parcel:
         norm = normalize(number)
         keys = candidates(norm, self.carriers)  # raises UnsupportedNumber
+        if carrier == CARRIER_OTHER:
+            return await self._add_other(norm, name)
         mode = "auto" if carrier == CARRIER_AUTO else "manual"
         if carrier == CARRIER_AUTO and not keys and UpsCarrier.matches(norm) is Match.SURE:
             carrier = "ups"  # mail-only until UPS API credentials are configured
@@ -535,9 +813,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         return parcel
 
     async def async_remove(self, number: str) -> None:
-        self.store.remove(normalize(number))
-        await self.store.async_save()
-        self.async_set_updated_data(dict(self.store.parcels))
+        async with self._lock:  # not while a refresh or a registration works on the parcels
+            self.store.remove(normalize(number))  # KeyError: not tracked
+            self._announced.pop(normalize(number), None)
+            await self.store.async_save()
+            self.async_set_updated_data(dict(self.store.parcels))
 
     async def async_rename(self, number: str, name: str | None) -> None:
         parcel = self.store.parcels[normalize(number)]
@@ -547,8 +827,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     async def async_refresh_parcels(self, number: str | None) -> None:
         targets = [self.store.parcels[normalize(number)]] if number else self.store.parcels.values()
+        now = dt_util.utcnow()
         for parcel in targets:
             parcel.next_poll_at = None
+            # 17track is free: ask it now too, but not in the first minutes after registering.
+            if (
+                parcel.track17_next_at is not None
+                and parcel.track17_next_at > now + TRACK17_FIRST_POLL
+            ):
+                parcel.track17_next_at = now
         # Also check the mailbox now, even while an error backoff is running
         # (an import already in progress still wins via the mail lock).
         self._mail_next = None

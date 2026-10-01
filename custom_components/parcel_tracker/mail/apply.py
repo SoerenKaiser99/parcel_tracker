@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
+from ..carriers.track17 import strip_enrichment, with_track17
 from ..const import MAX_EVENTS, OPTIONAL_API_CARRIERS, SHOP_CARRIERS
 from ..models import PROGRESS_STEP, Parcel, ParcelStatus, TrackingEvent, TrackingResult
 from .base import MailUpdate, title_key
@@ -39,7 +40,11 @@ def _step(status: ParcelStatus | None) -> int:
 def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     """Take status/ETA/code from the mail unless it would move the parcel backwards."""
     changed = False
-    old = parcel.result
+    shown = parcel.result
+    # Build on what the carrier and earlier mails said; what 17track filled in is put
+    # back afterwards, so it stays 17track's (and a newer 17track answer can replace it).
+    old = strip_enrichment(shown)
+    # "Backwards" is measured against what is shown, also if that is 17track's status.
     if update.status is not None and _step(update.status) >= _step(parcel.status):
         texts = SHOP_TEXT if parcel.carrier in SHOP_CARRIERS else CARRIER_TEXT
         text = texts.get(update.status, update.status.value)
@@ -66,7 +71,8 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             delivered_at=(update.delivered_at or update.sent_at) if delivered else None,
             events=events[:MAX_EVENTS],
         )
-        if old is None or old.to_dict() != result.to_dict():
+        result = with_track17(result, parcel.track17_result)
+        if shown is None or shown.to_dict() != result.to_dict():
             parcel.result = result
             parcel.last_change_at = now
             changed = True

@@ -46,8 +46,26 @@ def test_readme_roadmap_and_status():
         "getestet (UPS-Freischaltung ausstehend)",
         "Hermes Live-Abfrage: umgesetzt; mit einer aktuellen Sendung noch nicht live getestet",
         "eBay-Mails: umgesetzt",
-        "17track für DPD-Orte: geplant",
+        "17track: umgesetzt, Live-Test ausstehend",
         "Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports",
     ):
         assert line in README, line
     assert "Roadmap & Status" in README.split("## English summary")[1]
+
+
+def test_readme_explains_17track():
+    assert "## 17track (optional)" in README
+    for text in (
+        "api.17track.net",
+        "200 Nummern",
+        "Details über 17track holen",
+        "Andere (über 17track)",
+        "parcel_tracker.track_17track",
+        "sensor.paket_tracker_17track_kontingent",
+        "alle 6 Stunden",
+        "Ort via 17track",
+        "location_source",
+        "höchstens 40 Nummern",
+    ):
+        assert text in README, text
+    assert "17track is implemented (live test pending)" in README

@@ -35,11 +35,13 @@
         "title": "Paket Tracker – Optionen",
         "data": {
           "dhl_api_key": "DHL-API-Key",
+          "track17_api_key": "17track-API-Key (optional)",
           "postcode": "PLZ (optional)",
           "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)"
         },
         "data_description": {
-          "postcode": "z. B. 10115"
+          "postcode": "z. B. 10115",
+          "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key."
         },
         "sections": {
           "mail": {
@@ -86,7 +88,9 @@
       "imap_password_missing": "Gib das Passwort des Postfachs ein.",
       "ups_auth": "UPS hat Client-ID oder Secret abgelehnt.",
       "ups_cannot_connect": "UPS ist gerade nicht erreichbar. Versuch es später noch einmal.",
-      "ups_secret_missing": "Gib das UPS-Client-Secret ein."
+      "ups_secret_missing": "Gib das UPS-Client-Secret ein.",
+      "track17_invalid_key": "17track hat diesen API-Key abgelehnt.",
+      "track17_cannot_connect": "17track ist gerade nicht erreichbar. Versuch es später noch einmal."
     }
   },
   "issues": {
@@ -113,6 +117,18 @@
     "ups_budget": {
       "title": "UPS-Monatsbudget verbraucht",
       "description": "Paket Tracker hat alle für diesen Monat erlaubten UPS-Abfragen verbraucht. UPS-Pakete kommen bis Monatsende nur aus Mails; der Hinweis verschwindet am 1. des nächsten Monats. Erhöh bei Bedarf das Budget in den Optionen."
+    },
+    "track17_auth": {
+      "title": "17track-API-Key abgelehnt",
+      "description": "17track akzeptiert den API-Key nicht mehr. Bis du in den Optionen einen gültigen Key einträgst oder die Integration neu lädst, fragt Paket Tracker 17track nicht mehr ab."
+    },
+    "track17_quota_low": {
+      "title": "17track-Kontingent fast verbraucht",
+      "description": "Nur noch {remain} 17track-Nummern übrig. Jedes Paket, das du an 17track schickst, verbraucht eine; bereits angemeldete Pakete werden weiter aktualisiert."
+    },
+    "track17_quota_exhausted": {
+      "title": "17track-Kontingent verbraucht",
+      "description": "Alle 17track-Nummern sind verbraucht. Neue Pakete lassen sich nicht mehr an 17track schicken; bereits angemeldete Pakete werden weiter aktualisiert."
     }
   },
   "exceptions": {
@@ -120,7 +136,13 @@
     "amazon": {"message": "Amazon-Nummern (TBA…) lassen sich nicht direkt verfolgen. Leite die Amazon-Mails ins Paket-Postfach weiter."},
     "empty": {"message": "Gib eine Sendungsnummer ein."},
     "unknown_carrier": {"message": "Unbekannter Carrier."},
-    "not_tracked": {"message": "Dieses Paket ist nicht in der Liste."}
+    "not_tracked": {"message": "Dieses Paket ist nicht in der Liste."},
+    "track17_off": {"message": "Kein 17track-API-Key eingetragen. Trag ihn in den Optionen von Paket Tracker ein."},
+    "track17_carrier": {"message": "17track hat den Carrier dieser Nummer nicht erkannt."},
+    "track17_quota": {"message": "Das 17track-Kontingent ist erschöpft."},
+    "track17_auth": {"message": "17track hat den API-Key abgelehnt. Prüf ihn in den Optionen von Paket Tracker."},
+    "track17_unavailable": {"message": "17track ist gerade nicht erreichbar. Versuch es später noch einmal."},
+    "track17_not_possible": {"message": "Dieses Paket lässt sich nicht an 17track schicken (zugestellt oder noch keine Sendungsnummer)."}
   },
   "entity": {
     "sensor": {
@@ -136,7 +158,8 @@
           "unknown": "Unbekannt"
         }
       },
-      "today": {"name": "Pakete heute"}
+      "today": {"name": "Pakete heute"},
+      "track17_quota": {"name": "17track-Kontingent"}
     },
     "calendar": {"deliveries": {"name": "Pakete"}}
   },
@@ -146,7 +169,7 @@
       "description": "Ein Paket verfolgen.",
       "fields": {
         "number": {"name": "Sendungsnummer", "description": "Wie aufgedruckt, Leerzeichen erlaubt."},
-        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes oder ups."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes, ups oder other (über 17track, braucht einen 17track-API-Key)."},
         "name": {"name": "Name", "description": "Optionale Bezeichnung."}
       }
     },
@@ -167,6 +190,11 @@
       "name": "Aktualisieren",
       "description": "Jetzt abfragen, auch das Postfach, falls eingerichtet.",
       "fields": {"number": {"name": "Sendungsnummer", "description": "Leer für alle Pakete."}}
+    },
+    "track_17track": {
+      "name": "Über 17track verfolgen",
+      "description": "Schickt ein Paket an 17track, um Ort, Zeitfenster und Verlauf zu ergänzen. Verbraucht 1 deiner 17track-Nummern.",
+      "fields": {"number": {"name": "Sendungsnummer", "description": "Paket aus der Liste."}}
     }
   }
 }

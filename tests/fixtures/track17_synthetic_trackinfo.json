@@ -1,0 +1,60 @@
+{
+  "_synthetic": "Synthetic: built from the 17track Tracking API v2.2 documentation (gettrackinfo); not a real 17track response. Addresses are made up and must never appear in results.",
+  "response": {
+    "code": 0,
+    "data": {
+      "accepted": [
+        {
+          "number": "99999999999901",
+          "carrier": 100007,
+          "param": null,
+          "tag": "",
+          "track_info": {
+            "shipping_info": {
+              "shipper_address": {"country": "DE", "state": null, "city": "Absenderstadt", "street": "Synthetikweg 1", "postal_code": "00001", "coordinates": {"longitude": null, "latitude": null}},
+              "recipient_address": {"country": "DE", "state": null, "city": "Empfaengerstadt", "street": "Synthetikweg 2", "postal_code": "00002", "coordinates": {"longitude": null, "latitude": null}}
+            },
+            "latest_status": {"status": "InTransit", "sub_status": "InTransit_Other", "sub_status_descr": null},
+            "latest_event": {
+              "time_iso": "2026-09-30T06:12:00+02:00",
+              "time_utc": "2026-09-30T04:12:00Z",
+              "description": "Das Paket ist im Zustelldepot eingetroffen.",
+              "location": "Köln",
+              "stage": "InTransit",
+              "sub_status": "InTransit_Other",
+              "address": {"country": "DE", "state": null, "city": "Köln", "street": "Synthetikweg 3", "postal_code": "00003", "coordinates": {"longitude": null, "latitude": null}}
+            },
+            "time_info": {"days_after_order": 2, "days_of_transit": 1, "days_after_last_update": 0},
+            "time_metrics": {
+              "days_after_order": 2,
+              "days_of_transit": 1,
+              "days_of_transit_done": 1,
+              "days_after_last_update": 0,
+              "estimated_delivery_date": {"source": "Official", "from": "2026-10-01T10:00:00+02:00", "to": "2026-10-01T14:00:00+02:00"}
+            },
+            "milestone": [],
+            "misc_info": {"risk_factor": 0, "service_type": null, "weight_raw": null, "weight_kg": null, "pieces": null, "dimensions": null, "customer_number": "SYNTH-0000", "reference_number": null, "local_number": null, "local_provider": null, "local_key": 0},
+            "tracking": {
+              "providers_hash": 1,
+              "providers": [
+                {
+                  "provider": {"key": 100007, "name": "DPD", "alias": "DPD", "tel": null, "homepage": null, "country": "DE"},
+                  "service_type": null,
+                  "latest_sync_status": "Success",
+                  "latest_sync_time": "2026-09-30T04:30:00Z",
+                  "events_hash": 1,
+                  "events": [
+                    {"time_iso": "2026-09-30T06:12:00+02:00", "time_utc": "2026-09-30T04:12:00Z", "description": "Das Paket ist im Zustelldepot eingetroffen.", "location": "Köln", "stage": "InTransit", "sub_status": "InTransit_Other", "address": {"country": "DE", "city": "Köln", "street": "Synthetikweg 3", "postal_code": "00003"}},
+                    {"time_iso": "2026-09-29T18:40:00+02:00", "time_utc": "2026-09-29T16:40:00Z", "description": "Das Paket ist im Paketzentrum eingetroffen.", "location": "Hamburg", "stage": "InTransit", "sub_status": "InTransit_Other", "address": {"country": "DE", "city": "Hamburg", "street": null, "postal_code": null}},
+                    {"time_iso": "2026-09-29T09:05:00+02:00", "time_utc": "2026-09-29T07:05:00Z", "description": "Die Sendungsdaten wurden übermittelt.", "location": null, "stage": "InfoReceived", "sub_status": "InfoReceived", "address": {"country": null, "city": null, "street": null, "postal_code": null}}
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "rejected": []
+    }
+  }
+}

@@ -8,7 +8,7 @@ add_parcel:
       default: auto
       selector:
         select:
-          options: ["auto", "dhl", "dpd", "hermes", "ups"]
+          options: ["auto", "dhl", "dpd", "hermes", "ups", "other"]
     name:
       selector:
         text:
@@ -30,5 +30,11 @@ rename_parcel:
 refresh:
   fields:
     number:
+      selector:
+        text:
+track_17track:
+  fields:
+    number:
+      required: true
       selector:
         text:

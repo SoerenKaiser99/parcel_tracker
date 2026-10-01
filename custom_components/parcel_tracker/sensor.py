@@ -13,7 +13,8 @@ from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from . import ParcelConfigEntry
-from .const import CARRIER_NAMES
+from .carriers.track17 import ENRICH_LOCATION
+from .const import CARRIER_NAMES, CARRIER_OTHER, TRACK17_CARRIER_NAMES, TRACK17_SOURCE
 from .coordinator import ParcelCoordinator
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .schedule import days_until
@@ -21,6 +22,28 @@ from .schedule import days_until
 
 def _iso(value) -> str | None:
     return value.isoformat() if value else None
+
+
+# Unique-id suffixes of the fixed sensors (everything else is a parcel number).
+_FIXED = frozenset({"today", "track17_quota"})
+
+
+def _carrier_name(parcel: Parcel) -> str | None:
+    """Display name; for 'other' the carrier 17track recognised (e.g. GLS)."""
+    if parcel.carrier == CARRIER_OTHER:
+        return TRACK17_CARRIER_NAMES.get(parcel.track17_carrier, CARRIER_NAMES[CARRIER_OTHER])
+    if parcel.carrier:
+        return CARRIER_NAMES.get(parcel.carrier, parcel.carrier)
+    return None
+
+
+def _location_source(parcel: Parcel) -> str | None:
+    r = parcel.result
+    if r is None or not r.location:
+        return None
+    if ENRICH_LOCATION in r.enriched or parcel.carrier == CARRIER_OTHER:
+        return TRACK17_SOURCE
+    return None
 
 
 def _remove_ghost_entities(hass: HomeAssistant, entry_id: str, parcels: dict) -> None:
@@ -36,7 +59,7 @@ def _remove_ghost_entities(hass: HomeAssistant, entry_id: str, parcels: dict) ->
         if not reg_entry.unique_id.startswith(prefix):
             continue
         suffix = reg_entry.unique_id[len(prefix):]
-        if suffix == "today":
+        if suffix in _FIXED:
             continue
         if suffix not in parcels:
             registry.async_remove(reg_entry.entity_id)
@@ -50,7 +73,7 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     known: dict[str, ParcelSensor] = {}
     _remove_ghost_entities(hass, entry.entry_id, coordinator.store.parcels)
-    async_add_entities([TodaySensor(coordinator)])
+    async_add_entities([TodaySensor(coordinator), Track17QuotaSensor(coordinator)])
 
     @callback
     def _sync() -> None:
@@ -98,8 +121,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         p = self._parcel
         if p and p.name:
             return p.name
-        carrier = CARRIER_NAMES.get(p.carrier, p.carrier) if p and p.carrier else "Paket"
-        return f"{carrier} {self.number}"
+        return f"{(_carrier_name(p) if p else None) or 'Paket'} {self.number}"
 
     @property
     def native_value(self) -> str:
@@ -115,6 +137,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         today = dt_util.now().date()
         return {
             "carrier": p.carrier,
+            "carrier_name": _carrier_name(p),
             "number": p.number,
             "name": p.name,
             "eta_date": _iso(r.eta_date) if r else None,
@@ -123,6 +146,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "eta_to": _iso(r.eta_to) if r else None,
             "days_until": days_until(r.eta_date, today) if r else None,
             "location": r.location if r else None,
+            "location_source": _location_source(p),
             "pickup_point": r.pickup_point if r else None,
             "pickup_until": _iso(r.pickup_until) if r else None,
             "status_text": r.status_text if r else None,
@@ -136,6 +160,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "tracking_carrier": p.tracking_carrier,
             "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
+            "track17": p.track17,
+            "track17_carrier": p.track17_carrier,
         }
 
 
@@ -181,3 +207,35 @@ class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
                 for p in self._today()
             ]
         }
+
+
+class Track17QuotaSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
+    """17track numbers left (the free account has 200 once)."""
+
+    _attr_translation_key = "track17_quota"
+    _attr_has_entity_name = False
+    _attr_icon = "mdi:counter"
+
+    def __init__(self, coordinator: ParcelCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_track17_quota"
+        self.entity_id = "sensor.paket_tracker_17track_kontingent"
+        self._attr_name = "Paket Tracker 17track-Kontingent"
+
+    @property
+    def available(self) -> bool:
+        return (
+            super().available
+            and self.coordinator.track17 is not None
+            and not self.coordinator.track17_blocked
+        )
+
+    @property
+    def native_value(self) -> int | None:
+        quota = self.coordinator.track17_quota
+        return quota.remain if quota else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        quota = self.coordinator.track17_quota
+        return {"total": quota.total if quota else None, "used": quota.used if quota else None}

@@ -20,14 +20,23 @@ from homeassistant.util.ssl import client_context
 
 from .card_install import BUNDLED_CARD, CARD_FILE, card_hash, card_url, install_card
 from .carriers import build_carriers
+from .carriers.base import AuthError, CarrierError
+from .carriers.track17 import (
+    CarrierNotDetected,
+    QuotaExhausted,
+    Track17Client,
+    Track17Disabled,
+)
 from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
     CARD_URL,
     CARRIER_AUTO,
+    CARRIER_OTHER,
     CONF_DHL_API_KEY,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
+    CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
@@ -49,6 +58,8 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type ParcelConfigEntry = ConfigEntry[ParcelCoordinator]
 
+TRACK17_ISSUES = ("track17_auth", "track17_quota_low", "track17_quota_exhausted")
+
 
 def _coordinator(hass: HomeAssistant) -> ParcelCoordinator:
     entries = hass.config_entries.async_loaded_entries(DOMAIN)
@@ -59,6 +70,19 @@ def _coordinator(hass: HomeAssistant) -> ParcelCoordinator:
 
 def _err(key: str) -> ServiceValidationError:
     return ServiceValidationError(translation_domain=DOMAIN, translation_key=key)
+
+
+def _track17_err(err: Exception) -> ServiceValidationError:
+    """German/English text for a failed 17track request."""
+    if isinstance(err, Track17Disabled):
+        return _err("track17_off")
+    if isinstance(err, CarrierNotDetected):
+        return _err("track17_carrier")
+    if isinstance(err, QuotaExhausted):
+        return _err("track17_quota")
+    if isinstance(err, AuthError):
+        return _err("track17_auth")
+    return _err("track17_unavailable")
 
 
 def _dhl_key(entry: ConfigEntry) -> str | None:
@@ -88,6 +112,12 @@ def _ups_carrier(hass: HomeAssistant, entry: ConfigEntry, budget: ApiBudget) -> 
     if not client_id or not secret or limit <= 0:
         return None
     return UpsCarrier(async_get_clientsession(hass), client_id, secret, budget, limit)
+
+
+def _track17_client(hass: HomeAssistant, entry: ConfigEntry) -> Track17Client | None:
+    """17track client when a key is stored in entry.data."""
+    key = entry.data.get(CONF_TRACK17_API_KEY)
+    return Track17Client(async_get_clientsession(hass), key) if key else None
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -135,6 +165,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             raise _err(err.reason) from err
         except DuplicateParcel as err:
             raise _err("duplicate") from err
+        except (Track17Disabled, CarrierError) as err:
+            raise _track17_err(err) from err
         except ValueError as err:
             raise _err("unknown_carrier") from err
 
@@ -156,13 +188,23 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except KeyError as err:
             raise _err("not_tracked") from err
 
+    async def track_17track(call: ServiceCall) -> None:
+        try:
+            await _coordinator(hass).async_track17(call.data["number"])
+        except KeyError as err:
+            raise _err("not_tracked") from err
+        except (Track17Disabled, CarrierError) as err:
+            raise _track17_err(err) from err
+        except ValueError as err:
+            raise _err("track17_not_possible") from err
+
     number = vol.All(cv.string, vol.Length(min=1))
     hass.services.async_register(
         DOMAIN, "add_parcel", add,
         schema=vol.Schema({
             vol.Required("number"): number,
             vol.Optional("carrier", default=CARRIER_AUTO): vol.In(
-                [CARRIER_AUTO, *SELECTABLE_CARRIERS]
+                [CARRIER_AUTO, *SELECTABLE_CARRIERS, CARRIER_OTHER]
             ),
             vol.Optional("name"): cv.string,
         }),
@@ -176,6 +218,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     )
     hass.services.async_register(
         DOMAIN, "refresh", refresh, schema=vol.Schema({vol.Optional("number"): number})
+    )
+    hass.services.async_register(
+        DOMAIN, "track_17track", track_17track,
+        schema=vol.Schema({vol.Required("number"): number}),
     )
     return True
 
@@ -193,7 +239,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bo
     mailbox = _mailbox(entry)
     if mailbox is None:
         _mail_import_off(hass, entry)
-    coordinator = ParcelCoordinator(hass, entry, store, carriers, mailbox)
+    track17 = _track17_client(hass, entry)
+    if track17 is None:
+        for issue in TRACK17_ISSUES:
+            ir.async_delete_issue(hass, DOMAIN, issue)
+    coordinator = ParcelCoordinator(hass, entry, store, carriers, mailbox, track17=track17)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

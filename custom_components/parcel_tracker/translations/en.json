@@ -35,11 +35,13 @@
         "title": "Parcel Tracker options",
         "data": {
           "dhl_api_key": "DHL API key",
+          "track17_api_key": "17track API key (optional)",
           "postcode": "Postcode (optional)",
           "keep_delivered_days": "Hide delivered parcels after (days)"
         },
         "data_description": {
-          "postcode": "e.g. 10115"
+          "postcode": "e.g. 10115",
+          "track17_api_key": "Free key from api.17track.net (200 numbers once). Only used when you ask for it on the card. Leave empty to keep the saved key."
         },
         "sections": {
           "mail": {
@@ -86,7 +88,9 @@
       "imap_password_missing": "Enter the mailbox password.",
       "ups_auth": "UPS rejected Client ID or Secret.",
       "ups_cannot_connect": "Couldn't reach UPS. Try again later.",
-      "ups_secret_missing": "Enter the UPS Client Secret."
+      "ups_secret_missing": "Enter the UPS Client Secret.",
+      "track17_invalid_key": "17track rejected this API key.",
+      "track17_cannot_connect": "Couldn't reach 17track. Try again later."
     }
   },
   "issues": {
@@ -113,6 +117,18 @@
     "ups_budget": {
       "title": "UPS monthly budget used up",
       "description": "Parcel Tracker used all UPS requests allowed for this month. UPS parcels come from mails only until the month ends; this notice disappears on the 1st. Raise the budget in the options if needed."
+    },
+    "track17_auth": {
+      "title": "17track API key rejected",
+      "description": "17track no longer accepts the API key. Parcel Tracker makes no 17track requests until you enter a valid key in the options or reload the integration."
+    },
+    "track17_quota_low": {
+      "title": "17track quota almost used up",
+      "description": "Only {remain} of your 17track numbers are left. Each parcel you send to 17track uses one; parcels already sent keep updating."
+    },
+    "track17_quota_exhausted": {
+      "title": "17track quota used up",
+      "description": "All 17track numbers are used. New parcels can't be sent to 17track; parcels already sent keep updating."
     }
   },
   "exceptions": {
@@ -120,7 +136,13 @@
     "amazon": {"message": "Amazon tracking numbers (TBA…) can't be tracked directly. Forward the Amazon mails to the parcel mailbox instead."},
     "empty": {"message": "Enter a tracking number."},
     "unknown_carrier": {"message": "Unknown carrier."},
-    "not_tracked": {"message": "This parcel isn't in the list."}
+    "not_tracked": {"message": "This parcel isn't in the list."},
+    "track17_off": {"message": "No 17track API key set. Add one in the Parcel Tracker options."},
+    "track17_carrier": {"message": "17track couldn't recognise the carrier of this number."},
+    "track17_quota": {"message": "Your 17track quota is used up."},
+    "track17_auth": {"message": "17track rejected the API key. Check it in the Parcel Tracker options."},
+    "track17_unavailable": {"message": "Couldn't reach 17track. Try again later."},
+    "track17_not_possible": {"message": "This parcel can't be sent to 17track (delivered, or no carrier number yet)."}
   },
   "entity": {
     "sensor": {
@@ -136,7 +158,8 @@
           "unknown": "Unknown"
         }
       },
-      "today": {"name": "Parcels today"}
+      "today": {"name": "Parcels today"},
+      "track17_quota": {"name": "17track quota"}
     },
     "calendar": {"deliveries": {"name": "Parcels"}}
   },
@@ -146,7 +169,7 @@
       "description": "Start tracking a parcel.",
       "fields": {
         "number": {"name": "Tracking number", "description": "As printed, spaces allowed."},
-        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes or ups."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes, ups or other (via 17track, needs a 17track API key)."},
         "name": {"name": "Name", "description": "Optional label."}
       }
     },
@@ -167,6 +190,11 @@
       "name": "Refresh",
       "description": "Poll now, including the mailbox if configured.",
       "fields": {"number": {"name": "Tracking number", "description": "Empty for all parcels."}}
+    },
+    "track_17track": {
+      "name": "Track via 17track",
+      "description": "Send a parcel to 17track to add place, time window and history. Uses 1 of your 17track numbers.",
+      "fields": {"number": {"name": "Tracking number", "description": "Parcel from the list."}}
     }
   }
 }

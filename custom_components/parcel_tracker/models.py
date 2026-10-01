@@ -7,7 +7,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
 
-from .const import MAIL_CARRIERS
+from .const import CARRIER_OTHER, MAIL_CARRIERS
 
 
 class ParcelStatus(StrEnum):
@@ -79,6 +79,9 @@ class TrackingResult:
     delivered_at: datetime | None
     events: list[TrackingEvent] = field(default_factory=list)
     eta_latest: date | None = None  # last day of a delivery window (eta_date = first day)
+    # Field groups filled from 17track ("status", "location", "eta", "window", "events");
+    # "status" marks a result that is 17track's as a whole (no carrier answer yet).
+    enriched: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -93,6 +96,7 @@ class TrackingResult:
             "pickup_until": _iso(self.pickup_until),
             "delivered_at": _iso(self.delivered_at),
             "events": [e.to_dict() for e in self.events],
+            "enriched": list(self.enriched),
         }
 
     @classmethod
@@ -109,6 +113,7 @@ class TrackingResult:
             delivered_at=_dt(data.get("delivered_at")),
             events=[TrackingEvent.from_dict(e) for e in data.get("events", [])],
             eta_latest=_d(data.get("eta_latest")),
+            enriched=tuple(data.get("enriched") or ()),
         )
 
 
@@ -135,6 +140,11 @@ class Parcel:
     # Delivery one-time code: kept in memory only, never written by to_dict().
     delivery_code: str | None = None
     delivery_code_day: date | None = None
+    # 17track (registered only on explicit request; persisted).
+    track17: bool = False
+    track17_carrier: int | None = None  # 17track carrier code
+    track17_next_at: datetime | None = None  # None while registered = polling ended
+    track17_result: TrackingResult | None = None  # last 17track answer, re-applied after polls
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -143,6 +153,16 @@ class Parcel:
     @property
     def poll_target(self) -> tuple[str | None, str] | None:
         """(carrier key or None for auto, number) to poll, or None if mail-only."""
+        if self.tracking_ref:
+            return self.tracking_carrier, self.tracking_ref
+        if self.carrier in MAIL_CARRIERS or self.carrier == CARRIER_OTHER:
+            return None
+        return self.carrier, self.number
+
+    @property
+    def track17_target(self) -> tuple[str | None, str] | None:
+        """(carrier key, number) to register at and ask 17track; None for a shop order
+        that has no carrier number yet."""
         if self.tracking_ref:
             return self.tracking_carrier, self.tracking_ref
         if self.carrier in MAIL_CARRIERS:
@@ -173,6 +193,10 @@ class Parcel:
             "tracking_carrier": self.tracking_carrier,
             "mail_title": self.mail_title,
             "shipping_carrier_hint": self.shipping_carrier_hint,
+            "track17": self.track17,
+            "track17_carrier": self.track17_carrier,
+            "track17_next_at": _iso(self.track17_next_at),
+            "track17_result": self.track17_result.to_dict() if self.track17_result else None,
         }
 
     @classmethod
@@ -194,4 +218,12 @@ class Parcel:
             tracking_carrier=data.get("tracking_carrier"),
             mail_title=data.get("mail_title"),
             shipping_carrier_hint=data.get("shipping_carrier_hint"),
+            track17=bool(data.get("track17", False)),
+            track17_carrier=data.get("track17_carrier"),
+            track17_next_at=_dt(data.get("track17_next_at")),
+            track17_result=(
+                TrackingResult.from_dict(data["track17_result"])
+                if data.get("track17_result")
+                else None
+            ),
         )

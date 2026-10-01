@@ -64,4 +64,34 @@ def test_ups_translations_present():
         )
         assert {"ups_auth", "ups_budget"} <= set(strings["issues"])
     services = _load("strings.json")["services"]["add_parcel"]["fields"]["carrier"]
-    assert services["description"] == "auto, dhl, dpd, hermes or ups."
+    assert services["description"] == (
+        "auto, dhl, dpd, hermes, ups or other (via 17track, needs a 17track API key)."
+    )
+
+
+def test_track17_issue_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        issues = _load(name)["issues"]
+        assert {"track17_auth", "track17_quota_low", "track17_quota_exhausted"} <= set(issues)
+        assert "{remain}" in issues["track17_quota_low"]["description"]
+
+
+def test_track17_option_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        init = _load(name)["options"]["step"]["init"]
+        assert "track17_api_key" in init["data"]
+        assert "track17_api_key" in init["data_description"]
+        assert {"track17_invalid_key", "track17_cannot_connect"} <= set(
+            _load(name)["options"]["error"]
+        )
+
+
+def test_track17_service_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        strings = _load(name)
+        assert {
+            "track17_off", "track17_carrier", "track17_quota", "track17_auth",
+            "track17_unavailable", "track17_not_possible",
+        } <= set(strings["exceptions"])
+        assert set(strings["services"]["track_17track"]["fields"]) == {"number"}
+        assert "track17_quota" in strings["entity"]["sensor"]

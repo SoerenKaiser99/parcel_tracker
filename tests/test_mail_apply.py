@@ -2,9 +2,16 @@ from dataclasses import replace
 from datetime import UTC, date, datetime
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
+from custom_components.parcel_tracker.carriers.track17 import standalone
 from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.apply import apply_update
-from custom_components.parcel_tracker.models import Parcel, ParcelStatus
+from custom_components.parcel_tracker.mail.base import MailUpdate
+from custom_components.parcel_tracker.models import (
+    Parcel,
+    ParcelStatus,
+    TrackingEvent,
+    TrackingResult,
+)
 
 from .conftest import load_mail
 
@@ -310,3 +317,27 @@ def test_ups_mail_does_not_trigger_an_extra_ups_call():
     parcels = {ups: Parcel(ups, "ups", "auto", "Schuhe", NOW, NOW, next_poll_at=NOW)}
     _apply(parcels, "070_pkginfo_ups_versandbenachrichtigung_kont.eml")
     assert parcels[ups].next_poll_at == NOW
+
+
+def test_mail_takes_over_from_a_17track_only_result_but_never_moves_it_back():
+    number = "1Z999AA19999999901"
+    seen = TrackingResult(
+        ParcelStatus.OUT_FOR_DELIVERY, "Fahrzeug beladen", date(2026, 9, 30), None, None,
+        "Köln", None, None, None, [TrackingEvent(NOW, "Fahrzeug beladen", "Köln")],
+    )
+    parcel = Parcel(
+        number, "ups", "manual", None, NOW, NOW,
+        result=standalone(seen), track17=True, track17_result=seen,
+    )
+    parcels = {number: parcel}
+    late = MailUpdate(number, "ups", ParcelStatus.IN_TRANSIT, NOW)
+    assert apply_update(parcels, late, NOW) is None
+    assert parcel.result == standalone(seen)
+
+    newer = MailUpdate(number, "ups", ParcelStatus.DELIVERED, NOW)
+    assert apply_update(parcels, newer, NOW) is not None
+    r = parcel.result
+    assert (r.status, r.status_text, r.delivered_at) == (ParcelStatus.DELIVERED, "Zugestellt", NOW)
+    assert [e.text for e in r.events] == ["Zugestellt"]  # the mail's own history
+    assert (r.location, r.enriched) == ("Köln", ("location",))  # 17track fills the gap only
+    assert r.eta_date is None

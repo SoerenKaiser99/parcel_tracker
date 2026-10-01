@@ -1,6 +1,6 @@
 # Paket Tracker
 
-Home-Assistant-Integration, die Pakete von DHL, DPD, Hermes und (optional) UPS verfolgt und Amazon-, eBay-, Hermes- und UPS-Pakete aus E-Mails übernimmt: eigene Sensoren, ein Sammelsensor für "heute", ein Lieferkalender, ein Status-Event und eine eigene Dashboard-Karte.
+Home-Assistant-Integration, die Pakete von DHL, DPD, Hermes und (optional) UPS verfolgt, auf Wunsch über 17track ergänzt oder weitere Carrier wie GLS verfolgt und Amazon-, eBay-, Hermes- und UPS-Pakete aus E-Mails übernimmt: eigene Sensoren, ein Sammelsensor für "heute", ein Lieferkalender, ein Status-Event und eine eigene Dashboard-Karte.
 
 ## Was es kann
 
@@ -8,12 +8,13 @@ Home-Assistant-Integration, die Pakete von DHL, DPD, Hermes und (optional) UPS v
 - **DPD**: Abfrage über die öffentliche DPD-Sendungsverfolgung, nur mit der Sendungsnummer. DPD liefert Status und die fünf Meilenstein-Termine, aber keinen Standort und kein Zeitfenster. Die detailliertere DPD-Seite braucht eine Postleitzahl und ist durch ein Captcha geschützt, deshalb nutzt die Integration sie nicht.
 - **Hermes**: Abfrage über die öffentliche Hermes-Sendungsverfolgung, nur mit der Sendungsnummer (`H…` mit 19 Ziffern oder 14 Ziffern), ohne Zugangsdaten und ohne PLZ. Hermes liefert Status und Verlauf, aber keinen Liefertag – den übernimmt die Integration aus den Hermes-Mails.
 - **UPS**: Status aus den UPS-Mails; mit eigener Client-ID und eigenem Secret zusätzlich Live-Status über die offizielle UPS Track API, mit Monatsbudget (siehe [UPS-Live-Status](#ups-live-status-optional)).
+- **17track** (optional): Auf Knopfdruck ergänzt 17track Ort, Zeitfenster und Verlauf; „Andere (über 17track)“ verfolgt Carrier ohne eigene Anbindung, z. B. GLS (siehe [17track](#17track-optional)).
 - **E-Mail-Import** (optional): Liest ein eigenes Paket-Postfach per IMAP und legt Pakete aus Amazon-, eBay-, DHL-, Hermes- und UPS-Mails automatisch an (siehe [E-Mail-Import](#e-mail-import)).
 - **Karte**: `custom:parcel-tracker-card`, direkt von der Integration ausgeliefert, erscheint im Karten-Auswahldialog als "Paket Tracker". Pakete lassen sich dort hinzufügen, umbenennen und entfernen.
-- **Sensoren**: `sensor.paket_<nummer>` pro Paket (Zustand = Status, mit Attributen wie Carrier, ETA, Standort, Abholpunkt, Zustellzeitpunkt `delivered_at`, Verlauf) sowie `sensor.pakete_heute` für die Anzahl der heute erwarteten Pakete.
+- **Sensoren**: `sensor.paket_<nummer>` pro Paket (Zustand = Status, mit Attributen wie Carrier, `carrier_name`, ETA, Standort, `location_source`, Abholpunkt, Zustellzeitpunkt `delivered_at`, Verlauf, `track17`, `track17_carrier`), `sensor.pakete_heute` für die Anzahl der heute erwarteten Pakete und – mit 17track-Key – `sensor.paket_tracker_17track_kontingent` für die verbleibenden 17track-Nummern.
 - **Kalender**: `calendar.pakete` zeigt die erwarteten Zustelltermine.
 - **Event**: `parcel_tracker_status_changed` feuert bei jedem Statuswechsel eines Pakets.
-- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `refresh`.
+- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `refresh`, `track_17track`.
 
 Was (noch) nicht geht: siehe [Roadmap & Status](#roadmap--status). Amazon- und eBay-Bestellungen kennt die Integration nur aus Mails; abgefragt wird dort nur die Sendungsnummer des Carriers, sobald eine Mail sie verrät.
 
@@ -54,6 +55,23 @@ Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails. Mit einer eigenen UPS
 **Monatsbudget** (Standard 100, Bereich 0–10000): So viele UPS-Abfragen macht die Integration höchstens pro Kalendermonat, damit nie Kosten entstehen. Token-Abrufe zählen nicht, jede Sendungsabfrage zählt – auch die über „Aktualisieren“. Ist das Budget verbraucht, kommen UPS-Pakete bis Monatsende nur aus Mails, und unter **Einstellungen → Reparaturen** erscheint ein Hinweis, der am Monatsanfang von selbst verschwindet. 0 schaltet die API aus.
 
 Die UPS-API wird sparsam gefragt: beim Anlegen einmal, danach alle 4 Stunden, am Zustelltag („In Zustellung“) alle 30 Minuten, nach der Zustellung nie mehr; nachts (22–6 Uhr) höchstens stündlich. Lehnt UPS die Zugangsdaten ab, erscheint ebenfalls ein Reparatur-Hinweis.
+
+## 17track (optional)
+
+17track ergänzt Pakete um Ort, Zeitfenster und Verlauf und verfolgt Carrier ohne eigene Anbindung (z. B. GLS). Angemeldet wird nur auf ausdrücklichen Wunsch, nie automatisch.
+
+1. Auf [api.17track.net](https://api.17track.net) ein kostenloses Konto anlegen und den API-Key kopieren.
+2. Den Key nur in Home Assistant eintragen: **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren → 17track-API-Key**. Speichern prüft den Key über das Kontingent (verbraucht nichts). Ein leeres Feld behält den gespeicherten Key.
+
+**Kontingent**: Das kostenlose Konto hat einmalig 200 Nummern. Jede Anmeldung einer neuen Nummer verbraucht eine, Abfragen danach sind kostenlos. Die Integration löscht Nummern bei 17track nie, denn neu anmelden würde erneut kosten. `sensor.paket_tracker_17track_kontingent` zeigt die verbleibenden Nummern (Attribute `total` und `used`) und wird beim Start, nach jeder Anmeldung und einmal täglich aktualisiert. Bei höchstens 10 übrigen Nummern und bei leerem Kontingent erscheint ein Hinweis unter **Einstellungen → Reparaturen**.
+
+**Anmelden**: Auf der Karte im aufgeklappten Paket „Details über 17track holen“ antippen; die Rückfrage „Verbraucht 1 von … verbleibenden 17track-Nummern. Fortfahren?“ bestätigen. Für Automationen gibt es den Dienst `parcel_tracker.track_17track` (`number`). Nicht möglich bei zugestellten Paketen und bei Amazon- und eBay-Bestellungen, solange keine Sendungsnummer des Carriers bekannt ist. Angemeldet wird die Sendungsnummer des Carriers samt Carrier-Code; ist der Carrier unbekannt, erkennt 17track ihn selbst.
+
+**Andere (über 17track)**: Für Carrier ohne eigene Anbindung in der Karte „Andere (über 17track)“ wählen (oder `add_parcel` mit `carrier: other`). Hinzufügen meldet die Nummer sofort an, mit derselben Rückfrage. Erkennt 17track den Carrier nicht, wird das Paket nicht angelegt. Status, Text, Ort und Verlauf kommen dann nur von 17track; der erkannte Carrier (z. B. GLS) erscheint im Namen.
+
+**Ergänzen statt ersetzen**: Bei DHL, DPD, Hermes und UPS bleibt der Carrier maßgeblich. 17track füllt nur Lücken: Ort, Liefertag und Zeitfenster sowie den Verlauf (nur wenn der Carrier keinen liefert). Liefert der Carrier gar nichts (z. B. DHL ohne API-Key, UPS ohne API-Zugang), zeigt das Paket den Status von 17track, bis der Carrier selbst antwortet. Stammt der Ort von 17track, zeigt die Karte „· Ort via 17track“ (Attribut `location_source: 17track`).
+
+**Abfragen**: Die erste Abfrage kommt 2 Minuten nach der Anmeldung, danach alle 6 Stunden (17track aktualisiert selbst nur alle 6–12 Stunden), gebündelt zu höchstens 40 Nummern pro Aufruf. Schluss ist bei Zustellung oder wenn 17track die Sendung als abgelaufen meldet. Ist 17track nicht erreichbar, wartet die Integration länger und meldet nie neu an. Lehnt 17track den Key ab, fragt die Integration bis zum Neuladen nicht mehr ab und zeigt einen Reparatur-Hinweis.
 
 ## E-Mail-Import
 
@@ -172,13 +190,13 @@ actions:
 
 ## Datenschutz
 
-Sendungsnummern gehen nur an den jeweiligen Carrier (DHL, DPD, Hermes bzw. – mit eigenen Zugangsdaten – UPS). Die PLZ geht ausschließlich an DHL.
+Sendungsnummern gehen nur an den jeweiligen Carrier (DHL, DPD, Hermes bzw. – mit eigenen Zugangsdaten – UPS). Die PLZ geht ausschließlich an DHL. An 17track geht nur auf ausdrücklichen Wunsch die Sendungsnummer samt Carrier-Code, keine PLZ und kein Name; Adressen aus der 17track-Antwort verwirft die Integration, ohne sie zu speichern oder zu loggen.
 
-Aus Mails übernimmt der Import nur Bestellnummer, einen auf 60 Zeichen gekürzten Artikeltitel, Status, Liefertag und Zeitfenster, den Versanddienstleister sowie – nur mit eingeschalteter Option und nur im Arbeitsspeicher – den Zustell-Code. Adresse, Name, eBay-Käufer- und Verkäufernamen, Wunsch-Ablageort, Preise und Mail-Inhalte landen weder in Attributen noch im Log. Das IMAP-Passwort und die UPS-Zugangsdaten liegen wie der DHL-Key in der Konfiguration von Home Assistant.
+Aus Mails übernimmt der Import nur Bestellnummer, einen auf 60 Zeichen gekürzten Artikeltitel, Status, Liefertag und Zeitfenster, den Versanddienstleister sowie – nur mit eingeschalteter Option und nur im Arbeitsspeicher – den Zustell-Code. Adresse, Name, eBay-Käufer- und Verkäufernamen, Wunsch-Ablageort, Preise und Mail-Inhalte landen weder in Attributen noch im Log. Das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen wie der DHL-Key in der Konfiguration von Home Assistant.
 
 ## Markenhinweis
 
-DHL, DPD, Hermes, UPS, Amazon und eBay sind Marken ihrer Inhaber. Die Logos (Simple Icons, CC0) dienen nur zur Kennzeichnung des Carriers; Hermes erscheint als blauer Punkt mit „H“. Dieses Projekt ist nicht mit den Unternehmen verbunden.
+DHL, DPD, Hermes, UPS, GLS, 17track, Amazon und eBay sind Marken ihrer Inhaber. Die Logos (Simple Icons, CC0) dienen nur zur Kennzeichnung des Carriers; Hermes erscheint als blauer Punkt mit „H“, „Andere (über 17track)“ als grauer Punkt mit „17“. Dieses Projekt ist nicht mit den Unternehmen verbunden.
 
 ## Roadmap & Status
 
@@ -189,11 +207,11 @@ DHL, DPD, Hermes, UPS, Amazon und eBay sind Marken ihrer Inhaber. Die Logos (Sim
 - Hermes-Mails: umgesetzt
 - eBay-Mails: umgesetzt
 - UPS Live-Status (offizielle API): umgesetzt, noch nicht mit echten Zugangsdaten getestet (UPS-Freischaltung ausstehend)
-- 17track für DPD-Orte: geplant
+- 17track: umgesetzt, Live-Test ausstehend
 - Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports
 
 ---
 
 ## English summary
 
-Paket Tracker is a Home Assistant custom integration that tracks parcels from DHL, DPD, Hermes and, optionally, UPS. DHL uses the official "Shipment Tracking – Unified" API (an API key is optional; without one, DHL parcels show a "key missing" status), while DPD uses DPD's public tracking page with only the tracking number, which yields status and the five milestone dates but no location or delivery window. The integration creates one sensor per parcel (`sensor.paket_<number>`), a summary sensor for today's expected parcels, a delivery calendar, and fires a `parcel_tracker_status_changed` event on every status change. It ships its own Lovelace card (`custom:parcel-tracker-card`, listed as "Paket Tracker" in the card picker) for adding, renaming, and removing parcels. Install it through HACS as a custom repository, then set up an optional DHL API key, a postcode, and how long delivered parcels stay visible. An optional mail import reads a dedicated parcel mailbox via IMAP (never enter your main mailbox: the IMAP password grants full access) and creates parcels from Amazon, DHL and UPS mails, including Amazon's own deliveries; a DHL "Amazon Sendung" mail is merged into the matching Amazon order when unambiguous. Delivery one-time codes are read only when enabled, shown on the card after a tap and a confirmation (hidden only on the card: anyone with access to the entity attributes or the Home Assistant API can read it), never stored and never recorded. Hermes uses the keyless public tracking endpoint (number only). UPS status comes from UPS mails and, with your own Client ID and Secret from developer.ups.com (product "Tracking"), from the official UPS Track API, capped by a monthly request budget (default 100) so it never costs money. The mail import also reads Hermes and eBay mails (one parcel per eBay order, never using eBay item numbers as tracking numbers) and merges a carrier mail into exactly one matching open Amazon or eBay order. Roadmap & Status: the UPS API is implemented but not yet tested with real credentials (UPS approval pending), the Hermes live lookup is implemented but not yet tested with a current parcel, 17track for DPD locations is planned, and an Amazon account login was dropped in favour of the mail import. Tracking numbers are sent only to the matching carrier, and the postcode is sent only to DHL.
+Paket Tracker is a Home Assistant custom integration that tracks parcels from DHL, DPD, Hermes and, optionally, UPS. DHL uses the official "Shipment Tracking – Unified" API (an API key is optional; without one, DHL parcels show a "key missing" status), while DPD uses DPD's public tracking page with only the tracking number, which yields status and the five milestone dates but no location or delivery window. The integration creates one sensor per parcel (`sensor.paket_<number>`), a summary sensor for today's expected parcels, a delivery calendar, and fires a `parcel_tracker_status_changed` event on every status change. It ships its own Lovelace card (`custom:parcel-tracker-card`, listed as "Paket Tracker" in the card picker) for adding, renaming, and removing parcels. Install it through HACS as a custom repository, then set up an optional DHL API key, a postcode, and how long delivered parcels stay visible. An optional mail import reads a dedicated parcel mailbox via IMAP (never enter your main mailbox: the IMAP password grants full access) and creates parcels from Amazon, DHL and UPS mails, including Amazon's own deliveries; a DHL "Amazon Sendung" mail is merged into the matching Amazon order when unambiguous. Delivery one-time codes are read only when enabled, shown on the card after a tap and a confirmation (hidden only on the card: anyone with access to the entity attributes or the Home Assistant API can read it), never stored and never recorded. Hermes uses the keyless public tracking endpoint (number only). UPS status comes from UPS mails and, with your own Client ID and Secret from developer.ups.com (product "Tracking"), from the official UPS Track API, capped by a monthly request budget (default 100) so it never costs money. The mail import also reads Hermes and eBay mails (one parcel per eBay order, never using eBay item numbers as tracking numbers) and merges a carrier mail into exactly one matching open Amazon or eBay order. Roadmap & Status: the UPS API is implemented but not yet tested with real credentials (UPS approval pending), the Hermes live lookup is implemented but not yet tested with a current parcel, 17track is implemented (live test pending), and an Amazon account login was dropped in favour of the mail import. With an optional free 17track API key, a parcel can be sent to 17track on request (each new number uses one of the account's 200 one-time numbers; polls are free, every 6 hours, at most 40 numbers per call) to fill in place, time window and history without overriding the carrier, and carriers without their own connection (e.g. GLS) can be added as "other"; a quota sensor and repairs warn when numbers run low. Tracking numbers are sent only to the matching carrier (or, on request, to 17track with the carrier code), and the postcode is sent only to DHL.

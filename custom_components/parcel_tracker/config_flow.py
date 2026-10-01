@@ -21,8 +21,9 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util.ssl import client_context
 
-from .carriers.base import CarrierError, CarrierUnavailable
+from .carriers.base import AuthError, CarrierError, CarrierUnavailable
 from .carriers.dhl import DhlCarrier
+from .carriers.track17 import Track17Client
 from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
     CONF_DHL_API_KEY,
@@ -35,6 +36,7 @@ from .const import (
     CONF_MOVE_PROCESSED,
     CONF_POSTCODE,
     CONF_READ_OTP,
+    CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
@@ -129,10 +131,13 @@ def _schema(
     suggested_postcode: str | None = None,
     mail: Mapping[str, Any] | None = None,
     ups: Mapping[str, Any] | None = None,
+    track17: bool = False,
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
         fields[vol.Optional(CONF_DHL_API_KEY)] = _KEY
+    if track17:
+        fields[vol.Optional(CONF_TRACK17_API_KEY)] = _KEY
     if suggested_postcode is not None:
         fields[
             vol.Optional(CONF_POSTCODE, description={"suggested_value": suggested_postcode})
@@ -192,6 +197,17 @@ async def _check_ups(hass, client_id: str, secret: str) -> str | None:
     return None if ok else "ups_auth"
 
 
+async def _check_track17(hass, key: str) -> str | None:
+    """Ask 17track for the quota (costs nothing); return an error code or None."""
+    try:
+        await Track17Client(async_get_clientsession(hass), key).getquota()
+    except AuthError:
+        return "track17_invalid_key"
+    except CarrierError:
+        return "track17_cannot_connect"
+    return None
+
+
 class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle setup."""
 
@@ -247,9 +263,9 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(OptionsFlow):
-    """Change key, postcode, keep days, the mail import and the UPS API.
+    """Change keys, postcode, keep days, the mail import, the UPS API and the 17track key.
 
-    Secrets (DHL key, IMAP password, UPS client ID and secret) are stored in the
+    Secrets (DHL key, 17track key, IMAP password, UPS client ID and secret) are stored in the
     config entry's ``data`` (the same place reauth writes the key) so flows never
     disagree about which secret is current; an empty secret field keeps the stored
     one. Everything else lives in ``options``.
@@ -283,10 +299,13 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             )
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
+            track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
             if postcode and not _POSTCODE.match(postcode):
                 errors[CONF_POSTCODE] = "invalid_postcode"
             elif key_value and (err := await _check_key(self.hass, key_value)):
                 errors[CONF_DHL_API_KEY] = err
+            elif track17_key and (err := await _check_track17(self.hass, track17_key)):
+                errors[CONF_TRACK17_API_KEY] = err
             elif user and not password:
                 errors["base"] = "imap_password_missing"
             elif (
@@ -319,6 +338,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 data = dict(self.config_entry.data)
                 if key_value:
                     data[CONF_DHL_API_KEY] = key_value
+                if track17_key:
+                    data[CONF_TRACK17_API_KEY] = track17_key
                 if user and new_password:
                     data[CONF_IMAP_PASSWORD] = new_password
                 if not user:
@@ -348,6 +369,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 suggested_postcode=shown.get(CONF_POSTCODE, ""),
                 mail=mail_shown,
                 ups=ups_shown,
+                track17=True,
             ),
             errors=errors,
         )
