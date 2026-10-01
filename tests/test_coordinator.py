@@ -113,28 +113,35 @@ async def test_not_found_everywhere(hass, setup):
     assert parcel.last_error == "not_found"
 
 
-async def test_events_suppressed_on_first_refresh(hass, setup, freezer: FrozenDateTimeFactory):
+async def test_status_change_on_first_refresh_fires_the_event(
+    hass, setup, freezer: FrozenDateTimeFactory
+):
+    """Home Assistant is running (a reload): what the first refresh finds is announced
+    right after it. The very first result of a parcel never is."""
     freezer.move_to(DAYTIME)
     coord, fake = setup
     events = async_capture_events(hass, EVENT_STATUS_CHANGED)
     fake.answers = [result(ParcelStatus.IN_TRANSIT)]
     await coord.async_add("123", "fake", None)
+    await hass.async_block_till_done()
+    assert len(events) == 0
 
-    # Status changes before the first scheduled refresh -> still no event.
     fake.answers = [result(ParcelStatus.OUT_FOR_DELIVERY, eta=date(2026, 9, 29))]
     freezer.tick(timedelta(minutes=31))
     await coord.async_refresh()
     await hass.async_block_till_done()
-    assert len(events) == 0
+    assert len(events) == 1
+    assert events[0].data["old_status"] == "in_transit"
+    assert events[0].data["new_status"] == "out_for_delivery"
+    assert events[0].data["carrier_name"] == "fake"  # as on the sensor
 
-    # Second refresh is not the "first" one any more -> event fires.
     fake.answers = [result(ParcelStatus.DELIVERED, delivered_at=datetime.now(UTC))]
     freezer.tick(timedelta(minutes=31))
     await coord.async_refresh()
     await hass.async_block_till_done()
-    assert len(events) == 1
-    assert events[0].data["old_status"] == "out_for_delivery"
-    assert events[0].data["new_status"] == "delivered"
+    assert len(events) == 2
+    assert events[1].data["old_status"] == "out_for_delivery"
+    assert events[1].data["new_status"] == "delivered"
 
 
 async def test_unavailable_keeps_last_result_and_backs_off(hass, setup, freezer):

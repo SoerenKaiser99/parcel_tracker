@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.4"
+VERSION = "0.3.5"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
@@ -22,6 +22,10 @@ CONF_UPS_CLIENT_ID = "ups_client_id"
 CONF_UPS_CLIENT_SECRET = "ups_client_secret"
 CONF_UPS_BUDGET = "ups_monthly_budget"
 CONF_TRACK17_API_KEY = "track17_api_key"
+CONF_NOTIFY_SECTION = "notify"
+CONF_NOTIFY_ENABLED = "notify_enabled"
+CONF_NOTIFY_TARGETS = "notify_targets"
+CONF_NOTIFY_EVENTS = "notify_events"
 
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
@@ -43,6 +47,10 @@ DHL_DAILY_SOFT_LIMIT = 200
 CARRIER_BROKEN_AFTER = timedelta(hours=24)
 
 EVENT_STATUS_CHANGED = "parcel_tracker_status_changed"
+# Statuses a push notification can announce (in the order the options show them)
+# and the ones ticked by default.
+NOTIFY_EVENTS = ("out_for_delivery", "delivered", "awaiting_pickup", "exception")
+DEFAULT_NOTIFY_EVENTS = ("out_for_delivery", "delivered")
 
 STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1

@@ -79,6 +79,20 @@
               "ups_client_secret": "Leave empty to keep the saved secret.",
               "ups_monthly_budget": "0–10000. When used up, UPS parcels come from mails only until the month ends. 0 switches the API off."
             }
+          },
+          "notify": {
+            "name": "Notifications (optional)",
+            "description": "Sends a notification to the chosen targets when a parcel changes its status – no automation needed. The text only names the parcel, the carrier and the status; the delivery code, the full tracking number and addresses are never part of it.",
+            "data": {
+              "notify_enabled": "Notifications enabled",
+              "notify_targets": "Targets",
+              "notify_events": "Events"
+            },
+            "data_description": {
+              "notify_enabled": "Switches itself on with the first target. Switching it off removes the chosen targets.",
+              "notify_targets": "Notify entities, e.g. the Home Assistant app on your phone. Without a target nothing is sent.",
+              "notify_events": "The status changes you are notified about."
+            }
           }
         }
       }
@@ -94,7 +108,8 @@
       "ups_cannot_connect": "Couldn't reach UPS. Try again later.",
       "ups_secret_missing": "Enter the UPS Client Secret.",
       "track17_invalid_key": "17track rejected this API key.",
-      "track17_cannot_connect": "Couldn't reach 17track. Try again later."
+      "track17_cannot_connect": "Couldn't reach 17track. Try again later.",
+      "notify_no_target": "Choose at least one target for the notifications."
     }
   },
   "issues": {
@@ -166,6 +181,16 @@
       "track17_quota": {"name": "17track quota"}
     },
     "calendar": {"deliveries": {"name": "Parcels"}}
+  },
+  "selector": {
+    "notify_events": {
+      "options": {
+        "out_for_delivery": "Out for delivery",
+        "delivered": "Delivered",
+        "awaiting_pickup": "Ready for pickup",
+        "exception": "Problem"
+      }
+    }
   },
   "services": {
     "add_parcel": {

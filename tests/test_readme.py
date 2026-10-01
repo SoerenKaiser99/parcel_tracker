@@ -311,3 +311,91 @@ def test_readme_says_why_right_after_intro_and_screenshots():
 def test_readme_brand_note_names_the_dhl_badge():
     section = _section("Markenhinweis")
     assert "DHL als gelbes Schild mit rotem Schriftzug" in section
+
+
+BLUEPRINT_RAW = RAW + "/blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml"
+
+
+def test_readme_explains_notifications():
+    section = _section("Benachrichtigungen")
+    for text in (
+        "Paket Tracker → Konfigurieren**",
+        "„Benachrichtigungen“",
+        "`notify.",
+        "in Zustellung",
+        "zugestellt",
+        "abholbereit",
+        "Problem",
+        # the example texts
+        "📦 Kopfhörer (DHL) ist in Zustellung – heute 14:00–16:00 Uhr",
+        "✅ Kopfhörer (DHL) wurde zugestellt",
+        "📍 Kopfhörer (DHL) liegt zur Abholung bereit – Bonn bis 06.10.",
+        "⚠️ Kopfhörer (DHL): Problem bei der Zustellung",
+        "Paket …2557",
+        # what is never part of it
+        "Zustell-Code",
+        "vollständige Sendungsnummer",
+        "Adresse",
+        "Ablageort",
+        "Ereignistexte",
+        # when
+        "sobald Home Assistant fertig gestartet ist",
+        "`parcel_tracker_status_changed`",
+        # limits of notify.send_message and the blueprint
+        "`notify.send_message`",
+        "### Blueprint",
+        "`data.url`",
+        "`data.clickAction`",
+        "`data.tag`",
+        "blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml",
+    ):
+        assert text in section, text
+    assert "notify_url" not in README
+
+
+def test_readme_no_longer_says_nothing_happens_at_startup():
+    assert "nicht beim Start" not in README
+
+
+def test_readme_event_section_lists_the_carrier_name():
+    section = _section("Beispiel-Automation")
+    for field in ("number", "name", "carrier", "carrier_name", "old_status", "new_status",
+                  "eta_date", "eta_from", "eta_to", "location"):
+        assert f"`{field}`" in section, field
+    assert "trigger.event.data.carrier_name" in section
+
+
+def test_readme_blueprint_import_link():
+    from urllib.parse import quote
+
+    link = (
+        "https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url="
+        + quote(BLUEPRINT_RAW, safe="")
+    )
+    assert link in _section("Benachrichtigungen")
+    assert "%3A%2F%2Fraw.githubusercontent.com%2FSoerenKaiser99%2Fparcel_tracker%2Fmain%2F" in link
+    assert (ROOT / "blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml").is_file()
+
+
+def test_readme_lists_notifications_as_done():
+    assert "- **Benachrichtigungen**" in _section("Was es kann")
+    assert "[Benachrichtigungen](#benachrichtigungen)" in _section("Was es kann")
+    why = _section("Warum?")
+    assert "Benachrichtigung" in why and "ohne eigene Automation" in why
+    roadmap = _section("Roadmap & Status")
+    assert "Benachrichtigungen (Optionen und Blueprint): umgesetzt" in roadmap
+    english = README.split("## English summary")[1]
+    assert "push notifications" in english and "blueprint" in english
+
+
+def test_no_planning_docs_in_the_repo():
+    assert not (ROOT / "docs" / "superpowers").exists()
+
+
+def test_hacs_is_not_told_about_the_blueprints_folder():
+    """HACS installs custom_components/parcel_tracker only; the blueprint is imported
+    through its link, so hacs.json stays as it is."""
+    import json
+
+    hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+    assert set(hacs) == {"name", "homeassistant", "render_readme"}

@@ -118,3 +118,38 @@ def test_switch_translations_present():
             for key in ("imap_user", "ups_client_id"):
                 text = section["data_description"].get(key, "").lower()
                 assert "switch" not in text and "schalt" not in text, text
+
+
+def test_notify_translations_present():
+    labels = {
+        "strings.json": ("Notifications (optional)", "Notifications enabled", "Targets", "Events"),
+        "translations/de.json": (
+            "Benachrichtigungen (optional)", "Benachrichtigungen aktiv", "Ziele", "Ereignisse",
+        ),
+    }
+    for name, (title, enabled, targets, events) in labels.items():
+        strings = _load(name)
+        section = strings["options"]["step"]["init"]["sections"]["notify"]
+        assert section["name"] == title
+        assert section["data"] == {
+            "notify_enabled": enabled, "notify_targets": targets, "notify_events": events,
+        }
+        assert set(section["data_description"]) == {
+            "notify_enabled", "notify_targets", "notify_events",
+        }
+        assert "description" in section
+        assert set(strings["selector"]["notify_events"]["options"]) == {
+            "out_for_delivery", "delivered", "awaiting_pickup", "exception",
+        }
+        assert "notify_url" not in json.dumps(strings)
+        assert strings["options"]["error"]["notify_no_target"]
+    assert _load("translations/de.json")["options"]["error"]["notify_no_target"] == (
+        "Wähl mindestens ein Ziel für die Benachrichtigungen."
+    )
+    german = _load("translations/de.json")["selector"]["notify_events"]["options"]
+    assert german == {
+        "out_for_delivery": "In Zustellung",
+        "delivered": "Zugestellt",
+        "awaiting_pickup": "Abholbereit",
+        "exception": "Problem",
+    }

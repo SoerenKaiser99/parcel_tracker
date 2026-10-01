@@ -79,6 +79,20 @@
               "ups_client_secret": "Leer lassen behält das gespeicherte Secret.",
               "ups_monthly_budget": "0–10000. Ist es verbraucht, kommen UPS-Pakete bis Monatsende nur aus Mails. 0 schaltet die API aus."
             }
+          },
+          "notify": {
+            "name": "Benachrichtigungen (optional)",
+            "description": "Schickt bei einem Statuswechsel eine Benachrichtigung an die gewählten Ziele – ganz ohne eigene Automation. Der Text nennt nur Paket, Carrier und Status; Zustell-Code, vollständige Sendungsnummer und Adressen stehen nie darin.",
+            "data": {
+              "notify_enabled": "Benachrichtigungen aktiv",
+              "notify_targets": "Ziele",
+              "notify_events": "Ereignisse"
+            },
+            "data_description": {
+              "notify_enabled": "Schaltet sich mit dem ersten Ziel von selbst ein. Ausschalten entfernt die gewählten Ziele.",
+              "notify_targets": "Benachrichtigungs-Entitäten, z. B. die Home-Assistant-App auf dem Handy. Ohne Ziel wird nichts gesendet.",
+              "notify_events": "Bei welchen Statuswechseln benachrichtigt wird."
+            }
           }
         }
       }
@@ -94,7 +108,8 @@
       "ups_cannot_connect": "UPS ist gerade nicht erreichbar. Versuch es später noch einmal.",
       "ups_secret_missing": "Gib das UPS-Client-Secret ein.",
       "track17_invalid_key": "17track hat diesen API-Key abgelehnt.",
-      "track17_cannot_connect": "17track ist gerade nicht erreichbar. Versuch es später noch einmal."
+      "track17_cannot_connect": "17track ist gerade nicht erreichbar. Versuch es später noch einmal.",
+      "notify_no_target": "Wähl mindestens ein Ziel für die Benachrichtigungen."
     }
   },
   "issues": {
@@ -166,6 +181,16 @@
       "track17_quota": {"name": "17track-Kontingent"}
     },
     "calendar": {"deliveries": {"name": "Pakete"}}
+  },
+  "selector": {
+    "notify_events": {
+      "options": {
+        "out_for_delivery": "In Zustellung",
+        "delivered": "Zugestellt",
+        "awaiting_pickup": "Abholbereit",
+        "exception": "Problem"
+      }
+    }
   },
   "services": {
     "add_parcel": {

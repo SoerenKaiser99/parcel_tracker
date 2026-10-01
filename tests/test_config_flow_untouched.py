@@ -24,6 +24,10 @@ from custom_components.parcel_tracker.const import (
     CONF_MAIL_INTERVAL,
     CONF_MAIL_SECTION,
     CONF_MOVE_PROCESSED,
+    CONF_NOTIFY_ENABLED,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_SECTION,
+    CONF_NOTIFY_TARGETS,
     CONF_POSTCODE,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
@@ -31,6 +35,7 @@ from custom_components.parcel_tracker.const import (
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
     CONF_UPS_SECTION,
+    DEFAULT_NOTIFY_EVENTS,
     DOMAIN,
 )
 
@@ -61,6 +66,8 @@ OPTIONS = {
     CONF_READ_OTP: True,
     CONF_MAIL_INTERVAL: 15,
     CONF_UPS_BUDGET: 250,
+    CONF_NOTIFY_TARGETS: ["notify.mobile_app_handy", "notify.tablet"],
+    CONF_NOTIFY_EVENTS: ["delivered", "exception"],
 }
 
 
@@ -142,6 +149,7 @@ async def test_sections_without_user_and_client_id_keep_the_stored_logins(hass):
             CONF_MAIL_INTERVAL: 15,
         },
         CONF_UPS_SECTION: {CONF_UPS_BUDGET: 250},
+        CONF_NOTIFY_SECTION: {CONF_NOTIFY_EVENTS: ["delivered", "exception"]},
     }
     with (
         patch(CHECKS["track17"], return_value=Quota(200, 0, 200)),
@@ -185,6 +193,7 @@ async def test_untouched_form_changes_nothing(hass):
             CONF_POSTCODE: "20095",
             CONF_MAIL_SECTION: {},
             CONF_UPS_SECTION: {},
+            CONF_NOTIFY_SECTION: {},
         },
         lambda fields: {
             CONF_KEEP_DELIVERED_DAYS: 7,
@@ -193,6 +202,7 @@ async def test_untouched_form_changes_nothing(hass):
             CONF_TRACK17_API_KEY: "",
             CONF_MAIL_SECTION: {CONF_IMAP_HOST: "", CONF_IMAP_USER: " ", CONF_IMAP_PASSWORD: ""},
             CONF_UPS_SECTION: {CONF_UPS_CLIENT_ID: "", CONF_UPS_CLIENT_SECRET: ""},
+            CONF_NOTIFY_SECTION: {CONF_NOTIFY_ENABLED: True},
         },
     ],
     ids=["defaults-only", "no-sections", "empty-sections", "empty-strings"],
@@ -217,11 +227,11 @@ def test_frontend_prefills_the_sections(hass):
     current = {**DATA, **OPTIONS}
     fields = to_field_list(
         _schema(current, True, suggested_postcode="20095", mail=current, ups=current,
-                track17=True),
+                track17=True, notify=current),
         custom_serializer=cv.custom_serializer,
     )
     sections = {f["name"]: f for f in fields if f.get("type") == "expandable"}
-    assert set(sections) == {CONF_MAIL_SECTION, CONF_UPS_SECTION}
+    assert set(sections) == {CONF_MAIL_SECTION, CONF_UPS_SECTION, CONF_NOTIFY_SECTION}
     for field in sections.values():
         assert "default" not in field
     initial = _frontend_initial(fields)
@@ -229,3 +239,33 @@ def test_frontend_prefills_the_sections(hass):
     assert initial[CONF_UPS_SECTION][CONF_UPS_CLIENT_ID] == "ups-id"
     assert CONF_IMAP_PASSWORD not in initial[CONF_MAIL_SECTION]
     assert CONF_UPS_CLIENT_SECRET not in initial[CONF_UPS_SECTION]
+    assert initial[CONF_NOTIFY_SECTION] == {
+        CONF_NOTIFY_ENABLED: True,
+        CONF_NOTIFY_TARGETS: ["notify.mobile_app_handy", "notify.tablet"],
+        CONF_NOTIFY_EVENTS: ["delivered", "exception"],
+    }
+
+
+async def test_untouched_form_of_an_entry_from_before_notifications(hass):
+    """An entry saved by v0.3.4 has no notification settings: opening and saving the
+    form leaves notifications off, with the default events, and touches nothing else."""
+    before = {k: v for k, v in OPTIONS.items() if not k.startswith("notify_")}
+    entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(before))
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    initial = _frontend_initial(_fields(result))
+    assert initial[CONF_NOTIFY_SECTION] == {
+        CONF_NOTIFY_ENABLED: False,
+        CONF_NOTIFY_TARGETS: [],
+        CONF_NOTIFY_EVENTS: list(DEFAULT_NOTIFY_EVENTS),
+    }
+    result, checks = await _save(hass, entry, _frontend_initial)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.data == DATA
+    assert entry.options == {
+        **before,
+        CONF_NOTIFY_TARGETS: [],
+        CONF_NOTIFY_EVENTS: list(DEFAULT_NOTIFY_EVENTS),
+    }

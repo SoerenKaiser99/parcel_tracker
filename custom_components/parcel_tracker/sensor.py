@@ -14,9 +14,10 @@ from homeassistant.util import slugify
 
 from . import ParcelConfigEntry
 from .carriers.track17 import ENRICH_LOCATION
-from .const import CARRIER_NAMES, CARRIER_OTHER, TRACK17_CARRIER_NAMES, TRACK17_SOURCE
+from .const import CARRIER_OTHER, TRACK17_SOURCE
 from .coordinator import ParcelCoordinator
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
+from .models import carrier_name as _carrier_name
 from .schedule import days_until
 
 
@@ -26,15 +27,6 @@ def _iso(value) -> str | None:
 
 # Unique-id suffixes of the fixed sensors (everything else is a parcel number).
 _FIXED = frozenset({"today", "track17_quota"})
-
-
-def _carrier_name(parcel: Parcel) -> str | None:
-    """Display name; for 'other' the carrier 17track recognised (e.g. GLS)."""
-    if parcel.carrier == CARRIER_OTHER:
-        return TRACK17_CARRIER_NAMES.get(parcel.track17_carrier, CARRIER_NAMES[CARRIER_OTHER])
-    if parcel.carrier:
-        return CARRIER_NAMES.get(parcel.carrier, parcel.carrier)
-    return None
 
 
 def _location_source(parcel: Parcel) -> str | None:

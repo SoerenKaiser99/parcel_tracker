@@ -1,0 +1,145 @@
+blueprint:
+  name: "Paket Tracker: Benachrichtigung"
+  description: >-
+    Schickt eine Benachrichtigung, sobald ein Paket des Paket Trackers den Status
+    wechselt – mit eigenem Text, eigenen Bedingungen und, für die Home-Assistant-App,
+    einem Dashboard, das sich beim Antippen öffnet. Die Sendungsnummer, der
+    Zustell-Code und der Ort stehen in keinem der voreingestellten Texte.
+  domain: automation
+  author: Sören Kaiser
+  source_url: https://github.com/SoerenKaiser99/parcel_tracker/blob/main/blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    statuses:
+      name: Status
+      description: Bei welchen neuen Status benachrichtigt wird.
+      default:
+        - out_for_delivery
+        - delivered
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Angekündigt
+              value: pre_transit
+            - label: Unterwegs
+              value: in_transit
+            - label: Im Zustelldepot
+              value: at_delivery_depot
+            - label: In Zustellung
+              value: out_for_delivery
+            - label: Abholbereit
+              value: awaiting_pickup
+            - label: Zugestellt
+              value: delivered
+            - label: Problem
+              value: exception
+    notify_service:
+      name: Benachrichtigungsdienst
+      description: >-
+        Klassischer Dienst, z. B. `notify.mobile_app_mein_handy` für die
+        Home-Assistant-App oder `notify.notify` für alle eingerichteten Wege.
+      default: notify.notify
+      selector:
+        text:
+    title:
+      name: Titel
+      description: Überschrift der Benachrichtigung.
+      default: Paket Tracker
+      selector:
+        text:
+    message:
+      name: Text
+      description: >-
+        Vorlage für den Text. Variablen: `name` (Name des Pakets, ohne Namen
+        „Paket …“ und die letzten vier Stellen der Nummer), `carrier` (z. B. DHL),
+        `new_status` und `old_status` (z. B. out_for_delivery) sowie `text`
+        (der fertige Standardsatz, z. B. „Kopfhörer (DHL) ist in Zustellung“).
+      default: "{{ text }}"
+      selector:
+        template:
+    dashboard_path:
+      name: Dashboard-Pfad (nur Home-Assistant-App)
+      description: >-
+        Öffnet sich beim Antippen der Benachrichtigung, z. B. `/lovelace/pakete`.
+        Leer lassen für andere Dienste (Telegram, Pushover, …).
+      default: ""
+      selector:
+        text:
+    replace_previous:
+      name: Frühere Meldung ersetzen (nur Home-Assistant-App)
+      description: >-
+        Eine neue Benachrichtigung ersetzt die frühere zum selben Paket, statt sich
+        darunter einzureihen. Als Kennung dient ein Hash der Sendungsnummer, nie die
+        Nummer selbst.
+      default: false
+      selector:
+        boolean:
+    extra_conditions:
+      name: Zusätzliche Bedingungen
+      description: >-
+        Nur benachrichtigen, wenn auch diese Bedingungen erfüllt sind, z. B. nur
+        tagsüber oder nur, wenn jemand zu Hause ist.
+      default: []
+      selector:
+        condition:
+
+mode: queued
+max: 10
+
+triggers:
+  - trigger: event
+    event_type: parcel_tracker_status_changed
+
+variables:
+  statuses: !input statuses
+  notify_service: !input notify_service
+  dashboard_path: !input dashboard_path
+  replace_previous: !input replace_previous
+  new_status: "{{ trigger.event.data.new_status }}"
+  old_status: "{{ trigger.event.data.old_status }}"
+  name: >-
+    {{ trigger.event.data.name
+       or 'Paket …' ~ (trigger.event.data.number | string)[-4:] }}
+  # The display name as on the sensor (`carrier_name`), e.g. DHL.
+  carrier: "{{ trigger.event.data.carrier_name or '' }}"
+  text: >-
+    {% set label = name ~ (' (' ~ carrier ~ ')' if carrier else '') %}
+    {% set phrases = {
+      'pre_transit': 'ist angekündigt',
+      'in_transit': 'ist unterwegs',
+      'at_delivery_depot': 'ist im Zustelldepot',
+      'out_for_delivery': 'ist in Zustellung',
+      'awaiting_pickup': 'liegt zur Abholung bereit',
+      'delivered': 'wurde zugestellt'} %}
+    {% if new_status == 'exception' %}{{ label }}: Problem bei der Zustellung
+    {%- else %}{{ label }} {{ phrases.get(new_status, 'hat einen neuen Status') }}
+    {%- endif %}
+  # Extras of the Home Assistant app: `url` (iOS) and `clickAction` (Android) open the
+  # dashboard on tap, `tag` lets a later notification replace the earlier one.
+  push_data: >-
+    {{ dict(
+         ({'url': dashboard_path, 'clickAction': dashboard_path} if dashboard_path else {}),
+         **({'tag': 'parcel_tracker_' ~ (trigger.event.data.number | string | md5)}
+            if replace_previous else {})) }}
+
+conditions:
+  - condition: template
+    value_template: "{{ new_status in statuses }}"
+  - condition: and
+    conditions: !input extra_conditions
+
+actions:
+  - if: "{{ push_data | length > 0 }}"
+    then:
+      - action: "{{ notify_service }}"
+        data:
+          title: !input title
+          message: !input message
+          data: "{{ push_data }}"
+    else:
+      - action: "{{ notify_service }}"
+        data:
+          title: !input title
+          message: !input message

@@ -1,6 +1,6 @@
 # Paket Tracker
 
-Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) UPS verfolgt, auf Wunsch über 17track ergänzt oder weitere Carrier verfolgt und Amazon-, eBay-, GLS-, Hermes- und UPS-Pakete aus E-Mails übernimmt: eigene Sensoren, ein Sammelsensor für "heute", ein Lieferkalender, ein Status-Event und eine eigene Dashboard-Karte.
+Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) UPS verfolgt, auf Wunsch über 17track ergänzt oder weitere Carrier verfolgt und Amazon-, eBay-, GLS-, Hermes- und UPS-Pakete aus E-Mails übernimmt: eigene Sensoren, ein Sammelsensor für "heute", ein Lieferkalender, ein Status-Event, Benachrichtigungen aufs Handy und eine eigene Dashboard-Karte.
 
 **Für Deutschland gebaut:** Die Integration ist für Deutschland gebaut (deutsche Carrier und deutsche Mail-Formate). Im Ausland funktionieren schon DHL (offizielle API, weltweit), UPS (offizielle API) und jeder Carrier über 17track; der Mail-Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS- und eBay-Mails).
 
@@ -17,7 +17,8 @@ Die Bilder zeigen erfundene Pakete: Namen, Orte und Sendungsnummern sind ausgeda
 Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu checken. Ich wollte in Home Assistant an einer Stelle sehen: „Kommt heute ein Paket, und wann?“ – für alle Carrier zusammen, statt in fünf Apps und einem Stapel Mails zu suchen.
 
 - **Pakete erscheinen von selbst**: Die Integration liest die Versandmails und legt die Pakete an – auch Amazons eigene Lieferungen, für die es keine öffentliche Sendungsverfolgung gibt.
-- **Für Automationen gemacht**: Benachrichtigung, sobald ein Paket in Zustellung geht, Kalender mit den Lieferterminen, Sensor „Pakete heute“.
+- **Benachrichtigung aufs Handy**: sobald ein Paket in Zustellung geht oder zugestellt ist – ohne eigene Automation.
+- **Für Automationen gemacht**: Status-Event, Kalender mit den Lieferterminen, Sensor „Pakete heute“ und ein Blueprint für eigene Benachrichtigungen.
 - **Lokal und datensparsam**: kein Cloud-Konto, kein fremder Tracking-Dienst nötig; die Zugangsdaten bleiben in Home Assistant, gelesen wird nur ein eigenes Paket-Postfach.
 - **Offen**: Open Source, gebaut für deutsche Carrier.
 
@@ -34,6 +35,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Sensoren**: `sensor.paket_<nummer>` pro Paket (Zustand = Status, mit Attributen wie Carrier, `carrier_name`, ETA, Standort, `location_source`, Abholpunkt, Zustellzeitpunkt `delivered_at`, Verlauf, `track17`, `track17_carrier`), `sensor.pakete_heute` für die Anzahl der heute erwarteten Pakete und – mit 17track-Key – `sensor.paket_tracker_17track_kontingent` für die verbleibenden 17track-Nummern.
 - **Kalender**: `calendar.pakete` zeigt die erwarteten Zustelltermine.
 - **Event**: `parcel_tracker_status_changed` feuert bei jedem Statuswechsel eines Pakets.
+- **Benachrichtigungen** (optional): Bei „in Zustellung“, „zugestellt“, „abholbereit“ oder einem Problem geht eine Benachrichtigung an die gewählten Ziele, ohne eigene Automation; für eigene Texte und Bedingungen gibt es einen Blueprint (siehe [Benachrichtigungen](#benachrichtigungen)).
 - **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `refresh`, `track_17track`.
 
 Was (noch) nicht geht: siehe [Roadmap & Status](#roadmap--status). Amazon- und eBay-Bestellungen kennt die Integration nur aus Mails; abgefragt wird dort nur die Sendungsnummer des Carriers, sobald eine Mail sie verrät.
@@ -213,9 +215,61 @@ type: custom:parcel-tracker-card
 
 Die Integration kopiert die Karte beim Start nach `www/parcel_tracker/` und trägt sie automatisch als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`). Falls der Ordner `www` vorher nicht existierte, wird die Karte zunächst direkt von der Integration ausgeliefert; ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad.
 
+## Benachrichtigungen
+
+Die Integration schickt bei einem Statuswechsel selbst eine Benachrichtigung – über den Benachrichtigungsweg von Home Assistant, also an alles, was dort als Benachrichtigungs-Entität (`notify.…`) existiert: die Home-Assistant-App, Telegram, Pushover und andere. Eine Automation ist dafür nicht nötig.
+
+### Einrichten
+
+1. **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** öffnen und den Bereich „Benachrichtigungen“ aufklappen.
+2. **Ziele**: eine oder mehrere Benachrichtigungs-Entitäten wählen, z. B. `notify.mobile_app_mein_handy`. Ohne Ziel wird nichts gesendet.
+3. **Ereignisse**: ankreuzen, wobei benachrichtigt wird – in Zustellung, zugestellt, abholbereit, Problem. Voreingestellt sind „in Zustellung“ und „zugestellt“.
+
+Der Schalter „Benachrichtigungen aktiv“ schaltet sich mit dem ersten Ziel von selbst ein; wer ihn einschaltet, ohne ein Ziel zu wählen, bekommt einen Hinweis im Formular. Ausschalten (oder alle Ziele entfernen) beendet die Benachrichtigungen. Beim Speichern prüft die Integration nichts nach außen; ein Ziel, das es nicht mehr gibt oder das gerade nicht verfügbar ist, wird beim Senden übersprungen.
+
+In aktuellen Home-Assistant-Versionen (geprüft mit 2026.9) bringt die Home-Assistant-App eine solche Entität mit. Taucht dein Handy in der Auswahl nicht auf, nimm den [Blueprint](#blueprint) mit dem klassischen Dienst `notify.mobile_app_<gerät>`.
+
+### Wann und was
+
+Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert – egal, ob der neue Status vom Carrier oder aus einer Mail kommt. Also nicht doppelt für denselben Status und nicht, wenn ein Carrier nach 17track mit einem älteren Stand antwortet.
+
+Wechselt ein Paket den Status, während Home Assistant neu startet oder die Integration neu lädt (etwa nach dem Speichern der Optionen), geht nichts verloren: Event und Benachrichtigung folgen genau einmal, sobald Home Assistant fertig gestartet ist – nach einem Neuladen im laufenden Betrieb sofort. Mehrere Wechsel in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status. Der allererste Status eines neuen Pakets wird nie gemeldet.
+
+Der Titel ist „Paket Tracker“, der Text eine Zeile:
+
+- `📦 Kopfhörer (DHL) ist in Zustellung – heute 14:00–16:00 Uhr` (das Zeitfenster nur, wenn eines für heute bekannt ist)
+- `✅ Kopfhörer (DHL) wurde zugestellt`
+- `📍 Kopfhörer (DHL) liegt zur Abholung bereit – Bonn bis 06.10.` (Ort der Filiale und letzter Abholtag nur, wenn der Carrier sie nennt)
+- `⚠️ Kopfhörer (DHL): Problem bei der Zustellung`
+
+Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen). Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.
+
+**Nie im Text:** der Zustell-Code, die vollständige Sendungsnummer, eine Adresse, ein Ablageort und die Ereignistexte des Carriers. Eine Benachrichtigung verlässt Home Assistant (bei der App über den Push-Dienst von Apple oder Google), deshalb bleibt sie so knapp.
+
+Schlägt das Senden fehl, steht eine Warnung ohne Paketdaten im Log; die Paketabfrage läuft unverändert weiter.
+
+Was dieser Weg nicht kann: Der Dienst `notify.send_message` von Home Assistant kennt nur Titel und Text. Dass sich beim Antippen ein Dashboard öffnet oder eine neue Meldung die frühere zum selben Paket ersetzt, geht darüber nicht – dafür ist der Blueprint da.
+
+### Blueprint
+
+Für eigene Texte, eigene Bedingungen und die Extras der Home-Assistant-App gibt es einen Blueprint:
+
+[![Blueprint in Home Assistant importieren](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2FSoerenKaiser99%2Fparcel_tracker%2Fmain%2Fblueprints%2Fautomation%2Fparcel_tracker%2Fpaket_benachrichtigung.yaml)
+
+Der Knopf importiert [`blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml`](blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml) aus diesem Repository (HACS installiert Blueprints nicht mit). Danach unter **Einstellungen → Automationen & Szenen → Blueprints** eine Automation daraus anlegen:
+
+- **Status**: bei welchen neuen Status benachrichtigt wird (alle Status wählbar, voreingestellt „in Zustellung“ und „zugestellt“).
+- **Benachrichtigungsdienst**: ein klassischer Dienst als Text, z. B. `notify.mobile_app_mein_handy`; Standard `notify.notify`.
+- **Titel** und **Text**: Der Text ist eine Vorlage mit den Variablen `name`, `carrier`, `new_status`, `old_status` und `text` (der fertige Standardsatz), z. B. `{{ name }} kommt mit {{ carrier }}`.
+- **Dashboard-Pfad** (nur Home-Assistant-App): z. B. `/lovelace/pakete`. Beim Antippen öffnet sich dieses Dashboard (`data.url` für iOS, `data.clickAction` für Android).
+- **Frühere Meldung ersetzen** (nur Home-Assistant-App): Eine neue Meldung ersetzt die frühere zum selben Paket (`data.tag`, ein Hash der Sendungsnummer, nie die Nummer selbst).
+- **Zusätzliche Bedingungen**: z. B. nur tagsüber oder nur, wenn jemand zu Hause ist.
+
+Sind Dashboard-Pfad und Ersetzen nicht gesetzt, schickt der Blueprint nur Titel und Text und passt damit zu jedem Benachrichtigungsdienst. Wer Benachrichtigungen in den Optionen und zusätzlich über den Blueprint einschaltet, bekommt jede Meldung zweimal.
+
 ## Beispiel-Automation
 
-Benachrichtigung, sobald ein Paket in Zustellung geht:
+Wer lieber ganz von Hand baut – das Event `parcel_tracker_status_changed` trägt `number`, `name`, `carrier` (Kürzel, z. B. `dhl`), `carrier_name` (Anzeigename wie am Sensor, z. B. `DHL`), `old_status`, `new_status`, `eta_date`, `eta_from`, `eta_to` und `location`. Benachrichtigung, sobald ein Paket in Zustellung geht:
 
 ```yaml
 triggers:
@@ -227,7 +281,7 @@ actions:
   - action: notify.notify
     data:
       title: "Paket kommt heute"
-      message: "{{ trigger.event.data.name or trigger.event.data.number }} ({{ trigger.event.data.carrier | upper }}) ist in Zustellung."
+      message: "{{ trigger.event.data.name or trigger.event.data.number }} ({{ trigger.event.data.carrier_name }}) ist in Zustellung."
 ```
 
 ## Datenschutz
@@ -235,6 +289,8 @@ actions:
 Sendungsnummern gehen nur an den jeweiligen Carrier (DHL, DPD, GLS, Hermes bzw. – mit eigenen Zugangsdaten – UPS). Die PLZ geht nur an DHL und GLS (an GLS zusammen mit der Paketnummer, damit GLS den Verlauf liefert); ohne hinterlegte PLZ geht an GLS nur die Paketnummer. An 17track geht nur auf ausdrücklichen Wunsch die Sendungsnummer samt Carrier-Code, keine PLZ und kein Name; Adressen aus der 17track-Antwort verwirft die Integration, ohne sie zu speichern oder zu loggen.
 
 Aus Mails übernimmt der Import nur Bestellnummer, einen auf 60 Zeichen gekürzten Artikeltitel, Status, Liefertag und Zeitfenster, den Versanddienstleister sowie – nur mit eingeschalteter Option und nur im Arbeitsspeicher – den Zustell-Code. Adresse, Name, Telefonnummer, eBay-Käufer- und Verkäufernamen, Wunsch-Ablageort bzw. Abstellort, Referenzen, Preise und Mail-Inhalte landen weder in Attributen noch im Log. Das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen wie der DHL-Key in der Konfiguration von Home Assistant.
+
+Benachrichtigungen gehen an die gewählten Benachrichtigungs-Ziele und damit an deren Dienst. Sie enthalten nur den Namen bzw. Artikeltitel des Pakets (ohne Namen die letzten vier Stellen der Nummer), den Carrier, den Status und – wenn bekannt – das heutige Zeitfenster oder Ort und letzten Abholtag der Filiale; nie den Zustell-Code, die vollständige Sendungsnummer, eine Adresse oder einen Ablageort. Der Diagnose-Download nennt nur die Anzahl der Ziele und die gewählten Ereignisse.
 
 ## Markenhinweis
 
@@ -284,6 +340,7 @@ Landet eine Paketmail im Ordner `Paket-Tracker-Nicht-erkannt` oder fehlt ein Sho
 - 17track: Anmeldung live getestet, Anreicherung noch ohne Live-Fall
 - GLS-Live-Abfrage: umgesetzt, Live-Test ausstehend
 - GLS-Mails: umgesetzt
+- Benachrichtigungen (Optionen und Blueprint): umgesetzt; Antippen öffnet ein Dashboard und Ersetzen der früheren Meldung nur über den Blueprint
 - Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports
 - **International**: Karte auch auf Englisch, weitere Amazon-Länder im Mail-Import, nationale Carrier (Beispiele: Royal Mail, PostNL, USPS) – erst sinnvoll mit anonymisierten Beispielmails von Testern aus den jeweiligen Ländern
 
@@ -291,4 +348,4 @@ Landet eine Paketmail im Ordner `Paket-Tracker-Nicht-erkannt` oder fehlt ein Sho
 
 ## English summary
 
-Paket Tracker is a Home Assistant custom integration, built for Germany, that tracks parcels from DHL, DPD, GLS, Hermes and, optionally, UPS. Why: one place in Home Assistant that answers "is a parcel coming today, and when?" across all carriers instead of five apps and a pile of mails – parcels appear by themselves from shipping mails, can be used in automations, and everything runs locally with no cloud account and no third-party tracking service. DHL uses the official "Shipment Tracking – Unified" API (an API key is optional; without one, DHL parcels show a "key missing" status), while DPD uses DPD's public tracking page with only the tracking number, which yields status and the five milestone dates but no location or delivery window. The integration creates one sensor per parcel (`sensor.paket_<number>`), a summary sensor for today's expected parcels, a delivery calendar, and fires a `parcel_tracker_status_changed` event on every status change. It ships its own Lovelace card (`custom:parcel-tracker-card`, listed as "Paket Tracker" in the card picker) for adding, renaming, and removing parcels. Install it through HACS as a custom repository, then set up an optional DHL API key, a postcode, and how long delivered parcels stay visible. An optional mail import reads a dedicated parcel mailbox via IMAP (never enter your main mailbox: the IMAP password grants full access) and creates parcels from Amazon, DHL and UPS mails, including Amazon's own deliveries; a DHL "Amazon Sendung" mail is merged into the matching Amazon order when unambiguous. Delivery one-time codes are read only when enabled, shown on the card after a tap and a confirmation (hidden only on the card: anyone with access to the entity attributes or the Home Assistant API can read it), never stored and never recorded. Hermes uses the keyless public tracking endpoint (number only). UPS status comes from UPS mails and, with your own Client ID and Secret from developer.ups.com (product "Tracking"), from the official UPS Track API, capped by a monthly request budget (default 100) so it never costs money. The mail import also reads Hermes and eBay mails (one parcel per eBay order, never using eBay item numbers as tracking numbers) and merges a carrier mail into exactly one matching open Amazon or eBay order. Roadmap & Status: the UPS API is implemented but not yet tested with real credentials (UPS approval pending), the Hermes live lookup is implemented but not yet tested with a current parcel, 17track registration has been tested live while its enrichment has not yet seen a live case, the GLS live lookup is implemented (live test pending), and an Amazon account login was dropped in favour of the mail import; an International roadmap item (English card, more Amazon countries, national carriers such as Royal Mail, PostNL and USPS) waits for anonymised sample mails from testers abroad. With an optional free 17track API key, a parcel can be sent to 17track on request (each new number uses one of the account's 200 one-time numbers; polls are free, every 6 hours, at most 40 numbers per call) to fill in place, time window and history without overriding the carrier, and carriers without their own connection (e.g. FedEx) can be added as "other"; a quota sensor and repairs warn when numbers run low. Tracking numbers are sent only to the matching carrier (or, on request, to 17track with the carrier code), and the postcode is sent only to DHL and GLS. GLS uses the open tracking lookup of gls-group.com (11-digit parcel number; with a stored postcode GLS also returns the history) and GLS notification mails; the lookup is no official API and may be closed at any time, in which case GLS mails and 17track remain.
+Paket Tracker is a Home Assistant custom integration, built for Germany, that tracks parcels from DHL, DPD, GLS, Hermes and, optionally, UPS. Why: one place in Home Assistant that answers "is a parcel coming today, and when?" across all carriers instead of five apps and a pile of mails – parcels appear by themselves from shipping mails, can be used in automations, and everything runs locally with no cloud account and no third-party tracking service. DHL uses the official "Shipment Tracking – Unified" API (an API key is optional; without one, DHL parcels show a "key missing" status), while DPD uses DPD's public tracking page with only the tracking number, which yields status and the five milestone dates but no location or delivery window. The integration creates one sensor per parcel (`sensor.paket_<number>`), a summary sensor for today's expected parcels, a delivery calendar, and fires a `parcel_tracker_status_changed` event on every status change. Optional push notifications (options section "Benachrichtigungen": pick notify entities and the events out for delivery, delivered, ready for pickup, problem) need no automation; their one-line text never contains the delivery code, the full tracking number or an address, and a blueprint (`blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml`) covers custom texts, extra conditions and, for the Home Assistant app, opening a dashboard on tap and replacing the earlier notification. It ships its own Lovelace card (`custom:parcel-tracker-card`, listed as "Paket Tracker" in the card picker) for adding, renaming, and removing parcels. Install it through HACS as a custom repository, then set up an optional DHL API key, a postcode, and how long delivered parcels stay visible. An optional mail import reads a dedicated parcel mailbox via IMAP (never enter your main mailbox: the IMAP password grants full access) and creates parcels from Amazon, DHL and UPS mails, including Amazon's own deliveries; a DHL "Amazon Sendung" mail is merged into the matching Amazon order when unambiguous. Delivery one-time codes are read only when enabled, shown on the card after a tap and a confirmation (hidden only on the card: anyone with access to the entity attributes or the Home Assistant API can read it), never stored and never recorded. Hermes uses the keyless public tracking endpoint (number only). UPS status comes from UPS mails and, with your own Client ID and Secret from developer.ups.com (product "Tracking"), from the official UPS Track API, capped by a monthly request budget (default 100) so it never costs money. The mail import also reads Hermes and eBay mails (one parcel per eBay order, never using eBay item numbers as tracking numbers) and merges a carrier mail into exactly one matching open Amazon or eBay order. Roadmap & Status: the UPS API is implemented but not yet tested with real credentials (UPS approval pending), the Hermes live lookup is implemented but not yet tested with a current parcel, 17track registration has been tested live while its enrichment has not yet seen a live case, the GLS live lookup is implemented (live test pending), and an Amazon account login was dropped in favour of the mail import; an International roadmap item (English card, more Amazon countries, national carriers such as Royal Mail, PostNL and USPS) waits for anonymised sample mails from testers abroad. With an optional free 17track API key, a parcel can be sent to 17track on request (each new number uses one of the account's 200 one-time numbers; polls are free, every 6 hours, at most 40 numbers per call) to fill in place, time window and history without overriding the carrier, and carriers without their own connection (e.g. FedEx) can be added as "other"; a quota sensor and repairs warn when numbers run low. Tracking numbers are sent only to the matching carrier (or, on request, to 17track with the carrier code), and the postcode is sent only to DHL and GLS. GLS uses the open tracking lookup of gls-group.com (11-digit parcel number; with a stored postcode GLS also returns the history) and GLS notification mails; the lookup is no official API and may be closed at any time, in which case GLS mails and 17track remain.

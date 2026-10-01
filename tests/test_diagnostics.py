@@ -20,6 +20,8 @@ from custom_components.parcel_tracker.const import (
     CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_TARGETS,
     CONF_POSTCODE,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
@@ -110,6 +112,7 @@ TOP_LEVEL = [
     "ups_budget",
     "track17",
     "mail_import",
+    "notifications",
     "parcels",
 ]
 
@@ -663,3 +666,35 @@ async def test_download_through_home_assistant(hass, hass_storage, hass_client):
     text = _dump(downloaded)
     for plain in (*SECRETS.values(), IMAP_USER, POSTCODE, *PLAIN, *NUMBERS):
         assert plain not in text
+
+
+async def test_diagnostics_notifications_off_by_default(hass, hass_storage, freezer):
+    entry = await _setup(hass, hass_storage, freezer)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["notifications"] == {
+        "targets": 0,
+        "events": ["out_for_delivery", "delivered"],
+    }
+
+
+async def test_diagnostics_tell_only_the_number_of_notify_targets(hass, hass_storage, freezer):
+    """Entity IDs carry device names ("mobile_app_iphone_von_erika"): never shown."""
+    entry = await _setup(hass, hass_storage, freezer)
+    targets = ["notify.mobile_app_iphone_von_erika", "notify.tablet_wohnzimmer"]
+    hass.config_entries.async_update_entry(
+        entry,
+        options={
+            **entry.options,
+            CONF_NOTIFY_TARGETS: targets,
+            # Anything but the four known events is not passed on.
+            CONF_NOTIFY_EVENTS: ["exception", "delivered", "Freitext Musterweg 5", 7],
+        },
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["notifications"] == {"targets": 2, "events": ["delivered", "exception"]}
+    assert result["entry"]["options"][CONF_NOTIFY_TARGETS] == REDACTED
+    assert result["entry"]["options"][CONF_NOTIFY_EVENTS] == REDACTED
+    text = _dump(result)
+    for private in (*targets, "mobile_app", "erika", "wohnzimmer", "notify.", "Musterweg"):
+        assert private not in text, private

@@ -12,8 +12,10 @@ from email import policy
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
@@ -47,11 +49,14 @@ from .const import (
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_TARGETS,
     CONF_POSTCODE,
     CONF_READ_OTP,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
+    DEFAULT_NOTIFY_EVENTS,
     DEFAULT_READ_OTP,
     DHL_DAILY_SOFT_LIMIT,
     DOMAIN,
@@ -76,7 +81,15 @@ from .mail import OTHER_DOMAIN, known_sender_domain, parse_mail
 from .mail.apply import Change, apply_update
 from .mail.base import MailResult, is_forwarded, sender, sent_at
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
-from .models import NO_ETA_STATUSES, PROGRESS_STEP, Parcel, ParcelStatus, TrackingResult
+from .models import (
+    NO_ETA_STATUSES,
+    PROGRESS_STEP,
+    Parcel,
+    ParcelStatus,
+    TrackingResult,
+    carrier_name,
+)
+from .notification import build_notification
 from .schedule import GLS_MIN_INTERVAL, backoff, poll_interval, should_remove
 from .store import DuplicateParcel, ParcelStore
 
@@ -84,6 +97,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # Unrecognised mails remembered for the diagnostics (memory only, gone after a reload).
 UNRECOGNIZED_KEEP = 10
+# Seconds one notify target may take; after that it counts as failed.
+NOTIFY_TIMEOUT = 30
 
 
 @dataclass
@@ -143,7 +158,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self.entry = entry
         self.store = store
         self.carriers = carriers
-        self._events_enabled = False
+        self._first_refresh_done = False
+        # Status changes are announced (event and notification) once the first refresh
+        # is done and Home Assistant has started; found earlier, they wait here:
+        # tracking number -> the status the parcel had before.
+        self._announcing = False
+        self._waiting: dict[str, ParcelStatus] = {}
+        self._unsub_started: CALLBACK_TYPE | None = None
+        self._stopped = False
         self._first_fail: dict[str, datetime] = {}
         self._dhl_day: date | None = None
         self._dhl_calls = 0
@@ -193,6 +215,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def _read_otp(self) -> bool:
         return self.entry.options.get(CONF_READ_OTP, DEFAULT_READ_OTP)
 
+    @property
+    def _notify_targets(self) -> list[str]:
+        """Notify entities to push to; none = notifications off."""
+        return list(self.entry.options.get(CONF_NOTIFY_TARGETS) or ())
+
+    @property
+    def _notify_events(self) -> frozenset[str]:
+        return frozenset(self.entry.options.get(CONF_NOTIFY_EVENTS, DEFAULT_NOTIFY_EVENTS) or ())
+
     # ----- main loop -----
     async def _async_update_data(self) -> dict[str, Parcel]:
         async with self._lock:
@@ -208,16 +239,46 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                     await self._poll_safely(parcel, now)
                     changed = True
             # Not during the first refresh: setup must not wait for 17track.
-            if self._events_enabled and await self._poll_track17(now):
+            if self._first_refresh_done and await self._poll_track17(now):
                 changed = True
             if changed:
                 await self.store.async_save()
         # Not during the first refresh: setup must not wait for the mailbox or 17track.
-        if self._events_enabled:
+        if self._first_refresh_done:
             await self._quota_if_due()
             await self.async_import_mail()
-        self._events_enabled = True
+        elif not self._stopped:
+            self._first_refresh_done = True
+            # Right away while Home Assistant is running (a reload); during its start
+            # once it has started, so automations and notify targets are loaded.
+            unsub = async_at_started(self.hass, self._start_announcing)
+            if not self._announcing:
+                self._unsub_started = unsub
         return dict(self.store.parcels)
+
+    @callback
+    def _start_announcing(self, _hass: HomeAssistant | None = None) -> None:
+        """Announce what was found so far, each parcel once, and everything later at once."""
+        self._unsub_started = None
+        if self._stopped:
+            return
+        self._announcing = True
+        waiting, self._waiting = self._waiting, {}
+        for number, old in waiting.items():
+            parcel = self.store.get(number)
+            # Gone meanwhile, or back at the status it had: nothing to tell.
+            if parcel is None or parcel.result is None or parcel.status is old:
+                continue
+            self._announce(parcel, old)
+
+    async def async_shutdown(self) -> None:
+        """Unload: stop waiting for the start; what was not announced yet is dropped."""
+        self._stopped = True
+        if self._unsub_started is not None:
+            self._unsub_started()
+            self._unsub_started = None
+        self._waiting.clear()
+        await super().async_shutdown()
 
     def _cleanup(self, now: datetime) -> bool:
         removed = [
@@ -353,8 +414,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def _mail_changed(self, change: Change) -> None:
         parcel = change.parcel
         if (
-            self._events_enabled
-            and change.old_status is not None
+            change.old_status is not None
             and parcel.status is not None
             and change.old_status is not parcel.status
         ):
@@ -572,9 +632,17 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         announced = self._announced.get(parcel.number)
         if announced is not None and PROGRESS_STEP[status] >= PROGRESS_STEP[announced]:
             del self._announced[parcel.number]  # caught up (or beyond): normal from now on
-        return status is not announced and self._events_enabled
+        return status is not announced
 
-    def _fire(self, parcel: Parcel, old) -> None:
+    def _fire(self, parcel: Parcel, old: ParcelStatus) -> None:
+        """A parcel's status changed: announce it, or keep it until announcing starts."""
+        if self._announcing:
+            self._announce(parcel, old)
+        elif not self._stopped:
+            # Several changes in a row become one, from the oldest status to the latest.
+            self._waiting.setdefault(parcel.number, old)
+
+    def _announce(self, parcel: Parcel, old: ParcelStatus) -> None:
         r = parcel.result
         self.hass.bus.async_fire(
             EVENT_STATUS_CHANGED,
@@ -582,6 +650,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "number": parcel.number,
                 "name": parcel.name,
                 "carrier": parcel.carrier,
+                "carrier_name": carrier_name(parcel),
                 "old_status": old.value,
                 "new_status": r.status.value,
                 "eta_date": r.eta_date.isoformat() if r.eta_date else None,
@@ -590,6 +659,68 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "location": r.location,
             },
         )
+        self._notify(parcel, old)
+
+    # ----- push notifications -----
+    def _notify(self, parcel: Parcel, old: ParcelStatus) -> None:
+        """Push the status change to the chosen notify entities.
+
+        Called exactly where the status event fires. The text is built right away
+        (from the parcel as it is now); sending runs in a task of its own, so it can
+        neither delay nor break the refresh or the caller.
+        """
+        try:
+            targets = self._notify_targets
+            if not targets or parcel.result.status.value not in self._notify_events:
+                return
+            built = build_notification(parcel, old, dt_util.now())
+        except Exception as err:  # noqa: BLE001 - a notification must never break a refresh
+            # Only the error type: no parcel data in the log.
+            _LOGGER.warning("Could not build a notification (%s)", type(err).__name__)
+            return
+        if built is None:
+            return
+        coro = None
+        try:
+            coro = self._send_notification(targets, *built)
+            self.entry.async_create_task(
+                self.hass, coro, f"{DOMAIN} notification", eager_start=False
+            )
+        except Exception as err:  # noqa: BLE001 - a notification must never break a refresh
+            if coro is not None:
+                coro.close()  # never started: nothing is left un-awaited
+            _LOGGER.warning("Could not start sending a notification (%s)", type(err).__name__)
+
+    async def _send_notification(self, targets: list[str], title: str, message: str) -> None:
+        """One ``notify.send_message`` call per target, so one broken or hanging target
+        does not keep the others from getting the message. Never raises."""
+
+        async def send(target: str) -> None:
+            async with asyncio.timeout(NOTIFY_TIMEOUT):
+                await self.hass.services.async_call(
+                    "notify",
+                    "send_message",
+                    {"entity_id": target, "title": title, "message": message},
+                    blocking=True,
+                )
+
+        # Removed entities (no state) and unavailable ones are skipped quietly.
+        present = [
+            target
+            for target in targets
+            if (state := self.hass.states.get(target)) is not None
+            and state.state != STATE_UNAVAILABLE
+        ]
+        results = await asyncio.gather(*(send(t) for t in present), return_exceptions=True)
+        errors = [r for r in results if isinstance(r, Exception)]
+        if errors:
+            # Only counts and error types: no parcel data, no entity names in the log.
+            _LOGGER.warning(
+                "Could not send a notification to %d of %d targets (%s)",
+                len(errors),
+                len(present),
+                ", ".join(sorted({type(err).__name__ for err in errors})),
+            )
 
     def _auth_issue(self, key: str) -> None:
         if key not in ("dhl", "ups"):
@@ -748,12 +879,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if before != (result.to_dict() if result is not None else None):
             parcel.last_change_at = now
         parcel.result = result
-        if (
-            old is not None
-            and result is not None
-            and old != result.status
-            and self._events_enabled
-        ):
+        if old is not None and result is not None and old != result.status:
             self._fire(parcel, old)
 
     async def _register17(self, number: str, carrier_key: str | None) -> int | None:

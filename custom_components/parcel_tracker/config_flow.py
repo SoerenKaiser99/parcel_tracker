@@ -12,9 +12,14 @@ from homeassistant.core import callback
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -35,6 +40,10 @@ from .const import (
     CONF_MAIL_INTERVAL,
     CONF_MAIL_SECTION,
     CONF_MOVE_PROCESSED,
+    CONF_NOTIFY_ENABLED,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_SECTION,
+    CONF_NOTIFY_TARGETS,
     CONF_POSTCODE,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
@@ -47,6 +56,7 @@ from .const import (
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
+    DEFAULT_NOTIFY_EVENTS,
     DEFAULT_POSTCODE,
     DEFAULT_READ_OTP,
     DEFAULT_UPS_BUDGET,
@@ -57,6 +67,7 @@ from .const import (
     MIN_KEEP_DELIVERED_DAYS,
     MIN_MAIL_INTERVAL,
     MIN_UPS_BUDGET,
+    NOTIFY_EVENTS,
 )
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
 
@@ -76,6 +87,56 @@ _MINUTES = NumberSelector(
 _BUDGET = NumberSelector(
     NumberSelectorConfig(min=MIN_UPS_BUDGET, max=MAX_UPS_BUDGET, mode=NumberSelectorMode.BOX)
 )
+
+_NOTIFY_TARGETS = EntitySelector(EntitySelectorConfig(domain="notify", multiple=True))
+_NOTIFY_EVENTS = SelectSelector(
+    SelectSelectorConfig(
+        options=list(NOTIFY_EVENTS),
+        multiple=True,
+        mode=SelectSelectorMode.LIST,
+        translation_key="notify_events",
+    )
+)
+
+
+def _stored_targets(current: Mapping[str, Any]) -> list[str]:
+    """The stored targets; anything odd in the storage is left out."""
+    stored = current.get(CONF_NOTIFY_TARGETS)
+    if not isinstance(stored, (list, tuple)):
+        return []
+    return [target for target in stored if isinstance(target, str)]
+
+
+def _stored_events(current: Mapping[str, Any]) -> list[str]:
+    """The stored events in their fixed order; the defaults if nothing usable is stored."""
+    stored = current.get(CONF_NOTIFY_EVENTS, DEFAULT_NOTIFY_EVENTS)
+    if not isinstance(stored, (list, tuple)):
+        return list(DEFAULT_NOTIFY_EVENTS)
+    return [event for event in NOTIFY_EVENTS if event in stored]
+
+
+def _notify_section(current: Mapping[str, Any]) -> section:
+    """Collapsible 'notifications' block of the options form.
+
+    Both lists are prefilled through ``default`` with the stored value, so an
+    untouched form sends back what is stored. No targets = notifications off;
+    the explicit ``notify_enabled`` switch empties them as well, in case a
+    frontend leaves an emptied selection out of what it sends.
+    """
+    targets = _stored_targets(current)
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_NOTIFY_ENABLED,
+                    default=bool(current.get(CONF_NOTIFY_ENABLED, bool(targets))),
+                ): bool,
+                vol.Optional(CONF_NOTIFY_TARGETS, default=targets): _NOTIFY_TARGETS,
+                vol.Optional(CONF_NOTIFY_EVENTS, default=_stored_events(current)): _NOTIFY_EVENTS,
+            }
+        ),
+        {"collapsed": not targets},
+    )
 
 
 def _ups_section(current: Mapping[str, Any]) -> section:
@@ -147,6 +208,7 @@ def _schema(
     mail: Mapping[str, Any] | None = None,
     ups: Mapping[str, Any] | None = None,
     track17: bool = False,
+    notify: Mapping[str, Any] | None = None,
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
@@ -173,6 +235,8 @@ def _schema(
         fields[vol.Optional(CONF_MAIL_SECTION)] = _mail_section(mail)
     if ups is not None:
         fields[vol.Optional(CONF_UPS_SECTION)] = _ups_section(ups)
+    if notify is not None:
+        fields[vol.Optional(CONF_NOTIFY_SECTION)] = _notify_section(notify)
     return vol.Schema(fields)
 
 
@@ -280,7 +344,8 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(OptionsFlow):
-    """Change keys, postcode, keep days, the mail import, the UPS API and the 17track key.
+    """Change keys, postcode, keep days, the mail import, the UPS API, the 17track key
+    and the push notifications.
 
     Secrets (DHL key, 17track key, IMAP password, UPS client ID and secret) are stored in the
     config entry's ``data`` (the same place reauth writes the key) so flows never
@@ -292,6 +357,12 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     import and the UPS API are only removed through their explicit switches
     (``mail_enabled``/``ups_enabled`` submitted as False). The postcode is the one
     exception: it is not a secret and emptying it is how it is removed.
+
+    Notifications are on while targets are stored. A submitted empty list of
+    targets switches them off, as does ``notify_enabled`` submitted as False; a
+    missing list keeps the stored one. Switching them on without any target is
+    a form error (``notify_no_target``). Nothing is checked against the outside:
+    targets that do not exist (any more) are skipped when sending.
     """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -328,11 +399,33 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             ups_changed = ups_id != stored_id or (
                 bool(new_secret) and new_secret != stored_secret
             )
+            notify = user_input.get(CONF_NOTIFY_SECTION) or {}
+            stored_targets = _stored_targets(options)
+            # Off only on an explicit "False" while targets are stored; targets picked
+            # in a form that had none yet switch the notifications on either way.
+            notify_off = notify.get(CONF_NOTIFY_ENABLED) is False and bool(stored_targets)
+            if notify_off:
+                targets: list[str] = []
+            elif isinstance(notify.get(CONF_NOTIFY_TARGETS), list):
+                targets = list(dict.fromkeys(notify[CONF_NOTIFY_TARGETS]))
+            else:
+                targets = stored_targets
+            # Switched on in a form that had no targets, and none chosen.
+            notify_no_target = (
+                notify.get(CONF_NOTIFY_ENABLED) is True and not stored_targets and not targets
+            )
+            if isinstance(notify.get(CONF_NOTIFY_EVENTS), list):
+                chosen = set(notify[CONF_NOTIFY_EVENTS])
+                events = [event for event in NOTIFY_EVENTS if event in chosen]
+            else:
+                events = _stored_events(options)
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
             if postcode and not _POSTCODE.match(postcode):
                 errors[CONF_POSTCODE] = "invalid_postcode"
+            elif notify_no_target:
+                errors["base"] = "notify_no_target"
             elif key_value and (err := await _check_key(self.hass, key_value)):
                 errors[CONF_DHL_API_KEY] = err
             elif track17_key and (err := await _check_track17(self.hass, track17_key)):
@@ -378,6 +471,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     CONF_UPS_BUDGET: int(
                         ups.get(CONF_UPS_BUDGET, options.get(CONF_UPS_BUDGET, DEFAULT_UPS_BUDGET))
                     ),
+                    CONF_NOTIFY_TARGETS: targets,
+                    CONF_NOTIFY_EVENTS: events,
                 }
                 data = dict(self.config_entry.data)
                 if key_value:
@@ -405,6 +500,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
         shown = {**current, **(user_input or {})}
         mail_shown = {**current, **((user_input or {}).get(CONF_MAIL_SECTION) or {})}
         ups_shown = {**current, **((user_input or {}).get(CONF_UPS_SECTION) or {})}
+        notify_shown = {**current, **((user_input or {}).get(CONF_NOTIFY_SECTION) or {})}
         return self.async_show_form(
             step_id="init",
             data_schema=_schema(
@@ -414,6 +510,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 mail=mail_shown,
                 ups=ups_shown,
                 track17=True,
+                notify=notify_shown,
             ),
             errors=errors,
         )

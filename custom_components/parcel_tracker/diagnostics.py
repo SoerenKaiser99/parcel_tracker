@@ -3,7 +3,8 @@
 Meant to be attached to a public bug report, so it only carries what explains a
 problem: settings without secrets, masked numbers, statuses, error codes, counters
 and times. Never: API keys, passwords, the mailbox user, the postcode, names and
-titles, plain numbers, delivery codes, places, event or status texts, mail contents.
+titles, plain numbers, delivery codes, places, event or status texts, mail contents,
+the notify entities (their IDs carry device names).
 """
 
 from __future__ import annotations
@@ -23,12 +24,16 @@ from .const import (
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_TARGETS,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
+    DEFAULT_NOTIFY_EVENTS,
     DEFAULT_UPS_BUDGET,
+    NOTIFY_EVENTS,
     VERSION,
 )
 from .coordinator import ParcelCoordinator
@@ -166,6 +171,17 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
     }
 
 
+def _notifications(options: Mapping[str, Any]) -> dict[str, Any]:
+    """How many notify targets and which events; never the entity IDs."""
+    targets = options.get(CONF_NOTIFY_TARGETS) or ()
+    chosen = options.get(CONF_NOTIFY_EVENTS, DEFAULT_NOTIFY_EVENTS)
+    chosen = chosen if isinstance(chosen, (list, tuple)) else ()
+    return {
+        "targets": len(targets) if isinstance(targets, (list, tuple)) else 0,
+        "events": [event for event in NOTIFY_EVENTS if event in chosen],
+    }
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
@@ -197,5 +213,6 @@ async def async_get_config_entry_diagnostics(
         },
         "track17": state["track17"],
         "mail_import": state["mail_import"],
+        "notifications": _notifications(entry.options),
         "parcels": [_parcel(parcel) for parcel in coordinator.store.parcels.values()],
     }

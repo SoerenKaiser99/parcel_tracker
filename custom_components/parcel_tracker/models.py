@@ -7,7 +7,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
 
-from .const import CARRIER_OTHER, MAIL_CARRIERS
+from .const import CARRIER_NAMES, CARRIER_OTHER, MAIL_CARRIERS, TRACK17_CARRIER_NAMES
 
 
 class ParcelStatus(StrEnum):
@@ -232,3 +232,12 @@ class Parcel:
                 else None
             ),
         )
+
+
+def carrier_name(parcel: Parcel) -> str | None:
+    """Display name; for 'other' the carrier 17track recognised (e.g. GLS)."""
+    if parcel.carrier == CARRIER_OTHER:
+        return TRACK17_CARRIER_NAMES.get(parcel.track17_carrier, CARRIER_NAMES[CARRIER_OTHER])
+    if parcel.carrier:
+        return CARRIER_NAMES.get(parcel.carrier, parcel.carrier)
+    return None
