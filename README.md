@@ -215,6 +215,16 @@ type: custom:parcel-tracker-card
 
 Die Integration kopiert die Karte beim Start nach `www/parcel_tracker/` und trägt sie automatisch als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`). Falls der Ordner `www` vorher nicht existierte, wird die Karte zunächst direkt von der Integration ausgeliefert; ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad.
 
+### Karte wird nicht gefunden?
+
+Erscheint „Paket Tracker" nicht in der Kartenauswahl oder meldet das Dashboard „Custom element doesn't exist: parcel-tracker-card", hat der Browser die Karte noch nicht geladen. Das passiert direkt nach dem Einrichten, weil ein schon geöffnetes Home Assistant neue Ressourcen erst nach dem Neuladen kennt:
+
+1. Seite neu laden (am Rechner Strg+F5 bzw. Cmd+Shift+R). In der Home-Assistant-App: App schließen und neu öffnen, notfalls unter Einstellungen → Companion-App → Debugging den Frontend-Cache leeren.
+2. Unter Einstellungen → Dashboards → ⋮ → Ressourcen prüfen, ob `/local/parcel_tracker/parcel-tracker-card.js?v=…` eingetragen ist.
+3. Dashboards im YAML-Modus tragen Ressourcen nicht automatisch ein. Dort die Ressource von Hand ergänzen (`url: /local/parcel_tracker/parcel-tracker-card.js`, `type: module`).
+
+Die Kartendatei selbst zu ändern ist nicht nötig; Änderungen daran überschreibt die Integration beim nächsten Start.
+
 ## Benachrichtigungen
 
 Die Integration schickt bei einem Statuswechsel selbst eine Benachrichtigung – über den Benachrichtigungsweg von Home Assistant, also an alles, was dort als Benachrichtigungs-Entität (`notify.…`) existiert: die Home-Assistant-App, Telegram, Pushover und andere. Eine Automation ist dafür nicht nötig.
