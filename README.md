@@ -1,5 +1,7 @@
 # Paket Tracker
 
+[![Version](https://img.shields.io/github/v/release/SoerenKaiser99/parcel_tracker?label=Version)](https://github.com/SoerenKaiser99/parcel_tracker/releases/latest) [![Downloads](https://img.shields.io/github/downloads/SoerenKaiser99/parcel_tracker/total?label=Downloads)](https://github.com/SoerenKaiser99/parcel_tracker/releases)
+
 Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) UPS verfolgt, auf Wunsch über 17track ergänzt oder weitere Carrier verfolgt und Amazon-, eBay-, GLS-, Hermes- und UPS-Pakete aus E-Mails übernimmt: eigene Sensoren, ein Sammelsensor für "heute", ein Lieferkalender, ein Status-Event, Benachrichtigungen aufs Handy und eine eigene Dashboard-Karte.
 
 **Für Deutschland gebaut:** Die Integration ist für Deutschland gebaut (deutsche Carrier und deutsche Mail-Formate). Im Ausland funktionieren schon DHL (offizielle API, weltweit), UPS (offizielle API) und jeder Carrier über 17track; der Mail-Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS- und eBay-Mails).
