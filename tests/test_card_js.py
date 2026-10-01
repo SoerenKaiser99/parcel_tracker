@@ -1,6 +1,7 @@
 """Run the card's pure helpers in Node (no browser needed)."""
 
 import json
+import re
 import shutil
 import subprocess
 
@@ -57,7 +58,8 @@ out.eta = {
   none: eta("in_transit", { days_until: null }),
 };
 out.icon = { dhl: card._icon("dhl"), dpd: card._icon("dpd"), hermes: card._icon("hermes"),
-  ebay: card._icon("ebay"), gls: card._icon("gls") };
+  ebay: card._icon("ebay"), gls: card._icon("gls"), ups: card._icon("ups"),
+  amazon: card._icon("amazon") };
 out.ebayLabel = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "ebay" } });
 out.labels = sandbox.__labels;
 out.sub = {
@@ -99,7 +101,7 @@ def test_icons_include_mail_carriers(card):
         "dhl": "#FFCC00",
         "dpd": "#DC0032",
         "amazon": "#FF9900",
-        "ups": "#150400",
+        "ups": "var(--primary-text-color)",
         "ebay": "#E53238",
     }
 
@@ -143,9 +145,39 @@ def test_eta_single_dates_unchanged(card):
     )
 
 
-def test_dhl_icon_is_wide_others_square(card):
-    assert 'width="28" height="18"' in card["icon"]["dhl"]
+def test_dhl_icon_is_a_yellow_badge_with_the_red_wordmark(card):
+    dhl = card["icon"]["dhl"]
+    assert 'class="dhl"' in dhl and 'aria-label="dhl"' in dhl
+    assert re.search(r'<rect [^>]*rx="[\d.]+"[^>]* fill="#FFCC00"/>', dhl)
+    assert '<path fill="#D40511" d="M' in dhl
+    assert dhl.index("<rect") < dhl.index("<path")  # the wordmark lies on the badge
+    width, height = map(int, re.search(r'width="(\d+)" height="(\d+)"', dhl).groups())
+    assert height == 18 and 28 <= width <= 40
+    # The wordmark (its letters span x 3.1 to 20.9) fills the badge: at most a tenth of the
+    # width is padding on each side, and the letters are at least 5 px high (3.4 units).
+    x, _, box_width, _ = map(float, re.search(r'viewBox="([^"]+)"', dhl).group(1).split())
+    assert 0 < (3.1 - x) / box_width <= 0.1 and 0 < (x + box_width - 20.9) / box_width <= 0.1
+    assert 3.4 * width / box_width >= 4.9
+    assert "v.242h3.398" not in dhl  # the thin speed lines are left out: unreadable at 18 px
+    assert "#FFCC00" not in card["icon"]["dpd"]
     assert 'width="18" height="18"' in card["icon"]["dpd"]
+
+
+def test_ups_icon_follows_the_text_colour_of_the_theme(card):
+    ups = card["icon"]["ups"]
+    assert 'style="fill:var(--primary-text-color)"' in ups
+    assert "#150400" not in ups  # nearly invisible on a dark card
+    assert 'width="18" height="18"' in ups and 'aria-label="ups"' in ups
+    assert '<path fill="#FF9900"' in card["icon"]["amazon"]  # brand colours stay attributes
+
+
+def test_delivered_rows_stay_dimmed_and_badge_has_its_width():
+    text = BUNDLED_CARD.read_text(encoding="utf-8")
+    assert ".done { opacity:.55; }" in text
+    assert re.search(r"svg\.dhl \{ width:\d+px; \}", text)
+    # ".badge" is the blue "n heute" pill in the card's head: the logo must not share the class
+    assert 'svg class="badge"' not in text and "svg.badge" not in text
+    assert "svg.wide" not in text
 
 
 def test_hermes_has_a_coloured_dot_instead_of_a_logo(card):

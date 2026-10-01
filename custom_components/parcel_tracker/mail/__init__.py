@@ -11,11 +11,18 @@ from .amazon import (
     parse_amazon_legacy,
     subject_status,
 )
-from .base import MailResult, body_text, is_forwarded, sender, subject
+from .base import DPD_DOMAINS, MailResult, body_text, domain_of, is_forwarded, sender, subject
 from .ebay import EBAY_SENDER, parse_ebay
 from .gls import GLS_SENDER, parse_gls_mail
 from .hermes import HERMES_SENDER, parse_hermes_mail
-from .shipping import DHL_SENDER, UPS_SENDER, parse_dhl_mail, parse_generic, parse_ups_mail
+from .shipping import (
+    DHL_SENDER,
+    KNOWN_SENDER_DOMAINS,
+    UPS_SENDER,
+    parse_dhl_mail,
+    parse_generic,
+    parse_ups_mail,
+)
 
 IGNORED_SENDERS = frozenset(
     {
@@ -25,6 +32,43 @@ IGNORED_SENDERS = frozenset(
         "no-reply@amazon.de",
     }
 )
+
+
+# Domains of the shops and carriers whose mails the parsers know. Only these may be
+# named in the diagnostics; every other sender (a private person, an unknown shop)
+# is just "other".
+KNOWN_MAIL_DOMAINS = frozenset(
+    {
+        *KNOWN_SENDER_DOMAINS,
+        *DPD_DOMAINS,
+        *(
+            domain_of(address)
+            for address in (
+                *AMAZON_SENDERS,
+                EBAY_SENDER,
+                GLS_SENDER,
+                HERMES_SENDER,
+                DHL_SENDER,
+                UPS_SENDER,
+            )
+        ),
+    }
+)
+OTHER_DOMAIN = "other"
+
+
+def known_sender_domain(address: str) -> str:
+    """The known shop/carrier domain an address belongs to, else "other".
+
+    A sub-domain counts as its known parent ("x@mail.dhl.de" -> "dhl.de"), so
+    nothing but an entry of KNOWN_MAIL_DOMAINS is ever returned.
+    """
+    domain = domain_of(address.strip().lower())
+    while domain:
+        if domain in KNOWN_MAIL_DOMAINS:
+            return domain
+        domain = domain.partition(".")[2]
+    return OTHER_DOMAIN
 
 
 def is_ignored(address: str) -> bool:

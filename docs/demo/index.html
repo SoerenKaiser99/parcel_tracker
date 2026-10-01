@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paket Tracker – Demo-Karte</title>
+  <style>
+    /* The Home Assistant theme variables the card uses (default theme, light). */
+    :root {
+      color-scheme: light;
+      --primary-color: #03a9f4;
+      --text-primary-color: #ffffff;
+      --primary-text-color: #212121;
+      --secondary-text-color: #727272;
+      --divider-color: rgba(0, 0, 0, 0.12);
+      --card-background-color: #ffffff;
+      --success-color: #43a047;
+      --warning-color: #ffa600;
+      --error-color: #db4437;
+      --page-background: #fafafa;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --primary-text-color: #e1e1e1;
+      --secondary-text-color: #9b9b9b;
+      --divider-color: rgba(225, 225, 225, 0.12);
+      --card-background-color: #1c1c1c;
+      --success-color: #4caf50;
+      --page-background: #111111;
+    }
+    html, body { margin: 0; }
+    body {
+      background: var(--page-background);
+      color: var(--primary-text-color);
+      font-family: Roboto, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { width: 480px; max-width: calc(100% - 24px); margin: 0 auto; padding: 12px; }
+    .intro h1 { font-size: 20px; font-weight: 500; margin: 12px 0 4px; }
+    .intro p { margin: 0 0 12px; color: var(--secondary-text-color); }
+    .intro a { color: var(--primary-color); }
+    /* ?shot=1: only the card, for the README screenshots. */
+    :root[data-shot] .intro { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="intro">
+      <h1>Paket Tracker – Demo-Karte</h1>
+      <p>
+        Die echte Karte mit einem nachgebauten <code>hass</code>-Objekt. Alle Pakete, Namen, Orte und
+        Nummern sind erfunden; Dienste werden nur in die Konsole geschrieben.
+        Ansicht: <a href="?">hell</a> · <a href="?theme=dark">dunkel</a> ·
+        <a href="?open=1">erstes Paket aufgeklappt</a>
+      </p>
+    </div>
+    <div id="card"></div>
+  </main>
+  <script src="../../custom_components/parcel_tracker/frontend/parcel-tracker-card.js"></script>
+  <script src="demo.js"></script>
+</body>
+</html>

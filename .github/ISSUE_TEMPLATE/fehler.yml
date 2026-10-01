@@ -1,0 +1,73 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie beschrieben (Status, Karte, Sensoren, Mail-Import).
+title: "[Fehler] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für die Meldung. Hier gehören **keine Zugangsdaten, keine API-Keys und keine rohen Mails** hinein.
+        Wird eine Mail nicht erkannt, passt die Vorlage „Mail wird nicht erkannt“ besser.
+  - type: input
+    id: version
+    attributes:
+      label: Version der Integration
+      description: Steht unter Einstellungen → Geräte & Dienste → Paket Tracker oder in HACS.
+      placeholder: "0.3.3"
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home-Assistant-Version
+      description: Steht unter Einstellungen → Info.
+      placeholder: "2026.9.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: carrier
+    attributes:
+      label: Carrier
+      description: Um welchen Carrier oder welche Quelle geht es?
+      options:
+        - DHL
+        - DPD
+        - GLS
+        - Hermes
+        - UPS
+        - Amazon
+        - eBay
+        - 17track
+        - anderer
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: Was ist passiert?
+      description: Was hast du getan, was zeigt die Integration an? Sendungsnummern nur gekürzt oder mit erfundenen Ziffern nennen.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Was hast du erwartet?
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnose-Datei
+      description: |
+        In Home Assistant: Einstellungen → Geräte & Dienste → Paket Tracker → ⋮ → Diagnose herunterladen. Die Datei in dieses Feld ziehen.
+        Sie enthält keine Zugangsdaten, keine PLZ, keine Paketnamen und keine Mail-Inhalte; Sendungsnummern sind maskiert.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log-Auszug (optional)
+      description: Zeilen mit „parcel_tracker“ aus Einstellungen → System → Protokolle. Vorher auf private Angaben prüfen.
+      render: text
+    validations:
+      required: false

@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import email
 import logging
+from collections import deque
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from email import policy
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -70,15 +72,19 @@ from .const import (
     TRACK17_QUOTA_RETRY,
 )
 from .detect import candidates, normalize
-from .mail import parse_mail
+from .mail import OTHER_DOMAIN, known_sender_domain, parse_mail
 from .mail.apply import Change, apply_update
-from .mail.base import MailResult, sent_at
+from .mail.base import MailResult, is_forwarded, sender, sent_at
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
 from .models import NO_ETA_STATUSES, PROGRESS_STEP, Parcel, ParcelStatus, TrackingResult
 from .schedule import GLS_MIN_INTERVAL, backoff, poll_interval, should_remove
 from .store import DuplicateParcel, ParcelStore
 
 _LOGGER = logging.getLogger(__name__)
+
+# Unrecognised mails remembered for the diagnostics (memory only, gone after a reload).
+UNRECOGNIZED_KEEP = 10
+
 
 @dataclass
 class _ParsedMail:
@@ -88,6 +94,9 @@ class _ParsedMail:
     stale: bool = False
     result: MailResult | None = None
     error: Exception | None = None
+    # For the diagnostics: a known shop/carrier domain or "other", never the address.
+    domain: str = OTHER_DOMAIN
+    forwarded: bool = False
 
 
 def _parse_one(raw: bytes, read_otp: bool, now: datetime) -> _ParsedMail:
@@ -95,6 +104,11 @@ def _parse_one(raw: bytes, read_otp: bool, now: datetime) -> _ParsedMail:
     try:
         msg = email.message_from_bytes(raw, policy=policy.default)
         item.message_id = str(msg.get("Message-ID") or "").strip()
+        try:
+            item.domain = known_sender_domain(sender(msg)[0])
+            item.forwarded = is_forwarded(msg)
+        except Exception:  # noqa: BLE001 - odd headers: the parser below reports them
+            pass
         try:
             item.stale = now - sent_at(msg) > MAIL_MAX_AGE
         except (TypeError, ValueError):
@@ -138,6 +152,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_lock = asyncio.Lock()  # one import at a time (tick vs. refresh service)
         self._mail_next: datetime | None = None
         self._mail_streak = 0
+        self._mail_last: datetime | None = None  # start of the last import run
+        self._mail_error: str | None = None  # "auth" | "unavailable" | "error"
+        self._mail_recognized = 0
+        self._mail_unrecognized = 0
+        # Sender domain (known shop/carrier or "other") and forwarded flag of the last
+        # unrecognised mails; nothing else of a mail is kept.
+        self.unrecognized_mails: deque[dict[str, Any]] = deque(maxlen=UNRECOGNIZED_KEEP)
         self._amazon_misses = 0
         self.track17 = track17
         self.track17_quota: Quota | None = None
@@ -225,10 +246,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 return
             # Set before fetching, so a failure can't make the next tick try again at once.
             self._mail_next = now + self._mail_interval
+            self._mail_last = now
             try:
                 await self._import_mail(self.mailbox, now)
             except ImapAuthError:
-                self._mail_failed(now)
+                self._mail_failed(now, "auth")
                 ir.async_create_issue(
                     self.hass,
                     DOMAIN,
@@ -239,16 +261,17 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 )
             except ImapUnavailable as err:
                 _LOGGER.debug("Parcel mailbox not reachable: %s", err)
-                self._mail_failed(now)
+                self._mail_failed(now, "unavailable")
             except Exception as err:  # noqa: BLE001 - isolate the import from the refresh
                 # Only the error type: mail contents never go into the log.
                 _LOGGER.warning("Mail import failed (%s); trying again later", type(err).__name__)
-                self._mail_failed(now)
+                self._mail_failed(now, "error")
 
     async def _import_mail(self, mailbox: MailboxClient, now: datetime) -> None:
         mails = await self.hass.async_add_executor_job(mailbox.fetch_unseen)
         ir.async_delete_issue(self.hass, DOMAIN, "imap_auth")
         self._mail_streak = 0
+        self._mail_error = None
         if not mails:
             return
         parsed = await self.hass.async_add_executor_job(
@@ -268,7 +291,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # Mails were fetched with PEEK and stay unseen; Message-ID dedup skips them next time.
             _LOGGER.debug("Could not file processed mails: %s", err)
 
-    def _mail_failed(self, now: datetime) -> None:
+    def _mail_failed(self, now: datetime, code: str) -> None:
+        self._mail_error = code
         self._mail_streak += 1
         delay = min(MAIL_INTERVAL * 2 ** (self._mail_streak - 1), MAIL_MAX_BACKOFF)
         self._mail_next = now + delay
@@ -288,6 +312,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if result.amazon:
                 self._count_amazon(recognized=bool(result.updates))
             if not result.updates:
+                self._unrecognized(item)
                 return FOLDER_UNRECOGNIZED
             for update in result.updates:
                 if change := apply_update(self.store.parcels, update, now):
@@ -299,8 +324,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 type(err).__name__,
                 FOLDER_UNRECOGNIZED,
             )
+            self._unrecognized(item)
             return FOLDER_UNRECOGNIZED
+        self._mail_recognized += 1
         return FOLDER_PROCESSED
+
+    def _unrecognized(self, item: _ParsedMail) -> None:
+        """Count an unrecognised mail; keep only its sender domain class and forwarded flag."""
+        self._mail_unrecognized += 1
+        self.unrecognized_mails.append({"domain": item.domain, "forwarded": item.forwarded})
 
     def _count_amazon(self, recognized: bool) -> None:
         if recognized:
@@ -786,6 +818,42 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self.async_set_updated_data(dict(self.store.parcels))
         await self.async_update_quota()
         return parcel
+
+    # ----- diagnostics -----
+    def diagnostics(self) -> dict[str, Any]:
+        """Runtime state for the diagnostics download: counters, times and flags only."""
+        today = dt_util.as_local(dt_util.utcnow()).date()
+        quota = self.track17_quota
+        return {
+            "dhl_calls_today": self._dhl_calls if self._dhl_day == today else 0,
+            "track17": {
+                "configured": self.track17 is not None,
+                "blocked": self.track17_blocked,
+                "quota": (
+                    {"total": quota.total, "used": quota.used, "remain": quota.remain}
+                    if quota is not None
+                    else None
+                ),
+                "quota_next_check": (
+                    self._t17_quota_next.isoformat() if self._t17_quota_next else None
+                ),
+                "error_streak": self._t17_streak,
+            },
+            "mail_import": {
+                "configured": self.mailbox is not None,
+                "interval_minutes": int(self._mail_interval.total_seconds() // 60),
+                "last_run": self._mail_last.isoformat() if self._mail_last else None,
+                # After an error this is the end of the backoff (see error_streak).
+                "next_run": self._mail_next.isoformat() if self._mail_next else None,
+                "last_error": self._mail_error,
+                "error_streak": self._mail_streak,
+                "recognized": self._mail_recognized,
+                "unrecognized": self._mail_unrecognized,
+                "amazon_misses": self._amazon_misses,
+                "known_message_ids": len(self.store.message_ids),
+                "last_unrecognized": [dict(item) for item in self.unrecognized_mails],
+            },
+        }
 
     # ----- public API used by services -----
     async def async_add(self, number: str, carrier: str, name: str | None) -> Parcel:

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Anleitung: Fehler melden und Beispielmails einreichen"
+    url: https://github.com/SoerenKaiser99/parcel_tracker#beispielmails-einreichen
+    about: Schritt für Schritt – Diagnose herunterladen, Mails anonymisieren, ZIP anhängen. Nie rohe Mails hochladen.

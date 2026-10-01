@@ -72,8 +72,8 @@ def out(tmp_path_factory) -> dict[str, EmailMessage]:
     for name, raw in (("h.eml", HERMES), ("h2.eml", HERMES), ("e.eml", EBAY),
                       ("a.eml", AMAZON), ("r.eml", IGNORED)):
         (src / name).write_bytes(raw)
-    subprocess.run([sys.executable, str(SCRIPT), str(src), str(dst), *ARGS], check=True,
-                   capture_output=True)
+    subprocess.run([sys.executable, str(SCRIPT), "--fixtures", str(src), str(dst), *ARGS],
+                   check=True, capture_output=True)
     return {
         p.name: email.message_from_bytes(p.read_bytes(), policy=policy.default)
         for p in sorted(dst.glob("0*.eml"))
@@ -213,7 +213,7 @@ def _run(tmp_path, mails, *extra):
     for i, raw in enumerate(mails):
         (src / f"{i}.eml").write_bytes(raw)
     done = subprocess.run(
-        [sys.executable, str(SCRIPT), str(src), str(dst), *ARGS, *extra],
+        [sys.executable, str(SCRIPT), "--fixtures", str(src), str(dst), *ARGS, *extra],
         capture_output=True, text=True,
     )
     return done, {
@@ -330,6 +330,24 @@ def test_unknown_option_is_an_error(tmp_path, option):
 
 
 def test_missing_arguments_are_an_error(tmp_path):
-    done = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path), str(tmp_path / "dst")],
-                          capture_output=True, text=True)
-    assert done.returncode == 2 and done.stderr.startswith("usage: anonymize_mail.py")
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), "--fixtures", str(tmp_path), str(tmp_path / "dst")],
+        capture_output=True, text=True,
+    )
+    assert done.returncode == 2
+    assert done.stderr.startswith("usage: anonymize_mail.py --fixtures SRC_DIR")
+
+
+def test_fixture_mode_needs_the_explicit_flag(tmp_path):
+    """Six values alone are a tester's call: nothing is written as a fixture."""
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir()
+    (src / "0.eml").write_bytes(GLS_TODAY)
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), str(src), str(dst), *ARGS],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL,
+    )
+    assert done.returncode == 2
+    assert "--fixtures" in done.stderr
+    assert "Probst" not in done.stderr and "54321" not in done.stderr
+    assert not dst.exists() and not (src / "anonymisiert").exists()
