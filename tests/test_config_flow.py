@@ -14,6 +14,7 @@ from custom_components.parcel_tracker.const import (
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
+    CONF_MAIL_ENABLED,
     CONF_MAIL_INTERVAL,
     CONF_MAIL_SECTION,
     CONF_MOVE_PROCESSED,
@@ -467,7 +468,8 @@ async def test_options_changed_login_is_checked(hass, mail):
     assert result["errors"] == {"base": "imap_cannot_connect"}
 
 
-async def test_options_mail_off_removes_stored_password(hass):
+async def test_options_mail_off_removes_user_and_password(hass):
+    """Only the explicit switch turns the mail import off."""
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
@@ -477,13 +479,91 @@ async def test_options_mail_off_removes_stored_password(hass):
     result = await hass.config_entries.options.async_init(entry.entry_id)
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
-            result["flow_id"], _mail_input(imap_user="")
+            result["flow_id"], _mail_input(mail_enabled=False, imap_user="u")
         )
         await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
     login.assert_not_called()
     assert CONF_IMAP_PASSWORD not in entry.data
     assert entry.options[CONF_IMAP_USER] == ""
+    assert CONF_MAIL_ENABLED not in entry.options
+    assert CONF_MAIL_ENABLED not in entry.data
+
+
+@pytest.mark.parametrize("mail", [{"imap_user": ""}, {}, {"mail_enabled": True}])
+async def test_options_empty_or_missing_user_keeps_mail_import(hass, mail):
+    """An emptied user field (the frontend then omits it) is no longer "off"."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
+        options={CONF_IMAP_USER: "u"},
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(**mail)
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    login.assert_not_called()
+    assert entry.data[CONF_IMAP_PASSWORD] == "pw"
+    assert entry.options[CONF_IMAP_USER] == "u"
+
+
+async def test_options_mail_switch_defaults_to_whether_a_user_is_stored(hass):
+    def switch_default(result):
+        section = result["data_schema"].schema[CONF_MAIL_SECTION].schema.schema
+        marker = next(key for key in section if key == CONF_MAIL_ENABLED)
+        return marker.default()
+
+    empty = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    empty.add_to_hass(hass)
+    assert switch_default(await hass.config_entries.options.async_init(empty.entry_id)) is False
+    await hass.config_entries.async_remove(empty.entry_id)
+    configured = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
+        options={CONF_IMAP_USER: "u"},
+    )
+    configured.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(configured.entry_id)
+    assert switch_default(result) is True
+    section = result["data_schema"].schema[CONF_MAIL_SECTION].schema.schema
+    user = next(key for key in section if key == CONF_IMAP_USER)
+    assert user.default() == "u"  # visibly prefilled, not a suggested value
+    assert not user.description
+
+
+async def test_options_mail_enabled_without_any_user_configures_nothing(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(mail_enabled=True)
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    login.assert_not_called()
+    assert entry.options[CONF_IMAP_USER] == ""
+    assert CONF_IMAP_PASSWORD not in entry.data
+
+
+async def test_options_new_user_sets_mail_import_up_even_with_switch_off(hass):
+    """Nothing stored yet: the switch (default off) must not swallow a new login."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(mail_enabled=False, imap_user="u", imap_password="pw")
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    login.assert_called_once()
+    assert entry.options[CONF_IMAP_USER] == "u"
+    assert entry.data[CONF_IMAP_PASSWORD] == "pw"
 
 
 async def test_options_login_check_uses_verifying_tls(hass):

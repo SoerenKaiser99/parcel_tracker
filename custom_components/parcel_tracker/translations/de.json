@@ -48,6 +48,7 @@
             "name": "E-Mail-Import (optional)",
             "description": "Liest Paketmails per IMAP aus einem eigenen Paket-Postfach. Trag nur ein Postfach ein, das ausschließlich Paketmails bekommt – nie dein Hauptpostfach.",
             "data": {
+              "mail_enabled": "E-Mail-Import aktiv",
               "imap_host": "IMAP-Server",
               "imap_user": "Benutzername",
               "imap_password": "Passwort",
@@ -56,7 +57,8 @@
               "mail_interval": "Postfach abfragen alle (Minuten)"
             },
             "data_description": {
-              "imap_user": "Leer lassen schaltet den E-Mail-Import aus.",
+              "mail_enabled": "Ausschalten entfernt den gespeicherten Benutzernamen und das Passwort.",
+              "imap_user": "Leer lassen behält den gespeicherten Benutzernamen.",
               "imap_password": "Leer lassen behält das gespeicherte Passwort.",
               "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
               "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf."
@@ -66,12 +68,14 @@
             "name": "UPS-Live-Status (optional)",
             "description": "Fragt UPS-Pakete über die offizielle UPS Track API ab. Leg auf developer.ups.com eine App mit dem Produkt „Tracking“ an und trag Client-ID und Secret ein. Ohne sie kommen UPS-Pakete nur aus Mails.",
             "data": {
+              "ups_enabled": "UPS-API aktiv",
               "ups_client_id": "Client-ID",
               "ups_client_secret": "Client-Secret",
               "ups_monthly_budget": "Monatsbudget (UPS-Abfragen)"
             },
             "data_description": {
-              "ups_client_id": "Leer lassen schaltet die UPS-API aus.",
+              "ups_enabled": "Ausschalten entfernt die gespeicherte Client-ID und das Secret.",
+              "ups_client_id": "Leer lassen behält die gespeicherte Client-ID.",
               "ups_client_secret": "Leer lassen behält das gespeicherte Secret.",
               "ups_monthly_budget": "0–10000. Ist es verbraucht, kommen UPS-Pakete bis Monatsende nur aus Mails. 0 schaltet die API aus."
             }

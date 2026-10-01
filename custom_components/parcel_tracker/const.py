@@ -3,12 +3,13 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.3"
+VERSION = "0.3.4"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
 CONF_KEEP_DELIVERED_DAYS = "keep_delivered_days"
 CONF_MAIL_SECTION = "mail"
+CONF_MAIL_ENABLED = "mail_enabled"
 CONF_IMAP_HOST = "imap_host"
 CONF_IMAP_USER = "imap_user"
 CONF_IMAP_PASSWORD = "imap_password"
@@ -16,6 +17,7 @@ CONF_MOVE_PROCESSED = "move_processed"
 CONF_READ_OTP = "read_otp"
 CONF_MAIL_INTERVAL = "mail_interval"
 CONF_UPS_SECTION = "ups"
+CONF_UPS_ENABLED = "ups_enabled"
 CONF_UPS_CLIENT_ID = "ups_client_id"
 CONF_UPS_CLIENT_SECRET = "ups_client_secret"
 CONF_UPS_BUDGET = "ups_monthly_budget"

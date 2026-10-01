@@ -80,7 +80,7 @@ Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails. Mit einer eigenen UPS
 1. Auf [developer.ups.com](https://developer.ups.com) ein Konto anlegen oder anmelden.
 2. Eine App anlegen und als Produkt **Tracking** wählen (nicht „Track Alert“).
 3. Warten, bis UPS die App freischaltet – solange steht sie auf „Pending“.
-4. **Client-ID** und **Client-Secret** nur in Home Assistant eintragen: **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren → UPS-Live-Status**. Speichern holt testweise einen Token (zählt nicht aufs Budget). Ein leeres Secret-Feld behält das gespeicherte Secret, eine leere Client-ID schaltet die UPS-API aus.
+4. **Client-ID** und **Client-Secret** nur in Home Assistant eintragen: **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren → UPS-Live-Status**. Speichern holt testweise einen Token (zählt nicht aufs Budget). Leere Felder für Client-ID und Secret behalten die gespeicherten Werte. Ausschalten geht nur über den Schalter **UPS-API aktiv**: Ausgeschaltet gespeichert, entfernt er Client-ID und Secret.
 
 **Monatsbudget** (Standard 100, Bereich 0–10000): So viele UPS-Abfragen macht die Integration höchstens pro Kalendermonat, damit nie Kosten entstehen. Token-Abrufe zählen nicht, jede Sendungsabfrage zählt – auch die über „Aktualisieren“. Ist das Budget verbraucht, kommen UPS-Pakete bis Monatsende nur aus Mails, und unter **Einstellungen → Reparaturen** erscheint ein Hinweis, der am Monatsanfang von selbst verschwindet. 0 schaltet die API aus.
 
@@ -116,11 +116,13 @@ Amazon liefert viele Pakete selbst aus und bietet dafür keine öffentliche Send
 2. Im Hauptpostfach eine Filterregel anlegen, die Paketmails an das Paket-Postfach weiterleitet (siehe unten).
 3. In Home Assistant: **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren → E-Mail-Import**:
    - **IMAP-Server** (Standard `imap.mailbox.org`, Port 993 mit SSL),
-   - **Benutzername** und **Passwort** des Paket-Postfachs (Benutzername leer lassen schaltet den Import aus; ein leeres Passwortfeld behält das gespeicherte Passwort),
+   - **Benutzername** und **Passwort** des Paket-Postfachs (leere Felder behalten die gespeicherten Werte),
    - **Verarbeitete Mails in Ordner verschieben** (Standard: an),
    - **Zustell-Codes (Einmalpasswörter) mitlesen** (Standard: aus),
    - **Postfach abfragen alle (Minuten)** (1–60, Standard: 5).
 4. Speichern prüft die Anmeldung sofort.
+
+Ausschalten geht nur über den Schalter **E-Mail-Import aktiv**: Ausgeschaltet gespeichert, entfernt er Benutzername und Passwort.
 
 Der Import schaut im eingestellten Intervall (1–60 Minuten, Standard 5) nach ungelesenen Mails im Posteingang. Der Dienst `parcel_tracker.refresh` (auf der Karte „Aktualisieren“) fragt zusätzlich das Postfach sofort ab. Ist das Postfach nicht erreichbar, wartet der Import unabhängig vom Intervall länger (5 → 10 → 20 → 40 → 60 Minuten). Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
 

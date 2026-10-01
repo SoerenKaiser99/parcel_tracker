@@ -48,6 +48,7 @@
             "name": "Mail import (optional)",
             "description": "Reads parcel mails from a dedicated mailbox via IMAP. Only enter a mailbox that receives nothing but parcel mails – never your main mailbox.",
             "data": {
+              "mail_enabled": "Mail import enabled",
               "imap_host": "IMAP server",
               "imap_user": "Username",
               "imap_password": "Password",
@@ -56,7 +57,8 @@
               "mail_interval": "Check mailbox every (minutes)"
             },
             "data_description": {
-              "imap_user": "Leave empty to switch the mail import off.",
+              "mail_enabled": "Switching it off removes the saved username and password.",
+              "imap_user": "Leave empty to keep the saved username.",
               "imap_password": "Leave empty to keep the saved password.",
               "move_processed": "Folders Paket-Tracker-Verarbeitet and Paket-Tracker-Nicht-erkannt.",
               "read_otp": "The card shows a code only after a tap and a confirmation. It never goes into the history."
@@ -66,12 +68,14 @@
             "name": "UPS live status (optional)",
             "description": "Asks the official UPS Track API for UPS parcels. Create an app with the product \"Tracking\" on developer.ups.com and enter its Client ID and Secret. Without them, UPS parcels come from mails only.",
             "data": {
+              "ups_enabled": "UPS API enabled",
               "ups_client_id": "Client ID",
               "ups_client_secret": "Client secret",
               "ups_monthly_budget": "Monthly budget (UPS requests)"
             },
             "data_description": {
-              "ups_client_id": "Leave empty to switch the UPS API off.",
+              "ups_enabled": "Switching it off removes the saved Client ID and secret.",
+              "ups_client_id": "Leave empty to keep the saved Client ID.",
               "ups_client_secret": "Leave empty to keep the saved secret.",
               "ups_monthly_budget": "0–10000. When used up, UPS parcels come from mails only until the month ends. 0 switches the API off."
             }

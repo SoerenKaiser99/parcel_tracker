@@ -31,6 +31,7 @@ from .const import (
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
+    CONF_MAIL_ENABLED,
     CONF_MAIL_INTERVAL,
     CONF_MAIL_SECTION,
     CONF_MOVE_PROCESSED,
@@ -40,6 +41,7 @@ from .const import (
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
+    CONF_UPS_ENABLED,
     CONF_UPS_SECTION,
     DEFAULT_IMAP_HOST,
     DEFAULT_KEEP_DELIVERED_DAYS,
@@ -77,14 +79,21 @@ _BUDGET = NumberSelector(
 
 
 def _ups_section(current: Mapping[str, Any]) -> section:
-    """Collapsible 'UPS live status' block of the options form."""
+    """Collapsible 'UPS live status' block of the options form.
+
+    The client ID is prefilled through ``default`` (never ``suggested_value``): a
+    field the frontend leaves out or sends empty then comes back as the stored ID.
+    Switching the API off is the explicit ``ups_enabled`` switch.
+    """
+    client_id = current.get(CONF_UPS_CLIENT_ID) or ""
     return section(
         vol.Schema(
             {
                 vol.Optional(
-                    CONF_UPS_CLIENT_ID,
-                    description={"suggested_value": current.get(CONF_UPS_CLIENT_ID, "")},
-                ): str,
+                    CONF_UPS_ENABLED,
+                    default=bool(current.get(CONF_UPS_ENABLED, bool(client_id))),
+                ): bool,
+                vol.Optional(CONF_UPS_CLIENT_ID, default=client_id or vol.UNDEFINED): str,
                 vol.Optional(CONF_UPS_CLIENT_SECRET): _KEY,
                 vol.Optional(
                     CONF_UPS_BUDGET, default=current.get(CONF_UPS_BUDGET, DEFAULT_UPS_BUDGET)
@@ -96,17 +105,23 @@ def _ups_section(current: Mapping[str, Any]) -> section:
 
 
 def _mail_section(current: Mapping[str, Any]) -> section:
-    """Collapsible 'mail import' block of the options form."""
+    """Collapsible 'mail import' block of the options form.
+
+    The user is prefilled through ``default`` (never ``suggested_value``): a field
+    the frontend leaves out or sends empty then comes back as the stored user.
+    Switching the import off is the explicit ``mail_enabled`` switch.
+    """
+    user = current.get(CONF_IMAP_USER) or ""
     return section(
         vol.Schema(
             {
                 vol.Optional(
+                    CONF_MAIL_ENABLED, default=bool(current.get(CONF_MAIL_ENABLED, bool(user)))
+                ): bool,
+                vol.Optional(
                     CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
                 ): str,
-                vol.Optional(
-                    CONF_IMAP_USER,
-                    description={"suggested_value": current.get(CONF_IMAP_USER, "")},
-                ): str,
+                vol.Optional(CONF_IMAP_USER, default=user or vol.UNDEFINED): str,
                 vol.Optional(CONF_IMAP_PASSWORD): _KEY,
                 vol.Optional(
                     CONF_MOVE_PROCESSED,
@@ -152,10 +167,12 @@ def _schema(
             default=defaults.get(CONF_KEEP_DELIVERED_DAYS, DEFAULT_KEEP_DELIVERED_DAYS),
         )
     ] = _DAYS
+    # No ``default`` on the section markers: with one, the frontend starts from
+    # that (empty) dict and never prefills the fields inside the section.
     if mail is not None:
-        fields[vol.Optional(CONF_MAIL_SECTION, default={})] = _mail_section(mail)
+        fields[vol.Optional(CONF_MAIL_SECTION)] = _mail_section(mail)
     if ups is not None:
-        fields[vol.Optional(CONF_UPS_SECTION, default={})] = _ups_section(ups)
+        fields[vol.Optional(CONF_UPS_SECTION)] = _ups_section(ups)
     return vol.Schema(fields)
 
 
@@ -267,34 +284,48 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
 
     Secrets (DHL key, 17track key, IMAP password, UPS client ID and secret) are stored in the
     config entry's ``data`` (the same place reauth writes the key) so flows never
-    disagree about which secret is current; an empty secret field keeps the stored
-    one. Everything else lives in ``options``.
+    disagree about which secret is current. Everything else lives in ``options``.
+
+    A field that is missing or empty in the submitted form means "unchanged": the
+    frontend omits emptied optional fields and has sent sections without their
+    prefilled values, so nothing stored may depend on a field arriving. The mail
+    import and the UPS API are only removed through their explicit switches
+    (``mail_enabled``/``ups_enabled`` submitted as False). The postcode is the one
+    exception: it is not a secret and emptying it is how it is removed.
     """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         current = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
+            options = self.config_entry.options
             mail = user_input.get(CONF_MAIL_SECTION) or {}
-            host = (mail.get(CONF_IMAP_HOST) or "").strip() or DEFAULT_IMAP_HOST
-            user = (mail.get(CONF_IMAP_USER) or "").strip()
+            stored_host = options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+            stored_user = options.get(CONF_IMAP_USER) or ""
+            # Off only on an explicit "False" while an import is set up; a user
+            # typed into a not yet configured form sets the import up either way.
+            mail_off = mail.get(CONF_MAIL_ENABLED) is False and bool(stored_user)
+            host = (mail.get(CONF_IMAP_HOST) or "").strip() or stored_host
+            user = "" if mail_off else (mail.get(CONF_IMAP_USER) or "").strip() or stored_user
             new_password = mail.get(CONF_IMAP_PASSWORD) or ""
             stored_password = self.config_entry.data.get(CONF_IMAP_PASSWORD, "")
             password = new_password or stored_password
             # Only log in again when the login data changed, so saving e.g. the
             # postcode works while the mail server is down.
             login_changed = (
-                host != (self.config_entry.options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST)
-                or user != (self.config_entry.options.get(CONF_IMAP_USER) or "")
+                host != stored_host
+                or user != stored_user
                 or (bool(new_password) and new_password != stored_password)
             )
             ups = user_input.get(CONF_UPS_SECTION) or {}
-            ups_id = (ups.get(CONF_UPS_CLIENT_ID) or "").strip()
+            stored_id = self.config_entry.data.get(CONF_UPS_CLIENT_ID) or ""
+            ups_off = ups.get(CONF_UPS_ENABLED) is False and bool(stored_id)
+            ups_id = "" if ups_off else (ups.get(CONF_UPS_CLIENT_ID) or "").strip() or stored_id
             new_secret = (ups.get(CONF_UPS_CLIENT_SECRET) or "").strip()
             stored_secret = self.config_entry.data.get(CONF_UPS_CLIENT_SECRET, "")
             ups_secret = new_secret or stored_secret
             # Only ask UPS again when ID or secret changed (saving works while UPS is down).
-            ups_changed = ups_id != self.config_entry.data.get(CONF_UPS_CLIENT_ID, "") or (
+            ups_changed = ups_id != stored_id or (
                 bool(new_secret) and new_secret != stored_secret
             )
             postcode = _validate_postcode(user_input)
@@ -323,17 +354,30 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             ):
                 errors["base"] = err
             else:
+                # A setting missing from the form keeps its stored value.
                 new_options = {
                     CONF_POSTCODE: postcode,
                     CONF_KEEP_DELIVERED_DAYS: int(user_input[CONF_KEEP_DELIVERED_DAYS]),
                     CONF_IMAP_HOST: host,
                     CONF_IMAP_USER: user,
                     CONF_MOVE_PROCESSED: bool(
-                        mail.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED)
+                        mail.get(
+                            CONF_MOVE_PROCESSED,
+                            options.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED),
+                        )
                     ),
-                    CONF_READ_OTP: bool(mail.get(CONF_READ_OTP, DEFAULT_READ_OTP)),
-                    CONF_MAIL_INTERVAL: int(mail.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL)),
-                    CONF_UPS_BUDGET: int(ups.get(CONF_UPS_BUDGET, DEFAULT_UPS_BUDGET)),
+                    CONF_READ_OTP: bool(
+                        mail.get(CONF_READ_OTP, options.get(CONF_READ_OTP, DEFAULT_READ_OTP))
+                    ),
+                    CONF_MAIL_INTERVAL: int(
+                        mail.get(
+                            CONF_MAIL_INTERVAL,
+                            options.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL),
+                        )
+                    ),
+                    CONF_UPS_BUDGET: int(
+                        ups.get(CONF_UPS_BUDGET, options.get(CONF_UPS_BUDGET, DEFAULT_UPS_BUDGET))
+                    ),
                 }
                 data = dict(self.config_entry.data)
                 if key_value:
@@ -342,13 +386,13 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     data[CONF_TRACK17_API_KEY] = track17_key
                 if user and new_password:
                     data[CONF_IMAP_PASSWORD] = new_password
-                if not user:
-                    data.pop(CONF_IMAP_PASSWORD, None)  # mail import off: drop the secret
+                if mail_off:  # switched off explicitly: drop the secret
+                    data.pop(CONF_IMAP_PASSWORD, None)
                 if ups_id:
                     data[CONF_UPS_CLIENT_ID] = ups_id
                     if new_secret:
                         data[CONF_UPS_CLIENT_SECRET] = new_secret
-                else:  # UPS API off: drop ID and secret
+                if ups_off:  # switched off explicitly: drop ID and secret
                     data.pop(CONF_UPS_CLIENT_ID, None)
                     data.pop(CONF_UPS_CLIENT_SECRET, None)
                 if data != self.config_entry.data:

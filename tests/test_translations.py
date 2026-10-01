@@ -43,8 +43,8 @@ def test_mail_translations_present():
     strings = _load("strings.json")
     section = strings["options"]["step"]["init"]["sections"]["mail"]
     assert set(section["data"]) == {
-        "imap_host", "imap_user", "imap_password", "move_processed", "read_otp",
-            "mail_interval",
+        "mail_enabled", "imap_host", "imap_user", "imap_password", "move_processed",
+        "read_otp", "mail_interval",
     }
     assert {"imap_auth", "imap_cannot_connect", "imap_password_missing"} <= set(
         strings["options"]["error"]
@@ -57,7 +57,7 @@ def test_ups_translations_present():
         strings = _load(name)
         section = strings["options"]["step"]["init"]["sections"]["ups"]
         assert set(section["data"]) == {
-            "ups_client_id", "ups_client_secret", "ups_monthly_budget",
+            "ups_enabled", "ups_client_id", "ups_client_secret", "ups_monthly_budget",
         }
         assert {"ups_auth", "ups_cannot_connect", "ups_secret_missing"} <= set(
             strings["options"]["error"]
@@ -102,3 +102,19 @@ def test_postcode_note_names_dhl_and_gls():
     german = _load("translations/de.json")["config"]["step"]["user"]["description"]
     assert english.endswith("lets DHL return more details and GLS the tracking history.")
     assert german.endswith("liefert DHL zusätzliche Details und GLS den Sendungsverlauf.")
+
+
+def test_switch_translations_present():
+    """Switching off is the explicit switch; no text says "leave empty to switch off"."""
+    labels = {"strings.json": ("Mail import enabled", "UPS API enabled"),
+              "translations/de.json": ("E-Mail-Import aktiv", "UPS-API aktiv")}
+    for name, (mail_label, ups_label) in labels.items():
+        sections = _load(name)["options"]["step"]["init"]["sections"]
+        assert sections["mail"]["data"]["mail_enabled"] == mail_label
+        assert sections["ups"]["data"]["ups_enabled"] == ups_label
+        assert "mail_enabled" in sections["mail"]["data_description"]
+        assert "ups_enabled" in sections["ups"]["data_description"]
+        for section in sections.values():
+            for key in ("imap_user", "ups_client_id"):
+                text = section["data_description"].get(key, "").lower()
+                assert "switch" not in text and "schalt" not in text, text
