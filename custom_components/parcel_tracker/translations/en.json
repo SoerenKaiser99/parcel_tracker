@@ -27,6 +27,9 @@
     "abort": {
       "single_instance_allowed": "Parcel Tracker is already set up.",
       "reauth_successful": "API key updated."
+    },
+    "create_entry": {
+      "default": "Reload the page once, then add the “Paket Tracker” card to your dashboard."
     }
   },
   "options": {
@@ -148,6 +151,10 @@
     "track17_quota_exhausted": {
       "title": "17track quota used up",
       "description": "All 17track numbers are used. New parcels can't be sent to 17track; parcels already sent keep updating."
+    },
+    "card_resource_yaml": {
+      "title": "Add the Paket Tracker card to the dashboard resources",
+      "description": "The dashboard resources are managed in YAML, so Parcel Tracker cannot add its card by itself. Add this entry under `lovelace:` → `resources:` in configuration.yaml and restart Home Assistant:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nThis notice disappears once the card is listed there."
     }
   },
   "exceptions": {

@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -121,3 +122,71 @@ async def test_registers_resource_during_startup_without_started_event(hass):
     assert len(items) == 1
     assert items[0]["url"].startswith(f"{CARD_URL}?v={VERSION}-")
     hass.set_state(CoreState.running)
+
+
+ISSUE = "card_resource_yaml"
+
+
+def _issue(hass):
+    return ir.async_get(hass).async_get_issue(DOMAIN, ISSUE)
+
+
+@pytest.fixture
+async def yaml_lovelace(hass):
+    assert await async_setup_component(hass, "lovelace", {"lovelace": {"resource_mode": "yaml"}})
+    await hass.async_block_till_done()
+    assert hass.data[LOVELACE_DATA].resource_mode == "yaml"
+
+
+async def test_yaml_mode_raises_a_repair_with_the_url(hass, yaml_lovelace):
+    await async_ensure_resource(hass, URL)
+    issue = _issue(hass)
+    assert issue is not None
+    assert issue.severity is ir.IssueSeverity.WARNING
+    assert issue.is_fixable is False
+    assert issue.translation_key == ISSUE
+    assert issue.translation_placeholders == {"url": URL}
+
+
+async def test_yaml_mode_is_quiet_once_the_resource_is_listed(hass):
+    listed = {"url": f"{LOCAL_CARD_URL}?v=old", "type": "module"}
+    config = {"lovelace": {"resource_mode": "yaml", "resources": [listed]}}
+    assert await async_setup_component(hass, "lovelace", config)
+    await hass.async_block_till_done()
+    ir.async_create_issue(
+        hass, DOMAIN, ISSUE, is_fixable=False, severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE, translation_placeholders={"url": URL},
+    )
+    await async_ensure_resource(hass, URL)
+    assert _issue(hass) is None
+
+
+async def test_storage_mode_clears_the_yaml_repair(hass, lovelace):
+    ir.async_create_issue(
+        hass, DOMAIN, ISSUE, is_fixable=False, severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE, translation_placeholders={"url": URL},
+    )
+    await async_ensure_resource(hass, URL)
+    assert _issue(hass) is None
+    assert [i["url"] for i in _card_items(hass)] == [URL]
+
+
+async def test_integration_setup_raises_the_yaml_repair(hass, yaml_lovelace):
+    e = MockConfigEntry(domain=DOMAIN, data={"postcode": "10115"})
+    e.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(e.entry_id)
+    await hass.async_block_till_done()
+    issue = _issue(hass)
+    assert issue is not None
+    assert issue.translation_placeholders["url"].startswith(f"{CARD_URL}?v={VERSION}-")
+
+
+def test_yaml_repair_is_translated():
+    import json
+    from pathlib import Path
+
+    base = Path(__file__).parent.parent / "custom_components" / "parcel_tracker"
+    for name in ("strings.json", "translations/de.json", "translations/en.json"):
+        issue = json.loads((base / name).read_text(encoding="utf-8"))["issues"][ISSUE]
+        assert "{url}" in issue["description"], name
+        assert "module" in issue["description"], name

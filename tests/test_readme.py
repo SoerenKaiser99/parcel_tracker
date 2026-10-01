@@ -398,4 +398,47 @@ def test_hacs_is_not_told_about_the_blueprints_folder():
     import json
 
     hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
-    assert set(hacs) == {"name", "homeassistant", "render_readme"}
+    assert set(hacs) == {"name", "homeassistant", "render_readme", "zip_release", "filename"}
+
+
+def test_hacs_installs_from_the_release_zip():
+    """zip_release makes HACS fetch the release asset, which GitHub counts as a
+    download. Every release from v0.3.6 on needs parcel_tracker.zip attached
+    (scripts/build_release_zip.sh)."""
+    import json
+
+    hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+    assert hacs["zip_release"] is True
+    assert hacs["filename"] == "parcel_tracker.zip"
+    assert hacs["name"] == "Paket Tracker"
+    assert hacs["homeassistant"] == "2025.10.0"
+    assert hacs["render_readme"] is True
+
+
+def test_readme_card_not_found_section():
+    section = README.split("\n### Karte wird nicht gefunden?\n")[1].split("\n## ")[0]
+    for text in (
+        "Custom element doesn't exist: parcel-tracker-card",
+        "Behoben in v0.3.6",
+        "nur noch als Dashboard-Ressource",
+        "Integration auf v0.3.6 oder neuer aktualisieren, Home Assistant neu starten",
+        "Bis v0.3.5: normal neu laden (F5",
+        "Kein hartes Neuladen",
+        "Einstellungen → Dashboards → ⋮ → Ressourcen",
+        "`resource_mode: yaml`",
+        "**Einstellungen → Reparaturen**",
+        "`type: module`",
+    ):
+        assert text in section, text
+    steps = [line for line in section.splitlines() if line[:2] in ("1.", "2.", "3.", "4.")]
+    assert len(steps) == 4
+    # ≤ v0.3.5 a hard reload triggers the bug, so it is never the advice
+    assert "Seite neu laden (am Rechner Strg+F5" not in README
+    assert "Frontend-Cache leeren" not in README
+
+
+def test_readme_says_when_local_is_used():
+    section = _section("Karte hinzufügen")
+    assert "wenn der Ordner `www` beim Start schon existierte" in section
+    assert "`/parcel_tracker/parcel-tracker-card.js`" in section
+    assert "Seite einmal neu laden" in section

@@ -153,3 +153,14 @@ def test_notify_translations_present():
         "awaiting_pickup": "Abholbereit",
         "exception": "Problem",
     }
+
+
+def test_create_entry_says_to_reload_before_adding_the_card():
+    """The frontend shows config.create_entry.default in the success dialog. An
+    already open Home Assistant only knows the new card resource after a reload."""
+    german = _load("translations/de.json")["config"]["create_entry"]["default"]
+    assert german == (
+        "Seite einmal neu laden, dann im Dashboard die Karte „Paket Tracker“ hinzufügen."
+    )
+    english = _load("strings.json")["config"]["create_entry"]["default"]
+    assert "Reload the page once" in english and "“Paket Tracker” card" in english

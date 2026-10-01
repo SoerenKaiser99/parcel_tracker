@@ -213,15 +213,16 @@ Dashboard bearbeiten → Karte hinzufügen → "Paket Tracker" auswählen. Alter
 type: custom:parcel-tracker-card
 ```
 
-Die Integration kopiert die Karte beim Start nach `www/parcel_tracker/` und trägt sie automatisch als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`). Falls der Ordner `www` vorher nicht existierte, wird die Karte zunächst direkt von der Integration ausgeliefert; ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad.
+Die Integration kopiert die Karte beim Start nach `www/parcel_tracker/` und trägt sie automatisch als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`). Home Assistant liefert `/local` nur aus, wenn der Ordner `www` beim Start schon existierte. Sonst liefert die Integration die Karte zunächst selbst aus (`/parcel_tracker/parcel-tracker-card.js`); ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad. Nach dem Einrichten die Seite einmal neu laden, erst dann kennt ein schon geöffnetes Home Assistant die neue Ressource.
 
 ### Karte wird nicht gefunden?
 
-Erscheint „Paket Tracker" nicht in der Kartenauswahl oder meldet das Dashboard „Custom element doesn't exist: parcel-tracker-card", hat der Browser die Karte noch nicht geladen. Das passiert direkt nach dem Einrichten, weil ein schon geöffnetes Home Assistant neue Ressourcen erst nach dem Neuladen kennt:
+Meldet das Dashboard „Custom element doesn't exist: parcel-tracker-card" oder fehlt „Paket Tracker" in der Kartenauswahl, lag das bis v0.3.5 meist an der Integration selbst: Sie lud die Karte zusätzlich als Frontend-Modul, gleichzeitig mit der Oberfläche von Home Assistant, und war die Karte schneller, ging ihre Anmeldung verloren. Behoben in v0.3.6, die Karte kommt seitdem nur noch als Dashboard-Ressource.
 
-1. Seite neu laden (am Rechner Strg+F5 bzw. Cmd+Shift+R). In der Home-Assistant-App: App schließen und neu öffnen, notfalls unter Einstellungen → Companion-App → Debugging den Frontend-Cache leeren.
-2. Unter Einstellungen → Dashboards → ⋮ → Ressourcen prüfen, ob `/local/parcel_tracker/parcel-tracker-card.js?v=…` eingetragen ist.
-3. Dashboards im YAML-Modus tragen Ressourcen nicht automatisch ein. Dort die Ressource von Hand ergänzen (`url: /local/parcel_tracker/parcel-tracker-card.js`, `type: module`).
+1. Integration auf v0.3.6 oder neuer aktualisieren, Home Assistant neu starten und die Seite einmal neu laden.
+2. Bis v0.3.5: normal neu laden (F5; in der Home-Assistant-App: App schließen und neu öffnen). Kein hartes Neuladen (Strg+F5 bzw. Cmd+Shift+R) und nicht den Cache leeren, beides löst den Fehler dort erst aus.
+3. Unter Einstellungen → Dashboards → ⋮ → Ressourcen prüfen, ob `/local/parcel_tracker/parcel-tracker-card.js?v=…` (oder `/parcel_tracker/parcel-tracker-card.js?v=…`) eingetragen ist.
+4. Werden die Dashboard-Ressourcen per YAML verwaltet (`resource_mode: yaml` oder `mode: yaml` unter `lovelace:`), kann die Integration die Karte nicht selbst eintragen. Ab v0.3.6 erscheint dann unter **Einstellungen → Reparaturen** ein Hinweis mit der genauen URL. Diese von Hand unter `lovelace:` → `resources:` ergänzen (`url: /local/parcel_tracker/parcel-tracker-card.js?v=…`, `type: module`) und Home Assistant neu starten.
 
 Die Kartendatei selbst zu ändern ist nicht nötig; Änderungen daran überschreibt die Integration beim nächsten Start.
 

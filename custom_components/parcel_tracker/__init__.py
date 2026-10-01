@@ -6,7 +6,6 @@ import logging
 from pathlib import Path
 
 import voluptuous as vol
-from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -18,7 +17,14 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util.ssl import client_context
 
-from .card_install import BUNDLED_CARD, CARD_FILE, card_hash, card_url, install_card
+from .card_install import (
+    BUNDLED_CARD,
+    CARD_FILE,
+    card_hash,
+    card_url,
+    install_card,
+    local_is_served,
+)
 from .carriers import build_carriers
 from .carriers.base import AuthError, CarrierError
 from .carriers.track17 import (
@@ -141,17 +147,26 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             "Could not copy the card to %s (%s); serving it from %s", target, err, CARD_URL
         )
         digest = await hass.async_add_executor_job(lambda: card_hash(BUNDLED_CARD.read_bytes()))
-        www_existed = False
-    if not www_existed:
-        _LOGGER.info(
-            "Created the www folder; the card is served from %s for now and "
-            "from /local after the next Home Assistant restart",
-            CARD_URL,
-        )
-    url = card_url(digest, www_existed)
-    if "frontend" in hass.config.components:
-        add_extra_js_url(hass, url)
+        use_local = False
+    else:
+        # The folder existing is not enough: HA serves /local only if www was
+        # there when HA started. Without hass.http (tests) the folder decides.
+        served = local_is_served(hass)
+        use_local = www_existed if served is None else served
+        if not use_local:
+            _LOGGER.info(
+                "Home Assistant does not serve /local yet (the www folder is new); "
+                "the card is served from %s for now and from /local after the "
+                "next Home Assistant restart",
+                CARD_URL,
+            )
+    url = card_url(digest, use_local)
 
+    # The card is delivered only as a Lovelace resource, never as a frontend
+    # extra module (add_extra_js_url): index.html imports extra modules in
+    # parallel with app.js, whose scoped-custom-element-registry polyfill replaces
+    # window.customElements. A card evaluated before that registers on the native
+    # registry and the dashboard reports "Custom element doesn't exist".
     # Lovelace is an after_dependency, so its resource collection is ready here;
     # don't wait for EVENT_HOMEASSISTANT_STARTED, which can come very late.
     hass.async_create_task(async_ensure_resource(hass, url), eager_start=False)

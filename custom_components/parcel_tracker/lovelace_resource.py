@@ -1,4 +1,7 @@
-"""Keep the card registered as a Lovelace module resource (storage mode)."""
+"""Keep the card registered as a Lovelace module resource (storage mode).
+
+In YAML mode the resources cannot be written; a repair issue says what to add.
+"""
 
 from __future__ import annotations
 
@@ -6,8 +9,11 @@ import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import issue_registry as ir
 
-from .const import CARD_URL, LOCAL_CARD_URL
+from .const import CARD_URL, DOMAIN, LOCAL_CARD_URL
+
+ISSUE_YAML = "card_resource_yaml"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,6 +39,23 @@ def plan_resource(
     return action, keep.get("id"), extras
 
 
+def _yaml_mode(hass: HomeAssistant, resources: Any, url: str) -> None:
+    """YAML resources cannot be written: tell the user to list the card by hand."""
+    if any(_is_ours(item) for item in resources.async_items() or []):
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_YAML)
+        return
+    _LOGGER.info("Lovelace resources in YAML mode, card resource not registered")
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        ISSUE_YAML,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_YAML,
+        translation_placeholders={"url": url},
+    )
+
+
 async def async_ensure_resource(hass: HomeAssistant, url: str) -> None:
     """Create or update the module resource. Never raises."""
     try:
@@ -46,8 +69,9 @@ async def async_ensure_resource(hass: HomeAssistant, url: str) -> None:
         if getattr(data, "resource_mode", "storage") != "storage" or not hasattr(
             resources, "async_create_item"
         ):
-            _LOGGER.info("Lovelace resources in YAML mode, card resource not registered")
+            _yaml_mode(hass, resources, url)
             return
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_YAML)
         await resources.async_get_info()  # ensures the collection is loaded
         action, item_id, extras = plan_resource(resources.async_items(), url)
         if action == "create":

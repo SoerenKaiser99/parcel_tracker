@@ -27,6 +27,9 @@
     "abort": {
       "single_instance_allowed": "Paket Tracker ist bereits eingerichtet.",
       "reauth_successful": "API-Key aktualisiert."
+    },
+    "create_entry": {
+      "default": "Seite einmal neu laden, dann im Dashboard die Karte „Paket Tracker“ hinzufügen."
     }
   },
   "options": {
@@ -148,6 +151,10 @@
     "track17_quota_exhausted": {
       "title": "17track-Kontingent verbraucht",
       "description": "Alle 17track-Nummern sind verbraucht. Neue Pakete lassen sich nicht mehr an 17track schicken; bereits angemeldete Pakete werden weiter aktualisiert."
+    },
+    "card_resource_yaml": {
+      "title": "Paket-Tracker-Karte als Dashboard-Ressource eintragen",
+      "description": "Die Dashboard-Ressourcen werden per YAML verwaltet, deshalb kann Paket Tracker die Karte nicht selbst eintragen. Ergänze in der configuration.yaml unter `lovelace:` → `resources:` diesen Eintrag und starte Home Assistant neu:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nDer Hinweis verschwindet, sobald die Karte dort eingetragen ist."
     }
   },
   "exceptions": {
