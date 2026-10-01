@@ -1,0 +1,127 @@
+{
+  "_source": "Synthetic, no real parcel: all values are made up. The structure follows the rstt028 payloads in tests/countries/group/test_group.py of github.com/ha-parcel-integrations/ha-gls (MIT License).",
+  "response": {
+    "tuNo": "99999999901",
+    "referenceNo": "99999999901",
+    "date": "2026-09-28",
+    "postalCode": "10115",
+    "status": "Zugestellt",
+    "natSysOwnerCode": "DE03",
+    "deliveryOwnerCode": "DE03",
+    "owners": [
+      {
+        "code": "DE03",
+        "type": "DELIVERY"
+      }
+    ],
+    "emailNotificationCard": false,
+    "signature": {
+      "validate": true,
+      "name": "Unterschrift:",
+      "value": "MUSTERMANN"
+    },
+    "infos": [
+      {
+        "type": "WEIGHT",
+        "name": "Gewicht:",
+        "value": "2.4 kg"
+      }
+    ],
+    "references": [
+      {
+        "type": "UNITNO",
+        "name": "Paketnummer:",
+        "value": "99999999901"
+      },
+      {
+        "type": "CUSTREF",
+        "name": "Kundenreferenz:",
+        "value": "REF-0001"
+      }
+    ],
+    "progressBar": {
+      "level": 100,
+      "statusInfo": "DELIVERED",
+      "statusText": "Zugestellt",
+      "retourFlag": false,
+      "colourIndex": 4,
+      "evtNos": [
+        "3.0",
+        "11.0",
+        "2.0",
+        "0.0",
+        "0.100"
+      ],
+      "statusBar": [
+        {
+          "status": "PREADVICE",
+          "imageStatus": "COMPLETE",
+          "imageText": "Daten übermittelt",
+          "statusText": ""
+        },
+        {
+          "status": "INTRANSIT",
+          "imageStatus": "COMPLETE",
+          "imageText": "Unterwegs",
+          "statusText": ""
+        },
+        {
+          "status": "INWAREHOUSE",
+          "imageStatus": "COMPLETE",
+          "imageText": "Im Depot",
+          "statusText": ""
+        },
+        {
+          "status": "INDELIVERY",
+          "imageStatus": "COMPLETE",
+          "imageText": "In Zustellung",
+          "statusText": ""
+        },
+        {
+          "status": "DELIVERED",
+          "imageStatus": "CURRENT",
+          "imageText": "Zugestellt",
+          "statusText": "Das Paket wurde zugestellt."
+        }
+      ]
+    },
+    "history": [
+      {
+        "date": "2026-09-29",
+        "time": "11:42:10",
+        "evtNo": "3.0",
+        "evtDscr": "Das Paket wurde zugestellt."
+      },
+      {
+        "date": "2026-09-29",
+        "time": "07:15:02",
+        "evtNo": "11.0",
+        "evtDscr": "Das Paket wird voraussichtlich im Laufe des Tages zugestellt."
+      },
+      {
+        "date": "2026-09-29",
+        "time": "05:40:31",
+        "evtNo": "2.0",
+        "evtDscr": "Das Paket ist im Paketzentrum eingetroffen."
+      },
+      {
+        "date": "2026-09-28",
+        "time": "21:03:44",
+        "evtNo": "2.0",
+        "evtDscr": "Das Paket ist im Paketzentrum eingetroffen."
+      },
+      {
+        "date": "2026-09-28",
+        "time": "16:20:00",
+        "evtNo": "0.0",
+        "evtDscr": "Das Paket wurde an GLS &uuml;bergeben."
+      },
+      {
+        "date": "2026-09-28",
+        "time": "09:12:30",
+        "evtNo": "0.100",
+        "evtDscr": "Die Paketdaten wurden im GLS IT-System erfasst; das Paket wurde noch nicht an GLS &uuml;bergeben."
+      }
+    ]
+  }
+}

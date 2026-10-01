@@ -379,3 +379,36 @@ async def test_refresh_forces_immediate_import_even_in_backoff(hass, freezer):
     assert mailbox.fetches == 1  # backing off
     await coord.async_refresh_parcels(None)
     assert mailbox.fetches == 2
+
+
+GLS_MAILS = [
+    "107_shop_versand_ihrer_bestellung_beispiel_g.eml",
+    "110_no_reply_dein_paket_wird_an_dem_gew_nsch.eml",
+    "108_no_reply_dein_gls_paket_kommt_heute.eml",
+    "112_no_reply_dein_paket_wurde_an_deinem_wuns.eml",
+    "111_no_reply_dein_paket_wird_in_wenigen_tage.eml",
+    "109_no_reply_dein_gls_paket_kommt_heute.eml",
+]
+
+
+async def test_gls_mails_become_two_parcels_and_the_shop_mail_is_unrecognised(
+    hass, hass_storage, caplog
+):
+    mailbox = FakeMailbox([(str(i), raw(name)) for i, name in enumerate(GLS_MAILS)])
+    coord = await _coordinator(hass, mailbox)
+    with caplog.at_level("DEBUG"):
+        await coord.async_import_mail()
+    first, second = coord.store.get("99999999901"), coord.store.get("99999999902")
+    assert (first.carrier, first.name, first.status) == (
+        "gls", "Beispiel GmbH", ParcelStatus.DELIVERED,
+    )
+    assert (second.carrier, second.status) == ("gls", ParcelStatus.OUT_FOR_DELIVERY)
+    assert len(coord.store.parcels) == 2
+    [(dispositions, _)] = mailbox.finished
+    assert dispositions == [("0", FOLDER_UNRECOGNIZED)] + [
+        (str(i), FOLDER_PROCESSED) for i in range(1, 6)
+    ]
+    # Drop-off place, address, recipient and reference are neither stored nor logged.
+    dump = str(hass_storage["parcel_tracker"]["data"]) + caplog.text
+    for secret in ("Garage", "Musterstraße", "Musterstadt", "Mustermann", "REF-0001", "+49"):
+        assert secret not in dump, secret

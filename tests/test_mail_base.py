@@ -172,7 +172,9 @@ def test_hermes_numbers_are_safe_on_their_own():
         ("Deutsche Post", "dhl"),
         ("DPD Deutschland", "dpd"),
         ("UPS Standard", "ups"),
-        ("GLS", None),
+        ("GLS Paket", "gls"),
+        ("Eagles Versand", None),
+        ("FedEx", None),
         ("", None),
     ],
 )

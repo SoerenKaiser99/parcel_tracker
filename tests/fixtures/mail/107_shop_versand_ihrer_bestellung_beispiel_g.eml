@@ -1,0 +1,19 @@
+X-Fixture: synthetic - written by hand with invented content, not derived from a real mail
+From: Beispielshop <noreply@beispielshop.example>
+To: max@example.org
+Subject: Versand Ihrer Bestellung
+Date: Mon, 01 Sep 2025 10:00:00 +0200
+Message-ID: <synthetic-107@beispielshop.example>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Hallo Max Mustermann,
+
+Ihr Einkauf im Beispielshop ist fertig gepackt und steht zum Versand bereit.
+Wir geben das Paket heute an GLS weiter.
+Sobald GLS es angenommen hat, schickt GLS Ihnen eine E-Mail mit dem Link zur Sendungsverfolgung.
+Bei Fragen hilft Ihnen unser Kundenservice gern weiter.
+
+Viele Grüße
+Ihr Beispielshop

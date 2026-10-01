@@ -57,7 +57,7 @@ out.eta = {
   none: eta("in_transit", { days_until: null }),
 };
 out.icon = { dhl: card._icon("dhl"), dpd: card._icon("dpd"), hermes: card._icon("hermes"),
-  ebay: card._icon("ebay") };
+  ebay: card._icon("ebay"), gls: card._icon("gls") };
 out.ebayLabel = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "ebay" } });
 out.labels = sandbox.__labels;
 out.sub = {
@@ -66,6 +66,9 @@ out.sub = {
   rawHint: sandbox.__sub("Unterwegs", { carrier: "ebay", shipping_carrier_hint: "GLS <Paket>" },
     "in_transit"),
   place: sandbox.__sub("Unterwegs", { carrier: "dhl", location: "Bonn" }, "in_transit"),
+  gls: sandbox.__sub("In Zustellung", { carrier: "gls", carrier_name: "GLS" }, "out_for_delivery"),
+  glsHint: sandbox.__sub("Versendet", { carrier: "ebay", shipping_carrier_hint: "gls" },
+    "in_transit"),
   pickup: sandbox.__sub("Abholbereit", { carrier: "ups", pickup_point: "Kiosk", location: "X" },
     "awaiting_pickup"),
 };
@@ -154,8 +157,8 @@ def test_hermes_has_a_coloured_dot_instead_of_a_logo(card):
 
 def test_labels_and_ebay_order_state(card):
     assert card["labels"] == {
-        "dhl": "DHL", "dpd": "DPD", "hermes": "Hermes", "ups": "UPS", "amazon": "Amazon",
-        "ebay": "eBay", "other": "17track",
+        "dhl": "DHL", "dpd": "DPD", "gls": "GLS", "hermes": "Hermes", "ups": "UPS",
+        "amazon": "Amazon", "ebay": "eBay", "other": "17track",
     }
     assert card["ebayLabel"] == "Bestellt"
 
@@ -176,10 +179,18 @@ def test_ups_error_texts(card):
     assert card["err"]["none"] is None
 
 
-def test_carrier_select_offers_hermes_and_ups():
+def test_carrier_select_offers_gls_hermes_and_ups():
     text = BUNDLED_CARD.read_text(encoding="utf-8")
     assert (
         '<option value="auto">Automatisch</option><option value="dhl">DHL</option>'
-        '<option value="dpd">DPD</option><option value="hermes">Hermes</option>'
-        '<option value="ups">UPS</option>'
+        '<option value="dpd">DPD</option><option value="gls">GLS</option>'
+        '<option value="hermes">Hermes</option><option value="ups">UPS</option></select>'
     ) in text
+
+
+def test_gls_has_a_blue_dot_with_g_and_its_label(card):
+    gls = card["icon"]["gls"]
+    assert 'fill="#061AB1"' in gls and ">G</text>" in gls
+    assert 'aria-label="gls"' in gls and "<path" not in gls
+    assert card["sub"]["gls"] == "GLS · In Zustellung"
+    assert card["sub"]["glsHint"] == "eBay · Versendet · via GLS"

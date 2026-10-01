@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Paket Tracker",
-        "description": "DHL braucht einen kostenlosen API-Key von developer.dhl.com (API „Shipment Tracking – Unified\"); der Key lässt sich auch später ergänzen. Die PLZ (optional, z. B. 10115) liefert DHL zusätzliche Details.",
+        "description": "DHL braucht einen kostenlosen API-Key von developer.dhl.com (API „Shipment Tracking – Unified\"); der Key lässt sich auch später ergänzen. Die PLZ (optional, z. B. 10115) liefert DHL zusätzliche Details und GLS den Sendungsverlauf.",
         "data": {
           "dhl_api_key": "DHL-API-Key (optional)",
           "postcode": "PLZ (optional)",
@@ -169,7 +169,7 @@
       "description": "Ein Paket verfolgen.",
       "fields": {
         "number": {"name": "Sendungsnummer", "description": "Wie aufgedruckt, Leerzeichen erlaubt."},
-        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes, ups oder other (über 17track, braucht einen 17track-API-Key)."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, ups oder other (über 17track, braucht einen 17track-API-Key)."},
         "name": {"name": "Name", "description": "Optionale Bezeichnung."}
       }
     },

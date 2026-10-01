@@ -51,15 +51,24 @@ def test_delivered_with_emoji_subject_and_drop_time():
 def test_title_falls_back_to_subject_and_unknown_carrier_hint_is_kept():
     msg = _msg(
         "BESTELLUNG ZUGESTELLT: Kabel USB-C",
-        "Bestellnummer:\n12-34567-89012\nVersanddienstleister:\nGLS Paket\n",
+        "Bestellnummer:\n12-34567-89012\nVersanddienstleister:\nFedEx Express\n",
     )
     [u] = parse_ebay(msg)
     assert (u.number, u.title, u.shipping_carrier_hint) == (
         "EBAY123456789012",
         "Kabel USB-C",
-        "GLS Paket",
+        "FedEx Express",
     )
     assert u.delivered_at == datetime(2026, 9, 30, 17, 0, tzinfo=BERLIN)
+
+
+def test_gls_as_shipping_carrier_becomes_the_carrier_key():
+    msg = _msg(
+        "BESTELLUNG ZUGESTELLT: Kabel USB-C",
+        "Bestellnummer:\n12-34567-89012\nVersanddienstleister:\nGLS Paket\n",
+    )
+    [u] = parse_ebay(msg)
+    assert u.shipping_carrier_hint == "gls"
 
 
 @pytest.mark.parametrize(

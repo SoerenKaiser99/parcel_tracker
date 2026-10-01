@@ -35,6 +35,11 @@ PROGRESS_STEP: dict[ParcelStatus, int] = {
     ParcelStatus.UNKNOWN: 0,
 }
 
+# A day named earlier (by a mail or a lookup) is not carried over into these statuses.
+NO_ETA_STATUSES = frozenset(
+    {ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP, ParcelStatus.EXCEPTION}
+)
+
 
 def _dt(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value else None

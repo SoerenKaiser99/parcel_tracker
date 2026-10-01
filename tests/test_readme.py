@@ -12,6 +12,7 @@ SENDERS = [
     "pkginfo@ups.com",
     "noreply@paketankuendigung.myhermes.de",
     "ebay@ebay.com",
+    "no-reply@gls-pakete.de",
 ]
 
 
@@ -46,7 +47,9 @@ def test_readme_roadmap_and_status():
         "getestet (UPS-Freischaltung ausstehend)",
         "Hermes Live-Abfrage: umgesetzt; mit einer aktuellen Sendung noch nicht live getestet",
         "eBay-Mails: umgesetzt",
-        "17track: umgesetzt, Live-Test ausstehend",
+        "17track: Anmeldung live getestet, Anreicherung noch ohne Live-Fall",
+        "GLS-Live-Abfrage: umgesetzt, Live-Test ausstehend",
+        "GLS-Mails: umgesetzt",
         "Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports",
     ):
         assert line in README, line
@@ -68,4 +71,64 @@ def test_readme_explains_17track():
         "höchstens 40 Nummern",
     ):
         assert text in README, text
-    assert "17track is implemented (live test pending)" in README
+    assert "17track registration has been tested live" in README
+
+
+def test_readme_explains_gls():
+    assert "\n## GLS\n" in README and "### GLS-Pakete" in README
+    for text in (
+        "gls-group.com",
+        "11 Ziffern",
+        "eBay-Artikelnummern",
+        "Carrier-Wahl „GLS“",
+        "bis zu 20 Ereignisse",
+        "höchstens alle 30 Minuten",
+        "Kein offizieller Zugang",
+        "GLS-Mails, und „Details über 17track holen“",
+        "Dein GLS Paket kommt heute!",
+        "Rechtsform",
+        "Abstellort, Zustelladresse, Empfängername, Telefonnummer und Referenzen",
+        "GLS als blauer Punkt mit „G“",
+    ):
+        assert text in README, text
+    assert '"no-reply@gls-pakete.de"\n] {' in README
+    assert "the GLS live lookup is implemented (live test pending)" in README
+
+
+def test_readme_privacy_names_dhl_and_gls_for_the_postcode():
+    assert "Die PLZ geht nur an DHL und GLS" in README
+    assert "Die PLZ geht ausschließlich an DHL" not in README
+    assert "the postcode is sent only to DHL and GLS" in README
+    assert "(DHL, DPD, GLS, Hermes bzw." in README
+
+
+def test_readme_says_it_is_built_for_germany():
+    intro = README.split("## Installation")[0]
+    assert "für Deutschland gebaut" in intro
+    for text in (
+        "DHL (offizielle API, weltweit)",
+        "UPS (offizielle API)",
+        "jeder Carrier über 17track",
+        "nur deutsche Mails",
+        "amazon.de",
+    ):
+        assert text in intro, text
+    assert "built for Germany" in README
+
+
+def test_readme_roadmap_lists_international():
+    roadmap = README.split("## Roadmap & Status")[1].split("## English summary")[0]
+    for text in (
+        "**International**",
+        "Karte auch auf Englisch",
+        "weitere Amazon-Länder im Mail-Import",
+        "Royal Mail, PostNL, USPS",
+        "anonymisierten Beispielmails von Testern",
+    ):
+        assert text in roadmap, text
+    assert "International roadmap item" in README
+
+
+def test_readme_german_texts_avoid_banned_words():
+    german = README.split("## English summary")[0].lower()
+    assert "bitte" not in german and "erfolgreich" not in german

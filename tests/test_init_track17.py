@@ -172,7 +172,7 @@ async def test_add_parcel_with_carrier_other(hass):
     assert err.value.translation_key == "track17_carrier"
     assert entry.runtime_data.store.get("99999999999902") is None
     with pytest.raises(vol.Invalid):
-        await _call(hass, "add_parcel", {"number": "1", "carrier": "gls"})
+        await _call(hass, "add_parcel", {"number": "1", "carrier": "fedex"})
 
 
 async def test_parcel_sensors_show_17track_fields(hass):

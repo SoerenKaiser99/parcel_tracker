@@ -1,0 +1,66 @@
+{
+  "_source": "Synthetic, no real parcel: all values are made up. The structure follows the rstt029 payloads in tests/countries/group/test_group.py of github.com/ha-parcel-integrations/ha-gls (MIT License).",
+  "response": {
+    "tuStatus": [
+      {
+        "tuNo": "99999999902",
+        "postalCode": "",
+        "owners": [
+          {
+            "code": "DE03",
+            "type": "DELIVERY"
+          }
+        ],
+        "arrivalTime": {
+          "name": "Voraussichtliche Zustellung:",
+          "value": "30.09.2026 10:00 - 12:30"
+        },
+        "progressBar": {
+          "level": 75,
+          "statusInfo": "INDELIVERY",
+          "statusText": "In Zustellung",
+          "retourFlag": false,
+          "colourIndex": 3,
+          "evtNos": [
+            "11.0",
+            "2.0",
+            "0.0",
+            "0.100"
+          ],
+          "statusBar": [
+            {
+              "status": "PREADVICE",
+              "imageStatus": "COMPLETE",
+              "imageText": "Daten übermittelt",
+              "statusText": ""
+            },
+            {
+              "status": "INTRANSIT",
+              "imageStatus": "COMPLETE",
+              "imageText": "Unterwegs",
+              "statusText": ""
+            },
+            {
+              "status": "INWAREHOUSE",
+              "imageStatus": "COMPLETE",
+              "imageText": "Im Depot",
+              "statusText": ""
+            },
+            {
+              "status": "INDELIVERY",
+              "imageStatus": "CURRENT",
+              "imageText": "In Zustellung",
+              "statusText": "Das Paket wird voraussichtlich im Laufe des Tages zugestellt."
+            },
+            {
+              "status": "DELIVERED",
+              "imageStatus": "PENDING",
+              "imageText": "Zugestellt",
+              "statusText": ""
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -2,11 +2,21 @@
 
 usage: anonymize_mail.py SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME [MAILDOMAIN ...]
 
-Personal values come only from the command line. Mails with a text/plain part are written
-as text/plain; HTML-only mails (eBay, older Hermes) are converted to text, scrubbed and
-written back as simple text/html (one <p> per line), so the parser's HTML fallback is
-exercised by the fixtures. Numbering continues after the highest fixture in DST_DIR;
-mails with an already written Message-ID are skipped.
+Personal values come only from the command line; there are no options (an argument starting
+with "-" is an error, so a mistyped call never runs with half the values). Mails with a
+text/plain part are written as text/plain; HTML-only mails (eBay, older Hermes) are converted
+to text, scrubbed and written back as simple text/html (one <p> per line), so the parser's
+HTML fallback is exercised by the fixtures. Numbering continues after the highest fixture in
+DST_DIR; mails with an already written Message-ID are skipped.
+
+GLS mails (no-reply@gls-pakete.de): the recipient blocks ("*Zustelladresse*", "*Empfänger*",
+"*an NAME*" of the delivery mail) and the sender block ("*Versender*") are replaced as a
+whole, whatever they contain; phone numbers, parcel numbers (99999999901, 99999999902, ... in
+order of appearance), references and the drop-off place ("Ablageort: Garage") are replaced in
+the text and in the subject (and so in the file name), and the legal footer is cut. Recipient
+and company names learnt from these blocks are replaced in every mail. Mails of other senders
+(shops) are never taken: a shop mail needed as a fixture is written by hand with invented
+content and marked with an "X-Fixture: synthetic" header.
 """
 import email
 import glob
@@ -19,9 +29,18 @@ from email import policy
 from email.message import EmailMessage
 from html.parser import HTMLParser
 
-SRC, DST, POSTCODE, CITY, FIRST, LAST = sys.argv[1:7]
-DOMAINS = sys.argv[7:] or ["gmail", "googlemail"]
+_USAGE = "usage: anonymize_mail.py SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME [MAILDOMAIN ...]"
+_ARGS = sys.argv[1:]
+# Only the name of an unknown option is shown: its value may be private.
+_ERRORS = [f"unknown option {arg.split('=', 1)[0]}" for arg in _ARGS if arg.startswith("-")]
+if _ERRORS or len(_ARGS) < 6:
+    print("\n".join([_USAGE, *_ERRORS]), file=sys.stderr)
+    sys.exit(2)
+SRC, DST, POSTCODE, CITY, FIRST, LAST = _ARGS[:6]
+DOMAINS = _ARGS[6:] or ["gmail", "googlemail"]
+GLS_SENDER = "no-reply@gls-pakete.de"
 KEEP = {
+    GLS_SENDER,
     "bestellbestaetigung@amazon.de", "versandbestaetigung@amazon.de",
     "shipment-tracking@amazon.de", "order-update@amazon.de", "noreply@dhl.de",
     "pkginfo@ups.com", "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
@@ -96,11 +115,43 @@ _REGION = re.compile(
     r"|Mecklenburg-Vorpommern)[ \t]*\n"
 )
 _SHIP_TO = re.compile(r"(Geliefert an:)[ \t]*\n(?:[^\n]*\n){1,6}?(Deutschland)")
+# GLS: "*Zustelladresse*" / "*Empfänger*" + name line (+ address lines) up to the next
+# empty line; "*Versender*" + company line (+ address lines) likewise.
+_GLS_RECIPIENT_BLOCK = re.compile(
+    r"(\*(?:Zustelladresse|Empfänger)\*[ \t]*\n)((?:[ \t]*[^\s][^\n]*\n)+)"
+)
+# GLS delivery mail: "*an NAME*" + address lines up to the next rule or empty line.
+_GLS_DELIVERED_TO = re.compile(r"(?m)^(\*an )[^*\n]+(\*[ \t]*\n)((?:[ \t]*[^\s-][^\n]*\n)*)")
+_GLS_COMPANY_BLOCK = re.compile(r"(\*Versender\*[ \t]*\n)((?:[ \t]*[^\s][^\n]*\n)+)")
+_GLS_FROM = re.compile(r"(?i)(Paket von(?: dem Absender)?[ \t]*\n\s*)([^\n]+)")
+_GLS_PLACE = re.compile(r"(\*Gewünschter Abstellort\*[ \t]*\n(?:[-\s]*\n)*)([^\n]+)")
+_GLS_FOOTER = re.compile(r"\n[* \t]*General Logistics Systems Germany.*", re.DOTALL)
+_GLS_REFERENCE = re.compile(r"\(Referenz:[^)]*\)")
+_GLS_NUMBER = re.compile(r"(?<!\d)\d{11}(?!\d)")
+# International (+49 ...) or national (0..., 8 or more digits, blanks/slashes/dashes between
+# them). 11 bare digits are a parcel number, a date or a postcode is too short.
+_PHONE = re.compile(
+    r"\+\d[\d /-]{6,}\d|(?<![\w+./=-])(?!\d{11}(?!\d))0\d(?:[ /-]?\d){6,}"
+)
+_PHONE_PLACEHOLDER = "+49 000 0000000"
+_LEGAL_FORM = re.compile(r"\s+(?:GmbH|AG|KG|UG|SE|OHG|GbR|Ltd|mbH|e\.\s?K\.|B\.\s?V\.|&)(?!\w).*$")
 
-# Pass 1: learn street lines, drop-off texts and seller names from every mail.
-street, ablage, sellers = set(), set(), set()
+# Pass 1: learn street lines, drop-off texts, seller, company and recipient names from every
+# mail.
+street, ablage, sellers, companies, recipients = set(), set(), set(), set(), set()
 for path in glob.glob(SRC + "/*.eml"):
-    text, _ = body(load(path))
+    mail = load(path)
+    text, _ = body(mail)
+    if sender(mail) == GLS_SENDER:
+        companies.update(m.group(2).splitlines()[0].strip("* \t") for m in
+                         _GLS_COMPANY_BLOCK.finditer(text))
+        companies.update(m.group(2).strip("* \t") for m in _GLS_FROM.finditer(text))
+        ablage.update(m.group(2).strip() for m in _GLS_PLACE.finditer(text))
+        # the name line of a recipient block, without the phone number behind the name
+        recipients.update(re.split(r"[+\d]", m.group(2).splitlines()[0])[0].strip("* \t")
+                          for m in _GLS_RECIPIENT_BLOCK.finditer(text))
+        recipients.update(m.group(0).splitlines()[0][4:].strip("* \t")
+                          for m in _GLS_DELIVERED_TO.finditer(text))
     lines = text.splitlines()
     for i, line in enumerate(lines):
         if POSTCODE in line:
@@ -114,6 +165,56 @@ for path in glob.glob(SRC + "/*.eml"):
         ablage.update(m.group(2).strip() for m in pattern.finditer(text))
     sellers.update(m.group(2).strip() for m in _SELLER.finditer(text))
 ablage = {a for a in ablage if a and a != "Garage"}
+companies = {c for c in companies if c}
+recipients = {r for r in recipients if len(r) >= 3}
+# Bare shop names: a company without its legal form.
+shop_names = {n for n in (_LEGAL_FORM.sub("", c) for c in companies) if len(n) >= 4}
+gls_numbers = {}
+
+
+def _gls_number(match):
+    real = match.group(0)
+    if real not in gls_numbers:
+        gls_numbers[real] = f"{99999999901 + len(gls_numbers)}"
+    return gls_numbers[real]
+
+
+def _gls_company(match):
+    lines = match.group(2).splitlines()
+    address = "Beispielweg 2 ,\n00000 Beispielstadt\n" if len(lines) > 1 else ""
+    return f"{match.group(1)}Beispiel GmbH\n{address}"
+
+
+def _gls_recipient(match):
+    lines = match.group(2).splitlines()
+    # A digit in the name line is the phone number GLS prints behind the name.
+    phone = f" {_PHONE_PLACEHOLDER}" if re.search(r"\d", lines[0]) else ""
+    address = "Musterstraße 1 ,\n12345 Musterstadt\n" if len(lines) > 1 else ""
+    return f"{match.group(1)}Max Mustermann{phone}\n{address}"
+
+
+def _gls_delivered_to(match):
+    address = "Musterstraße 1 ,\n12345 Musterstadt\n" if match.group(3) else ""
+    return f"{match.group(1)}Max Mustermann{match.group(2)}{address}"
+
+
+def scrub_gls_values(t):
+    """GLS mails only, text and subject: references, phone and parcel numbers."""
+    t = _GLS_REFERENCE.sub("(Referenz: REF-0001)", t)
+    t = _PHONE.sub(_PHONE_PLACEHOLDER, t)
+    return _GLS_NUMBER.sub(_gls_number, t)
+
+
+def scrub_gls(t):
+    """GLS mails only, the text: runs before scrub()."""
+    t = _GLS_FOOTER.sub("\n", t)
+    if not t.endswith("\n"):
+        t += "\n"
+    t = _GLS_RECIPIENT_BLOCK.sub(_gls_recipient, t)
+    t = _GLS_DELIVERED_TO.sub(_gls_delivered_to, t)
+    t = _GLS_COMPANY_BLOCK.sub(_gls_company, t)
+    t = _GLS_PLACE.sub("\\1Ablageort: Garage", t)
+    return scrub_gls_values(t)
 
 
 def fake(kind, real):
@@ -150,6 +251,12 @@ def scrub(t):
     t = _ABLAGE_PHRASE.sub("\\1Garage\\3", t)
     for s in sorted(sellers, key=len, reverse=True):
         t = t.replace(s, "beispielshop")
+    for c in sorted(companies, key=len, reverse=True):
+        t = t.replace(c, "Beispiel GmbH")
+    for n in sorted(shop_names, key=len, reverse=True):
+        t = re.sub(rf"(?i)(?<!\w){re.escape(n)}(?!\w)", "Beispielshop", t)
+    for r in sorted(recipients, key=len, reverse=True):
+        t = t.replace(r, "Max Mustermann")
     t = re.sub(rf"(?i){FIRST_RE}\s*{re.escape(LAST)}", "Max Mustermann", t)
     t = re.sub(rf"(?i)\b{FIRST_RE}\w*", "Max", t)
     t = re.sub(rf"(?i)\b{re.escape(LAST)}\b", "Mustermann", t)
@@ -198,10 +305,15 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
         continue
     seen.add(mid)
     text, was_html = body(m)
+    subject = str(m["Subject"])
+    if a == GLS_SENDER:
+        # The text first: parcel numbers are counted in the order of the mail texts.
+        text = scrub_gls(text)
+        subject = scrub_gls_values(subject)
     out = EmailMessage()
     out["From"] = str(m["From"])
     out["To"] = "max@example.org"
-    subject = scrub(str(m["Subject"]))
+    subject = scrub(subject)
     out["Subject"] = subject
     out["Date"] = str(m["Date"])
     out["Message-ID"] = mid
@@ -217,4 +329,4 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
     with open(f"{DST}/{n:03d}_{name}.eml", "wb") as handle:
         handle.write(bytes(out))
 print("written", written, "street patterns", len(street), "drop-off texts", len(ablage),
-      "sellers", len(sellers))
+      "sellers", len(sellers), "companies", len(companies), "gls numbers", len(gls_numbers))

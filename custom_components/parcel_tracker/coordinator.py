@@ -56,6 +56,7 @@ from .const import (
     EVENT_STATUS_CHANGED,
     FOLDER_PROCESSED,
     FOLDER_UNRECOGNIZED,
+    MAIL_ETA_CARRIERS,
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
     MAIL_MAX_BACKOFF,
@@ -73,12 +74,11 @@ from .mail import parse_mail
 from .mail.apply import Change, apply_update
 from .mail.base import MailResult, sent_at
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
-from .models import PROGRESS_STEP, Parcel, ParcelStatus, TrackingResult
-from .schedule import backoff, poll_interval, should_remove
+from .models import NO_ETA_STATUSES, PROGRESS_STEP, Parcel, ParcelStatus, TrackingResult
+from .schedule import GLS_MIN_INTERVAL, backoff, poll_interval, should_remove
 from .store import DuplicateParcel, ParcelStore
 
 _LOGGER = logging.getLogger(__name__)
-
 
 @dataclass
 class _ParsedMail:
@@ -374,6 +374,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self._fail(parcel, now, parcel.carrier or "unknown", "unavailable", backoff_only=True)
         if "ups" in tried:
             self._ups_floor(parcel, now)
+        if "gls" in tried:
+            self._gls_floor(parcel, now)
+
+    @staticmethod
+    def _gls_floor(parcel: Parcel, now: datetime) -> None:
+        """GLS' open lookup is never asked again sooner than 30 minutes, whatever went
+        wrong (error backoff, a short Retry-After)."""
+        if parcel.next_poll_at is not None and parcel.next_poll_at < now + GLS_MIN_INTERVAL:
+            parcel.next_poll_at = now + GLS_MIN_INTERVAL
 
     def _ups_floor(self, parcel: Parcel, now: datetime) -> None:
         """Every UPS call costs budget: never ask again sooner than the UPS interval,
@@ -473,13 +482,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             ir.async_delete_issue(self.hass, DOMAIN, f"{key}_auth")
         known = strip_enrichment(parcel.result)  # the carrier's or a mail's own values
         if (
-            key == "hermes"
+            key in MAIL_ETA_CARRIERS
             and result.eta_date is None
             and known is not None
             and known.eta_date is not None
-            and result.status is not ParcelStatus.DELIVERED
+            and result.status not in NO_ETA_STATUSES
         ):
-            # The Hermes API tells no day: keep what a mail said.
+            # Hermes never tells a day, GLS not always: keep the day a mail or an
+            # earlier lookup named, but not once the parcel is delivered, waits for
+            # pickup or ran into a problem (that day no longer holds).
             result = replace(
                 result,
                 eta_date=known.eta_date,

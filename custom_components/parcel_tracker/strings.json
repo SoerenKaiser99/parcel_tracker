@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Parcel Tracker",
-        "description": "DHL needs a free API key from developer.dhl.com (API \"Shipment Tracking – Unified\"); you can add it later. The postcode (optional, e.g. 10115) lets DHL return more details.",
+        "description": "DHL needs a free API key from developer.dhl.com (API \"Shipment Tracking – Unified\"); you can add it later. The postcode (optional, e.g. 10115) lets DHL return more details and GLS the tracking history.",
         "data": {
           "dhl_api_key": "DHL API key (optional)",
           "postcode": "Postcode (optional)",
@@ -169,7 +169,7 @@
       "description": "Start tracking a parcel.",
       "fields": {
         "number": {"name": "Tracking number", "description": "As printed, spaces allowed."},
-        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, hermes, ups or other (via 17track, needs a 17track API key)."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, ups or other (via 17track, needs a 17track API key)."},
         "name": {"name": "Name", "description": "Optional label."}
       }
     },

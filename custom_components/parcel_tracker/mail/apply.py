@@ -7,19 +7,30 @@ from datetime import datetime
 
 from ..carriers.track17 import strip_enrichment, with_track17
 from ..const import MAX_EVENTS, OPTIONAL_API_CARRIERS, SHOP_CARRIERS
-from ..models import PROGRESS_STEP, Parcel, ParcelStatus, TrackingEvent, TrackingResult
-from .base import MailUpdate, title_key
+from ..models import (
+    NO_ETA_STATUSES,
+    PROGRESS_STEP,
+    Parcel,
+    ParcelStatus,
+    TrackingEvent,
+    TrackingResult,
+)
+from .base import MailUpdate, carrier_key, title_key
+
+_DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
 
 SHOP_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Bestellt",
     ParcelStatus.IN_TRANSIT: "Versendet",
     ParcelStatus.OUT_FOR_DELIVERY: "In Zustellung",
+    ParcelStatus.AWAITING_PICKUP: "Abholbereit",
     ParcelStatus.DELIVERED: "Zugestellt",
 }
 CARRIER_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Angekündigt",
     ParcelStatus.IN_TRANSIT: "Unterwegs",
     ParcelStatus.OUT_FOR_DELIVERY: "In Zustellung",
+    ParcelStatus.AWAITING_PICKUP: "Abholbereit",
     ParcelStatus.DELIVERED: "Zugestellt",
 }
 
@@ -53,7 +64,8 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             events.insert(0, TrackingEvent(update.sent_at, text, None))
         if update.eta_date:
             eta = (update.eta_date, update.eta_from, update.eta_to, update.eta_latest)
-        elif old:
+        elif old and update.status not in _DROP_ETA:
+            # (a delivered parcel keeps its day: it is the day shown as delivered)
             eta = (old.eta_date, old.eta_from, old.eta_to, old.eta_latest)
         else:
             eta = (None, None, None, None)
@@ -154,6 +166,15 @@ def _in_window(parcel: Parcel, day) -> bool:
     return result.eta_date <= day <= (result.eta_latest or result.eta_date)
 
 
+def _hint_key(parcel: Parcel) -> str | None:
+    """The carrier a shop mail named, as our key.
+
+    Parcels stored by an older version hold the mail's raw text (e.g. "GLS Paket").
+    """
+    hint = parcel.shipping_carrier_hint
+    return (carrier_key(hint) or hint) if hint else None
+
+
 def _merge_candidate(parcels: dict[str, Parcel], update: MailUpdate) -> Parcel | None:
     """The one open shop order a carrier mail belongs to, if unambiguous.
 
@@ -167,7 +188,7 @@ def _merge_candidate(parcels: dict[str, Parcel], update: MailUpdate) -> Parcel |
         if p.carrier in SHOP_CARRIERS
         and p.tracking_ref is None
         and p.status is not ParcelStatus.DELIVERED
-        and (p.carrier == update.shop or p.shipping_carrier_hint == update.carrier)
+        and (p.carrier == update.shop or _hint_key(p) == update.carrier)
     ]
     if update.eta_date:
         matches = [p for p in open_orders if _in_window(p, update.eta_date)]

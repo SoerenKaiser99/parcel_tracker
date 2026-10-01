@@ -53,7 +53,7 @@ async def test_setup_with_credentials_adds_ups_and_uses_the_stored_budget(hass, 
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     coordinator = entry.runtime_data
-    assert list(coordinator.carriers) == ["dhl", "dpd", "hermes", "ups"]
+    assert list(coordinator.carriers) == ["dhl", "dpd", "hermes", "gls", "ups"]
     assert coordinator.carriers["ups"].budget is coordinator.store.ups_budget
     assert coordinator.store.ups_budget.count == 7
 
@@ -91,7 +91,7 @@ async def test_add_service_accepts_hermes_and_ups(hass):
     assert store.get("1Z999AA10123456784").carrier == "ups"
     with pytest.raises(vol.Invalid):
         await hass.services.async_call(
-            DOMAIN, "add_parcel", {"number": "1", "carrier": "gls"}, blocking=True
+            DOMAIN, "add_parcel", {"number": "1", "carrier": "fedex"}, blocking=True
         )
 
 

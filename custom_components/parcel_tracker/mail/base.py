@@ -33,7 +33,7 @@ class MailUpdate:
     """One parcel fact taken from a mail."""
 
     number: str  # "AMZ"/"EBAY" + order digits for shop orders, else the tracking number
-    carrier: str  # "amazon" | "ebay" | "dhl" | "dpd" | "hermes" | "ups"
+    carrier: str  # "amazon" | "ebay" | "dhl" | "dpd" | "gls" | "hermes" | "ups"
     status: ParcelStatus | None
     sent_at: datetime  # Date header in Europe/Berlin
     title: str | None = None
@@ -168,6 +168,7 @@ _CARRIER_WORDS = (
     ("dhl", "dhl"),
     ("deutsche post", "dhl"),
     ("dpd", "dpd"),
+    ("gls", "gls"),
     ("ups", "ups"),
 )
 

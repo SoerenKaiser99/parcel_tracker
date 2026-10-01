@@ -7,10 +7,13 @@ def test_carrier_groups():
     assert const.SHOP_CARRIERS == frozenset({"amazon", "ebay"})
     assert const.MAIL_CARRIERS == const.SHOP_CARRIERS
     assert const.OPTIONAL_API_CARRIERS == frozenset({"ups"})
-    assert const.SELECTABLE_CARRIERS == ("dhl", "dpd", "hermes", "ups")
+    assert const.SELECTABLE_CARRIERS == ("dhl", "dpd", "gls", "hermes", "ups")
+    assert const.MAIL_ETA_CARRIERS == frozenset({"hermes", "gls"})
+    assert const.GLS_MAX_EVENTS == 20
     assert const.CARRIER_NAMES == {
         "dhl": "DHL",
         "dpd": "DPD",
+        "gls": "GLS",
         "hermes": "Hermes",
         "ups": "UPS",
         "amazon": "Amazon",
@@ -53,6 +56,7 @@ def test_track17_settings():
         "dhl": 7041,
         "hermes": 100031,
         "ups": 100002,
+        "gls": 101070,
     }
     assert const.TRACK17_CARRIER_NAMES == {
         100007: "DPD",

@@ -5,7 +5,7 @@ from custom_components.parcel_tracker.carriers.base import BERLIN
 from custom_components.parcel_tracker.carriers.track17 import standalone
 from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.apply import apply_update
-from custom_components.parcel_tracker.mail.base import MailUpdate
+from custom_components.parcel_tracker.mail.base import MailUpdate, sent_at
 from custom_components.parcel_tracker.models import (
     Parcel,
     ParcelStatus,
@@ -341,3 +341,152 @@ def test_mail_takes_over_from_a_17track_only_result_but_never_moves_it_back():
     assert [e.text for e in r.events] == ["Zugestellt"]  # the mail's own history
     assert (r.location, r.enriched) == ("Köln", ("location",))  # 17track fills the gap only
     assert r.eta_date is None
+
+
+GLS_TODAY = "108_no_reply_dein_gls_paket_kommt_heute.eml"
+GLS_TODAY_SECOND = "109_no_reply_dein_gls_paket_kommt_heute.eml"
+GLS_DROP_OFF = "110_no_reply_dein_paket_wird_an_dem_gew_nsch.eml"
+GLS_SOON = "111_no_reply_dein_paket_wird_in_wenigen_tage.eml"
+GLS_DELIVERED = "112_no_reply_dein_paket_wurde_an_deinem_wuns.eml"
+GLS_FIRST, GLS_SECOND = "99999999901", "99999999902"
+
+
+def test_gls_mails_create_and_advance_their_own_parcels():
+    parcels: dict[str, Parcel] = {}
+    [change] = _apply(parcels, GLS_DROP_OFF)
+    first = parcels[GLS_FIRST]
+    assert change.created
+    assert (first.carrier, first.carrier_mode, first.name) == ("gls", "mail", "Beispiel GmbH")
+    assert (first.status, first.result.status_text) == (ParcelStatus.PRE_TRANSIT, "Angekündigt")
+    assert first.poll_target == ("gls", GLS_FIRST)
+    _apply(parcels, GLS_TODAY)
+    assert first.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert first.result.eta_date == sent_at(load_mail(GLS_TODAY)).date()
+    _apply(parcels, GLS_DELIVERED)
+    assert (first.status, first.result.status_text) == (ParcelStatus.DELIVERED, "Zugestellt")
+    assert first.result.delivered_at == sent_at(load_mail(GLS_DELIVERED))
+
+    _apply(parcels, GLS_SOON)
+    second = parcels[GLS_SECOND]
+    assert (second.status, second.result.status_text) == (ParcelStatus.IN_TRANSIT, "Unterwegs")
+    assert second.result.eta_from.date() == second.result.eta_date
+    _apply(parcels, GLS_TODAY_SECOND)
+    assert second.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert len(parcels) == 2
+
+
+def test_gls_drop_off_notice_never_moves_a_parcel_back():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, GLS_TODAY)
+    [change] = _apply(parcels, GLS_DROP_OFF)
+    assert change is None
+    assert parcels[GLS_FIRST].status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+def test_gls_mail_merges_into_the_ebay_order_that_named_gls():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, EBAY_SHIPPED)  # window 28.–29.01.2026
+    order = parcels[EBAY_ORDER]
+    order.shipping_carrier_hint = "gls"
+    [gls] = _updates(GLS_SOON)
+    in_window = replace(gls, eta_date=date(2026, 1, 28), eta_from=None, eta_to=None)
+    change = apply_update(parcels, in_window, NOW)
+    assert change.parcel is order and not change.created
+    assert (order.tracking_ref, order.tracking_carrier) == (GLS_SECOND, "gls")
+    assert order.poll_target == ("gls", GLS_SECOND)
+    assert order.name.startswith("Bambu Lab")  # the shop parcel keeps its item title
+    assert len(parcels) == 1
+
+
+def test_gls_mail_outside_the_window_or_without_hint_stays_separate():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, EBAY_SHIPPED)  # hint "hermes"
+    [gls] = _updates(GLS_SOON)  # its own day lies outside the order's window
+    in_window = replace(gls, eta_date=date(2026, 1, 28))
+    assert apply_update(parcels, in_window, NOW).created  # the order named another carrier
+    del parcels[GLS_SECOND]
+    parcels[EBAY_ORDER].shipping_carrier_hint = "gls"
+    assert apply_update(parcels, gls, NOW).created  # day outside the order's window
+    assert parcels[EBAY_ORDER].tracking_ref is None
+
+
+def test_gls_mail_naming_amazon_merges_into_the_one_open_amazon_order():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "074_versandbestaetigung_versendet.eml")
+    [gls] = _updates(GLS_DROP_OFF)  # no day: exactly one order in transit qualifies
+    change = apply_update(parcels, replace(gls, shop="amazon"), NOW)
+    order = parcels[PLAETTCHEN]
+    assert change.parcel is order
+    assert (order.tracking_ref, order.tracking_carrier) == (GLS_FIRST, "gls")
+    assert order.status is ParcelStatus.IN_TRANSIT  # the notice never moves it back
+    assert len(parcels) == 1
+
+
+def test_gls_mail_is_separate_when_two_amazon_orders_are_open():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "074_versandbestaetigung_versendet.eml")
+    _apply(parcels, "075_versandbestaetigung_versendet.eml")
+    [gls] = _updates(GLS_DROP_OFF)
+    change = apply_update(parcels, replace(gls, shop="amazon"), NOW)
+    assert change.created and change.parcel.carrier == "gls"
+    assert parcels[PLAETTCHEN].tracking_ref is None
+
+
+def test_pickup_from_a_mail_reads_abholbereit():
+    parcels: dict[str, Parcel] = {}
+    [gls] = _updates(GLS_DELIVERED)
+    apply_update(parcels, replace(gls, status=ParcelStatus.AWAITING_PICKUP), NOW)
+    result = parcels[GLS_FIRST].result
+    assert (result.status, result.status_text) == (ParcelStatus.AWAITING_PICKUP, "Abholbereit")
+    assert result.delivered_at is None
+
+
+def test_pickup_mail_does_not_keep_the_old_eta():
+    parcels: dict[str, Parcel] = {}
+    [gls] = _updates(GLS_DELIVERED)
+    eta = date(2026, 10, 2)
+    transit = replace(gls, status=ParcelStatus.IN_TRANSIT, eta_date=eta, eta_latest=None)
+    apply_update(parcels, transit, NOW)
+    result = parcels[GLS_FIRST].result
+    assert result.eta_date == eta
+    pickup = replace(gls, status=ParcelStatus.AWAITING_PICKUP, eta_date=None, eta_latest=None)
+    apply_update(parcels, pickup, NOW)
+    result = parcels[GLS_FIRST].result
+    assert result.status is ParcelStatus.AWAITING_PICKUP
+    assert (result.eta_date, result.eta_from, result.eta_to, result.eta_latest) == (None,) * 4
+
+
+def test_pickup_mail_merged_into_a_shop_order_reads_abholbereit():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "074_versandbestaetigung_versendet.eml")
+    [gls] = _updates(GLS_DROP_OFF)
+    pickup = replace(gls, shop="amazon", status=ParcelStatus.AWAITING_PICKUP)
+    change = apply_update(parcels, pickup, NOW)
+    order = parcels[PLAETTCHEN]
+    assert change.parcel is order and order.tracking_ref == GLS_FIRST
+    result = order.result
+    assert (result.status, result.status_text) == (ParcelStatus.AWAITING_PICKUP, "Abholbereit")
+    assert result.events[0].text == "Abholbereit"
+
+
+def test_gls_mail_merges_into_an_order_with_a_raw_hint_from_before_the_upgrade():
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, EBAY_SHIPPED)  # window 28.–29.01.2026
+    order = parcels[EBAY_ORDER]
+    order.shipping_carrier_hint = "GLS Paket"  # stored before carrier_key() knew GLS
+    [gls] = _updates(GLS_SOON)
+    in_window = replace(gls, eta_date=date(2026, 1, 28), eta_from=None, eta_to=None)
+    change = apply_update(parcels, in_window, NOW)
+    assert change.parcel is order and not change.created
+    assert order.poll_target == ("gls", GLS_SECOND)
+    assert len(parcels) == 1
+
+
+def test_raw_hint_of_another_carrier_or_no_hint_does_not_merge():
+    for hint in ("Hermes Germany", "Spedition Beispiel", None):
+        parcels: dict[str, Parcel] = {}
+        _apply(parcels, EBAY_SHIPPED)
+        parcels[EBAY_ORDER].shipping_carrier_hint = hint
+        [gls] = _updates(GLS_SOON)
+        in_window = replace(gls, eta_date=date(2026, 1, 28), eta_from=None, eta_to=None)
+        assert apply_update(parcels, in_window, NOW).created, hint

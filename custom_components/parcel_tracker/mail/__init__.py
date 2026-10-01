@@ -11,8 +11,9 @@ from .amazon import (
     parse_amazon_legacy,
     subject_status,
 )
-from .base import MailResult, body_text, sender, subject
+from .base import MailResult, body_text, is_forwarded, sender, subject
 from .ebay import EBAY_SENDER, parse_ebay
+from .gls import GLS_SENDER, parse_gls_mail
 from .hermes import HERMES_SENDER, parse_hermes_mail
 from .shipping import DHL_SENDER, UPS_SENDER, parse_dhl_mail, parse_generic, parse_ups_mail
 
@@ -60,5 +61,9 @@ def parse_mail(msg: EmailMessage, read_otp: bool = False) -> MailResult:
     if address == UPS_SENDER and (updates := parse_ups_mail(msg)):
         return MailResult(updates=updates)
     if address == HERMES_SENDER and (updates := parse_hermes_mail(msg)):
+        return MailResult(updates=updates)
+    # GLS numbers (11 digits) are never read by the generic parser: a GLS mail someone
+    # forwarded by hand is recognised by its subject instead.
+    if (address == GLS_SENDER or is_forwarded(msg)) and (updates := parse_gls_mail(msg)):
         return MailResult(updates=updates)
     return MailResult(updates=parse_generic(msg))

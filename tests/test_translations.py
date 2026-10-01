@@ -65,7 +65,7 @@ def test_ups_translations_present():
         assert {"ups_auth", "ups_budget"} <= set(strings["issues"])
     services = _load("strings.json")["services"]["add_parcel"]["fields"]["carrier"]
     assert services["description"] == (
-        "auto, dhl, dpd, hermes, ups or other (via 17track, needs a 17track API key)."
+        "auto, dhl, dpd, gls, hermes, ups or other (via 17track, needs a 17track API key)."
     )
 
 
@@ -95,3 +95,10 @@ def test_track17_service_translations_present():
         } <= set(strings["exceptions"])
         assert set(strings["services"]["track_17track"]["fields"]) == {"number"}
         assert "track17_quota" in strings["entity"]["sensor"]
+
+
+def test_postcode_note_names_dhl_and_gls():
+    english = _load("strings.json")["config"]["step"]["user"]["description"]
+    german = _load("translations/de.json")["config"]["step"]["user"]["description"]
+    assert english.endswith("lets DHL return more details and GLS the tracking history.")
+    assert german.endswith("liefert DHL zusätzliche Details und GLS den Sendungsverlauf.")

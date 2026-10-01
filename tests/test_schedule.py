@@ -58,6 +58,23 @@ def test_other_carriers_keep_their_intervals():
     assert poll_interval(ParcelStatus.IN_TRANSIT, NOON, "hermes") == timedelta(minutes=30)
 
 
+@pytest.mark.parametrize(
+    ("status", "minutes"),
+    [
+        (ParcelStatus.OUT_FOR_DELIVERY, 30),  # others: 10 min; GLS is asked at most every 30
+        (ParcelStatus.IN_TRANSIT, 30),
+        (ParcelStatus.AWAITING_PICKUP, 30),
+        (ParcelStatus.PRE_TRANSIT, 60),
+        (ParcelStatus.EXCEPTION, 60),
+        (None, 60),
+    ],
+)
+def test_gls_is_asked_at_most_every_30_minutes(status, minutes):
+    assert poll_interval(status, NOON, "gls") == timedelta(minutes=minutes)
+    assert poll_interval(ParcelStatus.DELIVERED, NOON, "gls") is None
+    assert poll_interval(ParcelStatus.OUT_FOR_DELIVERY, NIGHT, "gls") == timedelta(minutes=60)
+
+
 def test_poll_interval_night_at_least_hourly():
     assert poll_interval(ParcelStatus.OUT_FOR_DELIVERY, NIGHT) == timedelta(minutes=60)
 

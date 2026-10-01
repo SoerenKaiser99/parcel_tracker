@@ -19,6 +19,8 @@ _NIGHT_MIN = timedelta(minutes=60)
 # The UPS API counts against a monthly budget: ask rarely, more often only on the day.
 _UPS_INTERVALS = {ParcelStatus.OUT_FOR_DELIVERY: timedelta(minutes=30)}
 _UPS_DEFAULT = timedelta(hours=4)
+# GLS has no official API: its open lookup is never asked more often than this.
+GLS_MIN_INTERVAL = timedelta(minutes=30)
 
 
 def poll_interval(
@@ -31,6 +33,8 @@ def poll_interval(
         interval = _UPS_INTERVALS.get(status, _UPS_DEFAULT) if status else _UPS_DEFAULT
     else:
         interval = _INTERVALS.get(status, _DEFAULT) if status else _DEFAULT
+    if carrier == "gls":
+        interval = max(interval, GLS_MIN_INTERVAL)
     local_hour = now.astimezone(BERLIN).hour
     if local_hour >= 22 or local_hour < 6:
         interval = max(interval, _NIGHT_MIN)

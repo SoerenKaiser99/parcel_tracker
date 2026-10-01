@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
@@ -50,6 +50,7 @@ LOCAL_CARD_URL = "/local/parcel_tracker/parcel-tracker-card.js"
 
 CARRIER_AUTO = "auto"
 MAX_EVENTS = 5
+GLS_MAX_EVENTS = 20  # GLS history entries kept per parcel
 
 # Shops whose orders become parcels ("AMZ…", "EBAY…"); only mails or a merged
 # carrier number (tracking_ref) tell their status, the order itself is never polled.
@@ -58,12 +59,15 @@ MAIL_CARRIERS = SHOP_CARRIERS
 # Polled only while their optional API is configured; otherwise mail-only.
 OPTIONAL_API_CARRIERS = frozenset({"ups"})
 # Carriers a user can pick for a manually added parcel.
-SELECTABLE_CARRIERS = ("dhl", "dpd", "hermes", "ups")
+SELECTABLE_CARRIERS = ("dhl", "dpd", "gls", "hermes", "ups")
+# Their lookup often tells no delivery day: the day a mail named is kept then.
+MAIL_ETA_CARRIERS = frozenset({"hermes", "gls"})
 # A carrier without own connection: status only via 17track (needs a 17track key).
 CARRIER_OTHER = "other"
 CARRIER_NAMES = {
     "dhl": "DHL",
     "dpd": "DPD",
+    "gls": "GLS",
     "hermes": "Hermes",
     "ups": "UPS",
     "amazon": "Amazon",
@@ -91,7 +95,13 @@ TRACK17_QUOTA_INTERVAL = timedelta(days=1)
 TRACK17_QUOTA_RETRY = timedelta(hours=1)
 TRACK17_QUOTA_LOW = 10
 # 17track carrier codes of our carriers (sent when registering) and names of known codes.
-TRACK17_CARRIER_CODES = {"dpd": 100007, "dhl": 7041, "hermes": 100031, "ups": 100002}
+TRACK17_CARRIER_CODES = {
+    "dpd": 100007,
+    "dhl": 7041,
+    "hermes": 100031,
+    "ups": 100002,
+    "gls": 101070,
+}
 TRACK17_CARRIER_NAMES = {
     100007: "DPD",
     7041: "DHL",
