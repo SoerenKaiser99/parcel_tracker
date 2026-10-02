@@ -44,11 +44,27 @@ Was (noch) nicht geht: siehe [Roadmap & Status](#roadmap--status). Amazon- und e
 
 ## Installation
 
-1. HACS öffnen → Menü (⋮) → **Benutzerdefinierte Repositories**.
-2. Repository `https://github.com/SoerenKaiser99/parcel_tracker` eintragen, Kategorie **Integration** wählen.
-3. Paket Tracker installieren.
+### Mit HACS (empfohlen)
+
+HACS lädt die Integration nur herunter. Eingerichtet wird sie danach in Home Assistant selbst (Schritt 5) – ohne diesen Schritt passiert nichts.
+
+1. HACS öffnen → Menü (⋮) oben rechts → **Benutzerdefinierte Repositories**.
+2. Repository `https://github.com/SoerenKaiser99/parcel_tracker` eintragen, Typ **Integration** wählen, hinzufügen.
+3. In HACS nach „Paket Tracker" suchen, öffnen und **Herunterladen** wählen.
 4. Home Assistant neu starten.
-5. **Einstellungen → Geräte & Dienste → Integration hinzufügen** → "Paket Tracker" suchen und einrichten.
+5. **Einstellungen → Geräte & Dienste → Integration hinzufügen** → „Paket Tracker" suchen und einrichten.
+6. Seite einmal neu laden, dann im Dashboard die Karte „Paket Tracker" hinzufügen (siehe [Karte hinzufügen](#karte-hinzufügen)).
+
+Taucht „Paket Tracker" in Schritt 5 nicht auf: In HACS prüfen, ob die Integration unter den heruntergeladenen steht, und Home Assistant noch einmal neu starten. Dass das Repository nach dem Herunterladen nicht mehr im Dialog „Benutzerdefinierte Repositories" erscheint, ist kein Fehler.
+
+### Ohne HACS (von Hand)
+
+1. Auf der [Release-Seite](https://github.com/SoerenKaiser99/parcel_tracker/releases/latest) die Datei `parcel_tracker.zip` herunterladen.
+2. Im Konfigurationsordner von Home Assistant den Ordner `custom_components/parcel_tracker` anlegen und den Inhalt der ZIP-Datei dort hinein entpacken (die Datei `manifest.json` liegt dann direkt in diesem Ordner).
+3. Home Assistant neu starten.
+4. Weiter wie oben ab Schritt 5.
+
+Updates kommen auf diesem Weg nicht von selbst: Für eine neue Version die ZIP-Datei erneut herunterladen, den Ordnerinhalt ersetzen und Home Assistant neu starten.
 
 ### Einrichtungsfelder
 
