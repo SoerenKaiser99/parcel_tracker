@@ -113,6 +113,7 @@ TOP_LEVEL = [
     "track17",
     "mail_import",
     "notifications",
+    "pending_announcements",
     "parcels",
 ]
 
@@ -713,3 +714,18 @@ async def test_diagnostics_tell_only_the_number_of_notify_targets(hass, hass_sto
     for private in (*targets[:-1], "mobile_app", "erika", "wohnzimmer", "notify.", "Musterweg",
                     "pushover", "telegram", "service:"):
         assert private not in text, private
+
+
+async def test_diagnostics_count_pending_announcements_only(hass, hass_storage, freezer):
+    """Only how many parcels still wait for their status event, nothing about them."""
+    entry = await _setup(hass, hass_storage, freezer)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["pending_announcements"] == 0
+    parcels = entry.runtime_data.store.parcels
+    parcels[JJD].unannounced_from = ParcelStatus.PRE_TRANSIT
+    # Back at the status it had: nothing is pending for this one.
+    parcels[OTHER].unannounced_from = ParcelStatus.DELIVERED
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["pending_announcements"] == 1
+    assert all("unannounced_from" not in parcel for parcel in result["parcels"])
+    assert "unannounced" not in _dump(result)

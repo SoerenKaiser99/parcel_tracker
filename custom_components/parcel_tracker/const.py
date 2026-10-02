@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.7"
+VERSION = "0.3.8"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
@@ -47,6 +47,9 @@ DHL_DAILY_SOFT_LIMIT = 200
 CARRIER_BROKEN_AFTER = timedelta(hours=24)
 
 EVENT_STATUS_CHANGED = "parcel_tracker_status_changed"
+# Status changes found while Home Assistant starts are announced once it has started,
+# but never later than this after the first refresh (a start can hang for minutes).
+ANNOUNCE_MAX_WAIT = timedelta(seconds=120)
 # Statuses a push notification can announce (in the order the options show them)
 # and the ones ticked by default.
 NOTIFY_EVENTS = ("out_for_delivery", "delivered", "awaiting_pickup", "exception")

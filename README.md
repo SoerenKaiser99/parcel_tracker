@@ -260,7 +260,7 @@ Der Schalter „Benachrichtigungen aktiv“ schaltet sich mit dem ersten Ziel vo
 
 Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert – egal, ob der neue Status vom Carrier oder aus einer Mail kommt. Also nicht doppelt für denselben Status und nicht, wenn ein Carrier nach 17track mit einem älteren Stand antwortet.
 
-Wechselt ein Paket den Status, während Home Assistant neu startet oder die Integration neu lädt (etwa nach dem Speichern der Optionen), geht nichts verloren: Event und Benachrichtigung folgen genau einmal, sobald Home Assistant fertig gestartet ist – nach einem Neuladen im laufenden Betrieb sofort. Mehrere Wechsel in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status. Der allererste Status eines neuen Pakets wird nie gemeldet.
+Wechselt ein Paket den Status, während Home Assistant neu startet oder die Integration neu lädt (etwa nach dem Speichern der Optionen), geht nichts verloren: Event und Benachrichtigung folgen genau einmal, sobald Home Assistant fertig gestartet ist, spätestens zwei Minuten nachdem die Integration geladen wurde – nach einem Neuladen im laufenden Betrieb sofort. Eine noch ausstehende Meldung wird mit dem Paket gespeichert: Sie übersteht auch ein erneutes Neuladen und einen weiteren Neustart, bevor sie gesendet wurde. Mehrere Wechsel in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status. Der allererste Status eines neuen Pakets wird nie gemeldet.
 
 Der Titel ist „Paket Tracker“, der Text eine Zeile:
 

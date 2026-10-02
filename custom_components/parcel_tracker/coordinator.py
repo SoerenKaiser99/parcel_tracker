@@ -15,6 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.start import async_at_started
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
@@ -43,6 +44,7 @@ from .carriers.track17 import (
 from .carriers.ups import BudgetExhausted, UpsCarrier, next_month_start
 from .const import (
     AMAZON_UNRECOGNIZED_LIMIT,
+    ANNOUNCE_MAX_WAIT,
     CARRIER_AUTO,
     CARRIER_BROKEN_AFTER,
     CARRIER_OTHER,
@@ -162,11 +164,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self.carriers = carriers
         self._first_refresh_done = False
         # Status changes are announced (event and notification) once the first refresh
-        # is done and Home Assistant has started; found earlier, they wait here:
-        # tracking number -> the status the parcel had before.
+        # is done and Home Assistant has started, at the latest ANNOUNCE_MAX_WAIT after
+        # that refresh. Found earlier, they wait in the parcel itself
+        # (Parcel.unannounced_from, stored), so a reload or a restart loses nothing.
         self._announcing = False
-        self._waiting: dict[str, ParcelStatus] = {}
         self._unsub_started: CALLBACK_TYPE | None = None
+        self._unsub_wait: CALLBACK_TYPE | None = None
+        # Markers cleared by announcing that are not written to disk yet.
+        self._unsaved_announced = False
         self._stopped = False
         self._first_fail: dict[str, datetime] = {}
         self._dhl_day: date | None = None
@@ -252,34 +257,81 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         elif not self._stopped:
             self._first_refresh_done = True
             # Right away while Home Assistant is running (a reload); during its start
-            # once it has started, so automations and notify targets are loaded.
-            unsub = async_at_started(self.hass, self._start_announcing)
+            # once it has started, so automations and notify targets are loaded - but
+            # not later than ANNOUNCE_MAX_WAIT from now: the start can hang for minutes.
+            unsub = async_at_started(self.hass, self._on_started)
             if not self._announcing:
                 self._unsub_started = unsub
+                self._unsub_wait = async_call_later(
+                    self.hass, ANNOUNCE_MAX_WAIT, self._on_waited
+                )
         return dict(self.store.parcels)
 
     @callback
-    def _start_announcing(self, _hass: HomeAssistant | None = None) -> None:
-        """Announce what was found so far, each parcel once, and everything later at once."""
-        self._unsub_started = None
-        if self._stopped:
-            return
-        self._announcing = True
-        waiting, self._waiting = self._waiting, {}
-        for number, old in waiting.items():
-            parcel = self.store.get(number)
-            # Gone meanwhile, or back at the status it had: nothing to tell.
-            if parcel is None or parcel.result is None or parcel.status is old:
-                continue
-            self._announce(parcel, old)
+    def _on_started(self, _hass: HomeAssistant) -> None:
+        self._unsub_started = None  # a one-time listener: already gone
+        self._start_announcing()
 
-    async def async_shutdown(self) -> None:
-        """Unload: stop waiting for the start; what was not announced yet is dropped."""
-        self._stopped = True
+    @callback
+    def _on_waited(self, _now: datetime) -> None:
+        self._unsub_wait = None  # the timer has fired
+        self._start_announcing()
+
+    @callback
+    def _stop_waiting(self) -> None:
+        """Drop the start listener and the timer, whichever is still there."""
         if self._unsub_started is not None:
             self._unsub_started()
             self._unsub_started = None
-        self._waiting.clear()
+        if self._unsub_wait is not None:
+            self._unsub_wait()
+            self._unsub_wait = None
+
+    @callback
+    def _start_announcing(self) -> None:
+        """Announce what was found so far, each parcel once, and everything later at once.
+
+        Also picks up what an earlier run of the integration (before a reload or a
+        restart) found and could not announce any more. Order: announce, clear the
+        marker, write the store. An unload in between waits for that write (see
+        async_shutdown), so only a crash in exactly that moment announces a change a
+        second time after the restart - rather twice than never.
+        """
+        self._stop_waiting()
+        if self._stopped or self._announcing:
+            return
+        self._announcing = True
+        cleared = False
+        for parcel in list(self.store.parcels.values()):
+            old = parcel.unannounced_from
+            if old is None:
+                continue
+            parcel.unannounced_from = None
+            cleared = True
+            # Back at the status it had: nothing to tell.
+            if parcel.result is None or parcel.status is old:
+                continue
+            self._announce(parcel, old)
+        if cleared:
+            self._unsaved_announced = True
+            self.hass.async_create_task(
+                self._save_announced(), f"{DOMAIN} save announced", eager_start=True
+            )
+
+    async def _save_announced(self) -> None:
+        await self.store.async_save()
+        self._unsaved_announced = False
+
+    async def async_shutdown(self) -> None:
+        """Unload: stop waiting for the start. What was not announced yet stays stored
+        with its parcel and is announced by the next coordinator."""
+        self._stopped = True
+        self._stop_waiting()
+        if self._unsaved_announced:
+            # Announced a moment ago: the next coordinator must read that from disk.
+            # Writes of one store run one after the other, so this ends after the
+            # write that announcing started.
+            await self._save_announced()
         await super().async_shutdown()
 
     def _cleanup(self, now: datetime) -> bool:
@@ -637,12 +689,19 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         return status is not announced
 
     def _fire(self, parcel: Parcel, old: ParcelStatus) -> None:
-        """A parcel's status changed: announce it, or keep it until announcing starts."""
+        """A parcel's status changed: announce it, or keep it until announcing starts.
+
+        Kept in the parcel; every caller saves the store afterwards.
+        """
         if self._announcing:
             self._announce(parcel, old)
-        elif not self._stopped:
-            # Several changes in a row become one, from the oldest status to the latest.
-            self._waiting.setdefault(parcel.number, old)
+        elif parcel.unannounced_from is None:
+            parcel.unannounced_from = old
+        elif parcel.status is parcel.unannounced_from:
+            # Back at the status it had before the first change: nothing to tell.
+            parcel.unannounced_from = None
+        # Otherwise several changes in a row become one, from the oldest status to
+        # the latest.
 
     def _announce(self, parcel: Parcel, old: ParcelStatus) -> None:
         r = parcel.result
@@ -970,6 +1029,12 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         today = dt_util.as_local(dt_util.utcnow()).date()
         quota = self.track17_quota
         return {
+            "pending_announcements": sum(
+                1
+                for parcel in self.store.parcels.values()
+                if parcel.unannounced_from is not None
+                and parcel.status is not parcel.unannounced_from
+            ),
             "dhl_calls_today": self._dhl_calls if self._dhl_day == today else 0,
             "track17": {
                 "configured": self.track17 is not None,

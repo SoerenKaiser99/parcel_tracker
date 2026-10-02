@@ -124,3 +124,32 @@ def test_shipping_carrier_hint_roundtrip_and_backward_compat():
     old = _mail_parcel().to_dict()
     del old["shipping_carrier_hint"]
     assert Parcel.from_dict(old).shipping_carrier_hint is None
+
+
+def test_unannounced_from_roundtrip():
+    """The status a parcel had before a change that is still to be announced."""
+    now = datetime(2026, 9, 29, 10, 0, tzinfo=UTC)
+    p = Parcel("123", "dpd", "auto", None, now, now, result=_result())
+    assert p.unannounced_from is None
+    assert p.to_dict()["unannounced_from"] is None
+    p.unannounced_from = ParcelStatus.PRE_TRANSIT
+    assert p.to_dict()["unannounced_from"] == "pre_transit"
+    assert Parcel.from_dict(p.to_dict()) == p
+    assert Parcel.from_dict(p.to_dict()).unannounced_from is ParcelStatus.PRE_TRANSIT
+
+
+def test_old_stored_parcel_loads_without_unannounced_from():
+    now = datetime(2026, 9, 29, 10, 0, tzinfo=UTC)
+    old = Parcel("123", "dpd", "auto", None, now, now, result=_result()).to_dict()
+    del old["unannounced_from"]
+    assert Parcel.from_dict(old).unannounced_from is None
+
+
+def test_unreadable_unannounced_from_does_not_cost_the_parcel():
+    now = datetime(2026, 9, 29, 10, 0, tzinfo=UTC)
+    stored = Parcel("123", "dpd", "auto", None, now, now, result=_result()).to_dict()
+    for odd in ("no_status", "", 7, ["in_transit"], {"a": 1}):
+        stored["unannounced_from"] = odd
+        p = Parcel.from_dict(stored)
+        assert p.unannounced_from is None
+        assert p.status is ParcelStatus.IN_TRANSIT

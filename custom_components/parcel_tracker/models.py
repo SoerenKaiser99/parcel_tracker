@@ -53,6 +53,14 @@ def _iso(value: date | datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
+def _status(value: Any) -> ParcelStatus | None:
+    """A stored status; anything unreadable counts as not set."""
+    try:
+        return ParcelStatus(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+
+
 @dataclass(frozen=True)
 class TrackingEvent:
     """One scan event."""
@@ -150,6 +158,10 @@ class Parcel:
     track17_carrier: int | None = None  # 17track carrier code
     track17_next_at: datetime | None = None  # None while registered = polling ended
     track17_result: TrackingResult | None = None  # last 17track answer, re-applied after polls
+    # A status change that is not announced yet (event and notification): the status the
+    # parcel had before the first such change. Persisted, so it survives a reload and a
+    # restart; None once announced or when the parcel is back at that status.
+    unannounced_from: ParcelStatus | None = None
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -202,6 +214,7 @@ class Parcel:
             "track17_carrier": self.track17_carrier,
             "track17_next_at": _iso(self.track17_next_at),
             "track17_result": self.track17_result.to_dict() if self.track17_result else None,
+            "unannounced_from": self.unannounced_from.value if self.unannounced_from else None,
         }
 
     @classmethod
@@ -231,6 +244,7 @@ class Parcel:
                 if data.get("track17_result")
                 else None
             ),
+            unannounced_from=_status(data.get("unannounced_from")),
         )
 
 

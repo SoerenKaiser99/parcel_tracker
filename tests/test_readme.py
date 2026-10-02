@@ -486,3 +486,17 @@ def test_readme_explains_sure_and_possible_parcels_of_today():
     for text in ("„1 heute · 1 möglich“", "„1 möglich“", "„Bis 5. Okt.“", "Lieferspanne"):
         assert text in card, text
     assert "bitte" not in (sensors + card).lower()
+
+
+def test_readme_status_changes_during_start_and_reload():
+    """v0.3.8: announced once Home Assistant has started, at the latest two minutes
+    after the integration loaded; a pending announcement survives a reload."""
+    section = _section("Benachrichtigungen")
+    for text in (
+        "geht nichts verloren",
+        "sobald Home Assistant fertig gestartet ist",
+        "spätestens zwei Minuten nachdem die Integration geladen wurde",
+        "übersteht auch ein erneutes Neuladen",
+        "nach einem Neuladen im laufenden Betrieb sofort",
+    ):
+        assert text in section, text

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from custom_components.parcel_tracker.carriers.ups import ApiBudget
-from custom_components.parcel_tracker.models import Parcel
+from custom_components.parcel_tracker.models import Parcel, ParcelStatus
 from custom_components.parcel_tracker.store import DuplicateParcel, ParcelStore
 
 NOW = datetime(2026, 9, 29, 10, 0, tzinfo=UTC)
@@ -108,3 +108,35 @@ async def test_ups_budget_persists_and_old_storage_starts_empty(hass, hass_stora
     hass_storage["parcel_tracker"]["data"]["ups_budget"] = "garbage"
     await fresh.async_load()
     assert fresh.ups_budget == ApiBudget()
+
+
+async def test_store_file_of_an_older_version_loads_without_pending_announcements(
+    hass, hass_storage
+):
+    """v0.3.7 and older never wrote ``unannounced_from``."""
+    old = Parcel("09999999999901", "dpd", "auto", "Test", NOW, NOW).to_dict()
+    del old["unannounced_from"]
+    hass_storage["parcel_tracker"] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": "parcel_tracker",
+        "data": {"parcels": [old], "message_ids": [], "ups_budget": None},
+    }
+    store = ParcelStore(hass)
+    await store.async_load()
+    assert store.get("09999999999901").name == "Test"
+    assert store.get("09999999999901").unannounced_from is None
+
+
+async def test_pending_announcement_persists(hass, hass_storage):
+    store = ParcelStore(hass)
+    await store.async_load()
+    parcel = Parcel("09999999999901", "dpd", "auto", "Test", NOW, NOW)
+    parcel.unannounced_from = ParcelStatus.IN_TRANSIT
+    store.add(parcel)
+    await store.async_save()
+    stored = hass_storage["parcel_tracker"]["data"]["parcels"][0]
+    assert stored["unannounced_from"] == "in_transit"
+    fresh = ParcelStore(hass)
+    await fresh.async_load()
+    assert fresh.get("09999999999901").unannounced_from is ParcelStatus.IN_TRANSIT

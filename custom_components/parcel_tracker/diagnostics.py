@@ -220,5 +220,6 @@ async def async_get_config_entry_diagnostics(
         "track17": state["track17"],
         "mail_import": state["mail_import"],
         "notifications": _notifications(entry.options),
+        "pending_announcements": state["pending_announcements"],
         "parcels": [_parcel(parcel) for parcel in coordinator.store.parcels.values()],
     }
