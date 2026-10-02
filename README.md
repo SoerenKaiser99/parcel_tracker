@@ -82,15 +82,17 @@ Alle drei Felder lassen sich später über **Konfigurieren** an der Integration 
 
 ## DHL-API-Key anlegen
 
-1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden.
+1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain (siehe Hinweis unten).
 2. Zu **Meine Apps** wechseln und eine neue App anlegen.
-3. Das Feld **Firma / Company** ausfüllen – **Pflichtfeld**: Bleibt es leer, lehnt DHL den Key ab. Auch als Privatperson etwas eintragen, z. B. eine Domain.
+3. Das Feld **Firma / Company** ausfüllen – **Pflichtfeld**: Bleibt es leer, lehnt DHL den Key ab. Auch als Privatperson etwas eintragen, das zur E-Mail-Adresse des Kontos passt, z. B. die eigene Domain.
 4. Als API **"Shipment Tracking – Unified"** auswählen (nicht "Parcel DE …").
 5. Als Environment **"Production (Europe)"** wählen.
 6. Nur der **API Key** wird gebraucht, das Secret nicht.
 7. Die Freischaltung dauert bis zu 24 Stunden.
 
-Wurde der Key abgelehnt, war meist das Feld **Firma / Company** leer: dort etwas eintragen und den Key erneut beantragen.
+**Key abgelehnt?** DHL nennt in der Ablehnungsmail als Bedingung einen gültigen Firmennamen **und eine dazu passende Domain-E-Mail-Adresse**. Es reicht also nicht, nur das Feld **Firma / Company** auszufüllen: Das DHL-Konto selbst sollte auf eine Adresse unter eigener Domain laufen (eigene Domain oder Arbeitsadresse), und der Firmenname sollte dazu passen. Mit Freemail-Adressen (Gmail, GMX, web.de …) wird der Antrag häufig abgelehnt. Danach den Key erneut beantragen.
+
+Ohne DHL-Key läuft die Integration trotzdem: DPD, GLS und Hermes brauchen keine Zugangsdaten, DHL-Pakete kommen weiter aus den DHL-Mails, und „Details über 17track holen“ liefert Status und Verlauf über [17track](#17track-optional).
 
 ## GLS
 
