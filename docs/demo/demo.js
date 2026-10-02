@@ -3,6 +3,10 @@
 //
 //   ?theme=dark   dark theme
 //   ?open=<n>     expand the n-th parcel of the list (or a parcel number)
+//   ?add=open     open the add form behind the plus button (default: collapsed)
+//   ?add=always   card option add_form: always (form always shown, no plus button)
+//   ?add=never    card option add_form: never (no form, no plus button)
+//   ?hint=1       pretend the integration was updated: the card shows its reload hint
 //   ?shot=1       only the card (used for the README screenshots)
 (function () {
   "use strict";
@@ -176,6 +180,8 @@
     friendly_name: "Pakete heute",
     parcels: items("sure"), possible: items("possible"),
     possible_count: items("possible").length,
+    // CARD_VERSION is the card's own constant: equal means "no reload needed".
+    integration_version: params.has("hint") ? `${CARD_VERSION}-neu` : CARD_VERSION,
   });
   add("sensor.paket_tracker_17track_kontingent", "187", {
     friendly_name: "Paket Tracker 17track-Kontingent", total: 200, used: 13 });
@@ -191,7 +197,11 @@
   };
 
   const card = document.createElement("parcel-tracker-card");
-  card.setConfig({ type: "custom:parcel-tracker-card" });
+  const addForm = params.get("add");
+  card.setConfig({
+    type: "custom:parcel-tracker-card",
+    ...(addForm === "always" || addForm === "never" ? { add_form: addForm } : {}),
+  });
   card.hass = hass;
   document.getElementById("card").appendChild(card);
 
@@ -202,6 +212,8 @@
     const row = rows.find((r) => r.dataset.number === open) || rows[Number(open) - 1];
     if (row) row.click();
   }
+  // ?add=open: click the plus button like a user would.
+  if (addForm === "open") card.shadowRoot.getElementById("toggle").click();
 
   window.demo = { hass, card, todayGroup };
   // For the screenshot script: the page is rendered, and this is how tall its content is.

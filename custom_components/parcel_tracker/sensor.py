@@ -14,7 +14,7 @@ from homeassistant.util import slugify
 
 from . import ParcelConfigEntry
 from .carriers.track17 import ENRICH_LOCATION
-from .const import CARRIER_OTHER, TRACK17_SOURCE
+from .const import CARRIER_OTHER, TRACK17_SOURCE, VERSION
 from .coordinator import ParcelCoordinator
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .models import carrier_name as _carrier_name
@@ -163,6 +163,7 @@ class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_translation_key = "today"
     _attr_has_entity_name = False
     _attr_icon = "mdi:truck-delivery"
+    _unrecorded_attributes = frozenset({"integration_version"})
 
     def __init__(self, coordinator: ParcelCoordinator) -> None:
         super().__init__(coordinator)
@@ -206,6 +207,9 @@ class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "parcels": self._items(self._group(TODAY_SURE)),
             "possible": self._items(possible),
             "possible_count": len(possible),
+            # The card compares this with its own version: a browser that still runs the
+            # card from before an update shows a hint to reload the page.
+            "integration_version": VERSION,
         }
 
 

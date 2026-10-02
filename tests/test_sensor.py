@@ -5,9 +5,9 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.parcel_tracker.const import CONF_POSTCODE, DOMAIN
+from custom_components.parcel_tracker.const import CONF_POSTCODE, DOMAIN, VERSION
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
-from custom_components.parcel_tracker.sensor import ParcelSensor
+from custom_components.parcel_tracker.sensor import ParcelSensor, TodaySensor
 from custom_components.parcel_tracker.store import ParcelStore
 
 from .conftest import DAYTIME
@@ -261,6 +261,16 @@ async def test_today_without_possible_parcels_has_empty_list(hass, freezer):
     assert today.state == "1"
     assert today.attributes["possible"] == []
     assert today.attributes["possible_count"] == 0
+
+
+async def test_today_sensor_names_the_integration_version_for_the_card(hass, freezer):
+    """The card compares it with its own version and asks for a page reload if they differ."""
+    freezer.move_to(DAYTIME)
+    await _setup_with(hass, [])
+    today = hass.states.get("sensor.pakete_heute")
+    assert today.attributes["integration_version"] == VERSION
+    # Constant between updates: nothing for the history.
+    assert "integration_version" in TodaySensor._unrecorded_attributes
 
 
 async def test_possible_parcel_becomes_sure_when_its_data_says_so(hass, freezer):

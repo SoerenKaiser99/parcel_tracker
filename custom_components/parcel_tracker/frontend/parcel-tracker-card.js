@@ -1,4 +1,7 @@
 const CARRIER_ICONS = {"dhl": {"path": "M4.22 10.303l-.767 1.043h4.18c.21 0 .208.078.105.218-.105.142-.28.39-.386.534-.054.073-.154.207.171.207h1.71l.505-.69c.314-.426.028-1.312-1.095-1.312H4.22zM11.424 10.303l-1.475 2.002h5.39l1.473-2.002H14.61l-.843 1.146h-.985l.846-1.146h-2.203zM17.529 10.303l-1.474 2.002h2.334l1.472-2.002H17.53zM4.684 11.603l-1.54 2.094h3.754c1.24 0 1.932-.844 2.145-1.136h-2.56c-.326 0-.226-.133-.172-.207.107-.143.283-.388.388-.53.104-.14.107-.22-.105-.22h-1.91zM9.762 12.562l-.836 1.136h2.203l.836-1.136H9.762zM12.947 12.562l-.836 1.136h2.203l.836-1.136h-2.203zM15.865 12.562s-.159.22-.238.326c-.276.374-.033.81.87.81h3.538l.834-1.136h-5.004z", "color": "#FFCC00", "mark": "#D40511"}, "dpd": {"path": "M16.01 10.71a.364.364 0 01-.343-.006l-.558-.331a.43.43 0 01-.182-.312l-.014-.65a.363.363 0 01.165-.3l6.7-3.902L12.377.085A.799.799 0 0012 0a.798.798 0 00-.377.085l-9.4 5.124 10.53 6.13c.098.054.172.181.172.295v8.944c0 .112-.08.241-.178.294l-.567.315c-.171.062-.256.043-.361 0l-.569-.315a.362.362 0 01-.175-.294v-7.973a.223.223 0 00-.095-.156L1.702 7.048v10.579c0 .236.167.528.371.648l9.556 5.636c.102.06.237.09.371.089a.745.745 0 00.371-.09l9.557-5.635a.835.835 0 00.37-.648V7.047Z", "color": "#DC0032"}, "amazon": {"path": "M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z", "color": "#FF9900"}, "ups": {"path": "M11.668 14.544l-.028-5.226c.138-.055.387-.111.608-.111.995 0 1.41.774 1.41 2.682 0 1.853-.47 2.765-1.438 2.765-.22 0-.441-.055-.552-.11zM3.124 7.438c4.203-3.843 9.29-4.866 14.018-4.866 1.3 0 2.544.083 3.76.194h-.028v11.253c0 2.184-.774 3.926-2.295 5.171-1.355 1.134-5.447 2.959-6.581 3.456-1.161-.525-5.253-2.378-6.581-3.456-1.493-1.244-2.295-3.014-2.295-5.171V7.438zm12.664 2.599c.028.912.276 1.576 1.687 2.406.747.442 1.051.747 1.051 1.272 0 .581-.387.94-1.023.94-.553 0-1.189-.304-1.631-.691v1.576c.553.304 1.217.525 1.88.525 1.687 0 2.433-1.189 2.461-2.267.028-.995-.249-1.742-1.659-2.571-.608-.387-1.134-.636-1.106-1.244 0-.581.525-.802.995-.802.581 0 1.161.332 1.521.691V8.378c-.304-.221-.94-.581-1.88-.553-1.135.028-2.296.829-2.296 2.212zm-5.834 9.484h1.714l-.028-3.594c.166.028.415.083.774.083 1.908 0 2.986-1.687 2.986-4.175 0-2.461-1.106-4.009-3.152-4.009-.94 0-1.687.221-2.295.608v11.087zm-5.945-6.166c0 1.797.829 2.71 2.516 2.71 1.051 0 1.908-.249 2.571-.691V7.991H7.41v6.387c-.194.138-.47.221-.802.221-.774 0-.885-.719-.885-1.189V7.991H4.009v5.364zM22.12 2.295v11.723c0 2.516-.94 4.645-2.765 6.111-1.549 1.3-6.332 3.429-7.355 3.871-1.023-.442-5.806-2.571-7.355-3.843-1.797-1.465-2.765-3.594-2.765-6.111V2.295C4.756.747 8.074 0 12 0s7.244.747 10.12 2.295zm-.304.221c-2.71-1.465-6-2.184-9.788-2.184s-7.079.746-9.788 2.184v11.502c0 2.433.912 4.452 2.627 5.862 1.576 1.3 6.581 3.484 7.161 3.76.581-.249 5.585-2.433 7.161-3.733 1.714-1.41 2.627-3.429 2.627-5.862V2.516zm-2.433 20.295c0 .47-.387.829-.829.829a.831.831 0 0 1-.829-.829c0-.47.387-.829.829-.829.441 0 .801.359.829.829zm-.166 0a.679.679 0 0 0-.664-.691c-.359 0-.664.332-.664.691 0 .359.304.664.664.664a.673.673 0 0 0 .664-.664zm-.553.055c.028.055.304.442.304.442h-.221s-.276-.387-.276-.415h-.028v.415h-.194v-.995l.304-.028c.249 0 .332.166.332.304s-.083.25-.221.277zm.027-.276c0-.055 0-.138-.166-.138h-.083v.304h.028c.194 0 .221-.083.221-.166z", "color": "var(--primary-text-color)"}, "ebay": {"path": "M6.056 12.132v-4.92h1.2v3.026c.59-.703 1.402-.906 2.202-.906 1.34 0 2.828.904 2.828 2.855 0 .233-.015.457-.06.668.24-.953 1.274-1.305 2.896-1.344.51-.018 1.095-.018 1.56-.018v-.135c0-.885-.556-1.244-1.53-1.244-.72 0-1.245.3-1.305.81h-1.275c.136-1.29 1.5-1.62 2.686-1.62 1.064 0 1.995.27 2.415 1.02l-.436-.84h1.41l2.055 4.125 2.055-4.126H24l-3.72 7.305h-1.346l1.07-2.04-2.33-4.38c.13.255.2.555.2.93v2.46c0 .346.01.69.04 1.005H16.8a6.543 6.543 0 01-.046-.765c-.603.734-1.32.96-2.32.96-1.48 0-2.272-.78-2.272-1.695 0-.15.015-.284.037-.405-.3 1.246-1.36 2.086-2.767 2.086-.87 0-1.694-.315-2.2-.93 0 .24-.015.494-.04.734h-1.18c.02-.39.04-.855.04-1.245v-1.05h-4.83c.065 1.095.818 1.74 1.853 1.74.718 0 1.355-.3 1.568-.93h1.24c-.24 1.29-1.61 1.725-2.79 1.725C.95 15.009 0 13.822 0 12.232c0-1.754.982-2.91 3.116-2.91 1.688 0 2.93.886 2.94 2.806v.005zm9.137.183c-1.095.034-1.77.233-1.77.95 0 .465.36.97 1.305.97 1.26 0 1.935-.69 1.935-1.814v-.13c-.45 0-.99.006-1.484.022h.012zm-6.06 1.875c1.11 0 1.876-.806 1.876-2.02s-.768-2.02-1.893-2.02c-1.11 0-1.89.806-1.89 2.02s.765 2.02 1.875 2.02h.03zm-4.35-2.514c-.044-1.125-.854-1.546-1.725-1.546-.944 0-1.694.474-1.815 1.546z", "color": "#E53238"}};
+// The version of the integration this file ships with. The browser keeps an old card after
+// an update until the page is reloaded: sensor.pakete_heute names the installed version.
+const CARD_VERSION = "0.3.9";
 const CARRIER_LABEL = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", ups: "UPS", amazon: "Amazon", ebay: "eBay", other: "17track" };
 // Simple Icons' "hermes" is not used for the parcel service, it has no GLS logo, and
 // "other" has no logo: a coloured dot with letters instead.
@@ -179,9 +182,37 @@ const track17Question = (rest) => (rest == null
   ? "Verbraucht 1 17track-Nummer. Fortfahren?"
   : `Verbraucht 1 von ${rest} verbleibenden 17track-Nummern. Fortfahren?`);
 
+// Card option add_form: "button" (the form opens behind the plus), "always" (form always
+// shown, no plus), "never" (neither). Anything else is "button".
+const ADD_FORM_MODES = ["button", "always", "never"];
+function addFormMode(config) {
+  const value = config && typeof config.add_form === "string" ? config.add_form.trim().toLowerCase() : "";
+  return ADD_FORM_MODES.includes(value) ? value : "button";
+}
+
+const ADD_LABEL = "Sendung hinzufügen";
+const CLOSE_LABEL = "Eingabe schließen";
+
+const EMPTY_TEXT = {
+  button: "Noch keine Pakete. Über das Plus oben fügst du eine Sendung hinzu.",
+  always: "Noch keine Pakete. Trag oben eine Sendungsnummer ein.",
+  never: "Noch keine Pakete.",
+};
+const emptyText = (mode) => EMPTY_TEXT[mode] || EMPTY_TEXT.button;
+
+// True when the integration (attribute of sensor.pakete_heute) is another version than this
+// file: the browser still runs the card from before the update. No attribute, no hint.
+function needsReload(today) {
+  const version = today && today.attributes ? today.attributes.integration_version : null;
+  return typeof version === "string" && version !== "" && version !== CARD_VERSION;
+}
+
 class ParcelTrackerCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
+    this._mode = addFormMode(this._config);
+    // Open or closed is kept per card and across renders, not stored anywhere.
+    this._formOpen = this._mode === "button" && this._formOpen === true;
     this._open = new Set();
     this._renaming = new Map(); // number -> current input text
     this._confirming = new Set(); // numbers awaiting delete confirmation
@@ -191,6 +222,8 @@ class ParcelTrackerCard extends HTMLElement {
     this._addAskText = null; // the question currently shown in #addask
     this._pendingFocus = null; // {number, a} to focus after the next render
     this._error = "";
+    this._lastSig = null; // the empty-list text depends on the option
+    this._syncForm();
   }
 
   getCardSize() { return 4; }
@@ -238,11 +271,22 @@ class ParcelTrackerCard extends HTMLElement {
         ha-card { padding: 16px; }
         .head { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
         .title { font-size:16px; font-weight:500; display:flex; gap:8px; align-items:center; }
+        .side { display:flex; align-items:center; gap:4px; }
         .badge { font-size:12px; padding:2px 10px; border-radius:8px; background:var(--primary-color); color:var(--text-primary-color); }
         .row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-bottom:8px; }
         input, select { font:inherit; padding:8px; border-radius:6px; border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); min-width:0; }
         button { font:inherit; padding:8px 12px; border-radius:6px; border:1px solid var(--divider-color); background:none; color:var(--primary-text-color); cursor:pointer; }
         .err { color:var(--error-color); font-size:13px; min-height:18px; }
+        .err.bare:empty { display:none; }
+        .plus { width:36px; height:36px; margin:-6px -4px -6px 0; padding:0; border:none; border-radius:50%; display:grid; place-items:center; flex:none; }
+        .plus span { box-sizing:border-box; width:28px; height:28px; border-radius:50%; border:1px solid var(--divider-color); display:grid; place-items:center; }
+        .plus:hover span { border-color:var(--primary-color); color:var(--primary-color); }
+        .plus:focus-visible { outline:2px solid var(--primary-color); outline-offset:-2px; }
+        .plus svg { transition:transform .15s ease; }
+        .plus[aria-expanded="true"] svg { transform:rotate(45deg); }
+        @media (prefers-reduced-motion: reduce) { .plus svg { transition:none; } }
+        .hint { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:-4px 0 12px; font-size:12px; color:var(--secondary-text-color); }
+        .hint button { flex:none; padding:4px 10px; font-size:12px; }
         .item { border-top:1px solid var(--divider-color); padding:12px 0; }
         .row-toggle { display:block; width:100%; border:none; background:none; padding:0; margin:0; text-align:left; font:inherit; color:inherit; cursor:pointer; }
         .top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
@@ -269,16 +313,30 @@ class ParcelTrackerCard extends HTMLElement {
         .actions span { align-self:center; }
       </style>
       <ha-card>
-        <div class="head"><div class="title"><ha-icon icon="mdi:package-variant"></ha-icon>Pakete</div><span class="badge" id="today"></span></div>
-        <div class="row">
-          <input id="num" placeholder="Sendungsnummer" autocomplete="off">
-          <select id="car"><option value="auto">Automatisch</option><option value="dhl">DHL</option><option value="dpd">DPD</option><option value="gls">GLS</option><option value="hermes">Hermes</option><option value="ups">UPS</option></select>
+        <div class="hint" id="reload" role="status" hidden>
+          <span>Neue Version installiert – Seite neu laden, um die Karte zu aktualisieren.</span>
+          <button type="button" id="reload-btn">Neu laden</button>
         </div>
-        <div class="row">
-          <input id="nm" placeholder="Name (optional), z. B. Druckerpatronen">
-          <button id="add">Hinzufügen</button>
+        <div class="head">
+          <div class="title"><ha-icon icon="mdi:package-variant"></ha-icon>Pakete</div>
+          <div class="side">
+            <span class="badge" id="today"></span>
+            <button type="button" class="plus" id="toggle" aria-label="${ADD_LABEL}" title="${ADD_LABEL}" aria-expanded="false" aria-controls="form">
+              <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            </button>
+          </div>
         </div>
-        <div class="actions" id="addask" role="group" aria-label="17track bestätigen" hidden></div>
+        <div id="form" hidden>
+          <div class="row">
+            <input id="num" placeholder="Sendungsnummer" autocomplete="off">
+            <select id="car"><option value="auto">Automatisch</option><option value="dhl">DHL</option><option value="dpd">DPD</option><option value="gls">GLS</option><option value="hermes">Hermes</option><option value="ups">UPS</option></select>
+          </div>
+          <div class="row">
+            <input id="nm" placeholder="Name (optional), z. B. Druckerpatronen">
+            <button id="add">Hinzufügen</button>
+          </div>
+          <div class="actions" id="addask" role="group" aria-label="17track bestätigen" hidden></div>
+        </div>
         <div class="err" id="err"></div>
         <div id="list"></div>
       </ha-card>`;
@@ -288,6 +346,45 @@ class ParcelTrackerCard extends HTMLElement {
     $("add").addEventListener("click", () => this._add());
     $("num").addEventListener("keydown", (e) => { if (e.key === "Enter") this._add(); });
     $("car").addEventListener("change", () => this._dismissAddAsk());
+    $("toggle").addEventListener("click", () => {
+      this._setFormOpen(!this._formOpen);
+      if (this._formOpen) $("num").focus();
+    });
+    // Escape closes the form again and hands the focus back to the plus.
+    $("form").addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || !this._formOpen) return;
+      e.preventDefault();
+      this._setFormOpen(false);
+      $("toggle").focus();
+    });
+    $("reload-btn").addEventListener("click", () => location.reload());
+    this._syncForm();
+  }
+
+  // Closing dismisses a pending 17track confirmation (nothing is added) and the error.
+  _setFormOpen(open) {
+    this._formOpen = open && this._mode === "button";
+    if (!this._formOpen) {
+      this._dismissAddAsk();
+      this._setError("");
+    }
+    this._syncForm();
+  }
+
+  // Plus button, form and error line as the option and the open state say.
+  _syncForm() {
+    if (!this._root) return;
+    const $ = (id) => this._root.getElementById(id);
+    const visible = this._mode === "always" || this._formOpen;
+    const toggle = $("toggle");
+    const label = this._formOpen ? CLOSE_LABEL : ADD_LABEL;
+    toggle.hidden = this._mode !== "button";
+    toggle.setAttribute("aria-expanded", this._formOpen ? "true" : "false");
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+    $("form").hidden = !visible;
+    // The empty error line keeps its room under the form only: nothing moves when it fills.
+    $("err").className = visible ? "err" : "err bare";
   }
 
   async _add(confirmed = false) {
@@ -309,6 +406,11 @@ class ParcelTrackerCard extends HTMLElement {
       }, undefined, false);
       this._setError("");
       $("num").value = ""; $("nm").value = ""; $("car").value = "auto";
+      if (this._formOpen) {
+        // Done: collapse again. The focused field is hidden now, so the plus takes the focus.
+        this._setFormOpen(false);
+        $("toggle").focus();
+      }
     } catch (e) {
       this._setError(errorText(e));
     }
@@ -513,6 +615,7 @@ class ParcelTrackerCard extends HTMLElement {
     const parcels = this._parcels();
     const today = this._hass.states["sensor.pakete_heute"];
     this._root.getElementById("today").textContent = todayBadge(today);
+    this._root.getElementById("reload").hidden = !needsReload(today);
     list.innerHTML = "";
     for (const st of parcels) {
       const a = st.attributes;
@@ -550,7 +653,7 @@ class ParcelTrackerCard extends HTMLElement {
       this._wireActions(item, a);
       list.appendChild(item);
     }
-    if (!parcels.length) list.innerHTML = `<div class="sub">Noch keine Pakete. Trag oben eine Sendungsnummer ein.</div>`;
+    if (!parcels.length) list.innerHTML = `<div class="sub">${emptyText(this._mode)}</div>`;
     if (focusKey) {
       for (const el of list.querySelectorAll("[data-a]")) {
         if (el.dataset.number === focusKey.number && el.dataset.a === focusKey.a) {

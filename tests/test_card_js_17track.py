@@ -114,8 +114,9 @@ out.zero = {
 const fakeEl = () => {
   const el = {
     hidden: false, value: "", writes: 0, html: "", listeners: {}, option: false,
-    kids: {}, focused: 0,
+    kids: {}, focused: 0, attrs: {},
     addEventListener(name, fn) { el.listeners[name] = fn; },
+    setAttribute(name, value) { el.attrs[name] = String(value); },
     focus() { el.focused += 1; },
     querySelector(sel) {
       if (sel === 'option[value="other"]') {

@@ -8,11 +8,11 @@ Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) 
 
 <p>
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-hell.png" width="260" alt="Die Paket-Tracker-Karte im hellen Design: zehn Pakete von DHL, DPD, GLS, Hermes, UPS, Amazon, eBay und 17track mit Status, Fortschrittsbalken und Liefertermin">
-  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-detail.png" width="260" alt="Die Karte mit einem aufgeklappten DHL-Paket: Verlauf der Sendung und die Knöpfe „Details über 17track holen“, „Umbenennen“ und „Löschen“">
+  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-detail.png" width="260" alt="Die Karte mit geöffneter Eingabe für eine neue Sendung und einem aufgeklappten DHL-Paket: Verlauf der Sendung und die Knöpfe „Details über 17track holen“, „Umbenennen“ und „Löschen“">
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-dunkel.png" width="260" alt="Die Paket-Tracker-Karte im dunklen Design">
 </p>
 
-Die Bilder zeigen erfundene Pakete: Namen, Orte und Sendungsnummern sind ausgedacht. Sie stammen aus der Demo-Seite [`docs/demo/`](docs/demo/index.html), die die echte Karte ohne Home Assistant im Browser zeigt (Repository-Ordner mit `python3 -m http.server` ausliefern und `docs/demo/index.html` öffnen; `?theme=dark` für das dunkle Design, `?open=1` klappt das erste Paket auf).
+Die Bilder zeigen erfundene Pakete: Namen, Orte und Sendungsnummern sind ausgedacht. Sie stammen aus der Demo-Seite [`docs/demo/`](docs/demo/index.html), die die echte Karte ohne Home Assistant im Browser zeigt (Repository-Ordner mit `python3 -m http.server` ausliefern und `docs/demo/index.html` öffnen; `?theme=dark` für das dunkle Design, `?open=1` klappt das erste Paket auf, `?add=open` öffnet die Eingabe hinter dem Plus-Knopf, `?add=always` zeigt sie dauerhaft).
 
 ## Warum?
 
@@ -33,8 +33,8 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **UPS**: Status aus den UPS-Mails; mit eigener Client-ID und eigenem Secret zusätzlich Live-Status über die offizielle UPS Track API, mit Monatsbudget (siehe [UPS-Live-Status](#ups-live-status-optional)).
 - **17track** (optional): Auf Knopfdruck ergänzt 17track Ort, Zeitfenster und Verlauf; „Andere (über 17track)“ verfolgt Carrier ohne eigene Anbindung, z. B. FedEx (siehe [17track](#17track-optional)).
 - **E-Mail-Import** (optional): Liest ein eigenes Paket-Postfach per IMAP und legt Pakete aus Amazon-, eBay-, DHL-, GLS-, Hermes- und UPS-Mails automatisch an (siehe [E-Mail-Import](#e-mail-import)).
-- **Karte**: `custom:parcel-tracker-card`, direkt von der Integration ausgeliefert, erscheint im Karten-Auswahldialog als "Paket Tracker". Pakete lassen sich dort hinzufügen, umbenennen und entfernen.
-- **Sensoren**: `sensor.paket_<nummer>` pro Paket (Zustand = Status, mit Attributen wie Carrier, `carrier_name`, ETA, Standort, `location_source`, Abholpunkt, Zustellzeitpunkt `delivered_at`, Verlauf, `track17`, `track17_carrier`), `sensor.pakete_heute` und – mit 17track-Key – `sensor.paket_tracker_17track_kontingent` für die verbleibenden 17track-Nummern. `sensor.pakete_heute` zählt die Pakete, die heute sicher kommen: Status „In Zustellung“ oder ein fester Liefertag heute; sie stehen im Attribut `parcels`. Nennt der Versender nur eine Spanne, in der heute liegt (z. B. „2.–5. Okt.“), zählt das Paket nicht mit, sondern steht als „möglich“ in den Attributen `possible` (Liste, aufgebaut wie `parcels`) und `possible_count` (Anzahl) – beide lassen sich in Automationen und Templates nutzen, z. B. `{{ state_attr('sensor.pakete_heute', 'possible_count') }}`. Meldet eine Mail oder der Carrier „In Zustellung“ oder einen festen Tag heute, wechselt es von selbst zu den sicheren.
+- **Karte**: `custom:parcel-tracker-card`, direkt von der Integration ausgeliefert, erscheint im Karten-Auswahldialog als "Paket Tracker". Pakete lassen sich dort hinzufügen (über den Plus-Knopf oben rechts), umbenennen und entfernen.
+- **Sensoren**: `sensor.paket_<nummer>` pro Paket (Zustand = Status, mit Attributen wie Carrier, `carrier_name`, ETA, Standort, `location_source`, Abholpunkt, Zustellzeitpunkt `delivered_at`, Verlauf, `track17`, `track17_carrier`), `sensor.pakete_heute` und – mit 17track-Key – `sensor.paket_tracker_17track_kontingent` für die verbleibenden 17track-Nummern. `sensor.pakete_heute` zählt die Pakete, die heute sicher kommen: Status „In Zustellung“ oder ein fester Liefertag heute; sie stehen im Attribut `parcels`. Nennt der Versender nur eine Spanne, in der heute liegt (z. B. „2.–5. Okt.“), zählt das Paket nicht mit, sondern steht als „möglich“ in den Attributen `possible` (Liste, aufgebaut wie `parcels`) und `possible_count` (Anzahl) – beide lassen sich in Automationen und Templates nutzen, z. B. `{{ state_attr('sensor.pakete_heute', 'possible_count') }}`. Meldet eine Mail oder der Carrier „In Zustellung“ oder einen festen Tag heute, wechselt es von selbst zu den sicheren. Das Attribut `integration_version` nennt die installierte Version der Integration (für den Neuladen-Hinweis der Karte, nicht im Verlauf gespeichert).
 - **Kalender**: `calendar.pakete` zeigt die erwarteten Zustelltermine.
 - **Event**: `parcel_tracker_status_changed` feuert bei jedem Statuswechsel eines Pakets.
 - **Benachrichtigungen** (optional): Bei „in Zustellung“, „zugestellt“, „abholbereit“ oder einem Problem geht eine Benachrichtigung an die gewählten Ziele, ohne eigene Automation; für eigene Texte und Bedingungen gibt es einen Blueprint (siehe [Benachrichtigungen](#benachrichtigungen)).
@@ -216,11 +216,24 @@ Dashboard bearbeiten → Karte hinzufügen → "Paket Tracker" auswählen. Alter
 
 ```yaml
 type: custom:parcel-tracker-card
+add_form: button
 ```
+
+Der Plus-Knopf oben rechts („Sendung hinzufügen“) klappt die Eingabe auf: Sendungsnummer, Carrier, Name, „Hinzufügen“. Nach dem Hinzufügen klappt die Eingabe wieder zu; bei einem Fehler bleibt sie offen und zeigt die Meldung. Ein weiterer Klick auf den Knopf (dann ein ×) oder Esc schließt sie. Die Option `add_form` legt fest, wie die Eingabe erscheint:
+
+| Wert | Wirkung |
+|---|---|
+| `button` (Standard) | Eingabe eingeklappt hinter dem Plus-Knopf |
+| `always` | Eingabe immer sichtbar, kein Plus-Knopf (das Aussehen bis v0.3.8) |
+| `never` | Keine Eingabe und kein Plus-Knopf, z. B. für ein Wand-Tablet; Pakete kommen dann über den Dienst `parcel_tracker.add_parcel` oder den E-Mail-Import |
+
+Fehlt die Option oder steht dort ein anderer Wert, gilt `button`.
 
 Oben rechts steht, was heute kommt, gelesen aus `sensor.pakete_heute`: „1 heute · 1 möglich“ heißt, ein Paket kommt sicher (in Zustellung oder fester Liefertag heute), ein weiteres hat eine Lieferspanne, in der heute liegt. Gibt es nur solche, steht dort „1 möglich“, sonst wie bisher „0 heute“. In der Liste bleibt die Spanne stehen (z. B. „Bis 5. Okt.“).
 
 Die Integration kopiert die Karte beim Start nach `www/parcel_tracker/` und trägt sie automatisch als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`). Home Assistant liefert `/local` nur aus, wenn der Ordner `www` beim Start schon existierte. Sonst liefert die Integration die Karte zunächst selbst aus (`/parcel_tracker/parcel-tracker-card.js`); ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad. Nach dem Einrichten die Seite einmal neu laden, erst dann kennt ein schon geöffnetes Home Assistant die neue Ressource.
+
+Nach einem Update der Integration behält der Browser die alte Karte, bis die Seite neu geladen wird. Die Karte merkt das selbst (sie vergleicht ihre Version mit dem Attribut `integration_version` von `sensor.pakete_heute`) und zeigt dann oben die Zeile „Neue Version installiert – Seite neu laden, um die Karte zu aktualisieren.“ mit dem Knopf „Neu laden“.
 
 ### Karte wird nicht gefunden?
 

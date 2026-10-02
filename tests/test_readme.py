@@ -488,6 +488,40 @@ def test_readme_explains_sure_and_possible_parcels_of_today():
     assert "bitte" not in (sensors + card).lower()
 
 
+def test_readme_explains_the_plus_button_the_add_form_option_and_the_reload_hint():
+    """v0.3.9: the add form sits behind a plus button; `add_form` picks the look."""
+    card = _section("Karte hinzufügen")
+    for text in (
+        "Plus-Knopf",
+        "„Sendung hinzufügen“",
+        "klappt die Eingabe wieder zu",
+        "add_form: button",
+        "`button`",
+        "`always`",
+        "`never`",
+        "(Standard)",
+        "„Neue Version installiert – Seite neu laden, um die Karte zu aktualisieren.“",
+        "„Neu laden“",
+        "`integration_version`",
+    ):
+        assert text in card, text
+    assert "type: custom:parcel-tracker-card\nadd_form: button" in card
+    assert "bitte" not in card.lower()
+    intro = README.split("## Was es kann")[0]
+    assert "`?add=open`" in intro and "`?add=always`" in intro
+    assert "geöffneter Eingabe" in intro  # the detail screenshot shows the open form
+    what = _section("Was es kann")
+    assert "`integration_version`" in what
+
+
+def test_demo_page_knows_the_add_form_views():
+    js = (DEMO / "demo.js").read_text(encoding="utf-8")
+    for text in ("?add=open", "?add=always", "?add=never", "?hint=1", "integration_version:"):
+        assert text in js, text
+    html = (DEMO / "index.html").read_text(encoding="utf-8")
+    assert 'href="?add=open"' in html and 'href="?add=always"' in html
+
+
 def test_readme_status_changes_during_start_and_reload():
     """v0.3.8: announced once Home Assistant has started, at the latest two minutes
     after the integration loaded; a pending announcement survives a reload."""
