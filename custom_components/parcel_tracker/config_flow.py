@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback, split_entity_id, valid_entity_id
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
-    EntitySelector,
-    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -68,8 +67,10 @@ from .const import (
     MIN_MAIL_INTERVAL,
     MIN_UPS_BUDGET,
     NOTIFY_EVENTS,
+    NOTIFY_SERVICE_ALL,
 )
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
+from .notification import service_name, service_target
 
 _POSTCODE = re.compile(r"^\d{5}$")
 _KEY = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
@@ -88,7 +89,9 @@ _BUDGET = NumberSelector(
     NumberSelectorConfig(min=MIN_UPS_BUDGET, max=MAX_UPS_BUDGET, mode=NumberSelectorMode.BOX)
 )
 
-_NOTIFY_TARGETS = EntitySelector(EntitySelectorConfig(domain="notify", multiple=True))
+# Selector option labels cannot be translated; the integration is German.
+_SERVICE_LABEL = "Dienst notify.{}"
+_GONE_LABEL = "{} (nicht mehr vorhanden)"
 _NOTIFY_EVENTS = SelectSelector(
     SelectSelectorConfig(
         options=list(NOTIFY_EVENTS),
@@ -99,12 +102,83 @@ _NOTIFY_EVENTS = SelectSelector(
 )
 
 
+def _is_target(value: object) -> bool:
+    """A notify entity ID ("notify.tablet") or a classic service ("service:pushover")."""
+    if service_name(value) is not None:
+        return True
+    return (
+        isinstance(value, str)
+        and valid_entity_id(value)
+        and split_entity_id(value)[0] == "notify"
+    )
+
+
 def _stored_targets(current: Mapping[str, Any]) -> list[str]:
-    """The stored targets; anything odd in the storage is left out."""
+    """The stored targets; anything that can be no target is left out.
+
+    Whether a target exists in Home Assistant right now does not matter here.
+    """
     stored = current.get(CONF_NOTIFY_TARGETS)
     if not isinstance(stored, (list, tuple)):
         return []
-    return [target for target in stored if isinstance(target, str)]
+    return [target for target in stored if _is_target(target)]
+
+
+def _available_targets(hass: HomeAssistant) -> list[SelectOptionDict]:
+    """What can be notified right now: the notify entities by their name, then the
+    classic services registered under ``notify`` (``notify.notify`` last).
+
+    A classic service and an entity of the same integration are both listed: there
+    is no reliable way to tell that they reach the same device, and the label says
+    which kind each one is.
+    """
+    entities = sorted(
+        hass.states.async_all("notify"),
+        key=lambda state: (state.name.casefold(), state.entity_id),
+    )
+    services = sorted(
+        (
+            name
+            for name in hass.services.async_services_for_domain("notify")
+            # only what can be stored as a target and found again when notifying
+            if service_name(service_target(name)) is not None
+        ),
+        key=lambda name: (name == NOTIFY_SERVICE_ALL, name),
+    )
+    return [
+        *(SelectOptionDict(value=state.entity_id, label=state.name) for state in entities),
+        *(
+            SelectOptionDict(value=service_target(name), label=_SERVICE_LABEL.format(name))
+            for name in services
+        ),
+    ]
+
+
+def _targets_selector(
+    available: Sequence[SelectOptionDict], chosen: Sequence[str]
+) -> SelectSelector:
+    """One multi-select of everything on offer plus the chosen targets that are gone.
+
+    A chosen (stored) target that does not exist (any more) stays in the list,
+    labelled as such: otherwise the prefilled form would not pass its own validation
+    and an untouched save would fail. It is only dropped when the user unticks it.
+    """
+    options = list(available)
+    known = {option["value"] for option in options}
+    for target in dict.fromkeys(chosen):
+        if target in known:
+            continue
+        name = service_name(target)
+        label = _SERVICE_LABEL.format(name) if name is not None else target
+        options.append(SelectOptionDict(value=target, label=_GONE_LABEL.format(label)))
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=options,
+            multiple=True,
+            custom_value=False,
+            mode=SelectSelectorMode.DROPDOWN,
+        )
+    )
 
 
 def _stored_events(current: Mapping[str, Any]) -> list[str]:
@@ -115,7 +189,9 @@ def _stored_events(current: Mapping[str, Any]) -> list[str]:
     return [event for event in NOTIFY_EVENTS if event in stored]
 
 
-def _notify_section(current: Mapping[str, Any]) -> section:
+def _notify_section(
+    current: Mapping[str, Any], available: Sequence[SelectOptionDict] = ()
+) -> section:
     """Collapsible 'notifications' block of the options form.
 
     Both lists are prefilled through ``default`` with the stored value, so an
@@ -131,7 +207,9 @@ def _notify_section(current: Mapping[str, Any]) -> section:
                     CONF_NOTIFY_ENABLED,
                     default=bool(current.get(CONF_NOTIFY_ENABLED, bool(targets))),
                 ): bool,
-                vol.Optional(CONF_NOTIFY_TARGETS, default=targets): _NOTIFY_TARGETS,
+                vol.Optional(CONF_NOTIFY_TARGETS, default=targets): _targets_selector(
+                    available, targets
+                ),
                 vol.Optional(CONF_NOTIFY_EVENTS, default=_stored_events(current)): _NOTIFY_EVENTS,
             }
         ),
@@ -209,6 +287,7 @@ def _schema(
     ups: Mapping[str, Any] | None = None,
     track17: bool = False,
     notify: Mapping[str, Any] | None = None,
+    notify_available: Sequence[SelectOptionDict] = (),
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
@@ -236,7 +315,7 @@ def _schema(
     if ups is not None:
         fields[vol.Optional(CONF_UPS_SECTION)] = _ups_section(ups)
     if notify is not None:
-        fields[vol.Optional(CONF_NOTIFY_SECTION)] = _notify_section(notify)
+        fields[vol.Optional(CONF_NOTIFY_SECTION)] = _notify_section(notify, notify_available)
     return vol.Schema(fields)
 
 
@@ -361,8 +440,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     Notifications are on while targets are stored. A submitted empty list of
     targets switches them off, as does ``notify_enabled`` submitted as False; a
     missing list keeps the stored one. Switching them on without any target is
-    a form error (``notify_no_target``). Nothing is checked against the outside:
-    targets that do not exist (any more) are skipped when sending.
+    a form error (``notify_no_target``). Targets are notify entities (stored as
+    their entity ID) and classic notify services (stored as ``service:<name>``);
+    only what the form offered can be chosen. A stored target that does not exist
+    (any more) stays on offer and stored until it is unticked, and is skipped when
+    sending.
     """
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -511,6 +593,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 ups=ups_shown,
                 track17=True,
                 notify=notify_shown,
+                notify_available=_available_targets(self.hass),
             ),
             errors=errors,
         )

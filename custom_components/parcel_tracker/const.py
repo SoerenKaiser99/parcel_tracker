@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.6"
+VERSION = "0.3.7"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"
@@ -51,6 +51,17 @@ EVENT_STATUS_CHANGED = "parcel_tracker_status_changed"
 # and the ones ticked by default.
 NOTIFY_EVENTS = ("out_for_delivery", "delivered", "awaiting_pickup", "exception")
 DEFAULT_NOTIFY_EVENTS = ("out_for_delivery", "delivered")
+# A stored notify target is either the ID of a notify entity ("notify.tablet") or,
+# with this prefix, the name of a classic notify service ("service:pushover" is the
+# service notify.pushover). No entity ID contains a colon, so the two never collide.
+NOTIFY_SERVICE_PREFIX = "service:"
+# Registered under "notify" but no targets of their own: the service for notify
+# entities and the notifications inside Home Assistant.
+NOTIFY_SERVICES_HIDDEN = frozenset({"send_message", "persistent_notification"})
+# The catch-all notify.notify: on offer, but last.
+NOTIFY_SERVICE_ALL = "notify"
+# Classic services of the Home Assistant app; they understand ``data.tag``.
+NOTIFY_APP_SERVICE_PREFIX = "mobile_app_"
 
 STORAGE_KEY = DOMAIN
 STORAGE_VERSION = 1

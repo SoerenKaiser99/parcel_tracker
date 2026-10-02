@@ -18,7 +18,7 @@ from .const import CARRIER_OTHER, TRACK17_SOURCE
 from .coordinator import ParcelCoordinator
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .models import carrier_name as _carrier_name
-from .schedule import days_until
+from .schedule import TODAY_POSSIBLE, TODAY_SURE, days_until, today_group
 
 
 def _iso(value) -> str | None:
@@ -158,7 +158,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
 
 
 class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
-    """Number of parcels expected today."""
+    """Number of parcels that come today for sure; ranges including today are "possible"."""
 
     _attr_translation_key = "today"
     _attr_has_entity_name = False
@@ -174,30 +174,38 @@ class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     def available(self) -> bool:
         return True
 
-    def _today(self) -> list[Parcel]:
-        today = dt_util.now().date()
+    def _group(self, group: str) -> list[Parcel]:
+        now = dt_util.now()  # "today" and "changed today" are meant in the home's time zone
         return [
-            p for p in self.coordinator.store.parcels.values()
-            if p.result and p.result.eta_date == today and p.status is not ParcelStatus.DELIVERED
+            p
+            for p in self.coordinator.store.parcels.values()
+            if today_group(p, now.date(), now.tzinfo) == group
+        ]
+
+    @staticmethod
+    def _items(parcels: list[Parcel]) -> list[dict[str, Any]]:
+        return [
+            {
+                "number": p.number,
+                "name": p.name,
+                "carrier": p.carrier,
+                "eta_from": _iso(p.result.eta_from),
+                "eta_to": _iso(p.result.eta_to),
+            }
+            for p in parcels
         ]
 
     @property
     def native_value(self) -> int:
-        return len(self._today())
+        return len(self._group(TODAY_SURE))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        possible = self._group(TODAY_POSSIBLE)
         return {
-            "parcels": [
-                {
-                    "number": p.number,
-                    "name": p.name,
-                    "carrier": p.carrier,
-                    "eta_from": _iso(p.result.eta_from),
-                    "eta_to": _iso(p.result.eta_to),
-                }
-                for p in self._today()
-            ]
+            "parcels": self._items(self._group(TODAY_SURE)),
+            "possible": self._items(possible),
+            "possible_count": len(possible),
         }
 
 

@@ -141,6 +141,25 @@ function etaText(state, a) {
   return `In ${a.days_until} Tagen`;
 }
 
+// Green only when the parcel comes today for sure. The card has no rule of its own:
+// sensor.pakete_heute lists these parcels in `parcels` (the ones its state counts), so
+// the highlight and the badge cannot disagree. Ranges that include today ("möglich")
+// are in `possible` and stay neutral.
+function sureToday(today, number) {
+  const sure = today && today.attributes ? today.attributes.parcels : null;
+  return number != null && Array.isArray(sure) && sure.some((p) => p && p.number === number);
+}
+
+// The badge in the card's head, from sensor.pakete_heute: its state counts the parcels that
+// come today for sure, possible_count those whose delivery window only includes today.
+function todayBadge(st) {
+  const count = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : 0);
+  const sure = st ? count(st.state) : 0;
+  const possible = st && st.attributes ? count(st.attributes.possible_count) : 0;
+  if (!possible) return `${sure} heute`;
+  return sure ? `${sure} heute · ${possible} möglich` : `${possible} möglich`;
+}
+
 // 17track is offered only with a key: then the quota sensor is available.
 function track17State(hass) {
   const st = hass && hass.states ? hass.states[QUOTA_ENTITY] : null;
@@ -493,7 +512,7 @@ class ParcelTrackerCard extends HTMLElement {
     this._renderAddAsk(t17);
     const parcels = this._parcels();
     const today = this._hass.states["sensor.pakete_heute"];
-    this._root.getElementById("today").textContent = `${today ? today.state : 0} heute`;
+    this._root.getElementById("today").textContent = todayBadge(today);
     list.innerHTML = "";
     for (const st of parcels) {
       const a = st.attributes;
@@ -506,7 +525,7 @@ class ParcelTrackerCard extends HTMLElement {
         : "";
       const right = s === PICKUP
         ? `<span class="pickup">Abholbereit</span>`
-        : `<span class="eta ${a.days_until === 0 && s !== DONE ? "today" : ""}">${esc(etaText(s, a))}</span>`;
+        : `<span class="eta ${sureToday(today, a.number) ? "today" : ""}">${esc(etaText(s, a))}</span>`;
       const sub = subText(label, a, s);
       const staleMsg = staleLine(a, s);
       const stale = staleMsg ? `<div class="stale">${esc(staleMsg)}</div>` : "";

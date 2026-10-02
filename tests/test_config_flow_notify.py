@@ -6,7 +6,7 @@ import pytest
 from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from homeassistant.helpers import config_validation as cv
 from probatio import to_field_list
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
 from custom_components.parcel_tracker.const import (
     CONF_KEEP_DELIVERED_DAYS,
@@ -25,13 +25,28 @@ from .test_config_flow_untouched import _frontend_initial
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 PHONE = "notify.mobile_app_handy"
 TABLET = "notify.tablet"
+PUSHOVER = "service:pushover"
+GONE = " (nicht mehr vorhanden)"
 BASE = {CONF_POSTCODE: "10115", CONF_KEEP_DELIVERED_DAYS: 3}
 
 
-def _entry(hass, **options) -> MockConfigEntry:
+def _entry(hass, present=(PHONE, TABLET), **options) -> MockConfigEntry:
+    """An entry; the notify entities in ``present`` exist in Home Assistant."""
+    for entity_id in present:
+        hass.states.async_set(entity_id, "unknown")
     entry = MockConfigEntry(domain=DOMAIN, data={}, options={**BASE, **options})
     entry.add_to_hass(hass)
     return entry
+
+
+def _inner(fields: dict) -> dict:
+    return {field["name"]: field for field in fields[CONF_NOTIFY_SECTION]["schema"]}
+
+
+def _offered(fields: dict) -> list[tuple[str, str]]:
+    """(value, label) of the targets on offer, in the order shown."""
+    options = _inner(fields)[CONF_NOTIFY_TARGETS]["selector"]["select"]["options"]
+    return [(option["value"], option["label"]) for option in options]
 
 
 async def _form(hass, entry) -> tuple[str, dict]:
@@ -61,8 +76,13 @@ async def test_section_offers_targets_and_events_but_no_dashboard_path(hass):
     assert list(inner) == [CONF_NOTIFY_ENABLED, CONF_NOTIFY_TARGETS, CONF_NOTIFY_EVENTS]
     assert "notify_url" not in inner
     targets = inner[CONF_NOTIFY_TARGETS]
-    assert targets["selector"]["entity"]["multiple"] is True
-    assert targets["selector"]["entity"]["domain"] == ["notify"]
+    select = targets["selector"]["select"]
+    assert select["multiple"] is True and select["custom_value"] is False
+    assert select["sort"] is False and "translation_key" not in select
+    assert select["options"] == [
+        {"value": PHONE, "label": "mobile app handy"},
+        {"value": TABLET, "label": "tablet"},
+    ]
     assert targets["default"] == [] and not targets.get("required")
     events = inner[CONF_NOTIFY_EVENTS]["selector"]["select"]
     assert events["multiple"] is True
@@ -83,8 +103,105 @@ async def test_section_is_open_and_prefilled_once_targets_are_set(hass):
     assert inner[CONF_NOTIFY_EVENTS]["default"] == ["exception"]
 
 
+async def test_offers_entities_first_then_classic_services(hass):
+    """Entities by their name, then the services registered under ``notify`` as
+    ``service:<name>``; never ``send_message`` (that is the entity service) and
+    ``persistent_notification``; the catch-all ``notify.notify`` comes last."""
+    hass.states.async_set("notify.zulu", "unknown", {"friendly_name": "Alpha Tablet"})
+    hass.states.async_set("notify.iphone", "unknown", {"friendly_name": "iPhone"})
+    hass.states.async_set("notify.alpha", "unavailable", {"friendly_name": "Zulu Handy"})
+    hass.states.async_set("sensor.pakete_heute", "0")
+    for name in ("notify", "pushover", "send_message", "persistent_notification",
+                 "mobile_app_iphone"):
+        async_mock_service(hass, "notify", name)
+    async_mock_service(hass, "light", "turn_on")
+    _, fields = await _form(hass, _entry(hass, present=()))
+    assert _offered(fields) == [
+        ("notify.zulu", "Alpha Tablet"),
+        ("notify.iphone", "iPhone"),
+        ("notify.alpha", "Zulu Handy"),
+        ("service:mobile_app_iphone", "Dienst notify.mobile_app_iphone"),
+        ("service:pushover", "Dienst notify.pushover"),
+        ("service:notify", "Dienst notify.notify"),
+    ]
+
+
+async def test_services_with_a_name_that_can_be_no_target_are_not_offered(hass):
+    """Only what the stored form ``service:<name>`` can name is on offer: a name with a
+    dot or an upper-case letter would be chosen, stored and then never notified."""
+    for name in ("pushover", "my.phone"):
+        async_mock_service(hass, "notify", name)
+    registered = hass.services.async_services_for_domain("notify")
+    assert "my.phone" in registered
+    # Home Assistant lower-cases names on registering; other sources may not.
+    names = {**registered, "Loud": None, "ümlaut": None, "": None}
+    with patch.object(type(hass.services), "async_services_for_domain", return_value=names):
+        _, fields = await _form(hass, _entry(hass, present=()))
+    assert _offered(fields) == [("service:pushover", "Dienst notify.pushover")]
+
+
+async def test_a_classic_service_can_be_chosen_and_is_stored_with_its_prefix(hass):
+    async_mock_service(hass, "notify", "pushover")
+    entry = _entry(hass)
+    await _save(hass, entry, {CONF_NOTIFY_TARGETS: [PUSHOVER, PHONE, PUSHOVER]})
+    assert entry.options[CONF_NOTIFY_TARGETS] == [PUSHOVER, PHONE]
+    _, fields = await _form(hass, entry)
+    assert _inner(fields)[CONF_NOTIFY_TARGETS]["default"] == [PUSHOVER, PHONE]
+    assert _inner(fields)[CONF_NOTIFY_ENABLED]["default"] is True
+    assert GONE not in str(_offered(fields))
+
+
+async def test_vanished_stored_targets_stay_selectable_and_are_kept(hass):
+    """A stored target that does not exist (any more, or not yet after a start) is
+    offered as "nicht mehr vorhanden" and still ticked: the untouched form saves and
+    changes nothing. Values that can be no target at all are dropped."""
+    stored = [PHONE, "notify.altes_handy", PUSHOVER, "sensor.pakete_heute", "quatsch",
+              "service:", "service:Kein Dienst", "service:send_message",
+              "service:persistent_notification"]
+    kept = [PHONE, "notify.altes_handy", PUSHOVER]
+    entry = _entry(hass, present=(PHONE,), notify_targets=stored)
+    flow_id, fields = await _form(hass, entry)
+    assert _inner(fields)[CONF_NOTIFY_TARGETS]["default"] == kept
+    assert _offered(fields) == [
+        (PHONE, "mobile app handy"),
+        ("notify.altes_handy", "notify.altes_handy" + GONE),
+        (PUSHOVER, "Dienst notify.pushover" + GONE),
+    ]
+    with patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(flow_id, _initial(fields))
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_NOTIFY_TARGETS] == kept
+
+    # Unticked, a vanished target is gone for good: no longer on offer afterwards.
+    await _save(hass, entry, {CONF_NOTIFY_TARGETS: [PHONE]})
+    assert entry.options[CONF_NOTIFY_TARGETS] == [PHONE]
+    _, fields = await _form(hass, entry)
+    assert _offered(fields) == [(PHONE, "mobile app handy")]
+
+
+async def test_form_shown_again_after_an_error_keeps_the_choice(hass):
+    """Chosen targets stay ticked (and on offer) when the form comes back with an error."""
+    async_mock_service(hass, "notify", "pushover")
+    entry = _entry(hass, notify_targets=["notify.altes_handy"])
+    flow_id, _ = await _form(hass, entry)
+    result = await hass.config_entries.options.async_configure(
+        flow_id,
+        {**BASE, CONF_POSTCODE: "123",
+         CONF_NOTIFY_SECTION: {CONF_NOTIFY_TARGETS: [PUSHOVER, "notify.altes_handy"]}},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {CONF_POSTCODE: "invalid_postcode"}
+    fields = {
+        field["name"]: field
+        for field in to_field_list(result["data_schema"], custom_serializer=cv.custom_serializer)
+    }
+    assert _inner(fields)[CONF_NOTIFY_TARGETS]["default"] == [PUSHOVER, "notify.altes_handy"]
+    assert ("notify.altes_handy", "notify.altes_handy" + GONE) in _offered(fields)
+    assert (PUSHOVER, "Dienst notify.pushover") in _offered(fields)
+
+
 async def test_setting_targets_switches_notifications_on(hass):
-    """Nothing is checked against the outside: an entity that does not exist is taken."""
     entry = _entry(hass)
     await _save(
         hass, entry,
@@ -159,11 +276,20 @@ async def test_no_events_ticked_is_stored_as_none(hass):
         {CONF_NOTIFY_EVENTS: ["in_transit"]},
         {CONF_NOTIFY_TARGETS: ["sensor.pakete_heute"]},
         {CONF_NOTIFY_TARGETS: ["kein entity"]},
+        {CONF_NOTIFY_TARGETS: ["notify.gibt_es_nicht"]},
+        {CONF_NOTIFY_TARGETS: ["service:gibt_es_nicht"]},
+        {CONF_NOTIFY_TARGETS: ["service:send_message"]},
+        {CONF_NOTIFY_TARGETS: ["service:persistent_notification"]},
+        {CONF_NOTIFY_TARGETS: ["pushover"]},
         {"notify_url": "/lovelace/pakete"},
     ],
-    ids=["unknown-event", "other-domain", "no-entity-id", "dashboard-path"],
+    ids=["unknown-event", "other-domain", "no-entity-id", "unknown-entity", "unknown-service",
+         "entity-service", "persistent-notification", "service-without-prefix",
+         "dashboard-path"],
 )
 async def test_invalid_input_is_rejected(hass, notify):
+    for name in ("pushover", "send_message", "persistent_notification"):
+        async_mock_service(hass, "notify", name)
     entry = _entry(hass, notify_targets=[PHONE])
     flow_id, _ = await _form(hass, entry)
     with pytest.raises(InvalidData):

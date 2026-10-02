@@ -93,7 +93,7 @@
             },
             "data_description": {
               "notify_enabled": "Switches itself on with the first target. Switching it off removes the chosen targets.",
-              "notify_targets": "Notify entities, e.g. the Home Assistant app on your phone. Without a target nothing is sent.",
+              "notify_targets": "Notify entities (e.g. the Home Assistant app on your phone) and classic notify services such as Pushover, listed as “Dienst notify.…”. Without a target nothing is sent.",
               "notify_events": "The status changes you are notified about."
             }
           }

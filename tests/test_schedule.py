@@ -4,10 +4,13 @@ import pytest
 
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
 from custom_components.parcel_tracker.schedule import (
+    TODAY_POSSIBLE,
+    TODAY_SURE,
     backoff,
     days_until,
     poll_interval,
     should_remove,
+    today_group,
 )
 
 NOON = datetime(2026, 9, 29, 10, 0, tzinfo=UTC)   # 12:00 Berlin
@@ -113,3 +116,89 @@ def test_days_until():
     assert days_until(date(2026, 9, 29), today) == 0
     assert days_until(date(2026, 10, 1), today) == 2
     assert days_until(None, today) is None
+
+
+TODAY = date(2026, 10, 2)
+
+
+TODAY_NOON = datetime(2026, 10, 2, 10, 0, tzinfo=UTC)  # 12:00 Berlin on TODAY
+
+
+def _eta_parcel(status, first=None, last=None, changed=0):
+    """A parcel estimated from today+first to today+last, last changed today+changed (days)."""
+    result = TrackingResult(
+        status, None, TODAY + timedelta(days=first) if first is not None else None,
+        None, None, None, None, None, None, [],
+        eta_latest=TODAY + timedelta(days=last) if last is not None else None,
+    )
+    change = TODAY_NOON + timedelta(days=changed)
+    return Parcel("1", "amazon", "mail", None, NOON, change, result=result)
+
+
+@pytest.mark.parametrize(
+    ("status", "first", "last", "group"),
+    [
+        # A fixed day today is sure, whatever the (not delivered) status.
+        (ParcelStatus.IN_TRANSIT, 0, None, TODAY_SURE),
+        (ParcelStatus.IN_TRANSIT, 0, 0, TODAY_SURE),
+        (ParcelStatus.PRE_TRANSIT, 0, None, TODAY_SURE),
+        (ParcelStatus.AWAITING_PICKUP, 0, None, TODAY_SURE),
+        (ParcelStatus.EXCEPTION, 0, None, TODAY_SURE),
+        # "In Zustellung" is sure, with or without a day, even inside a range.
+        (ParcelStatus.OUT_FOR_DELIVERY, None, None, TODAY_SURE),
+        (ParcelStatus.OUT_FOR_DELIVERY, 0, 3, TODAY_SURE),
+        (ParcelStatus.OUT_FOR_DELIVERY, 1, None, TODAY_SURE),
+        # A range that includes today is only possible.
+        (ParcelStatus.IN_TRANSIT, 0, 3, TODAY_POSSIBLE),
+        (ParcelStatus.IN_TRANSIT, -1, 2, TODAY_POSSIBLE),
+        (ParcelStatus.PRE_TRANSIT, -2, 0, TODAY_POSSIBLE),
+        # Neither.
+        (ParcelStatus.IN_TRANSIT, 1, 3, None),
+        (ParcelStatus.IN_TRANSIT, -3, -1, None),
+        (ParcelStatus.IN_TRANSIT, 1, None, None),
+        (ParcelStatus.IN_TRANSIT, -1, None, None),
+        (ParcelStatus.IN_TRANSIT, None, None, None),
+        (ParcelStatus.DELIVERED, 0, None, None),
+        (ParcelStatus.DELIVERED, 0, 3, None),
+    ],
+)
+def test_today_group(status, first, last, group):
+    assert today_group(_eta_parcel(status, first, last), TODAY) == group
+
+
+def test_today_group_without_result():
+    assert today_group(Parcel("1", "dhl", "auto", None, NOON, NOON), TODAY) is None
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "changed", "group"),
+    [
+        # an estimate decides: in delivery counts as long as its last day is not over
+        (0, None, -5, TODAY_SURE),
+        (1, None, -5, TODAY_SURE),
+        (-2, 0, -5, TODAY_SURE),
+        (0, 3, -5, TODAY_SURE),
+        (-1, None, 0, None),  # day was yesterday, "zugestellt" never came
+        (-3, -1, 0, None),  # range ended yesterday
+        (-1, -1, 0, None),
+        # an earliest day alone is no estimate that could be over
+        (None, 0, -5, TODAY_SURE),
+        (None, -1, 0, None),
+        # no estimate at all: only on the day the parcel last changed
+        (None, None, 0, TODAY_SURE),
+        (None, None, -1, None),
+        (None, None, -2, None),
+    ],
+)
+def test_today_group_in_delivery_ends_with_its_estimate(first, last, changed, group):
+    parcel = _eta_parcel(ParcelStatus.OUT_FOR_DELIVERY, first, last, changed)
+    assert today_group(parcel, TODAY) == group
+
+
+def test_today_group_in_delivery_reads_the_change_in_local_time():
+    """00:30 in Berlin is "today" there while it is still yesterday in UTC."""
+    parcel = _eta_parcel(ParcelStatus.OUT_FOR_DELIVERY)
+    parcel.last_change_at = datetime(2026, 10, 1, 22, 30, tzinfo=UTC)
+    assert today_group(parcel, TODAY) == TODAY_SURE
+    assert today_group(parcel, TODAY, UTC) is None
+    assert today_group(parcel, date(2026, 10, 1), UTC) == TODAY_SURE

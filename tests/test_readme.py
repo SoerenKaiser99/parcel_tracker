@@ -353,6 +353,28 @@ def test_readme_explains_notifications():
     assert "notify_url" not in README
 
 
+def test_readme_explains_both_kinds_of_targets():
+    """Notify entities and classic services (Pushover has only the latter)."""
+    section = _section("Benachrichtigungen")
+    for text in (
+        "Benachrichtigungs-Entitäten",
+        "Klassische Dienste",
+        "„Dienst notify.pushover“",
+        # Pushover has to exist in Home Assistant first
+        "Pushover zuerst in Home Assistant als Integration einrichten",
+        # a target that is gone
+        "„nicht mehr vorhanden“",
+        # the classic service of the app replaces the earlier notification
+        "„Dienst notify.mobile_app_<gerät>“",
+        "ersetzt eine neue Meldung die frühere zum selben Paket",
+        "nur eines von beiden",
+    ):
+        assert text in section, text
+    english = README.split("## English summary")[1]
+    assert "classic notify services such as Pushover" in english
+    assert "getrennt nach Entitäten und klassischen Diensten" in _section("Datenschutz")
+
+
 def test_readme_no_longer_says_nothing_happens_at_startup():
     assert "nicht beim Start" not in README
 
@@ -442,3 +464,25 @@ def test_readme_says_when_local_is_used():
     assert "wenn der Ordner `www` beim Start schon existierte" in section
     assert "`/parcel_tracker/parcel-tracker-card.js`" in section
     assert "Seite einmal neu laden" in section
+
+
+def test_readme_explains_sure_and_possible_parcels_of_today():
+    """v0.3.7: "Pakete heute" counts only sure parcels, ranges are "möglich"."""
+    what = _section("Was es kann")
+    sensors = next(line for line in what.splitlines() if line.startswith("- **Sensoren**"))
+    for text in (
+        "`sensor.pakete_heute` zählt die Pakete, die heute sicher kommen",
+        "„In Zustellung“",
+        "fester Liefertag heute",
+        "„2.–5. Okt.“",
+        "`possible`",
+        "`possible_count`",
+        "`parcels`",
+        "Automationen",
+        "wechselt es von selbst",
+    ):
+        assert text in sensors, text
+    card = _section("Karte hinzufügen")
+    for text in ("„1 heute · 1 möglich“", "„1 möglich“", "„Bis 5. Okt.“", "Lieferspanne"):
+        assert text in card, text
+    assert "bitte" not in (sensors + card).lower()

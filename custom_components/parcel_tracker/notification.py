@@ -1,4 +1,5 @@
-"""Text of the push notification for a status change (plain Python, nothing else).
+"""Text and targets of the push notification for a status change (plain Python,
+nothing else).
 
 One German line per change. It names the parcel by its name (or the last four
 digits of its number), the carrier and, where known, today's time window or the
@@ -8,15 +9,54 @@ addresses, a drop-off place, or any status or event text of the carrier.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from datetime import datetime
 
-from .const import DEFAULT_NOTIFY_EVENTS, NOTIFY_EVENTS
+from .const import (
+    DEFAULT_NOTIFY_EVENTS,
+    NOTIFY_EVENTS,
+    NOTIFY_SERVICE_PREFIX,
+    NOTIFY_SERVICES_HIDDEN,
+)
 from .models import Parcel, ParcelStatus, carrier_name
 
-__all__ = ["DEFAULT_NOTIFY_EVENTS", "NOTIFY_EVENTS", "TITLE", "build_notification"]
+__all__ = [
+    "DEFAULT_NOTIFY_EVENTS",
+    "NOTIFY_EVENTS",
+    "TITLE",
+    "build_notification",
+    "notification_tag",
+    "service_name",
+    "service_target",
+]
 
 TITLE = "Paket Tracker"
 MAX_NAME = 40
+_SERVICE_NAME = re.compile(r"[a-z0-9_]+")
+
+
+def service_target(name: str) -> str:
+    """How the classic service ``notify.<name>`` is stored as a target."""
+    return f"{NOTIFY_SERVICE_PREFIX}{name}"
+
+
+def service_name(target: object) -> str | None:
+    """'pushover' for the stored target 'service:pushover'; None for anything else
+    (an entity ID, a name no service can have, a service that is no target)."""
+    if not isinstance(target, str) or not target.startswith(NOTIFY_SERVICE_PREFIX):
+        return None
+    name = target[len(NOTIFY_SERVICE_PREFIX):]
+    if not _SERVICE_NAME.fullmatch(name) or name in NOTIFY_SERVICES_HIDDEN:
+        return None
+    return name
+
+
+def notification_tag(number: str) -> str:
+    """Tag of all notifications of one parcel for the Home Assistant app: a later one
+    replaces the earlier one. Same format as the blueprint; a hash, never the number."""
+    digest = hashlib.md5(str(number).encode(), usedforsecurity=False).hexdigest()
+    return f"parcel_tracker_{digest}"
 
 
 def _short(text: str | None) -> str:

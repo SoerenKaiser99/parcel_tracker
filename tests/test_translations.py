@@ -143,6 +143,15 @@ def test_notify_translations_present():
         }
         assert "notify_url" not in json.dumps(strings)
         assert strings["options"]["error"]["notify_no_target"]
+    # Both kinds of targets are named: entities and classic services such as Pushover.
+    english = _load("strings.json")["options"]["step"]["init"]["sections"]["notify"]
+    assert "entities" in english["data_description"]["notify_targets"]
+    assert "classic notify services" in english["data_description"]["notify_targets"]
+    assert "Pushover" in english["data_description"]["notify_targets"]
+    german = _load("translations/de.json")["options"]["step"]["init"]["sections"]["notify"]
+    assert "Entitäten" in german["data_description"]["notify_targets"]
+    assert "klassische Dienste" in german["data_description"]["notify_targets"]
+    assert "Pushover" in german["data_description"]["notify_targets"]
     assert _load("translations/de.json")["options"]["error"]["notify_no_target"] == (
         "Wähl mindestens ein Ziel für die Benachrichtigungen."
     )

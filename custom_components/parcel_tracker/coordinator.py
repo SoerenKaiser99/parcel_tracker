@@ -67,6 +67,8 @@ from .const import (
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
     MAIL_MAX_BACKOFF,
+    NOTIFY_APP_SERVICE_PREFIX,
+    NOTIFY_SERVICE_PREFIX,
     OPTIONAL_API_CARRIERS,
     TICK,
     TRACK17_CARRIER_CODES,
@@ -89,7 +91,7 @@ from .models import (
     TrackingResult,
     carrier_name,
 )
-from .notification import build_notification
+from .notification import build_notification, notification_tag, service_name
 from .schedule import GLS_MIN_INTERVAL, backoff, poll_interval, should_remove
 from .store import DuplicateParcel, ParcelStore
 
@@ -217,7 +219,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     @property
     def _notify_targets(self) -> list[str]:
-        """Notify entities to push to; none = notifications off."""
+        """Notify entities and classic services to push to; none = notifications off."""
         return list(self.entry.options.get(CONF_NOTIFY_TARGETS) or ())
 
     @property
@@ -663,7 +665,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     # ----- push notifications -----
     def _notify(self, parcel: Parcel, old: ParcelStatus) -> None:
-        """Push the status change to the chosen notify entities.
+        """Push the status change to the chosen notify entities and classic services.
 
         Called exactly where the status event fires. The text is built right away
         (from the parcel as it is now); sending runs in a task of its own, so it can
@@ -674,6 +676,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if not targets or parcel.result.status.value not in self._notify_events:
                 return
             built = build_notification(parcel, old, dt_util.now())
+            tag = notification_tag(parcel.number)
         except Exception as err:  # noqa: BLE001 - a notification must never break a refresh
             # Only the error type: no parcel data in the log.
             _LOGGER.warning("Could not build a notification (%s)", type(err).__name__)
@@ -682,7 +685,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             return
         coro = None
         try:
-            coro = self._send_notification(targets, *built)
+            coro = self._send_notification(targets, *built, tag)
             self.entry.async_create_task(
                 self.hass, coro, f"{DOMAIN} notification", eager_start=False
             )
@@ -691,34 +694,50 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 coro.close()  # never started: nothing is left un-awaited
             _LOGGER.warning("Could not start sending a notification (%s)", type(err).__name__)
 
-    async def _send_notification(self, targets: list[str], title: str, message: str) -> None:
-        """One ``notify.send_message`` call per target, so one broken or hanging target
-        does not keep the others from getting the message. Never raises."""
+    async def _send_notification(
+        self, targets: list[str], title: str, message: str, tag: str
+    ) -> None:
+        """One service call per target, so one broken or hanging target does not keep
+        the others from getting the message. Never raises.
 
-        async def send(target: str) -> None:
+        A notify entity gets ``notify.send_message``; a classic service
+        (``service:<name>``) is called as ``notify.<name>`` with title and message.
+        Only the classic services of the Home Assistant app also get ``tag``, so the
+        later notification of a parcel replaces the earlier one on the phone.
+        """
+
+        async def send(service: str, data: dict[str, Any]) -> None:
             async with asyncio.timeout(NOTIFY_TIMEOUT):
-                await self.hass.services.async_call(
-                    "notify",
-                    "send_message",
-                    {"entity_id": target, "title": title, "message": message},
-                    blocking=True,
-                )
+                await self.hass.services.async_call("notify", service, data, blocking=True)
 
-        # Removed entities (no state) and unavailable ones are skipped quietly.
-        present = [
-            target
-            for target in targets
-            if (state := self.hass.states.get(target)) is not None
-            and state.state != STATE_UNAVAILABLE
-        ]
-        results = await asyncio.gather(*(send(t) for t in present), return_exceptions=True)
+        # Skipped quietly: removed entities (no state), unavailable ones, and classic
+        # services that are not registered (any more, or not yet).
+        calls: list[tuple[str, dict[str, Any]]] = []
+        for target in targets:
+            if not isinstance(target, str):
+                continue
+            if target.startswith(NOTIFY_SERVICE_PREFIX):
+                name = service_name(target)
+                if name is None or not self.hass.services.has_service("notify", name):
+                    continue
+                data: dict[str, Any] = {"title": title, "message": message}
+                if name.startswith(NOTIFY_APP_SERVICE_PREFIX):
+                    data["data"] = {"tag": tag}
+                calls.append((name, data))
+            elif (
+                state := self.hass.states.get(target)
+            ) is not None and state.state != STATE_UNAVAILABLE:
+                calls.append(
+                    ("send_message", {"entity_id": target, "title": title, "message": message})
+                )
+        results = await asyncio.gather(*(send(*call) for call in calls), return_exceptions=True)
         errors = [r for r in results if isinstance(r, Exception)]
         if errors:
-            # Only counts and error types: no parcel data, no entity names in the log.
+            # Only counts and error types: no parcel data, no target names in the log.
             _LOGGER.warning(
                 "Could not send a notification to %d of %d targets (%s)",
                 len(errors),
-                len(present),
+                len(calls),
                 ", ".join(sorted({type(err).__name__ for err in errors})),
             )
 

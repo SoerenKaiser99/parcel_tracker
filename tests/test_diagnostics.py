@@ -673,6 +673,8 @@ async def test_diagnostics_notifications_off_by_default(hass, hass_storage, free
     result = await async_get_config_entry_diagnostics(hass, entry)
     assert result["notifications"] == {
         "targets": 0,
+        "entity_targets": 0,
+        "service_targets": 0,
         "events": ["out_for_delivery", "delivered"],
     }
 
@@ -680,7 +682,14 @@ async def test_diagnostics_notifications_off_by_default(hass, hass_storage, free
 async def test_diagnostics_tell_only_the_number_of_notify_targets(hass, hass_storage, freezer):
     """Entity IDs carry device names ("mobile_app_iphone_von_erika"): never shown."""
     entry = await _setup(hass, hass_storage, freezer)
-    targets = ["notify.mobile_app_iphone_von_erika", "notify.tablet_wohnzimmer"]
+    targets = [
+        "notify.mobile_app_iphone_von_erika",
+        "notify.tablet_wohnzimmer",
+        "service:pushover",
+        "service:mobile_app_iphone_von_erika",
+        "service:telegram_erika",
+        7,
+    ]
     hass.config_entries.async_update_entry(
         entry,
         options={
@@ -692,9 +701,15 @@ async def test_diagnostics_tell_only_the_number_of_notify_targets(hass, hass_sto
     )
     await hass.async_block_till_done()
     result = await async_get_config_entry_diagnostics(hass, entry)
-    assert result["notifications"] == {"targets": 2, "events": ["delivered", "exception"]}
+    assert result["notifications"] == {
+        "targets": 5,
+        "entity_targets": 2,
+        "service_targets": 3,
+        "events": ["delivered", "exception"],
+    }
     assert result["entry"]["options"][CONF_NOTIFY_TARGETS] == REDACTED
     assert result["entry"]["options"][CONF_NOTIFY_EVENTS] == REDACTED
     text = _dump(result)
-    for private in (*targets, "mobile_app", "erika", "wohnzimmer", "notify.", "Musterweg"):
+    for private in (*targets[:-1], "mobile_app", "erika", "wohnzimmer", "notify.", "Musterweg",
+                    "pushover", "telegram", "service:"):
         assert private not in text, private

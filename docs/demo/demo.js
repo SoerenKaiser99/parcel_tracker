@@ -52,10 +52,8 @@
     return d;
   };
   const stamp = (days, hour, minute) => at(days, hour, minute).toISOString();
-  const day = (days) => {
-    const d = at(days);
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  };
+  const localDay = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const day = (days) => localDay(at(days));
   const event = (days, hour, minute, text, location = null) => (
     { timestamp: stamp(days, hour, minute), text, location });
   const UPDATED = stamp(0, 9, 12);
@@ -85,21 +83,23 @@
   }
 
   const PARCELS = [
-    parcel("in_transit", "dhl", "00340999999999999901", "Druckerpatronen", {
+    // Comes today for sure: in delivery, with a fixed day and a time window.
+    parcel("out_for_delivery", "dhl", "00340999999999999901", "Druckerpatronen", {
       eta_days: 0, eta_from: stamp(0, 14, 0), eta_to: stamp(0, 16, 0),
-      location: "Paketzentrum Musterstadt",
+      location: "Zustellbasis Musterstadt",
       events: [
+        event(0, 8, 31, "Die Sendung wurde in das Zustellfahrzeug geladen.", "Musterstadt"),
         event(0, 6, 48, "Im Ziel-Paketzentrum bearbeitet", "Musterstadt"),
         event(-1, 21, 15, "Im Start-Paketzentrum bearbeitet", "Beispielstadt"),
         event(-1, 16, 2, "Vom Absender eingeliefert", "Beispielstadt"),
         event(-2, 11, 30, "Elektronisch angekündigt"),
       ],
     }),
-    parcel("out_for_delivery", "dpd", "09999999999901", "Laufschuhe", {
-      eta_days: 0, location: "Depot Musterstadt", location_source: "17track", track17: true,
+    parcel("in_transit", "dpd", "09999999999901", "Laufschuhe", {
+      eta_days: 1, location: "Depot Musterstadt", location_source: "17track", track17: true,
       events: [
-        event(0, 7, 20, "In Zustellung", "Musterstadt"),
-        event(-1, 19, 5, "Im Paketzustellzentrum", "Musterstadt"),
+        event(0, 7, 20, "Im Paketzustellzentrum", "Musterstadt"),
+        event(-1, 19, 5, "Unterwegs", "Beispielstadt"),
       ],
     }),
     parcel("at_delivery_depot", "gls", "99999999902", "Kaffeebohnen", {
@@ -118,8 +118,9 @@
       eta_days: 1, delivery_code: "990099",
       events: [event(0, 4, 55, "Versandt")],
     }),
+    // Possible today: the delivery window ("Bis …") starts today, no fixed day yet.
     parcel("in_transit", "ebay", "EBAY999999999906", "Fahrradklingel", {
-      eta_days: 4, shipping_carrier_hint: "hermes",
+      eta_days: 0, eta_latest: day(2), shipping_carrier_hint: "hermes",
       events: [event(-1, 15, 20, "Versandt")],
     }),
     parcel("in_transit", "other", "999999999907", "Ersatzteil Kaffeemaschine", {
@@ -151,11 +152,30 @@
   for (const p of PARCELS) {
     add(`sensor.paket_${p.attributes.number.toLowerCase()}`, p.state, p.attributes);
   }
-  const today = PARCELS.filter((p) => p.attributes.days_until === 0 && p.state !== "delivered");
-  add("sensor.pakete_heute", String(today.length), {
+  // sensor.pakete_heute, by the rule of today_group() in schedule.py: "sure" is in delivery
+  // or a fixed day today, "possible" a delivery window of several days that includes today.
+  // In delivery ends with the estimate; without one it holds on the day of the last change
+  // (here: the newest event, the demo's parcels carry no other time of change).
+  const todayGroup = (p) => {
+    const a = p.attributes;
+    if (p.state === "delivered") return null;
+    if (p.state === "out_for_delivery") {
+      const end = a.eta_latest || a.eta_date;
+      if (end) return end >= day(0) ? "sure" : null;
+      const changed = a.events && a.events[0] ? a.events[0].timestamp : null;
+      return changed && localDay(new Date(changed)) === day(0) ? "sure" : null;
+    }
+    if (a.eta_date == null) return null;
+    if (a.eta_latest == null || a.eta_latest <= a.eta_date) return a.days_until === 0 ? "sure" : null;
+    return a.eta_date <= day(0) && day(0) <= a.eta_latest ? "possible" : null;
+  };
+  const items = (group) => PARCELS.filter((p) => todayGroup(p) === group).map((p) => (
+    { number: p.attributes.number, name: p.attributes.name, carrier: p.attributes.carrier,
+      eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to }));
+  add("sensor.pakete_heute", String(items("sure").length), {
     friendly_name: "Pakete heute",
-    parcels: today.map((p) => ({ number: p.attributes.number, name: p.attributes.name,
-      carrier: p.attributes.carrier, eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to })),
+    parcels: items("sure"), possible: items("possible"),
+    possible_count: items("possible").length,
   });
   add("sensor.paket_tracker_17track_kontingent", "187", {
     friendly_name: "Paket Tracker 17track-Kontingent", total: 200, used: 13 });
@@ -183,7 +203,7 @@
     if (row) row.click();
   }
 
-  window.demo = { hass, card };
+  window.demo = { hass, card, todayGroup };
   // For the screenshot script: the page is rendered, and this is how tall its content is.
   const main = document.querySelector("main");
   document.documentElement.dataset.height = String(Math.ceil(main.getBoundingClientRect().height));

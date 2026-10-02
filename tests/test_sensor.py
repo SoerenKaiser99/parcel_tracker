@@ -183,3 +183,140 @@ async def test_sensor_exposes_eta_latest(hass):
     assert attrs["eta_latest"] == (today + timedelta(days=5)).isoformat()
     assert attrs["days_until"] == 2
     assert hass.states.get("sensor.pakete_heute").state == "0"
+
+
+async def _setup_with(hass, parcels):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
+    entry.add_to_hass(hass)
+    with patch(FETCH, return_value=_res(ParcelStatus.IN_TRANSIT)):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+    for parcel in parcels:
+        coordinator.store.add(parcel)
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+    return coordinator
+
+
+def _mail_parcel(number, name, status, first=None, last=None, window=None):
+    """A parcel whose estimate runs from today+first to today+last (days)."""
+    now = dt_util.utcnow()
+    today = dt_util.now().date()
+    result = _res(status)
+    result.eta_date = today + timedelta(days=first) if first is not None else None
+    result.eta_latest = today + timedelta(days=last) if last is not None else None
+    if window:
+        result.eta_from, result.eta_to = window
+    return Parcel(number, "amazon", "mail", name, now, now, result=result)
+
+
+async def test_today_counts_only_sure_parcels_and_lists_possible_ones(hass, freezer):
+    """A range that starts today ("2.–5. Okt.") is possible, not counted."""
+    freezer.move_to(DAYTIME)
+    start = dt_util.now().replace(hour=14, minute=0, second=0, microsecond=0)
+    window = (start, start + timedelta(hours=2))
+    await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Fest", ParcelStatus.IN_TRANSIT, 0, window=window),
+        _mail_parcel("AMZ99900000000000002", "Fahrer", ParcelStatus.OUT_FOR_DELIVERY),
+        _mail_parcel("AMZ99900000000000003", "Spanne", ParcelStatus.IN_TRANSIT, 0, 3),
+        _mail_parcel("AMZ99900000000000004", "Mitte", ParcelStatus.PRE_TRANSIT, -1, 1),
+        _mail_parcel("AMZ99900000000000005", "Später", ParcelStatus.IN_TRANSIT, 1, 3),
+        _mail_parcel("AMZ99900000000000006", "Vorbei", ParcelStatus.IN_TRANSIT, -3, -1),
+        _mail_parcel("AMZ99900000000000007", "Da", ParcelStatus.DELIVERED, 0, 3),
+    ])
+
+    today = hass.states.get("sensor.pakete_heute")
+    assert today.state == "2"
+    assert [p["name"] for p in today.attributes["parcels"]] == ["Fest", "Fahrer"]
+    assert today.attributes["possible_count"] == 2
+    assert [p["name"] for p in today.attributes["possible"]] == ["Spanne", "Mitte"]
+    # Both lists have the same item shape.
+    assert today.attributes["parcels"][0] == {
+        "number": "AMZ99900000000000001",
+        "name": "Fest",
+        "carrier": "amazon",
+        "eta_from": window[0].isoformat(),
+        "eta_to": window[1].isoformat(),
+    }
+    assert today.attributes["possible"][0] == {
+        "number": "AMZ99900000000000003",
+        "name": "Spanne",
+        "carrier": "amazon",
+        "eta_from": None,
+        "eta_to": None,
+    }
+    # The parcel's own attributes keep the range as it is.
+    attrs = hass.states.get("sensor.paket_amz99900000000000003").attributes
+    assert attrs["days_until"] == 0
+    assert attrs["eta_latest"] == (dt_util.now().date() + timedelta(days=3)).isoformat()
+
+
+async def test_today_without_possible_parcels_has_empty_list(hass, freezer):
+    freezer.move_to(DAYTIME)
+    await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Fest", ParcelStatus.IN_TRANSIT, 0),
+    ])
+    today = hass.states.get("sensor.pakete_heute")
+    assert today.state == "1"
+    assert today.attributes["possible"] == []
+    assert today.attributes["possible_count"] == 0
+
+
+async def test_possible_parcel_becomes_sure_when_its_data_says_so(hass, freezer):
+    """"In Zustellung" or a fixed day today moves a parcel out of "possible"."""
+    freezer.move_to(DAYTIME)
+    today_date = dt_util.now().date()
+    coordinator = await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Eins", ParcelStatus.IN_TRANSIT, 0, 3),
+        _mail_parcel("AMZ99900000000000002", "Zwei", ParcelStatus.IN_TRANSIT, 0, 3),
+    ])
+    today = hass.states.get("sensor.pakete_heute")
+    assert (today.state, today.attributes["possible_count"]) == ("0", 2)
+
+    # "In Zustellung" without a new day: the old range stays, the status decides.
+    coordinator.store.get("AMZ99900000000000001").result.status = ParcelStatus.OUT_FOR_DELIVERY
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+    today = hass.states.get("sensor.pakete_heute")
+    assert (today.state, today.attributes["possible_count"]) == ("1", 1)
+    assert [p["name"] for p in today.attributes["parcels"]] == ["Eins"]
+
+    # "Ankunft heute": a fixed day replaces the range.
+    result = coordinator.store.get("AMZ99900000000000002").result
+    result.eta_date, result.eta_latest = today_date, None
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+    today = hass.states.get("sensor.pakete_heute")
+    assert (today.state, today.attributes["possible_count"]) == ("2", 0)
+    assert today.attributes["possible"] == []
+
+
+async def test_in_delivery_does_not_count_forever(hass, freezer):
+    """A parcel whose "zugestellt" never arrives leaves "heute" once its day is over."""
+    freezer.move_to(DAYTIME)
+    stuck = _mail_parcel("AMZ99900000000000001", "Gestern", ParcelStatus.OUT_FOR_DELIVERY, -1)
+    ended = _mail_parcel("AMZ99900000000000002", "Spanne", ParcelStatus.OUT_FOR_DELIVERY, -3, -1)
+    old = _mail_parcel("AMZ99900000000000003", "Alt", ParcelStatus.OUT_FOR_DELIVERY)
+    old.last_change_at -= timedelta(days=2)
+    fresh = _mail_parcel("AMZ99900000000000004", "Frisch", ParcelStatus.OUT_FOR_DELIVERY)
+    await _setup_with(hass, [stuck, ended, old, fresh])
+
+    today = hass.states.get("sensor.pakete_heute")
+    assert today.state == "1"
+    assert [p["name"] for p in today.attributes["parcels"]] == ["Frisch"]
+    assert today.attributes["possible"] == []
+
+
+async def test_in_delivery_changed_today_follows_the_home_assistant_time_zone(hass, freezer):
+    """"Today" is the day at home: 23:30 UTC is already tomorrow in Berlin."""
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    freezer.move_to("2026-10-01 23:30:00+00:00")  # 01:30 on 2 Oct. in Berlin
+    early = _mail_parcel("AMZ99900000000000001", "Nachts", ParcelStatus.OUT_FOR_DELIVERY)
+    early.last_change_at = dt_util.utcnow() - timedelta(hours=1)  # 00:30 in Berlin
+    late = _mail_parcel("AMZ99900000000000002", "Vortag", ParcelStatus.OUT_FOR_DELIVERY)
+    late.last_change_at = dt_util.utcnow() - timedelta(hours=2)  # 23:30 the day before
+    await _setup_with(hass, [early, late])
+
+    today = hass.states.get("sensor.pakete_heute")
+    assert [p["name"] for p in today.attributes["parcels"]] == ["Nachts"]

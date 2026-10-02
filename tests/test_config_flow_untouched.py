@@ -12,7 +12,7 @@ import pytest
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import config_validation as cv
 from probatio import to_field_list
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
 
 from custom_components.parcel_tracker.carriers.track17 import Quota
 from custom_components.parcel_tracker.const import (
@@ -217,6 +217,40 @@ async def test_incomplete_form_never_deletes_secrets_or_logins(hass, payload):
     assert entry.data == DATA
     # The postcode is the one field a user can empty (the frontend then omits it).
     assert {**entry.options, CONF_POSTCODE: "20095"} == OPTIONS
+
+
+@pytest.mark.parametrize(
+    "present", [(), ("notify.tablet",), ("notify.mobile_app_handy", "notify.tablet")],
+    ids=["all-gone", "one-gone", "all-there"],
+)
+async def test_untouched_form_keeps_entities_and_classic_services(hass, present):
+    """Targets stored by v0.3.5 (entity IDs only) next to classic services: whether they
+    (still) exist in Home Assistant or not, open and save changes nothing."""
+    for entity_id in present:
+        hass.states.async_set(entity_id, "unknown", {"friendly_name": "Gerät"})
+    async_mock_service(hass, "notify", "mobile_app_handy")
+    entry = _entry(hass)
+    options = {
+        **OPTIONS,
+        CONF_NOTIFY_TARGETS: [
+            "notify.mobile_app_handy", "service:pushover", "notify.tablet",
+            "service:mobile_app_handy",
+        ],
+    }
+    hass.config_entries.async_update_entry(entry, options=dict(options))
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    initial = _frontend_initial(_fields(result))
+    assert initial[CONF_NOTIFY_SECTION] == {
+        CONF_NOTIFY_ENABLED: True,
+        CONF_NOTIFY_TARGETS: options[CONF_NOTIFY_TARGETS],
+        CONF_NOTIFY_EVENTS: ["delivered", "exception"],
+    }
+    result, checks = await _save(hass, entry, _frontend_initial)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.data == DATA
+    assert entry.options == options
 
 
 def test_frontend_prefills_the_sections(hass):

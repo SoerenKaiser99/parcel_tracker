@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 
 from .carriers.base import BERLIN
 from .const import STALE_REMOVE_DAYS
@@ -59,3 +59,35 @@ def should_remove(parcel: Parcel, now: datetime, keep_delivered_days: int) -> bo
 def days_until(eta: date | None, today: date) -> int | None:
     """Days from today to the ETA (0 = today)."""
     return (eta - today).days if eta else None
+
+
+# Groups of sensor.pakete_heute: counted ("sure") or only listed ("possible").
+TODAY_SURE = "sure"
+TODAY_POSSIBLE = "possible"
+
+
+def today_group(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> str | None:
+    """Tell whether a parcel comes today for sure, possibly, or not (None).
+
+    Sure: in delivery, or a fixed delivery day today. Possible: today lies within
+    a delivery window of several days ("2.–5. Okt."). Delivered parcels are neither.
+
+    "In delivery" does not hold forever: a parcel whose "delivered" never arrives
+    leaves the group once its estimate is over, or, without any estimate, once the
+    day of its last change (in ``tz``, the time zone ``today`` is meant in) is over.
+    """
+    result = parcel.result
+    if result is None or result.status is ParcelStatus.DELIVERED:
+        return None
+    first, last = result.eta_date, result.eta_latest
+    if result.status is ParcelStatus.OUT_FOR_DELIVERY:
+        end = last or first
+        if end is None:
+            end = parcel.last_change_at.astimezone(tz).date()
+            return TODAY_SURE if end == today else None
+        return TODAY_SURE if end >= today else None
+    if first is None:
+        return None
+    if last is None or last <= first:  # one fixed day
+        return TODAY_SURE if first == today else None
+    return TODAY_POSSIBLE if first <= today <= last else None

@@ -2,6 +2,7 @@
 
 import asyncio
 import gc
+import hashlib
 import logging
 import warnings
 from datetime import date, datetime, timedelta
@@ -504,6 +505,118 @@ async def test_removed_or_unavailable_targets_are_skipped(hass, freezer, caplog)
         await _change(hass, coord, carrier, freezer, result(ParcelStatus.DELIVERED))
     assert _sent(calls) == [(PHONE, "Paket Tracker", "✅ Kopfhörer (DHL) wurde zugestellt")]
     assert _warnings(caplog) == []
+
+
+PUSHOVER = "service:pushover"
+APP = "service:mobile_app_handy"
+DELIVERED = "✅ Kopfhörer (DHL) wurde zugestellt"
+
+
+async def test_classic_services_are_called_by_their_name(hass, freezer):
+    """A stored ``service:<name>`` is the classic service ``notify.<name>``: title and
+    message only; entities still go through ``notify.send_message``."""
+    freezer.move_to(DAYTIME)
+    coord, carrier, _ = await _setup(hass, {CONF_NOTIFY_TARGETS: [PHONE, PUSHOVER, APP]})
+    entity_calls = async_mock_service(hass, "notify", "send_message")
+    pushover = async_mock_service(hass, "notify", "pushover")
+    app = async_mock_service(hass, "notify", "mobile_app_handy")
+    await _change(hass, coord, carrier, freezer, result(ParcelStatus.OUT_FOR_DELIVERY))
+    message = "📦 Kopfhörer (DHL) ist in Zustellung"
+    assert _sent(entity_calls) == [(PHONE, "Paket Tracker", message)]
+    assert [dict(call.data) for call in pushover] == [
+        {"title": "Paket Tracker", "message": message}
+    ]
+    # The classic service of the Home Assistant app also gets the tag of the parcel.
+    tag = "parcel_tracker_" + hashlib.md5(NUMBER.encode()).hexdigest()
+    assert [dict(call.data) for call in app] == [
+        {"title": "Paket Tracker", "message": message, "data": {"tag": tag}}
+    ]
+
+    # The next status of the same parcel carries the same tag: it replaces the earlier one.
+    await _change(hass, coord, carrier, freezer, result(ParcelStatus.DELIVERED))
+    assert len(entity_calls) == 2 and len(pushover) == 2
+    assert [call.data["message"] for call in app] == [message, DELIVERED]
+    assert app[1].data["data"] == {"tag": tag}
+    for digits in (NUMBER, NUMBER[-4:], NUMBER[:8]):
+        assert digits not in tag
+
+
+async def test_the_tag_is_the_one_of_the_blueprint(hass):
+    from homeassistant.helpers.template import Template
+
+    from custom_components.parcel_tracker.notification import notification_tag
+
+    rendered = Template(
+        "{{ 'parcel_tracker_' ~ (number | string | md5) }}", hass
+    ).async_render({"number": NUMBER})
+    assert notification_tag(NUMBER) == rendered
+    assert notification_tag("09999999999902") != rendered
+
+
+async def test_missing_classic_services_are_skipped(hass, freezer, caplog):
+    """Removed, not loaded yet, or never a classic service: skipped like a missing entity."""
+    freezer.move_to(DAYTIME)
+    targets = [PUSHOVER, "service:telegram", APP, "service:send_message", "service:", "quatsch"]
+    coord, carrier, _ = await _setup(hass, {CONF_NOTIFY_TARGETS: targets})
+    entity_calls = async_mock_service(hass, "notify", "send_message")
+    pushover = async_mock_service(hass, "notify", "pushover")
+    with caplog.at_level(logging.WARNING):
+        await _change(hass, coord, carrier, freezer, result(ParcelStatus.DELIVERED))
+    assert [call.data["message"] for call in pushover] == [DELIVERED]
+    assert entity_calls == []
+    assert _warnings(caplog) == []
+
+
+async def test_a_failing_classic_service_disturbs_nothing(hass, freezer, caplog):
+    freezer.move_to(DAYTIME)
+    coord, carrier, parcel = await _setup(
+        hass, {CONF_NOTIFY_TARGETS: [PUSHOVER, TABLET, APP]}
+    )
+
+    async def broken(call: ServiceCall) -> None:
+        raise HomeAssistantError(f"pushover rejected {call.data['message']}")
+
+    hass.services.async_register("notify", "pushover", broken)
+    entity_calls = async_mock_service(hass, "notify", "send_message")
+    app = async_mock_service(hass, "notify", "mobile_app_handy")
+    with caplog.at_level(logging.WARNING):
+        await _change(hass, coord, carrier, freezer, result(ParcelStatus.DELIVERED))
+    assert _sent(entity_calls) == [(TABLET, "Paket Tracker", DELIVERED)]
+    assert len(app) == 1
+    assert coord.last_update_success and parcel.status is ParcelStatus.DELIVERED
+    (warning,) = _warnings(caplog)
+    text = warning.getMessage()
+    assert "1 of 3" in text and "HomeAssistantError" in text
+    for private in (NUMBER, NUMBER[-4:], "Kopfhörer", "pushover", "handy", "tablet",
+                    "zugestellt"):
+        assert private not in text, private
+
+
+async def test_a_classic_service_that_hangs_counts_as_failed(hass, freezer, caplog):
+    freezer.move_to(DAYTIME)
+    coord, carrier, _ = await _setup(hass, {CONF_NOTIFY_TARGETS: [PUSHOVER, APP]})
+    cancelled: list[str] = []
+
+    async def hangs(call: ServiceCall) -> None:
+        try:
+            await asyncio.Event().wait()  # never answers
+        finally:
+            cancelled.append("pushover")
+
+    hass.services.async_register("notify", "pushover", hangs)
+    app = async_mock_service(hass, "notify", "mobile_app_handy")
+    with caplog.at_level(logging.WARNING):
+        carrier.answer = result(ParcelStatus.DELIVERED)
+        freezer.tick(timedelta(hours=5))
+        await coord.async_refresh()
+        for _ in range(20):
+            await asyncio.sleep(0)
+        assert len(app) == 1 and cancelled == []
+        freezer.tick(timedelta(seconds=NOTIFY_TIMEOUT + 1))
+        await hass.async_block_till_done()
+    assert cancelled == ["pushover"]
+    (warning,) = _warnings(caplog)
+    assert "1 of 2" in warning.getMessage() and "TimeoutError" in warning.getMessage()
 
 
 class FakeMailbox:

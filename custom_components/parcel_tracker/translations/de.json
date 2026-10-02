@@ -93,7 +93,7 @@
             },
             "data_description": {
               "notify_enabled": "Schaltet sich mit dem ersten Ziel von selbst ein. Ausschalten entfernt die gewählten Ziele.",
-              "notify_targets": "Benachrichtigungs-Entitäten, z. B. die Home-Assistant-App auf dem Handy. Ohne Ziel wird nichts gesendet.",
+              "notify_targets": "Benachrichtigungs-Entitäten (z. B. die Home-Assistant-App auf dem Handy) und klassische Dienste wie Pushover, in der Liste als „Dienst notify.…“. Ohne Ziel wird nichts gesendet.",
               "notify_events": "Bei welchen Statuswechseln benachrichtigt wird."
             }
           }
