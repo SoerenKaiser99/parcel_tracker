@@ -91,3 +91,16 @@ def today_group(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> str | None:
     if last is None or last <= first:  # one fixed day
         return TODAY_SURE if first == today else None
     return TODAY_POSSIBLE if first <= today <= last else None
+
+
+def delivered_today(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
+    """Tell whether a parcel was delivered today (``today`` is a day in ``tz``).
+
+    The time of delivery decides; a carrier or mail that names none leaves the day the
+    status changed. Such a parcel is in no group of ``today_group`` any more.
+    """
+    result = parcel.result
+    if result is None or result.status is not ParcelStatus.DELIVERED:
+        return False
+    delivered = result.delivered_at or parcel.last_change_at
+    return delivered.astimezone(tz).date() == today

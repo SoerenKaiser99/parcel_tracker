@@ -18,7 +18,7 @@ from .const import CARRIER_OTHER, TRACK17_SOURCE, VERSION
 from .coordinator import ParcelCoordinator
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .models import carrier_name as _carrier_name
-from .schedule import TODAY_POSSIBLE, TODAY_SURE, days_until, today_group
+from .schedule import TODAY_POSSIBLE, TODAY_SURE, days_until, delivered_today, today_group
 
 
 def _iso(value) -> str | None:
@@ -158,7 +158,10 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
 
 
 class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
-    """Number of parcels that come today for sure; ranges including today are "possible"."""
+    """Number of parcels that come today for sure; ranges including today are "possible".
+
+    Parcels delivered today are listed too, they do not count.
+    """
 
     _attr_translation_key = "today"
     _attr_has_entity_name = False
@@ -183,6 +186,14 @@ class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             if today_group(p, now.date(), now.tzinfo) == group
         ]
 
+    def _delivered_today(self) -> list[Parcel]:
+        now = dt_util.now()
+        return [
+            p
+            for p in self.coordinator.store.parcels.values()
+            if delivered_today(p, now.date(), now.tzinfo)
+        ]
+
     @staticmethod
     def _items(parcels: list[Parcel]) -> list[dict[str, Any]]:
         return [
@@ -203,10 +214,13 @@ class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         possible = self._group(TODAY_POSSIBLE)
+        delivered = self._delivered_today()
         return {
             "parcels": self._items(self._group(TODAY_SURE)),
             "possible": self._items(possible),
             "possible_count": len(possible),
+            "delivered_today": self._items(delivered),
+            "delivered_today_count": len(delivered),
             # The card compares this with its own version: a browser that still runs the
             # card from before an update shows a hint to reload the page.
             "integration_version": VERSION,

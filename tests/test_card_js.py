@@ -25,7 +25,7 @@ vm.runInContext(
   fs.readFileSync(process.argv[1], "utf8")
     + "\n;globalThis.__icons = CARRIER_ICONS; globalThis.__label = stateLabel;"
     + "globalThis.__eta = etaText; globalThis.__sub = subText; globalThis.__err = errorLine;"
-    + "globalThis.__labels = CARRIER_LABEL; globalThis.__badge = todayBadge;"
+    + "globalThis.__labels = CARRIER_LABEL; globalThis.__badges = todayBadges;"
     + "globalThis.__sure = sureToday;",
   sandbox,
 );
@@ -41,9 +41,8 @@ card._code.set("AMZ1", "show");
 out.show = card._codeHtml(a);
 out.sig = card._signature();
 out.icons = Object.fromEntries(Object.entries(sandbox.__icons).map(([k, v]) => [k, v.color]));
-const fmt = { formatEntityState: (st) => "Angekündigt" };
-out.amazon = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "amazon" } });
-out.dhl = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "dhl" } });
+out.amazon = sandbox.__label({ state: "pre_transit", attributes: { carrier: "amazon" } });
+out.dhl = sandbox.__label({ state: "pre_transit", attributes: { carrier: "dhl" } });
 const eta = (st, a) => sandbox.__eta(st, a);
 const rg = (d, first, last) => ({ days_until: d, eta_date: first, eta_latest: last });
 out.eta = {
@@ -61,7 +60,7 @@ out.eta = {
 out.icon = { dhl: card._icon("dhl"), dpd: card._icon("dpd"), hermes: card._icon("hermes"),
   ebay: card._icon("ebay"), gls: card._icon("gls"), ups: card._icon("ups"),
   amazon: card._icon("amazon") };
-out.ebayLabel = sandbox.__label(fmt, { state: "pre_transit", attributes: { carrier: "ebay" } });
+out.ebayLabel = sandbox.__label({ state: "pre_transit", attributes: { carrier: "ebay" } });
 out.labels = sandbox.__labels;
 out.sub = {
   hint: sandbox.__sub("Unterwegs", { carrier: "ebay", shipping_carrier_hint: "hermes" },
@@ -83,19 +82,28 @@ out.err = {
   budget: sandbox.__err({ last_error: "ups_budget", carrier: "ups" }),
   none: sandbox.__err({ last_error: null }),
 };
-const badge = (state, possible_count) => sandbox.__badge(
-  state === undefined ? undefined : { state, attributes: { possible_count } });
+const badge = (state, possible_count, delivered_today_count) => sandbox.__badges(
+  state === undefined ? undefined : { state, attributes: { possible_count, delivered_today_count } }
+).map((b) => b.text);
 out.badge = {
   missing: badge(undefined),
-  none: badge("0", 0),
-  sure: badge("2", 0),
+  none: badge("0", 0, 0),
+  sure: badge("2", 0, 0),
   oldSensor: badge("1", undefined),
-  both: badge("1", 1),
-  bothMany: badge("2", 3),
-  possible: badge("0", 1),
-  possibleMany: badge("0", 2),
+  oldSensorPossible: badge("1", 2),
+  both: badge("1", 1, 0),
+  bothMany: badge("2", 3, 0),
+  possible: badge("0", 1, 0),
+  delivered: badge("0", 0, 1),
+  all: badge("1", 2, 3),
+  sureDelivered: badge("2", 0, 1),
+  oddCounts: badge("1", "2", -1),
+  fraction: badge("1.9", 1.5, "x"),
   unavailable: badge("unavailable", undefined),
+  noAttributes: sandbox.__badges({ state: "3" }).map((b) => b.text),
 };
+out.badgeFull = sandbox.__badges({ state: "1",
+  attributes: { possible_count: 2, delivered_today_count: 3 } });
 const listed = { state: "2", attributes: { parcels: [{ number: "A1" }, { number: "B2" }],
   possible: [{ number: "C3" }], possible_count: 1 } };
 out.sure = {
@@ -257,19 +265,34 @@ def test_gls_has_a_blue_dot_with_g_and_its_label(card):
     assert card["sub"]["glsHint"] == "eBay · Versendet · via GLS"
 
 
-def test_badge_counts_sure_parcels_and_names_possible_ones(card):
-    """"N heute" is the sensor's state (sure); ranges that include today are "möglich"."""
+def test_badges_count_sure_possible_and_delivered_parcels(card):
+    """"N heute" is the sensor's state (sure) and always there; "möglich" (ranges that
+    include today) and "zugestellt" (delivered today) only when there are any."""
     assert card["badge"] == {
-        "missing": "0 heute",
-        "none": "0 heute",
-        "sure": "2 heute",
-        "oldSensor": "1 heute",
-        "both": "1 heute · 1 möglich",
-        "bothMany": "2 heute · 3 möglich",
-        "possible": "1 möglich",
-        "possibleMany": "2 möglich",
-        "unavailable": "0 heute",
+        "missing": ["0 heute"],
+        "none": ["0 heute"],
+        "sure": ["2 heute"],
+        "oldSensor": ["1 heute"],  # a sensor from before v0.3.10 / v0.3.7
+        "oldSensorPossible": ["1 heute", "2 möglich"],
+        "both": ["1 heute", "1 möglich"],
+        "bothMany": ["2 heute", "3 möglich"],
+        "possible": ["0 heute", "1 möglich"],
+        "delivered": ["0 heute", "1 zugestellt"],
+        "all": ["1 heute", "2 möglich", "3 zugestellt"],
+        "sureDelivered": ["2 heute", "1 zugestellt"],
+        "oddCounts": ["1 heute", "2 möglich"],
+        "fraction": ["1 heute", "1 möglich"],
+        "unavailable": ["0 heute"],
+        "noAttributes": ["3 heute"],
     }
+
+
+def test_each_badge_says_what_it_counts(card):
+    assert card["badgeFull"] == [
+        {"kind": "sure", "text": "1 heute", "title": "Kommt heute sicher"},
+        {"kind": "possible", "text": "2 möglich", "title": "Lieferzeitraum schließt heute ein"},
+        {"kind": "delivered", "text": "3 zugestellt", "title": "Heute zugestellt"},
+    ]
 
 
 def test_green_follows_the_parcels_list_of_the_today_sensor(card):
@@ -294,24 +317,17 @@ def test_green_is_rendered_from_the_today_sensor_only():
     assert '<span class="eta ${sureToday(today, a.number) ? "today" : ""}">' in text
     assert "function sureToday(today, number)" in text
     # no second rule in the card: neither the status nor the estimate decide
-    body = text[text.index("function sureToday("):text.index("function todayBadge(")]
+    body = text[text.index("function sureToday("):text.index("function todayBadges(")]
     assert "days_until" not in body and "eta_" not in body and "out_for_delivery" not in body
 
 
-def test_badge_comment_is_in_one_piece_above_the_badge():
-    text = BUNDLED_CARD.read_text(encoding="utf-8")
-    assert (
-        "// The badge in the card's head, from sensor.pakete_heute: its state counts the parcels"
-        " that\n// come today for sure, possible_count those whose delivery window only includes"
-        " today.\nfunction todayBadge(st) {"
-    ) in text
-
-
-def test_badge_is_rendered_from_the_today_sensor_only():
+def test_badges_are_rendered_from_the_today_sensor_only():
     """The card does not count itself: it reads sensor.pakete_heute."""
     text = BUNDLED_CARD.read_text(encoding="utf-8")
-    assert 'getElementById("today").textContent = todayBadge(today);' in text
-    assert "possible_count" in text
+    assert 'getElementById("today").innerHTML = badgesHtml(todayBadges(today));' in text
+    assert "possible_count" in text and "delivered_today_count" in text
+    assert "function todayBadge(" not in text  # the combined "1 heute · 1 möglich" text is gone
+    assert " · ${possible} möglich" not in text
 
 
 DEMO_JS = BUNDLED_CARD.parents[3] / "docs" / "demo" / "demo.js"
@@ -334,7 +350,7 @@ const sandbox = {
   },
 };
 vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(process.argv[1], "utf8") + "\n;globalThis.__badge = todayBadge;",
+vm.runInContext(fs.readFileSync(process.argv[1], "utf8") + "\n;globalThis.__badges = todayBadges;",
   sandbox);
 vm.runInContext(fs.readFileSync(process.argv[2], "utf8"), sandbox);
 const st = sandbox.window.demo.hass.states["sensor.pakete_heute"];
@@ -357,7 +373,22 @@ const group = (state, first, last, changed) => sandbox.window.demo.todayGroup({ 
   } });
 const D = "out_for_delivery";
 console.log(JSON.stringify({ state: st.state, attributes: st.attributes,
-  badge: sandbox.__badge(st),
+  badge: sandbox.__badges(st).map((b) => b.text),
+  deliveredToday: {
+    today: sandbox.window.demo.deliveredToday({ state: "delivered",
+      attributes: { delivered_at: iso(0).toISOString() } }),
+    yesterday: sandbox.window.demo.deliveredToday({ state: "delivered",
+      attributes: { delivered_at: iso(-1).toISOString() } }),
+    noTimeChangedToday: sandbox.window.demo.deliveredToday({ state: "delivered",
+      attributes: { delivered_at: null, events: [{ timestamp: iso(0).toISOString() }] } }),
+    noTimeChangedBefore: sandbox.window.demo.deliveredToday({ state: "delivered",
+      attributes: { delivered_at: null, events: [{ timestamp: iso(-1).toISOString() }] } }),
+    noTimeAtAll: sandbox.window.demo.deliveredToday({ state: "delivered",
+      attributes: { delivered_at: null, events: [] } }),
+    notDelivered: sandbox.window.demo.deliveredToday({ state: "in_transit",
+      attributes: { delivered_at: iso(0).toISOString() } }),
+  },
+  usesHassLabels: "formatEntityState" in sandbox.window.demo.hass,
   groups: {
     today: group(D, 0, null, -5), tomorrow: group(D, 1, null, -5), range: group(D, -2, 0, -5),
     yesterday: group(D, -1, null, 0), ended: group(D, -3, -1, 0),
@@ -371,8 +402,8 @@ console.log(JSON.stringify({ state: st.state, attributes: st.attributes,
 """
 
 
-def test_demo_page_shows_one_sure_and_one_possible_parcel():
-    """The demo's "Pakete heute" follows the sensor's rule, so the badge shows both parts."""
+def test_demo_page_shows_all_three_badges():
+    """The demo's "Pakete heute" follows the sensor's rules, so all three badges show."""
     if NODE is None:
         pytest.skip("node not installed")
     run = subprocess.run(
@@ -380,13 +411,23 @@ def test_demo_page_shows_one_sure_and_one_possible_parcel():
         capture_output=True, text=True, check=True,
     )
     today = json.loads(run.stdout)
-    assert today["badge"] == "1 heute · 1 möglich"
+    assert today["badge"] == ["1 heute", "1 möglich", "1 zugestellt"]
     assert today["state"] == "1"
     attrs = today["attributes"]
     assert [p["name"] for p in attrs["parcels"]] == ["Druckerpatronen"]
     assert [p["name"] for p in attrs["possible"]] == ["Fahrradklingel"]
     assert attrs["possible_count"] == 1
     assert set(attrs["possible"][0]) == set(attrs["parcels"][0])
+    assert [p["name"] for p in attrs["delivered_today"]] == ["Hundefutter"]
+    assert attrs["delivered_today_count"] == 1
+    assert set(attrs["delivered_today"][0]) == set(attrs["parcels"][0])
+    # The demo follows delivered_today() in schedule.py.
+    assert today["deliveredToday"] == {
+        "today": True, "yesterday": False, "noTimeChangedToday": True,
+        "noTimeChangedBefore": False, "noTimeAtAll": False, "notDelivered": False,
+    }
+    # The card brings its own German status labels: the demo's hass has none to offer.
+    assert today["usesHassLabels"] is False
     # The demo follows today_group() in schedule.py, also for parcels "in Zustellung".
     assert today["groups"] == {
         "today": "sure", "tomorrow": "sure", "range": "sure",

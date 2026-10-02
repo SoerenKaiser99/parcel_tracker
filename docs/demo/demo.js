@@ -136,6 +136,14 @@
       eta_days: 2, stale: true, last_error: "unavailable",
       events: [event(-1, 18, 0, "Im Paketzustellzentrum", "Musterdorf")],
     }),
+    // Delivered today: the third badge ("zugestellt").
+    parcel("delivered", "gls", "99999999910", "Hundefutter", {
+      delivered_at: stamp(0, 9, 5),
+      events: [
+        event(0, 9, 5, "Das Paket wurde zugestellt.", "Musterstadt"),
+        event(0, 6, 20, "Das Paket ist in der Zustellung.", "Musterstadt"),
+      ],
+    }),
     parcel("delivered", "dhl", "00340999999999999909", "Kinderbuch", {
       delivered_at: stamp(-1, 11, 24),
       events: [event(-1, 11, 24, "Die Sendung wurde zugestellt.", "Musterstadt")],
@@ -143,10 +151,6 @@
   ];
 
   // --- the mock hass ----------------------------------------------------------------
-  const STATE_LABEL = { pre_transit: "Angekündigt", in_transit: "Unterwegs",
-    at_delivery_depot: "Im Zustelldepot", out_for_delivery: "In Zustellung",
-    awaiting_pickup: "Abholbereit", delivered: "Zugestellt", exception: "Problem",
-    unknown: "Unbekannt" };
   const states = {};
   const entities = {};
   const add = (entity_id, state, attributes) => {
@@ -173,13 +177,25 @@
     if (a.eta_latest == null || a.eta_latest <= a.eta_date) return a.days_until === 0 ? "sure" : null;
     return a.eta_date <= day(0) && day(0) <= a.eta_latest ? "possible" : null;
   };
-  const items = (group) => PARCELS.filter((p) => todayGroup(p) === group).map((p) => (
+  // Delivered today, by the rule of delivered_today() in schedule.py: the time of delivery
+  // decides, without one the day of the last change (here again: the newest event).
+  const deliveredToday = (p) => {
+    const a = p.attributes;
+    if (p.state !== "delivered") return false;
+    const when = a.delivered_at || (a.events && a.events[0] ? a.events[0].timestamp : null);
+    return !!when && localDay(new Date(when)) === day(0);
+  };
+  const item = (p) => (
     { number: p.attributes.number, name: p.attributes.name, carrier: p.attributes.carrier,
-      eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to }));
+      eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to });
+  const items = (group) => PARCELS.filter((p) => todayGroup(p) === group).map(item);
+  const delivered = PARCELS.filter(deliveredToday).map(item);
   add("sensor.pakete_heute", String(items("sure").length), {
     friendly_name: "Pakete heute",
     parcels: items("sure"), possible: items("possible"),
     possible_count: items("possible").length,
+    delivered_today: delivered,
+    delivered_today_count: delivered.length,
     // CARD_VERSION is the card's own constant: equal means "no reload needed".
     integration_version: params.has("hint") ? `${CARD_VERSION}-neu` : CARD_VERSION,
   });
@@ -189,7 +205,6 @@
   const hass = {
     states,
     entities,
-    formatEntityState: (st) => STATE_LABEL[st.state] || st.state,
     callService: (domain, service, data) => {
       console.log(`[Demo] Dienst ${domain}.${service} (nicht ausgeführt)`, data);
       return Promise.resolve();
@@ -215,7 +230,7 @@
   // ?add=open: click the plus button like a user would.
   if (addForm === "open") card.shadowRoot.getElementById("toggle").click();
 
-  window.demo = { hass, card, todayGroup };
+  window.demo = { hass, card, todayGroup, deliveredToday };
   // For the screenshot script: the page is rendered, and this is how tall its content is.
   const main = document.querySelector("main");
   document.documentElement.dataset.height = String(Math.ceil(main.getBoundingClientRect().height));

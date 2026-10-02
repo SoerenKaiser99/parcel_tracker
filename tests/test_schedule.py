@@ -8,6 +8,7 @@ from custom_components.parcel_tracker.schedule import (
     TODAY_SURE,
     backoff,
     days_until,
+    delivered_today,
     poll_interval,
     should_remove,
     today_group,
@@ -202,3 +203,56 @@ def test_today_group_in_delivery_reads_the_change_in_local_time():
     assert today_group(parcel, TODAY) == TODAY_SURE
     assert today_group(parcel, TODAY, UTC) is None
     assert today_group(parcel, date(2026, 10, 1), UTC) == TODAY_SURE
+
+
+def _delivered_parcel(delivered_at, changed, status=ParcelStatus.DELIVERED):
+    result = TrackingResult(status, None, None, None, None, None, None, None, delivered_at, [])
+    return Parcel("1", "amazon", "mail", None, NOON, changed, result=result)
+
+
+YESTERDAY_NOON = TODAY_NOON - timedelta(days=1)
+
+
+@pytest.mark.parametrize(
+    ("delivered_at", "changed", "expected"),
+    [
+        (TODAY_NOON, TODAY_NOON, True),
+        # the time of delivery decides, not the time the integration learned of it
+        (TODAY_NOON, YESTERDAY_NOON, True),
+        (YESTERDAY_NOON, TODAY_NOON, False),
+        (TODAY_NOON + timedelta(days=1), TODAY_NOON, False),
+        # no time of delivery: the day the status changed
+        (None, TODAY_NOON, True),
+        (None, YESTERDAY_NOON, False),
+    ],
+)
+def test_delivered_today(delivered_at, changed, expected):
+    assert delivered_today(_delivered_parcel(delivered_at, changed), TODAY) is expected
+
+
+@pytest.mark.parametrize(
+    "status", [s for s in ParcelStatus if s is not ParcelStatus.DELIVERED]
+)
+def test_delivered_today_needs_the_status_delivered(status):
+    parcel = _delivered_parcel(TODAY_NOON, TODAY_NOON, status)
+    assert delivered_today(parcel, TODAY) is False
+
+
+def test_delivered_today_without_result():
+    assert delivered_today(Parcel("1", "dhl", "auto", None, NOON, TODAY_NOON), TODAY) is False
+
+
+def test_delivered_today_reads_the_time_in_the_given_time_zone():
+    """00:30 in Berlin is "today" there while it is still yesterday in UTC."""
+    late = datetime(2026, 10, 1, 22, 30, tzinfo=UTC)
+    for parcel in (_delivered_parcel(late, NOON), _delivered_parcel(None, late)):
+        assert delivered_today(parcel, TODAY) is True
+        assert delivered_today(parcel, TODAY, UTC) is False
+        assert delivered_today(parcel, date(2026, 10, 1), UTC) is True
+
+
+def test_delivered_today_and_today_group_never_overlap():
+    parcel = _delivered_parcel(TODAY_NOON, TODAY_NOON)
+    parcel.result.eta_date = TODAY
+    assert delivered_today(parcel, TODAY) is True
+    assert today_group(parcel, TODAY) is None

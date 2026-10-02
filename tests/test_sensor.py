@@ -330,3 +330,90 @@ async def test_in_delivery_changed_today_follows_the_home_assistant_time_zone(ha
 
     today = hass.states.get("sensor.pakete_heute")
     assert [p["name"] for p in today.attributes["parcels"]] == ["Nachts"]
+
+
+def _delivered(number, name, delivered_at, changed=None):
+    parcel = _mail_parcel(number, name, ParcelStatus.DELIVERED)
+    parcel.result.delivered_at = delivered_at
+    if changed is not None:
+        parcel.last_change_at = changed
+    return parcel
+
+
+async def test_today_lists_the_parcels_delivered_today(hass, freezer):
+    """A delivered parcel leaves "heute" and shows up as delivered today, for that day."""
+    freezer.move_to(DAYTIME)
+    now = dt_util.utcnow()
+    day = timedelta(days=1)
+    await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Fahrer", ParcelStatus.OUT_FOR_DELIVERY),
+        _mail_parcel("AMZ99900000000000002", "Spanne", ParcelStatus.IN_TRANSIT, 0, 3),
+        _delivered("AMZ99900000000000003", "Da", now - timedelta(hours=1)),
+        _delivered("AMZ99900000000000004", "Gestern", now - day),
+        _delivered("AMZ99900000000000005", "Ohne Zeit", None),
+        _delivered("AMZ99900000000000006", "Ohne Zeit, alt", None, now - day),
+        # The time of delivery decides, not the time the mail came in.
+        _delivered("AMZ99900000000000007", "Spät gemeldet", now - day, now),
+    ])
+
+    today = hass.states.get("sensor.pakete_heute")
+    assert today.state == "1"  # unchanged: only what still comes for sure
+    assert [p["name"] for p in today.attributes["parcels"]] == ["Fahrer"]
+    assert (today.attributes["possible_count"], len(today.attributes["possible"])) == (1, 1)
+    assert [p["name"] for p in today.attributes["delivered_today"]] == ["Da", "Ohne Zeit"]
+    assert today.attributes["delivered_today_count"] == 2
+    # Same item shape as ``parcels``.
+    assert today.attributes["delivered_today"][0] == {
+        "number": "AMZ99900000000000003",
+        "name": "Da",
+        "carrier": "amazon",
+        "eta_from": None,
+        "eta_to": None,
+    }
+    assert set(today.attributes["delivered_today"][0]) == set(today.attributes["parcels"][0])
+    # Recorded like ``parcels`` and ``possible``: only the version is kept out of the history.
+    assert TodaySensor._unrecorded_attributes == frozenset({"integration_version"})
+
+
+async def test_today_without_delivered_parcels_has_an_empty_list(hass, freezer):
+    freezer.move_to(DAYTIME)
+    await _setup_with(hass, [])
+    today = hass.states.get("sensor.pakete_heute")
+    assert today.attributes["delivered_today"] == []
+    assert today.attributes["delivered_today_count"] == 0
+
+
+async def test_parcel_moves_from_today_to_delivered_today(hass, freezer):
+    """The tester's case: right after the delivery the card must not just say "0 heute"."""
+    freezer.move_to(DAYTIME)
+    coordinator = await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Eins", ParcelStatus.OUT_FOR_DELIVERY),
+    ])
+    today = hass.states.get("sensor.pakete_heute")
+    assert (today.state, today.attributes["delivered_today_count"]) == ("1", 0)
+
+    result = coordinator.store.get("AMZ99900000000000001").result
+    result.status, result.delivered_at = ParcelStatus.DELIVERED, dt_util.utcnow()
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+    today = hass.states.get("sensor.pakete_heute")
+    assert (today.state, today.attributes["delivered_today_count"]) == ("0", 1)
+    assert [p["name"] for p in today.attributes["delivered_today"]] == ["Eins"]
+
+
+async def test_delivered_today_follows_the_home_assistant_time_zone(hass, freezer):
+    """"Today" is the day at home: 23:30 UTC is already tomorrow in Berlin."""
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    freezer.move_to("2026-10-01 23:30:00+00:00")  # 01:30 on 2 Oct. in Berlin
+    now = dt_util.utcnow()
+    await _setup_with(hass, [
+        _delivered("AMZ99900000000000001", "Nachts", now - timedelta(hours=1)),  # 00:30 Berlin
+        _delivered("AMZ99900000000000002", "Vortag", now - timedelta(hours=2)),  # 23:30 before
+        _delivered("AMZ99900000000000003", "Nachts gemeldet", None, now - timedelta(hours=1)),
+        _delivered("AMZ99900000000000004", "Vortag gemeldet", None, now - timedelta(hours=2)),
+    ])
+
+    today = hass.states.get("sensor.pakete_heute")
+    assert [p["name"] for p in today.attributes["delivered_today"]] == [
+        "Nachts", "Nachts gemeldet",
+    ]

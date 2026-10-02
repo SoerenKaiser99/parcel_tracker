@@ -483,9 +483,55 @@ def test_readme_explains_sure_and_possible_parcels_of_today():
     ):
         assert text in sensors, text
     card = _section("Karte hinzufügen")
-    for text in ("„1 heute · 1 möglich“", "„1 möglich“", "„Bis 5. Okt.“", "Lieferspanne"):
+    for text in ("„1 möglich“", "„Bis 5. Okt.“", "Lieferspanne"):
         assert text in card, text
     assert "bitte" not in (sensors + card).lower()
+
+
+def test_readme_explains_the_three_badges_and_delivered_today():
+    """v0.3.10: three badges in the card's head; the sensor lists what was delivered today."""
+    card = _section("Karte hinzufügen")
+    for text in (
+        "bis zu drei Schilder",
+        "„1 heute“",
+        "„1 möglich“",
+        "„1 zugestellt“",
+        "steht immer da",
+        "nur, wenn",
+        "„0 heute“",
+        "`sensor.pakete_heute`",
+    ):
+        assert text in card, text
+    assert card.index("„1 heute“") < card.index("„1 möglich“") < card.index("„1 zugestellt“")
+    assert "„1 heute · 1 möglich“" not in README  # the combined text is gone
+    what = _section("Was es kann")
+    sensors = next(line for line in what.splitlines() if line.startswith("- **Sensoren**"))
+    for text in (
+        "`delivered_today`",
+        "`delivered_today_count`",
+        "`delivered_at`",
+        "Zeitzone von Home Assistant",
+        "Tag des Statuswechsels",
+        "{{ state_attr('sensor.pakete_heute', 'delivered_today_count') }}",
+    ):
+        assert text in sensors, text
+    assert "bitte" not in (sensors + card).lower()
+    english = _section("English summary")
+    assert "`delivered_today`" in english and "`delivered_today_count`" in english
+
+
+def test_readme_says_the_card_is_german_in_any_home_assistant_language():
+    card = _section("Karte hinzufügen")
+    assert "Die Karte ist deutsch" in card
+    assert "unabhängig von der Sprache" in card
+
+
+def test_readme_screenshots_show_all_three_badges_worth_of_parcels():
+    intro = README.split("## Was es kann")[0]
+    assert "elf Pakete" in intro and "zehn Pakete" not in intro
+    js = (DEMO / "demo.js").read_text(encoding="utf-8")
+    assert len(re.findall(r'^    parcel\("', js, re.M)) == 11
+    assert "delivered_today:" in js and "delivered_today_count:" in js
 
 
 def test_readme_explains_the_plus_button_the_add_form_option_and_the_reload_hint():
