@@ -46,7 +46,13 @@ Was (noch) nicht geht: siehe [Roadmap & Status](#roadmap--status). Amazon- und e
 
 ### Mit HACS (empfohlen)
 
-HACS lädt die Integration nur herunter. Eingerichtet wird sie danach in Home Assistant selbst (Schritt 5) – ohne diesen Schritt passiert nichts.
+Voraussetzung: [HACS](https://hacs.xyz/docs/use/) ist in Home Assistant installiert. HACS lädt die Integration nur herunter. Eingerichtet wird sie danach in Home Assistant selbst (Schritt 5) – ohne diesen Schritt passiert nichts.
+
+Am schnellsten geht es mit diesem Knopf – er öffnet HACS im eigenen Home Assistant und trägt das Repository als Quelle ein. Danach weiter bei Schritt 3:
+
+[![Repository in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=SoerenKaiser99&repository=parcel_tracker&category=integration)
+
+Oder von Hand:
 
 1. HACS öffnen → Menü (⋮) oben rechts → **Benutzerdefinierte Repositories**.
 2. Repository `https://github.com/SoerenKaiser99/parcel_tracker` eintragen, Typ **Integration** wählen, hinzufügen.
