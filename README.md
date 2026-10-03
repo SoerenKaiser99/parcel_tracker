@@ -7,7 +7,7 @@ Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) 
 **Für Deutschland gebaut:** Die Integration ist für Deutschland gebaut (deutsche Carrier und deutsche Mail-Formate). Im Ausland funktionieren schon DHL (offizielle API, weltweit), UPS (offizielle API) und jeder Carrier über 17track; der Mail-Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS- und eBay-Mails).
 
 <p>
-  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-hell.png" width="260" alt="Die Paket-Tracker-Karte im hellen Design: elf Pakete von DHL, DPD, GLS, Hermes, UPS, Amazon, eBay und 17track mit Status, Fortschrittsbalken und Liefertermin">
+  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-hell.png" width="260" alt="Die Paket-Tracker-Karte im hellen Design: zwölf Pakete von DHL, DPD, GLS, Hermes, UPS, Amazon, eBay und 17track mit Status, Fortschrittsbalken und Liefertermin">
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-detail.png" width="260" alt="Die Karte mit geöffneter Eingabe für eine neue Sendung und einem aufgeklappten DHL-Paket: Verlauf der Sendung und die Knöpfe „Details über 17track holen“, „Umbenennen“ und „Löschen“">
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-dunkel.png" width="260" alt="Die Paket-Tracker-Karte im dunklen Design">
 </p>
@@ -26,7 +26,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 
 ## Was es kann
 
-- **DHL**: Abfrage über die offizielle API "Shipment Tracking – Unified". Der API-Key ist optional; ohne Key zeigt ein DHL-Paket den Status "DHL-API-Key fehlt". Mit Key und hinterlegter PLZ liefert DHL zusätzliche Details (z. B. Standort).
+- **DHL**: Abfrage über die offizielle API "Shipment Tracking – Unified". Der API-Key ist optional; ohne Key fragt die Integration DHL nicht ab, und ein DHL-Paket ohne Mail zeigt auf der Karte „Kein Live-Status“ (siehe [DHL-API-Key anlegen](#dhl-api-key-anlegen)). Mit Key und hinterlegter PLZ liefert DHL zusätzliche Details (z. B. Standort).
 - **DPD**: Abfrage über die öffentliche DPD-Sendungsverfolgung, nur mit der Sendungsnummer. DPD liefert Status und die fünf Meilenstein-Termine, aber keinen Standort und kein Zeitfenster. Die detailliertere DPD-Seite braucht eine Postleitzahl und ist durch ein Captcha geschützt, deshalb nutzt die Integration sie nicht.
 - **GLS**: Abfrage über die offene Sendungsverfolgung der GLS-Webseite, nur mit der Paketnummer (11 Ziffern), ohne Zugangsdaten. Mit hinterlegter PLZ liefert GLS zusätzlich den Verlauf. Die Abfrage ist kein offizieller Zugang und kann wegfallen – dann bleiben die GLS-Mails und 17track (siehe [GLS](#gls)).
 - **Hermes**: Abfrage über die öffentliche Hermes-Sendungsverfolgung, nur mit der Sendungsnummer (`H…` mit 19 Ziffern oder 14 Ziffern), ohne Zugangsdaten und ohne PLZ. Hermes liefert Status und Verlauf, aber keinen Liefertag – den übernimmt die Integration aus den Hermes-Mails.
@@ -93,6 +93,8 @@ Alle drei Felder lassen sich später über **Konfigurieren** an der Integration 
 **Key abgelehnt?** DHL nennt in der Ablehnungsmail als Bedingung einen gültigen Firmennamen **und eine dazu passende Domain-E-Mail-Adresse**. Es reicht also nicht, nur das Feld **Firma / Company** auszufüllen: Das DHL-Konto selbst sollte auf eine Adresse unter eigener Domain laufen (eigene Domain oder Arbeitsadresse), und der Firmenname sollte dazu passen. Mit Freemail-Adressen (Gmail, GMX, web.de …) wird der Antrag häufig abgelehnt. Danach den Key erneut beantragen.
 
 Ohne DHL-Key läuft die Integration trotzdem: DPD, GLS und Hermes brauchen keine Zugangsdaten, DHL-Pakete kommen weiter aus den DHL-Mails, und „Details über 17track holen“ liefert Status und Verlauf über [17track](#17track-optional).
+
+Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key auf der Karte „Kein Live-Status“ statt eines Termins; aufgeklappt steht dort „Kein Live-Status: DHL-API-Key fehlt (unter „Konfigurieren“ eintragen).“ Die Integration kann eine solche Nummer nicht prüfen: Ob sie stimmt, vertippt oder längst zugestellt ist, erfährt sie ohne Key nicht. Erst mit Key meldet DHL bei einer unbekannten Nummer „Noch keine Daten vom Carrier“.
 
 ## GLS
 
@@ -289,11 +291,21 @@ Oben rechts stehen bis zu drei Schilder, gelesen aus `sensor.pakete_heute`:
 
 Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“ – die Karte zeigt dann z. B. „0 heute“ und „1 zugestellt“. Die Erklärung steht auch als Tooltip auf jedem Schild. Auf schmalen Karten rutschen die Schilder gemeinsam unter den Titel, der Plus-Knopf bleibt rechts.
 
+**Paket aufklappen:** Ein Tipp auf ein Paket klappt es auf, der kleine Pfeil rechts in der Zeile zeigt das an. Aufgeklappt stehen dort der Verlauf der Sendung und die Knöpfe „Umbenennen“ und „Löschen“ (mit Rückfrage „Wirklich löschen?“), je nach Paket auch „Details über 17track holen“ und „Code anzeigen“. Ein weiterer Tipp klappt das Paket wieder zu. „Noch kein Termin“ heißt: Das Paket hat einen Status, aber noch keinen Zustelltag. „Kein Live-Status“ heißt: Der Carrier lässt sich nicht abfragen, weil der Key fehlt.
+
 Die Karte ist deutsch, unabhängig von der Sprache, die in Home Assistant eingestellt ist: Auch die Statusangaben („Unterwegs“, „Zugestellt“ …) kommen aus der Karte selbst.
 
 Die Integration kopiert die Karte beim Start nach `www/parcel_tracker/` und trägt sie automatisch als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`). Home Assistant liefert `/local` nur aus, wenn der Ordner `www` beim Start schon existierte. Sonst liefert die Integration die Karte zunächst selbst aus (`/parcel_tracker/parcel-tracker-card.js`); ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad. Nach dem Einrichten die Seite einmal neu laden, erst dann kennt ein schon geöffnetes Home Assistant die neue Ressource.
 
-Nach einem Update der Integration behält der Browser die alte Karte, bis die Seite neu geladen wird. Die Karte merkt das selbst (sie vergleicht ihre Version mit dem Attribut `integration_version` von `sensor.pakete_heute`) und zeigt dann oben die Zeile „Neue Version installiert – Seite neu laden, um die Karte zu aktualisieren.“ mit dem Knopf „Neu laden“.
+Nach einem Update der Integration behält der Browser die alte Karte, bis die Seite neu geladen wird. Die Karte merkt das selbst (sie vergleicht ihre Version mit dem Attribut `integration_version` von `sensor.pakete_heute`) und zeigt dann oben die Zeile „Neue Version installiert – Seite neu laden, um die Karte zu aktualisieren.“ mit dem Knopf „Neu laden“. Den Hinweis gibt es ab v0.3.9: Eine ältere Karte kennt ihn nicht und kann ihn deshalb auch nicht zeigen – wer von einer älteren Version kommt, lädt die Seite nach dem Update einmal von Hand neu.
+
+Die Reihenfolge nach jedem Update:
+
+1. Das Update in HACS installieren.
+2. Home Assistant neu starten.
+3. Die Seite im Browser neu laden oder die Home-Assistant-App schließen und wieder öffnen.
+
+Die Integration zu entfernen und neu hinzuzufügen ist dafür nie nötig; dabei gingen nur die Pakete und Einstellungen verloren.
 
 ### Karte wird nicht gefunden?
 

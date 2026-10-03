@@ -71,8 +71,9 @@ out.cover = {
   missingKey: covered("missing_key", "in_transit"),
   notFound: covered("not_found", "out_for_delivery", true, "ups"),
   carrierNotFound: covered("carrier_not_found", "delivered", true, null),
-  noStatusYet: covered("missing_key", "unknown"),
-  notRegistered: covered("missing_key", "in_transit", false),
+  noStatusYet: covered("not_found", "unknown"),
+  missingKeyNoStatus: covered("missing_key", "unknown"),
+  notRegistered: covered("not_found", "in_transit", false),
   unavailable: covered("unavailable", "in_transit"),
   auth: covered("auth", "in_transit"),
   rateLimited: covered("rate_limited", "in_transit"),
@@ -85,7 +86,8 @@ const staleOf = (last_error, track17) => sandbox.__stale(
 );
 out.stale = {
   covered: staleOf("missing_key", true),
-  uncovered: staleOf("missing_key", false),
+  uncovered: staleOf("not_found", false),
+  missingKey: staleOf("missing_key", false),
   unavailable: staleOf("unavailable", true),
   unnamed: staleOf("something_new", true),
 };
@@ -312,7 +314,7 @@ def test_carrier_gap_errors_are_hidden_while_17track_shows_a_status(card):
     cover = card["cover"]
     assert (cover["missingKey"], cover["notFound"], cover["carrierNotFound"]) == (None,) * 3
     # Nothing to show yet, or not registered at 17track: the error stays.
-    assert cover["noStatusYet"] == "DHL-API-Key fehlt – in den Integrations-Optionen eintragen"
+    assert cover["noStatusYet"] == "Noch keine Daten vom Carrier"
     assert cover["notRegistered"] == cover["noStatusYet"]
     # Every other error is still said.
     assert cover["unavailable"] == "Carrier gerade nicht erreichbar"
@@ -322,6 +324,8 @@ def test_carrier_gap_errors_are_hidden_while_17track_shows_a_status(card):
     stale = card["stale"]
     assert stale["covered"] is None
     assert stale["uncovered"] == cover["noStatusYet"]
+    # A missing key is never a line in the row (v0.3.12): the expanded details say it.
+    assert cover["missingKeyNoStatus"] is None and stale["missingKey"] is None
     assert stale["unavailable"] == "Carrier gerade nicht erreichbar"
     assert stale["unnamed"].startswith("Stand ") and stale["unnamed"].endswith(
         ", Carrier nicht erreichbar"

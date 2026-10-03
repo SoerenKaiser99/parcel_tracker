@@ -141,6 +141,11 @@
       eta_days: 2, stale: true, last_error: "unavailable",
       events: [event(-1, 18, 0, "Im Paketzustellzentrum", "Musterdorf")],
     }),
+    // No DHL key and no result from a mail or 17track: "Kein Live-Status" in the row, the
+    // reason only in the expanded details (?open=10).
+    parcel("unknown", "dhl", "00340999999999999911", "Ersatzakku", {
+      last_error: "missing_key",
+    }),
     // Delivered today: the third badge ("zugestellt").
     parcel("delivered", "gls", "99999999910", "Hundefutter", {
       delivered_at: stamp(0, 9, 5),

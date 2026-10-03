@@ -250,6 +250,7 @@ def test_demo_page_shows_one_parcel_per_carrier_and_the_fixed_sensors():
         "delivery_code:",
         "delivered_at:",
         'last_error: "unavailable"',
+        'last_error: "missing_key"',
         "nicht ausgeführt",
     ):
         assert text in js, text
@@ -528,9 +529,9 @@ def test_readme_says_the_card_is_german_in_any_home_assistant_language():
 
 def test_readme_screenshots_show_all_three_badges_worth_of_parcels():
     intro = README.split("## Was es kann")[0]
-    assert "elf Pakete" in intro and "zehn Pakete" not in intro
+    assert "zwölf Pakete" in intro and "elf Pakete" not in intro
     js = (DEMO / "demo.js").read_text(encoding="utf-8")
-    assert len(re.findall(r'^    parcel\("', js, re.M)) == 11
+    assert len(re.findall(r'^    parcel\("', js, re.M)) == 12
     assert "delivered_today:" in js and "delivered_today_count:" in js
 
 
@@ -624,3 +625,46 @@ def test_demo_page_knows_the_show_option():
         assert text in js, text
     html = (DEMO / "index.html").read_text(encoding="utf-8")
     assert 'href="?show=active&amp;empty=1"' in html
+
+
+def test_readme_explains_the_update_order_and_since_when_the_reload_hint_exists():
+    """v0.3.12: testers on an older card waited for a hint that card cannot show."""
+    card = _section("Karte hinzufügen")
+    assert "Den Hinweis gibt es ab v0.3.9" in card
+    assert "Eine ältere Karte kennt ihn nicht" in card
+    steps = [
+        "1. Das Update in HACS installieren.",
+        "2. Home Assistant neu starten.",
+        "3. Die Seite im Browser neu laden oder die Home-Assistant-App schließen"
+        " und wieder öffnen.",
+    ]
+    assert "\n".join(steps) in card
+    assert "Die Integration zu entfernen und neu hinzuzufügen ist dafür nie nötig" in card
+
+
+def test_readme_explains_expanding_a_parcel_and_the_missing_dhl_key():
+    """v0.3.12: rows show a chevron; without a key a DHL parcel reads "Kein Live-Status"."""
+    card = _section("Karte hinzufügen")
+    for text in (
+        "Ein Tipp auf ein Paket klappt es auf",
+        "Verlauf der Sendung",
+        "„Umbenennen“",
+        "„Löschen“",
+        "„Wirklich löschen?“",
+        "„Noch kein Termin“",
+        "„Kein Live-Status“",
+    ):
+        assert text in card, text
+    dhl = _section("DHL-API-Key anlegen")
+    assert "„Kein Live-Status“" in dhl
+    assert "„Kein Live-Status: DHL-API-Key fehlt (unter „Konfigurieren“ eintragen).“" in dhl
+    assert "vertippt" in dhl
+    assert "„Kein Live-Status“" in _section("Was es kann")
+    assert '"DHL-API-Key fehlt"' not in README
+
+
+def test_demo_page_has_a_dhl_parcel_without_key_and_without_result():
+    js = (DEMO / "demo.js").read_text(encoding="utf-8")
+    block = re.search(r'parcel\("unknown", "dhl", [^)]*\{([^}]*)\}\)', js)
+    assert block and 'last_error: "missing_key"' in block.group(1)
+    assert "events" not in block.group(1) and "eta_days" not in block.group(1)
