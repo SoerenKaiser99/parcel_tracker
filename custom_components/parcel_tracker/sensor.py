@@ -18,7 +18,7 @@ from .const import CARRIER_OTHER, TRACK17_SOURCE, VERSION
 from .coordinator import ParcelCoordinator
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .models import carrier_name as _carrier_name
-from .schedule import TODAY_POSSIBLE, TODAY_SURE, days_until, delivered_today, today_group
+from .schedule import ParcelSummary, days_until, summarize
 
 
 def _iso(value) -> str | None:
@@ -26,7 +26,7 @@ def _iso(value) -> str | None:
 
 
 # Unique-id suffixes of the fixed sensors (everything else is a parcel number).
-_FIXED = frozenset({"today", "track17_quota"})
+_FIXED = frozenset({"today", "active", "possible", "delivered_today", "track17_quota"})
 
 
 def _location_source(parcel: Parcel) -> str | None:
@@ -65,7 +65,11 @@ async def async_setup_entry(
     coordinator = entry.runtime_data
     known: dict[str, ParcelSensor] = {}
     _remove_ghost_entities(hass, entry.entry_id, coordinator.store.parcels)
-    async_add_entities([TodaySensor(coordinator), Track17QuotaSensor(coordinator)])
+    async_add_entities([
+        TodaySensor(coordinator),
+        *(GroupCountSensor(coordinator, *group) for group in _GROUP_SENSORS),
+        Track17QuotaSensor(coordinator),
+    ])
 
     @callback
     def _sync() -> None:
@@ -157,14 +161,41 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         }
 
 
-class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
+def _items(parcels: list[Parcel]) -> list[dict[str, Any]]:
+    """The parcels of a summary sensor's list attribute."""
+    return [
+        {
+            "number": p.number,
+            "name": p.name,
+            "carrier": p.carrier,
+            "eta_from": _iso(p.result.eta_from) if p.result else None,
+            "eta_to": _iso(p.result.eta_to) if p.result else None,
+        }
+        for p in parcels
+    ]
+
+
+class _SummarySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
+    """A fixed sensor that counts parcels; the rules are in schedule.summarize()."""
+
+    _attr_has_entity_name = False
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    def _summary(self) -> ParcelSummary:
+        now = dt_util.now()  # "today" and "changed today" are meant in the home's time zone
+        return summarize(self.coordinator.store.parcels.values(), now.date(), now.tzinfo)
+
+
+class TodaySensor(_SummarySensor):
     """Number of parcels that come today for sure; ranges including today are "possible".
 
     Parcels delivered today are listed too, they do not count.
     """
 
     _attr_translation_key = "today"
-    _attr_has_entity_name = False
     _attr_icon = "mdi:truck-delivery"
     _unrecorded_attributes = frozenset({"integration_version"})
 
@@ -175,56 +206,67 @@ class TodaySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         self._attr_name = "Pakete heute"
 
     @property
-    def available(self) -> bool:
-        return True
-
-    def _group(self, group: str) -> list[Parcel]:
-        now = dt_util.now()  # "today" and "changed today" are meant in the home's time zone
-        return [
-            p
-            for p in self.coordinator.store.parcels.values()
-            if today_group(p, now.date(), now.tzinfo) == group
-        ]
-
-    def _delivered_today(self) -> list[Parcel]:
-        now = dt_util.now()
-        return [
-            p
-            for p in self.coordinator.store.parcels.values()
-            if delivered_today(p, now.date(), now.tzinfo)
-        ]
-
-    @staticmethod
-    def _items(parcels: list[Parcel]) -> list[dict[str, Any]]:
-        return [
-            {
-                "number": p.number,
-                "name": p.name,
-                "carrier": p.carrier,
-                "eta_from": _iso(p.result.eta_from),
-                "eta_to": _iso(p.result.eta_to),
-            }
-            for p in parcels
-        ]
-
-    @property
     def native_value(self) -> int:
-        return len(self._group(TODAY_SURE))
+        return len(self._summary().sure)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        possible = self._group(TODAY_POSSIBLE)
-        delivered = self._delivered_today()
+        summary = self._summary()
         return {
-            "parcels": self._items(self._group(TODAY_SURE)),
-            "possible": self._items(possible),
-            "possible_count": len(possible),
-            "delivered_today": self._items(delivered),
-            "delivered_today_count": len(delivered),
+            "parcels": _items(summary.sure),
+            "possible": _items(summary.possible),
+            "possible_count": len(summary.possible),
+            "delivered_today": _items(summary.delivered_today),
+            "delivered_today_count": len(summary.delivered_today),
             # The card compares this with its own version: a browser that still runs the
             # card from before an update shows a hint to reload the page.
             "integration_version": VERSION,
         }
+
+
+# One sensor per list of the summary: (list of ParcelSummary = unique-id suffix and
+# translation key, entity id, name, icon). The entity ids are fixed here, like
+# sensor.pakete_heute: dashboards, the card and the README name them.
+_GROUP_SENSORS = (
+    ("active", "sensor.pakete_unterwegs", "Pakete unterwegs", "mdi:truck-fast"),
+    ("possible", "sensor.pakete_moeglich", "Pakete möglich", "mdi:calendar-question"),
+    (
+        "delivered_today",
+        "sensor.pakete_zugestellt_heute",
+        "Pakete zugestellt heute",
+        "mdi:package-variant-closed-check",
+    ),
+)
+
+
+class GroupCountSensor(_SummarySensor):
+    """Number of parcels in one list of the summary, e.g. all that are not delivered yet.
+
+    A state of its own for dashboards (visibility conditions) and automations; the
+    parcels are in the attribute ``parcels``, shaped like those of sensor.pakete_heute.
+    """
+
+    def __init__(
+        self, coordinator: ParcelCoordinator, group: str, entity_id: str, name: str, icon: str
+    ) -> None:
+        super().__init__(coordinator)
+        self._group = group
+        self._attr_translation_key = group
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_{group}"
+        self.entity_id = entity_id
+        self._attr_name = name
+        self._attr_icon = icon
+
+    def _parcels(self) -> list[Parcel]:
+        return getattr(self._summary(), self._group)
+
+    @property
+    def native_value(self) -> int:
+        return len(self._parcels())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"parcels": _items(self._parcels())}
 
 
 class Track17QuotaSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):

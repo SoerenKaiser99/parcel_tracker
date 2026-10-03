@@ -6,11 +6,13 @@ from custom_components.parcel_tracker.models import Parcel, ParcelStatus, Tracki
 from custom_components.parcel_tracker.schedule import (
     TODAY_POSSIBLE,
     TODAY_SURE,
+    ParcelSummary,
     backoff,
     days_until,
     delivered_today,
     poll_interval,
     should_remove,
+    summarize,
     today_group,
 )
 
@@ -256,3 +258,40 @@ def test_delivered_today_and_today_group_never_overlap():
     parcel.result.eta_date = TODAY
     assert delivered_today(parcel, TODAY) is True
     assert today_group(parcel, TODAY) is None
+
+
+def test_summarize_sorts_every_parcel_into_its_lists():
+    """One pass for all summary sensors: on the way, sure, possible, delivered today."""
+    fresh = Parcel("N0", "dhl", "manual", None, TODAY_NOON, TODAY_NOON)  # no answer yet
+    driver = _eta_parcel(ParcelStatus.OUT_FOR_DELIVERY, 0)
+    span = _eta_parcel(ParcelStatus.IN_TRANSIT, 0, 3)
+    later = _eta_parcel(ParcelStatus.IN_TRANSIT, 2)
+    pickup = _eta_parcel(ParcelStatus.AWAITING_PICKUP)
+    problem = _eta_parcel(ParcelStatus.EXCEPTION)
+    unknown = _eta_parcel(ParcelStatus.UNKNOWN)
+    done = _delivered_parcel(TODAY_NOON, TODAY_NOON)
+    old = _delivered_parcel(TODAY_NOON - timedelta(days=1), TODAY_NOON - timedelta(days=1))
+    parcels = [fresh, driver, span, later, pickup, problem, unknown, done, old]
+
+    summary = summarize(parcels, TODAY)
+
+    assert isinstance(summary, ParcelSummary)
+    assert summary.active == [fresh, driver, span, later, pickup, problem, unknown]
+    assert summary.sure == [driver]
+    assert summary.possible == [span]
+    assert summary.delivered_today == [done]
+    # The same rules as the single functions.
+    assert summary.sure == [p for p in parcels if today_group(p, TODAY) == TODAY_SURE]
+    assert summary.possible == [p for p in parcels if today_group(p, TODAY) == TODAY_POSSIBLE]
+    assert summary.delivered_today == [p for p in parcels if delivered_today(p, TODAY)]
+
+
+def test_summarize_without_parcels():
+    assert summarize([], TODAY) == ParcelSummary([], [], [], [])
+
+
+def test_summarize_reads_the_day_in_the_given_time_zone():
+    late = datetime(2026, 9, 29, 22, 30, tzinfo=UTC)  # 30 Sept. 00:30 in Berlin
+    parcel = _delivered_parcel(late, late)
+    assert summarize([parcel], date(2026, 9, 30)).delivered_today == [parcel]
+    assert summarize([parcel], date(2026, 9, 30), UTC).delivered_today == []

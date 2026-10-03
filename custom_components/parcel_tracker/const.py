@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.10"
+VERSION = "0.3.11"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_POSTCODE = "postcode"

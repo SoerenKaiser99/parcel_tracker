@@ -417,3 +417,118 @@ async def test_delivered_today_follows_the_home_assistant_time_zone(hass, freeze
     assert [p["name"] for p in today.attributes["delivered_today"]] == [
         "Nachts", "Nachts gemeldet",
     ]
+
+
+SUMMARY_IDS = (
+    "sensor.pakete_unterwegs", "sensor.pakete_moeglich", "sensor.pakete_zugestellt_heute",
+)
+
+
+async def test_three_summary_sensors_count_what_the_today_sensor_lists(hass, freezer):
+    """v0.3.11: on the way, possible today, delivered today as sensors of their own."""
+    freezer.move_to(DAYTIME)
+    now = dt_util.utcnow()
+    no_result = Parcel("00340999999999999950", "dhl", "manual", "Neu", now, now)
+    await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Fahrer", ParcelStatus.OUT_FOR_DELIVERY),
+        _mail_parcel("AMZ99900000000000002", "Spanne", ParcelStatus.IN_TRANSIT, 0, 3),
+        _mail_parcel("AMZ99900000000000003", "Abholen", ParcelStatus.AWAITING_PICKUP),
+        _mail_parcel("AMZ99900000000000004", "Problem", ParcelStatus.EXCEPTION),
+        _mail_parcel("AMZ99900000000000005", "Unklar", ParcelStatus.UNKNOWN),
+        no_result,
+        _delivered("AMZ99900000000000006", "Da", now - timedelta(hours=1)),
+        _delivered("AMZ99900000000000007", "Gestern", now - timedelta(days=1)),
+    ])
+
+    today = hass.states.get("sensor.pakete_heute")
+    active = hass.states.get("sensor.pakete_unterwegs")
+    possible = hass.states.get("sensor.pakete_moeglich")
+    delivered = hass.states.get("sensor.pakete_zugestellt_heute")
+
+    assert active.state == "6"
+    assert [p["name"] for p in active.attributes["parcels"]] == [
+        "Fahrer", "Spanne", "Abholen", "Problem", "Unklar", "Neu",
+    ]
+    # Same item shape as in sensor.pakete_heute, also for a parcel without any answer yet.
+    assert active.attributes["parcels"][0] == today.attributes["parcels"][0]
+    assert active.attributes["parcels"][-1] == {
+        "number": "00340999999999999950", "name": "Neu", "carrier": "dhl",
+        "eta_from": None, "eta_to": None,
+    }
+    assert possible.state == "1" == str(today.attributes["possible_count"])
+    assert possible.attributes["parcels"] == today.attributes["possible"]
+    assert delivered.state == "1" == str(today.attributes["delivered_today_count"])
+    assert delivered.attributes["parcels"] == today.attributes["delivered_today"]
+    # The today sensor keeps its state and attributes.
+    assert today.state == "1"
+    assert set(today.attributes) == {
+        "parcels", "possible", "possible_count", "delivered_today", "delivered_today_count",
+        "integration_version", "friendly_name", "icon",
+    }
+    for state, name, icon in (
+        (active, "Pakete unterwegs", "mdi:truck-fast"),
+        (possible, "Pakete möglich", "mdi:calendar-question"),
+        (delivered, "Pakete zugestellt heute", "mdi:package-variant-closed-check"),
+    ):
+        assert state.attributes["friendly_name"] == name
+        assert state.attributes["icon"] == icon
+        # No state class, like sensor.pakete_heute.
+        assert set(state.attributes) == {"parcels", "friendly_name", "icon"}
+
+
+async def test_summary_sensors_are_zero_without_parcels(hass, freezer):
+    freezer.move_to(DAYTIME)
+    await _setup_with(hass, [])
+    for entity_id in SUMMARY_IDS:
+        state = hass.states.get(entity_id)
+        assert state.state == "0", entity_id
+        assert state.attributes["parcels"] == []
+
+
+async def test_summary_sensor_ids_do_not_depend_on_the_language(hass, freezer):
+    """The ids are set in the code, not built from a translated name."""
+    freezer.move_to(DAYTIME)
+    hass.config.language = "en"
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    for entity_id, suffix in zip(
+        SUMMARY_IDS, ("active", "possible", "delivered_today"), strict=True
+    ):
+        assert hass.states.get(entity_id) is not None, entity_id
+        assert registry.async_get(entity_id).unique_id == f"{entry.entry_id}_{suffix}"
+    assert hass.states.get("sensor.pakete_heute") is not None
+
+
+async def test_summary_sensors_survive_the_ghost_cleanup(hass, freezer):
+    """The cleanup of parcel sensors without a parcel leaves the fixed sensors alone."""
+    freezer.move_to(DAYTIME)
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    registry = er.async_get(hass)
+    for entity_id in (*SUMMARY_IDS, "sensor.pakete_heute"):
+        assert registry.async_get(entity_id) is not None, entity_id
+        assert hass.states.get(entity_id).state == "0"
+
+
+async def test_summary_sensors_follow_a_delivery(hass, freezer):
+    freezer.move_to(DAYTIME)
+    coordinator = await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Fahrer", ParcelStatus.OUT_FOR_DELIVERY),
+    ])
+    assert hass.states.get("sensor.pakete_unterwegs").state == "1"
+    assert hass.states.get("sensor.pakete_zugestellt_heute").state == "0"
+
+    parcel = coordinator.store.get("AMZ99900000000000001")
+    parcel.result.status = ParcelStatus.DELIVERED
+    parcel.result.delivered_at = dt_util.utcnow()
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.pakete_unterwegs").state == "0"
+    assert hass.states.get("sensor.pakete_zugestellt_heute").state == "1"

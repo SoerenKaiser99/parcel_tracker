@@ -10,5 +10,5 @@ def test_version_matches_manifest():
     assert const.VERSION == json.loads(MANIFEST.read_text())["version"]
 
 
-def test_version_is_0_3_10():
-    assert const.VERSION == "0.3.10"
+def test_version_is_0_3_11():
+    assert const.VERSION == "0.3.11"

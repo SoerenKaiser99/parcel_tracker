@@ -7,6 +7,11 @@
 //   ?add=always   card option add_form: always (form always shown, no plus button)
 //   ?add=never    card option add_form: never (no form, no plus button)
 //   ?hint=1       pretend the integration was updated: the card shows its reload hint
+//   ?show=active  card option show (also ?show=today, ?show=today_possible): the card is
+//                 only there while something is due; with the demo's parcels it stays
+//   ?empty=1      no parcels at all: together with ?show=… the card hides itself
+//   ?edit=1       pretend the dashboard is being edited (preview): a hidden card stays and
+//                 says in one line why it would be hidden
 //   ?shot=1       only the card (used for the README screenshots)
 (function () {
   "use strict";
@@ -86,7 +91,7 @@
     return { state, attributes: Object.assign(attrs, extra) };
   }
 
-  const PARCELS = [
+  const ALL_PARCELS = [
     // Comes today for sure: in delivery, with a fixed day and a time window.
     parcel("out_for_delivery", "dhl", "00340999999999999901", "Druckerpatronen", {
       eta_days: 0, eta_from: stamp(0, 14, 0), eta_to: stamp(0, 16, 0),
@@ -149,6 +154,7 @@
       events: [event(-1, 11, 24, "Die Sendung wurde zugestellt.", "Musterstadt")],
     }),
   ];
+  const PARCELS = params.has("empty") ? [] : ALL_PARCELS;
 
   // --- the mock hass ----------------------------------------------------------------
   const states = {};
@@ -199,6 +205,14 @@
     // CARD_VERSION is the card's own constant: equal means "no reload needed".
     integration_version: params.has("hint") ? `${CARD_VERSION}-neu` : CARD_VERSION,
   });
+  // The three count sensors (v0.3.11): not delivered yet, possible today, delivered today.
+  const active = PARCELS.filter((p) => p.state !== "delivered").map(item);
+  add("sensor.pakete_unterwegs", String(active.length), {
+    friendly_name: "Pakete unterwegs", parcels: active });
+  add("sensor.pakete_moeglich", String(items("possible").length), {
+    friendly_name: "Pakete möglich", parcels: items("possible") });
+  add("sensor.pakete_zugestellt_heute", String(delivered.length), {
+    friendly_name: "Pakete zugestellt heute", parcels: delivered });
   add("sensor.paket_tracker_17track_kontingent", "187", {
     friendly_name: "Paket Tracker 17track-Kontingent", total: 200, used: 13 });
 
@@ -216,7 +230,10 @@
   card.setConfig({
     type: "custom:parcel-tracker-card",
     ...(addForm === "always" || addForm === "never" ? { add_form: addForm } : {}),
+    ...(params.has("show") ? { show: params.get("show") } : {}),
   });
+  // Home Assistant sets this while the dashboard is edited.
+  if (params.has("edit")) card.preview = true;
   card.hass = hass;
   document.getElementById("card").appendChild(card);
 

@@ -185,6 +185,9 @@
         }
       },
       "today": {"name": "Pakete heute"},
+      "active": {"name": "Pakete unterwegs"},
+      "possible": {"name": "Pakete möglich"},
+      "delivered_today": {"name": "Pakete zugestellt heute"},
       "track17_quota": {"name": "17track-Kontingent"}
     },
     "calendar": {"deliveries": {"name": "Pakete"}}

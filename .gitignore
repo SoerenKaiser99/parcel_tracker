@@ -4,3 +4,4 @@ __pycache__/
 .ruff_cache/
 .superpowers/
 dist/
+.DS_Store

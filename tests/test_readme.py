@@ -580,3 +580,47 @@ def test_readme_status_changes_during_start_and_reload():
         "nach einem Neuladen im laufenden Betrieb sofort",
     ):
         assert text in section, text
+
+
+def test_readme_explains_the_three_summary_sensors_and_the_show_option():
+    """v0.3.11: sensors for "on the way", "possible", "delivered today"; card option `show`."""
+    what = _section("Was es kann")
+    sensors = next(line for line in what.splitlines() if line.startswith("- **Sensoren**"))
+    for text in (
+        "`sensor.pakete_unterwegs`",
+        "`sensor.pakete_moeglich`",
+        "`sensor.pakete_zugestellt_heute`",
+        "noch nicht zugestellt",
+    ):
+        assert text in sensors, text
+    card = _section("Karte hinzufügen")
+    for text in (
+        "`show`",
+        "`always` (Standard)",
+        "`active`",
+        "`today`",
+        "`today_possible`",
+        "show: active",
+        "„Ausgeblendet, solange nichts ansteht (show: …)“",
+        "Bearbeitungsmodus",
+        "visibility:",
+        "condition: numeric_state",
+        "entity: sensor.pakete_unterwegs",
+        "above: 0",
+    ):
+        assert text in card, text
+    assert "bitte" not in (sensors + card).lower()
+    english = _section("English summary")
+    assert "`sensor.pakete_unterwegs`" in english and "`show`" in english
+
+
+def test_demo_page_knows_the_show_option():
+    js = (DEMO / "demo.js").read_text(encoding="utf-8")
+    for text in (
+        "?show=active", "?show=today", "?show=today_possible", "?empty=1", "?edit=1",
+        '"sensor.pakete_unterwegs"', '"sensor.pakete_moeglich"',
+        '"sensor.pakete_zugestellt_heute"',
+    ):
+        assert text in js, text
+    html = (DEMO / "index.html").read_text(encoding="utf-8")
+    assert 'href="?show=active&amp;empty=1"' in html

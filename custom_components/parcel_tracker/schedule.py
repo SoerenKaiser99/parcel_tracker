@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, tzinfo
 
 from .carriers.base import BERLIN
@@ -104,3 +106,34 @@ def delivered_today(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
         return False
     delivered = result.delivered_at or parcel.last_change_at
     return delivered.astimezone(tz).date() == today
+
+
+@dataclass
+class ParcelSummary:
+    """The parcels behind the summary sensors, each list in the order of the store."""
+
+    active: list[Parcel] = field(default_factory=list)  # not delivered yet
+    sure: list[Parcel] = field(default_factory=list)  # come today for sure
+    possible: list[Parcel] = field(default_factory=list)  # delivery window includes today
+    delivered_today: list[Parcel] = field(default_factory=list)
+
+
+def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> ParcelSummary:
+    """Sort the parcels into the lists of the summary sensors (``today`` is a day in ``tz``).
+
+    On the way is every parcel that is not delivered, whatever else its status says
+    (unknown, a problem, waiting at a pickup point, no answer from the carrier yet).
+    Today's lists follow ``today_group`` and ``delivered_today``.
+    """
+    summary = ParcelSummary()
+    for parcel in parcels:
+        if parcel.status is not ParcelStatus.DELIVERED:
+            summary.active.append(parcel)
+        group = today_group(parcel, today, tz)
+        if group == TODAY_SURE:
+            summary.sure.append(parcel)
+        elif group == TODAY_POSSIBLE:
+            summary.possible.append(parcel)
+        elif delivered_today(parcel, today, tz):
+            summary.delivered_today.append(parcel)
+    return summary
