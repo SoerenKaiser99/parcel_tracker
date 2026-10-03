@@ -413,11 +413,12 @@ Landet eine Paketmail im Ordner `Paket-Tracker-Nicht-erkannt` oder fehlt ein Sho
 - Hermes-Mails: umgesetzt
 - eBay-Mails: umgesetzt
 - UPS Live-Status (offizielle API): umgesetzt, noch nicht mit echten Zugangsdaten getestet (UPS-Freischaltung ausstehend)
-- 17track: Anmeldung live getestet, Anreicherung noch ohne Live-Fall
+- 17track: Anmeldung live getestet, Anreicherung noch ohne Live-Fall bei DPD/GLS (bei einem DHL-Paket live gesehen)
 - GLS-Live-Abfrage: umgesetzt, Live-Test ausstehend
 - GLS-Mails: umgesetzt
 - Benachrichtigungen (Optionen und Blueprint): umgesetzt, an Benachrichtigungs-Entitäten und klassische Dienste (z. B. Pushover); die frühere Meldung ersetzen über den klassischen Dienst der Home-Assistant-App oder den Blueprint, Antippen öffnet ein Dashboard nur über den Blueprint
 - Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports
+- **Barcode-Scan** (Wunsch aus [Issue #2](https://github.com/SoerenKaiser99/parcel_tracker/issues/2)): Sendungsnummer mit der Handykamera vom Label erfassen – geplant über den Scanner der Home-Assistant-App bzw. die Barcode-Erkennung des Browsers, ohne Fremdbibliothek; braucht Beispiel-Scans je Carrier, weil auf den Labels oft mehr als die Sendungsnummer steht
 - **International**: Karte auch auf Englisch, weitere Amazon-Länder im Mail-Import, nationale Carrier (Beispiele: Royal Mail, PostNL, USPS) – erst sinnvoll mit anonymisierten Beispielmails von Testern aus den jeweiligen Ländern
 
 ---
