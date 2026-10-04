@@ -6,11 +6,13 @@
         "description": "DHL braucht einen kostenlosen API-Key von developer.dhl.com (API „Shipment Tracking – Unified\"); der Key lässt sich auch später ergänzen. Die PLZ (optional, z. B. 10115) liefert DHL zusätzliche Details und GLS den Sendungsverlauf.",
         "data": {
           "dhl_api_key": "DHL-API-Key (optional)",
+          "country": "Land",
           "postcode": "PLZ (optional)",
           "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)"
         },
         "data_description": {
-          "postcode": "z. B. 10115"
+          "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
+          "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010)."
         }
       },
       "reauth_confirm": {
@@ -22,7 +24,8 @@
     "error": {
       "invalid_key": "DHL hat diesen API-Key abgelehnt.",
       "cannot_connect": "DHL ist gerade nicht erreichbar. Versuch es später noch einmal.",
-      "invalid_postcode": "Gib eine 5-stellige PLZ ein."
+      "invalid_postcode": "Gib eine 5-stellige PLZ ein.",
+      "invalid_postcode_4": "Gib eine 4-stellige PLZ ein."
     },
     "abort": {
       "single_instance_allowed": "Paket Tracker ist bereits eingerichtet.",
@@ -39,11 +42,13 @@
         "data": {
           "dhl_api_key": "DHL-API-Key",
           "track17_api_key": "17track-API-Key (optional)",
+          "country": "Land",
           "postcode": "PLZ (optional)",
           "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)"
         },
         "data_description": {
-          "postcode": "z. B. 10115",
+          "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
+          "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010).",
           "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key."
         },
         "sections": {
@@ -104,6 +109,7 @@
       "invalid_key": "DHL hat diesen API-Key abgelehnt.",
       "cannot_connect": "DHL ist gerade nicht erreichbar. Versuch es später noch einmal.",
       "invalid_postcode": "Gib eine 5-stellige PLZ ein.",
+      "invalid_postcode_4": "Gib eine 4-stellige PLZ ein.",
       "imap_auth": "Der Mailserver hat Benutzername oder Passwort abgelehnt.",
       "imap_cannot_connect": "Der Mailserver ist nicht erreichbar. Prüf den Servernamen.",
       "imap_password_missing": "Gib das Passwort des Postfachs ein.",
@@ -193,6 +199,13 @@
     "calendar": {"deliveries": {"name": "Pakete"}}
   },
   "selector": {
+    "country": {
+      "options": {
+        "DE": "Deutschland",
+        "AT": "Österreich",
+        "CH": "Schweiz"
+      }
+    },
     "notify_events": {
       "options": {
         "out_for_delivery": "In Zustellung",

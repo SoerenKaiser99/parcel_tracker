@@ -1,4 +1,4 @@
-"""GLS Germany via the open tracking lookup of gls-group.com (no key, no cookies).
+"""GLS via the open tracking lookup of gls-group.com (no key, no cookies).
 
 Response shape after ha-parcel-integrations/ha-gls (MIT): ``rstt028`` (number + postcode)
 answers a flat object with ``progressBar`` and ``history`` (newest first); ``rstt029``
@@ -33,7 +33,14 @@ from .base import (
 
 _LOGGER = logging.getLogger(__name__)
 
-GLS_URL = "https://gls-group.com/app/service/open/rest/DE/de"
+GLS_BASE = "https://gls-group.com/app/service/open/rest"
+# Country/language path of the lookup per configured country. Checked live on 2026-10-04
+# with an invalid number: AT/de answers exactly like DE/de (same JSON, same lastError
+# codes, German texts). CH/de answers in the same shape but with English texts, like any
+# unknown path does, so Switzerland (and everything else) stays on DE/de.
+_PATHS = {"DE": "DE/de", "AT": "AT/de"}
+_DEFAULT_PATH = "DE/de"
+GLS_URL = f"{GLS_BASE}/{_DEFAULT_PATH}"
 _TIMEOUT = aiohttp.ClientTimeout(total=20)
 _HEADERS = {"Accept": "application/json"}
 _CALLER = "witt002"  # the caller id of the public GLS tracking page
@@ -63,6 +70,12 @@ _DUMMY_EVENT_CODES = 50
 _DATE = re.compile(r"(?<!\d)(\d{1,2})\.(\d{1,2})\.(\d{4})(?!\d)")
 _WINDOW = re.compile(r"(?<![\d:])(\d{1,2}):(\d{2})\s*(?:[–-]|bis)\s*(\d{1,2}):(\d{2})(?![\d:])")
 _NO_ETA: tuple[date | None, datetime | None, datetime | None] = (None, None, None)
+
+
+def gls_url(country: str | None) -> str:
+    """Base URL of both lookups for a country (``DE``, ``AT``, ``CH``)."""
+    path = _PATHS.get(country, _DEFAULT_PATH) if isinstance(country, str) else _DEFAULT_PATH
+    return f"{GLS_BASE}/{path}"
 
 
 def _list(value: Any) -> list[Any]:
@@ -208,13 +221,14 @@ def parse_gls(data: Any, now: datetime) -> TrackingResult:
 
 
 class GlsCarrier(Carrier):
-    """GLS Germany (open lookup; with a postcode the answer includes the history)."""
+    """GLS (open lookup; with a postcode the answer includes the history)."""
 
     key = "gls"
     name = "GLS"
 
-    def __init__(self, session: aiohttp.ClientSession) -> None:
+    def __init__(self, session: aiohttp.ClientSession, country: str | None = None) -> None:
         self._session = session
+        self.url = gls_url(country)
         # Parcel number -> postcode GLS refused for it (E609). In memory only: asked
         # once more after a restart, and again when another postcode is set.
         self._postcode_refused: dict[str, str] = {}
@@ -259,7 +273,7 @@ class GlsCarrier(Carrier):
         code = (postcode or "").replace(" ", "")
         if code and self._postcode_refused.get(number) != code:
             data = await self._ask(
-                f"{GLS_URL}/rstt028/{quote(number, safe='')}",
+                f"{self.url}/rstt028/{quote(number, safe='')}",
                 {"caller": _CALLER, "millis": millis, "tuOwnerCode": "", "postalCode": code},
             )
             if data is not None:
@@ -269,7 +283,7 @@ class GlsCarrier(Carrier):
             # status. Remembered, so later polls cost one request instead of two.
             self._postcode_refused[number] = code
         data = await self._ask(
-            f"{GLS_URL}/rstt029",
+            f"{self.url}/rstt029",
             {"match": number, "type": "", "caller": _CALLER, "millis": millis},
         )
         if data is None:

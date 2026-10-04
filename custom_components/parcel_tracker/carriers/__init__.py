@@ -11,11 +11,16 @@ from .gls import GlsCarrier
 from .hermes import HermesCarrier
 
 
-def build_carriers(session: aiohttp.ClientSession, dhl_api_key: str | None) -> dict[str, Carrier]:
-    """Instantiate all carriers available in this release."""
+def build_carriers(
+    session: aiohttp.ClientSession, dhl_api_key: str | None, country: str | None = None
+) -> dict[str, Carrier]:
+    """Instantiate all carriers available in this release.
+
+    ``country`` (``DE``, ``AT``, ``CH``) only picks the path of the GLS lookup.
+    """
     return {
         "dhl": DhlCarrier(session, dhl_api_key),
         "dpd": DpdCarrier(),
         "hermes": HermesCarrier(session),
-        "gls": GlsCarrier(session),
+        "gls": GlsCarrier(session, country),
     }

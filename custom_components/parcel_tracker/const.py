@@ -1,11 +1,14 @@
 """Constants for Paket Tracker."""
 
+from collections.abc import Mapping
 from datetime import timedelta
+from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.12"
+VERSION = "0.3.13"
 
 CONF_DHL_API_KEY = "dhl_api_key"
+CONF_COUNTRY = "country"
 CONF_POSTCODE = "postcode"
 CONF_KEEP_DELIVERED_DAYS = "keep_delivered_days"
 CONF_MAIL_SECTION = "mail"
@@ -27,6 +30,11 @@ CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_TARGETS = "notify_targets"
 CONF_NOTIFY_EVENTS = "notify_events"
 
+# Countries on offer (ISO 3166-1 alpha-2). An entry without one behaves as Germany.
+COUNTRIES = ("DE", "AT", "CH")
+DEFAULT_COUNTRY = "DE"
+# Digits of a postcode per country.
+POSTCODE_DIGITS = {"DE": 5, "AT": 4, "CH": 4}
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
 MIN_KEEP_DELIVERED_DAYS = 1
@@ -133,3 +141,18 @@ TRACK17_CARRIER_NAMES = {
     100002: "UPS",
     101070: "GLS",
 }
+
+
+class _Entry(Protocol):
+    data: Mapping[str, Any]
+    options: Mapping[str, Any]
+
+
+def known_country(value: object) -> str:
+    """``value`` if it is one of ``COUNTRIES``, else Germany."""
+    return value if isinstance(value, str) and value in COUNTRIES else DEFAULT_COUNTRY
+
+
+def entry_country(entry: _Entry) -> str:
+    """The country of a config entry: options before data, Germany if none is stored."""
+    return known_country(entry.options.get(CONF_COUNTRY, entry.data.get(CONF_COUNTRY)))

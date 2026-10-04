@@ -50,6 +50,7 @@ from .const import (
     DEFAULT_UPS_BUDGET,
     DOMAIN,
     SELECTABLE_CARRIERS,
+    entry_country,
 )
 from .coordinator import ParcelCoordinator
 from .detect import UnsupportedNumber
@@ -245,7 +246,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bo
     """Set up from a config entry."""
     store = ParcelStore(hass)
     await store.async_load()
-    carriers = build_carriers(async_get_clientsession(hass), _dhl_key(entry))
+    carriers = build_carriers(
+        async_get_clientsession(hass), _dhl_key(entry), entry_country(entry)
+    )
     if ups := _ups_carrier(hass, entry, store.ups_budget):
         carriers["ups"] = ups
     else:

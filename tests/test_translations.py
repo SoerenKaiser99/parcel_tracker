@@ -173,3 +173,32 @@ def test_create_entry_says_to_reload_before_adding_the_card():
     )
     english = _load("strings.json")["config"]["create_entry"]["default"]
     assert "Reload the page once" in english and "“Paket Tracker” card" in english
+
+
+def test_country_translations_present():
+    labels = {
+        "strings.json": ("Country", {"DE": "Germany", "AT": "Austria", "CH": "Switzerland"}),
+        "translations/de.json": (
+            "Land", {"DE": "Deutschland", "AT": "Österreich", "CH": "Schweiz"},
+        ),
+    }
+    for name, (label, options) in labels.items():
+        strings = _load(name)
+        assert strings["selector"]["country"]["options"] == options
+        for step in (strings["config"]["step"]["user"], strings["options"]["step"]["init"]):
+            assert step["data"]["country"] == label
+            assert list(step["data"]).index("country") + 1 == list(step["data"]).index("postcode")
+            assert "country" in step["data_description"]
+            assert "1010" in step["data_description"]["postcode"]
+
+
+def test_postcode_errors_name_the_expected_length():
+    expected = {
+        "strings.json": ("Enter a 5-digit postcode.", "Enter a 4-digit postcode."),
+        "translations/de.json": ("Gib eine 5-stellige PLZ ein.", "Gib eine 4-stellige PLZ ein."),
+    }
+    for name, (five, four) in expected.items():
+        strings = _load(name)
+        for part in ("config", "options"):
+            assert strings[part]["error"]["invalid_postcode"] == five
+            assert strings[part]["error"]["invalid_postcode_4"] == four

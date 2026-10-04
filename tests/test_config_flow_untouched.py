@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 
 from custom_components.parcel_tracker.carriers.track17 import Quota
 from custom_components.parcel_tracker.const import (
+    CONF_COUNTRY,
     CONF_DHL_API_KEY,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
@@ -303,3 +304,52 @@ async def test_untouched_form_of_an_entry_from_before_notifications(hass):
         CONF_NOTIFY_TARGETS: [],
         CONF_NOTIFY_EVENTS: list(DEFAULT_NOTIFY_EVENTS),
     }
+
+
+async def test_untouched_form_of_an_entry_without_country_stores_no_country(hass):
+    """An entry from before v0.3.13 has no country: the form shows Germany, and open
+    and save neither adds a country nor touches the 5-digit postcode."""
+    hass.config.country = "AT"  # the country of Home Assistant is only a prefill at setup
+    entry = _entry(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    initial = _frontend_initial(_fields(result))
+    assert initial[CONF_COUNTRY] == "DE"
+    assert initial[CONF_POSTCODE] == "20095"
+    result, checks = await _save(hass, entry, _frontend_initial)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.data == DATA
+    assert entry.options == OPTIONS
+    assert CONF_COUNTRY not in entry.options
+
+
+@pytest.mark.parametrize(
+    ("country", "postcode", "in_data"),
+    [("DE", "20095", False), ("AT", "1010", False), ("CH", "8001", False), ("AT", "1010", True)],
+    ids=["de", "at", "ch", "at-from-setup"],
+)
+async def test_untouched_form_with_a_stored_country_changes_nothing(
+    hass, country, postcode, in_data
+):
+    """Country stored by the options (or, ``in_data``, only by the setup): open, save."""
+    data = {**DATA, CONF_COUNTRY: country} if in_data else dict(DATA)
+    options = {**OPTIONS, CONF_POSTCODE: postcode}
+    if not in_data:
+        options[CONF_COUNTRY] = country
+    entry = MockConfigEntry(domain=DOMAIN, data=dict(data), options=dict(options))
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    initial = _frontend_initial(_fields(result))
+    assert initial[CONF_COUNTRY] == country
+    assert initial[CONF_POSTCODE] == postcode
+    for payload in (_frontend_initial, _defaults_only):
+        result, checks = await _save(hass, entry, payload)
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        for check in checks:
+            check.assert_not_called()
+        assert entry.data == data
+        if payload is _frontend_initial:
+            assert entry.options == options
+        else:  # the postcode has no ``default``: left out, it is removed (as before)
+            assert entry.options == {**options, CONF_POSTCODE: ""}

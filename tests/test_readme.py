@@ -668,3 +668,58 @@ def test_demo_page_has_a_dhl_parcel_without_key_and_without_result():
     block = re.search(r'parcel\("unknown", "dhl", [^)]*\{([^}]*)\}\)', js)
     assert block and 'last_error: "missing_key"' in block.group(1)
     assert "events" not in block.group(1) and "eta_days" not in block.group(1)
+
+
+def test_readme_lists_the_country_among_the_setup_fields():
+    """v0.3.13: country DE/AT/CH, the postcode length follows it."""
+    fields = README.split("### Einrichtungsfelder")[1].split("\n## ")[0]
+    assert "- **Land** (Deutschland, Österreich oder Schweiz" in fields
+    assert fields.index("**Land**") < fields.index("**PLZ**")
+    for text in (
+        "Deutschland 5 Ziffern",
+        "Österreich und Schweiz 4 Ziffern",
+        "Alle vier Felder",
+        "Bestehende Einrichtungen bleiben ohne Zutun auf Deutschland",
+    ):
+        assert text in fields, text
+
+
+def test_readme_says_honestly_what_works_in_austria_and_switzerland():
+    section = README.split("### Österreich und Schweiz")[1].split("\n## ")[0]
+    for text in (
+        "PLZ mit 4 Ziffern",
+        "DHL mit API-Key über die offizielle API",
+        "UPS über die offizielle API",
+        "jeder Carrier über 17track",
+        "GLS",
+        "mit echten Paketen noch nicht getestet",
+        "Für die Schweiz bleibt die GLS-Abfrage auf der deutschen Variante",
+        "Noch nicht",
+        "DPD Österreich und DPD Schweiz",
+        "Österreichische Post",
+        "Schweizerische Post",
+        "erkennt ausländische Nummernformate nicht automatisch",
+        "anonymisierte Beispielmails",
+        "Diagnose-Datei",
+        "(#beispielmails-einreichen)",
+        "(#fehler-melden)",
+    ):
+        assert text in section, text
+
+
+def test_readme_roadmap_names_the_austrian_post():
+    roadmap = README.split("## Roadmap & Status")[1].split("## English summary")[0]
+    international = next(line for line in roadmap.splitlines() if "**International**" in line)
+    assert "Österreichische Post" in international
+    assert "- Land (Deutschland, Österreich, Schweiz)" in roadmap
+
+
+def test_readme_english_summary_names_the_country_setting():
+    english = README.split("## English summary")[1]
+    assert english.count("country setting") == 1
+    assert "Austria" in english and "Switzerland" in english
+
+
+def test_readme_diagnostics_name_the_country():
+    section = README.split("\n## Fehler melden\n")[1].split("\n## ")[0]
+    assert "das eingestellte Land" in section

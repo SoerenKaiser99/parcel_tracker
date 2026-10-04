@@ -30,6 +30,7 @@ from .carriers.dhl import DhlCarrier
 from .carriers.track17 import Track17Client
 from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
+    CONF_COUNTRY,
     CONF_DHL_API_KEY,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
@@ -51,6 +52,7 @@ from .const import (
     CONF_UPS_CLIENT_SECRET,
     CONF_UPS_ENABLED,
     CONF_UPS_SECTION,
+    COUNTRIES,
     DEFAULT_IMAP_HOST,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
@@ -68,11 +70,18 @@ from .const import (
     MIN_UPS_BUDGET,
     NOTIFY_EVENTS,
     NOTIFY_SERVICE_ALL,
+    POSTCODE_DIGITS,
+    entry_country,
+    known_country,
 )
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
 from .notification import service_name, service_target
 
-_POSTCODE = re.compile(r"^\d{5}$")
+_COUNTRY = SelectSelector(
+    SelectSelectorConfig(
+        options=list(COUNTRIES), mode=SelectSelectorMode.DROPDOWN, translation_key="country"
+    )
+)
 _KEY = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 _DAYS = NumberSelector(
     NumberSelectorConfig(
@@ -294,6 +303,9 @@ def _schema(
         fields[vol.Optional(CONF_DHL_API_KEY)] = _KEY
     if track17:
         fields[vol.Optional(CONF_TRACK17_API_KEY)] = _KEY
+    fields[
+        vol.Optional(CONF_COUNTRY, default=known_country(defaults.get(CONF_COUNTRY)))
+    ] = _COUNTRY
     if suggested_postcode is not None:
         fields[
             vol.Optional(CONF_POSTCODE, description={"suggested_value": suggested_postcode})
@@ -320,8 +332,20 @@ def _schema(
 
 
 def _validate_postcode(user_input: dict[str, Any]) -> str:
-    """Return the stripped postcode; caller checks `_POSTCODE` on non-empty values."""
+    """Return the stripped postcode; caller checks non-empty values with `_postcode_error`."""
     return (user_input.get(CONF_POSTCODE) or "").strip()
+
+
+def _postcode_error(postcode: str, country: str) -> str | None:
+    """Error code for a postcode that does not fit the country, else None.
+
+    Germany has 5 digits (``invalid_postcode``), Austria and Switzerland have 4
+    (``invalid_postcode_4``); the error text names the length.
+    """
+    digits = POSTCODE_DIGITS[country]
+    if re.fullmatch(rf"[0-9]{{{digits}}}", postcode):
+        return None
+    return "invalid_postcode" if digits == 5 else f"invalid_postcode_{digits}"
 
 
 async def _check_key(hass, key: str | None) -> str | None:
@@ -377,21 +401,27 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
         errors: dict[str, str] = {}
+        # Prefilled with the country of Home Assistant if it is one on offer.
+        suggested = known_country(self.hass.config.country)
         if user_input is not None:
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             postcode = _validate_postcode(user_input)
-            if postcode and not _POSTCODE.match(postcode):
-                errors[CONF_POSTCODE] = "invalid_postcode"
+            country = known_country(user_input.get(CONF_COUNTRY) or suggested)
+            if postcode and (err := _postcode_error(postcode, country)):
+                errors[CONF_POSTCODE] = err
             elif err := await _check_key(self.hass, key_value):
                 errors[CONF_DHL_API_KEY] = err
             else:
                 if CONF_DHL_API_KEY in user_input:
                     user_input[CONF_DHL_API_KEY] = key_value
+                user_input[CONF_COUNTRY] = country
                 user_input[CONF_POSTCODE] = postcode
                 user_input[CONF_KEEP_DELIVERED_DAYS] = int(user_input[CONF_KEEP_DELIVERED_DAYS])
                 return self.async_create_entry(title="Paket Tracker", data=user_input)
         return self.async_show_form(
-            step_id="user", data_schema=_schema(user_input or {}, True), errors=errors
+            step_id="user",
+            data_schema=_schema({CONF_COUNTRY: suggested, **(user_input or {})}, True),
+            errors=errors,
         )
 
     async def async_step_reauth(self, entry_data: Mapping[str, Any]) -> ConfigFlowResult:
@@ -423,7 +453,7 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(OptionsFlow):
-    """Change keys, postcode, keep days, the mail import, the UPS API, the 17track key
+    """Change keys, country, postcode, keep days, the mail import, the UPS API, the 17track key
     and the push notifications.
 
     Secrets (DHL key, 17track key, IMAP password, UPS client ID and secret) are stored in the
@@ -436,6 +466,12 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     import and the UPS API are only removed through their explicit switches
     (``mail_enabled``/``ups_enabled`` submitted as False). The postcode is the one
     exception: it is not a secret and emptying it is how it is removed.
+
+    The country (``DE``, ``AT``, ``CH``) decides how many digits the postcode has; the
+    postcode is checked against the country submitted with it, so a stored postcode
+    that no longer fits a changed country is a form error and never dropped silently.
+    An entry without a stored country behaves as Germany and shows Germany; the
+    country is only written to the options once it is stored there or was changed.
 
     Notifications are on while targets are stored. A submitted empty list of
     targets switches them off, as does ``notify_enabled`` submitted as False; a
@@ -450,6 +486,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         current = {**self.config_entry.data, **self.config_entry.options}
+        stored_country = entry_country(self.config_entry)
         if user_input is not None:
             options = self.config_entry.options
             mail = user_input.get(CONF_MAIL_SECTION) or {}
@@ -504,8 +541,9 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
-            if postcode and not _POSTCODE.match(postcode):
-                errors[CONF_POSTCODE] = "invalid_postcode"
+            country = known_country(user_input.get(CONF_COUNTRY) or stored_country)
+            if postcode and (err := _postcode_error(postcode, country)):
+                errors[CONF_POSTCODE] = err
             elif notify_no_target:
                 errors["base"] = "notify_no_target"
             elif key_value and (err := await _check_key(self.hass, key_value)):
@@ -556,6 +594,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     CONF_NOTIFY_TARGETS: targets,
                     CONF_NOTIFY_EVENTS: events,
                 }
+                if CONF_COUNTRY in options or country != stored_country:
+                    new_options[CONF_COUNTRY] = country
                 data = dict(self.config_entry.data)
                 if key_value:
                     data[CONF_DHL_API_KEY] = key_value
@@ -579,7 +619,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                         self.config_entry, data=data, options=new_options
                     )
                 return self.async_create_entry(data=new_options)
-        shown = {**current, **(user_input or {})}
+        shown = {**current, CONF_COUNTRY: stored_country, **(user_input or {})}
         mail_shown = {**current, **((user_input or {}).get(CONF_MAIL_SECTION) or {})}
         ups_shown = {**current, **((user_input or {}).get(CONF_UPS_SECTION) or {})}
         notify_shown = {**current, **((user_input or {}).get(CONF_NOTIFY_SECTION) or {})}

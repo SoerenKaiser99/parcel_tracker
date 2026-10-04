@@ -19,6 +19,7 @@ from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    CONF_COUNTRY,
     CONF_DHL_API_KEY,
     CONF_IMAP_HOST,
     CONF_KEEP_DELIVERED_DAYS,
@@ -36,15 +37,19 @@ from .const import (
     NOTIFY_EVENTS,
     NOTIFY_SERVICE_PREFIX,
     VERSION,
+    entry_country,
+    known_country,
 )
 from .coordinator import ParcelCoordinator
 from .models import Parcel, TrackingResult, _iso
 
 # Settings that say nothing about the person. Every other key of the entry (keys,
 # passwords, UPS ID/secret, mailbox user, postcode, anything added later) is redacted.
-# The IMAP host is only named if it belongs to a public provider (see below).
+# The IMAP host is only named if it belongs to a public provider (see below), the
+# country only as one of the three on offer.
 SAFE_KEYS = frozenset(
     {
+        CONF_COUNTRY,
         CONF_KEEP_DELIVERED_DAYS,
         CONF_IMAP_HOST,
         CONF_MOVE_PROCESSED,
@@ -134,6 +139,8 @@ def _redact(data: Mapping[str, Any]) -> dict[str, Any]:
     shown = async_redact_data(dict(data), set(data) - SAFE_KEYS)
     if CONF_IMAP_HOST in shown:
         shown[CONF_IMAP_HOST] = public_imap_host(shown[CONF_IMAP_HOST])
+    if CONF_COUNTRY in shown:
+        shown[CONF_COUNTRY] = known_country(shown[CONF_COUNTRY])
     return shown
 
 
@@ -198,6 +205,7 @@ async def async_get_config_entry_diagnostics(
     return {
         "integration_version": VERSION,
         "home_assistant_version": HA_VERSION,
+        "country": entry_country(entry),
         "entry": {"data": _redact(entry.data), "options": _redact(entry.options)},
         "carriers": {
             "active": list(coordinator.carriers),

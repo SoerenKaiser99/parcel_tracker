@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime
 
 import aiohttp
@@ -143,3 +144,19 @@ def test_locality_cleanup(raw, expected):
     data = {"shipments": [{"status": {"timestamp": "2026-09-29T09:51:00", "statusCode": "transit",
             "description": "x", "location": {"address": {"addressLocality": raw}}}}]}
     assert parse_dhl(data).location == expected
+
+
+@pytest.mark.parametrize("postcode", ["1010", "8001", "10115"])
+async def test_postcode_is_sent_as_stored_and_no_country_parameter(postcode):
+    """Austria and Switzerland have 4 digits: nothing is padded, cut or added."""
+    with aioresponses() as m:
+        m.get(
+            re.compile(rf"^{re.escape(DHL_URL)}\?"),
+            payload=load_fixture("dhl_synthetic_out_for_delivery.json"),
+        )
+        async with aiohttp.ClientSession() as session:
+            await DhlCarrier(session, "key").fetch(NUMBER, postcode)
+        [call] = [c for calls in m.requests.values() for c in calls]
+    assert call.kwargs["params"] == {
+        "trackingNumber": NUMBER, "language": "de", "recipientPostalCode": postcode,
+    }

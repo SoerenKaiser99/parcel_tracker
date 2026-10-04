@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.components.diagnostics import (
 
 from custom_components.parcel_tracker.carriers.track17 import Quota
 from custom_components.parcel_tracker.const import (
+    CONF_COUNTRY,
     CONF_DHL_API_KEY,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
@@ -107,6 +108,7 @@ PLAIN = (NAME, TITLE, OTP, LOCATION, PICKUP, EVENT_TEXT, EVENT_PLACE, STATUS_TEX
 TOP_LEVEL = [
     "integration_version",
     "home_assistant_version",
+    "country",
     "entry",
     "carriers",
     "ups_budget",
@@ -729,3 +731,31 @@ async def test_diagnostics_count_pending_announcements_only(hass, hass_storage, 
     assert result["pending_announcements"] == 1
     assert all("unannounced_from" not in parcel for parcel in result["parcels"])
     assert "unannounced" not in _dump(result)
+
+
+async def test_diagnostics_name_the_country_and_never_the_postcode(hass, hass_storage, freezer):
+    entry = await _setup(hass, hass_storage, freezer)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["country"] == "DE"  # an entry from before v0.3.13
+    assert CONF_COUNTRY not in result["entry"]["options"]
+
+    hass.config_entries.async_update_entry(
+        entry, options={**OPTIONS, CONF_COUNTRY: "AT", CONF_POSTCODE: "4871"}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["country"] == "AT"
+    assert result["entry"]["options"][CONF_COUNTRY] == "AT"
+    assert result["entry"]["options"][CONF_POSTCODE] == REDACTED
+    assert "4871" not in _dump(result)
+
+
+async def test_diagnostics_show_only_a_known_country(hass, hass_storage, freezer):
+    entry = await _setup(hass, hass_storage, freezer)
+    hass.config_entries.async_update_entry(
+        entry, options={**OPTIONS, CONF_COUNTRY: "Musterstraße 1"}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["country"] == "DE"
+    assert "Musterstra" not in _dump(result)

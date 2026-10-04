@@ -6,11 +6,13 @@
         "description": "DHL needs a free API key from developer.dhl.com (API \"Shipment Tracking – Unified\"); you can add it later. The postcode (optional, e.g. 10115) lets DHL return more details and GLS the tracking history.",
         "data": {
           "dhl_api_key": "DHL API key (optional)",
+          "country": "Country",
           "postcode": "Postcode (optional)",
           "keep_delivered_days": "Hide delivered parcels after (days)"
         },
         "data_description": {
-          "postcode": "e.g. 10115"
+          "country": "Decides how many digits the postcode has and which GLS lookup is asked.",
+          "postcode": "Germany: 5 digits (e.g. 10115). Austria and Switzerland: 4 digits (e.g. 1010)."
         }
       },
       "reauth_confirm": {
@@ -22,7 +24,8 @@
     "error": {
       "invalid_key": "DHL rejected this API key.",
       "cannot_connect": "Couldn't reach DHL. Try again later.",
-      "invalid_postcode": "Enter a 5-digit postcode."
+      "invalid_postcode": "Enter a 5-digit postcode.",
+      "invalid_postcode_4": "Enter a 4-digit postcode."
     },
     "abort": {
       "single_instance_allowed": "Parcel Tracker is already set up.",
@@ -39,11 +42,13 @@
         "data": {
           "dhl_api_key": "DHL API key",
           "track17_api_key": "17track API key (optional)",
+          "country": "Country",
           "postcode": "Postcode (optional)",
           "keep_delivered_days": "Hide delivered parcels after (days)"
         },
         "data_description": {
-          "postcode": "e.g. 10115",
+          "country": "Decides how many digits the postcode has and which GLS lookup is asked.",
+          "postcode": "Germany: 5 digits (e.g. 10115). Austria and Switzerland: 4 digits (e.g. 1010).",
           "track17_api_key": "Free key from api.17track.net (200 numbers once). Only used when you ask for it on the card. Leave empty to keep the saved key."
         },
         "sections": {
@@ -104,6 +109,7 @@
       "invalid_key": "DHL rejected this API key.",
       "cannot_connect": "Couldn't reach DHL. Try again later.",
       "invalid_postcode": "Enter a 5-digit postcode.",
+      "invalid_postcode_4": "Enter a 4-digit postcode.",
       "imap_auth": "The mail server rejected username or password.",
       "imap_cannot_connect": "Couldn't reach the mail server. Check the server name.",
       "imap_password_missing": "Enter the mailbox password.",
@@ -193,6 +199,13 @@
     "calendar": {"deliveries": {"name": "Parcels"}}
   },
   "selector": {
+    "country": {
+      "options": {
+        "DE": "Germany",
+        "AT": "Austria",
+        "CH": "Switzerland"
+      }
+    },
     "notify_events": {
       "options": {
         "out_for_delivery": "Out for delivery",

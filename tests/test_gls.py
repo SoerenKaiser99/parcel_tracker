@@ -14,7 +14,7 @@ from custom_components.parcel_tracker.carriers.base import (
     ParseError,
     RateLimited,
 )
-from custom_components.parcel_tracker.carriers.gls import GLS_URL, GlsCarrier
+from custom_components.parcel_tracker.carriers.gls import GLS_URL, GlsCarrier, gls_url
 from custom_components.parcel_tracker.detect import candidates
 from custom_components.parcel_tracker.models import ParcelStatus
 
@@ -240,3 +240,42 @@ async def test_only_number_and_postcode_leave_the_house():
     assert set(url.query) == {"caller", "millis", "tuOwnerCode", "postalCode"}
     headers = calls[0].kwargs["headers"]
     assert headers == {"Accept": "application/json"}  # no fake browser, no cookies
+
+
+def test_url_by_country():
+    """Live check 2026-10-04 with an invalid number: AT/de answers exactly like DE/de;
+    CH/de answers in the same shape but with English texts, so Switzerland stays on DE/de."""
+    base = "https://gls-group.com/app/service/open/rest"
+    assert GLS_URL == f"{base}/DE/de"
+    assert gls_url("DE") == f"{base}/DE/de"
+    assert gls_url("AT") == f"{base}/AT/de"
+    assert gls_url("CH") == f"{base}/DE/de"
+    for other in ("FR", "", None, "at"):
+        assert gls_url(other) == f"{base}/DE/de"
+
+
+@pytest.mark.parametrize(
+    ("country", "path"), [(None, "DE/de"), ("DE", "DE/de"), ("AT", "AT/de"), ("CH", "DE/de")]
+)
+@pytest.mark.parametrize("postcode", ["1010", None])
+async def test_both_lookups_use_the_path_of_the_country(country, path, postcode):
+    with aioresponses() as m:
+        m.get(re.compile(r".*/rstt028/"), payload=_detail())
+        m.get(re.compile(r".*/rstt029\?"), payload=_search())
+        async with aiohttp.ClientSession() as session:
+            carrier = GlsCarrier(session) if country is None else GlsCarrier(session, country)
+            await carrier.fetch(NUMBER, postcode)
+        [url] = _urls(m)
+    lookup = f"rstt028/{NUMBER}?" if postcode else "rstt029?"
+    assert url.startswith(f"https://gls-group.com/app/service/open/rest/{path}/{lookup}")
+    if postcode:
+        assert "postalCode=1010" in url
+
+
+async def test_build_carriers_passes_the_country_to_gls_only():
+    async with aiohttp.ClientSession() as session:
+        default = build_carriers(session, None)
+        austria = build_carriers(session, None, "AT")
+    assert default["gls"].url == GLS_URL
+    assert austria["gls"].url.endswith("/AT/de")
+    assert list(austria) == list(default)
