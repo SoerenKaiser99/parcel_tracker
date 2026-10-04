@@ -467,7 +467,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     (``mail_enabled``/``ups_enabled`` submitted as False). The postcode is the one
     exception: it is not a secret and emptying it is how it is removed.
 
-    The country (``DE``, ``AT``, ``CH``) decides how many digits the postcode has; the
+    The country (``de``, ``at``, ``ch``) decides how many digits the postcode has; the
     postcode is checked against the country submitted with it, so a stored postcode
     that no longer fits a changed country is a form error and never dropped silently.
     An entry without a stored country behaves as Germany and shows Germany; the

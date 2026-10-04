@@ -1,4 +1,4 @@
-"""Country setting (v0.3.13): DE, AT or CH; the postcode length follows the country."""
+"""Country setting (v0.3.13): de, at or ch; the postcode length follows the country."""
 
 from unittest.mock import patch
 
@@ -40,19 +40,19 @@ async def _options_form(hass, data=None, options=None):
 
 
 def test_the_three_countries():
-    assert COUNTRIES == ("DE", "AT", "CH")
-    assert DEFAULT_COUNTRY == "DE"
+    assert COUNTRIES == ("de", "at", "ch")
+    assert DEFAULT_COUNTRY == "de"
 
 
 @pytest.mark.parametrize(
     ("data", "options", "country"),
     [
-        ({}, {}, "DE"),
-        ({CONF_COUNTRY: "AT"}, {}, "AT"),
-        ({CONF_COUNTRY: "AT"}, {CONF_COUNTRY: "CH"}, "CH"),
-        ({CONF_COUNTRY: "FR"}, {}, "DE"),
-        ({}, {CONF_COUNTRY: None}, "DE"),
-        ({}, {CONF_COUNTRY: ["AT"]}, "DE"),
+        ({}, {}, "de"),
+        ({CONF_COUNTRY: "at"}, {}, "at"),
+        ({CONF_COUNTRY: "at"}, {CONF_COUNTRY: "ch"}, "ch"),
+        ({CONF_COUNTRY: "FR"}, {}, "de"),
+        ({}, {CONF_COUNTRY: None}, "de"),
+        ({}, {CONF_COUNTRY: ["at"]}, "de"),
     ],
 )
 def test_entry_country_falls_back_to_germany(data, options, country):
@@ -62,14 +62,14 @@ def test_entry_country_falls_back_to_germany(data, options, country):
 
 @pytest.mark.parametrize(
     ("ha_country", "prefilled"),
-    [("DE", "DE"), ("AT", "AT"), ("CH", "CH"), ("FR", "DE"), ("US", "DE"), (None, "DE")],
+    [("DE", "de"), ("AT", "at"), ("CH", "ch"), ("FR", "de"), ("US", "de"), (None, "de")],
 )
 async def test_user_form_prefills_the_country_of_home_assistant(hass, ha_country, prefilled):
     hass.config.country = ha_country
     field = _field(await _user_form(hass), CONF_COUNTRY)
     assert field["default"] == prefilled
     selector = field["selector"]["select"]
-    assert selector["options"] == ["DE", "AT", "CH"]
+    assert selector["options"] == ["de", "at", "ch"]
     assert selector["translation_key"] == "country"
     assert selector["multiple"] is False
 
@@ -84,7 +84,7 @@ async def test_user_form_shows_the_country_right_before_the_postcode(hass):
 
 
 @pytest.mark.parametrize(
-    ("country", "postcode"), [("DE", "10115"), ("AT", "1010"), ("CH", "8001"), ("AT", "")]
+    ("country", "postcode"), [("de", "10115"), ("at", "1010"), ("ch", "8001"), ("at", "")]
 )
 async def test_user_flow_stores_country_and_postcode(hass, country, postcode):
     result = await _user_form(hass)
@@ -108,19 +108,19 @@ async def test_user_flow_without_a_submitted_country_takes_the_prefilled_one(has
         )
         await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"][CONF_COUNTRY] == "AT"
+    assert result["data"][CONF_COUNTRY] == "at"
 
 
 @pytest.mark.parametrize(
     ("country", "postcode", "error"),
     [
-        ("DE", "1010", "invalid_postcode"),
-        ("DE", "101150", "invalid_postcode"),
-        ("DE", "1011a", "invalid_postcode"),
-        ("AT", "10115", "invalid_postcode_4"),
-        ("AT", "101", "invalid_postcode_4"),
-        ("CH", "80010", "invalid_postcode_4"),
-        ("CH", "CH-8001", "invalid_postcode_4"),
+        ("de", "1010", "invalid_postcode"),
+        ("de", "101150", "invalid_postcode"),
+        ("de", "1011a", "invalid_postcode"),
+        ("at", "10115", "invalid_postcode_4"),
+        ("at", "101", "invalid_postcode_4"),
+        ("ch", "80010", "invalid_postcode_4"),
+        ("ch", "CH-8001", "invalid_postcode_4"),
     ],
 )
 async def test_postcode_length_follows_the_submitted_country(hass, country, postcode, error):
@@ -153,15 +153,15 @@ async def test_options_form_of_an_entry_without_country_shows_germany(hass):
     """An existing entry behaves as DE, whatever country Home Assistant is set to."""
     hass.config.country = "AT"
     _, result = await _options_form(hass, data={CONF_POSTCODE: "10115"})
-    assert _field(result, CONF_COUNTRY)["default"] == "DE"
+    assert _field(result, CONF_COUNTRY)["default"] == "de"
 
 
 @pytest.mark.parametrize(
     ("data", "options", "shown"),
     [
-        ({CONF_COUNTRY: "AT"}, {}, "AT"),
-        ({CONF_COUNTRY: "AT"}, {CONF_COUNTRY: "CH"}, "CH"),
-        ({}, {CONF_COUNTRY: "AT"}, "AT"),
+        ({CONF_COUNTRY: "at"}, {}, "at"),
+        ({CONF_COUNTRY: "at"}, {CONF_COUNTRY: "ch"}, "ch"),
+        ({}, {CONF_COUNTRY: "at"}, "at"),
     ],
 )
 async def test_options_form_shows_the_stored_country(hass, data, options, shown):
@@ -184,23 +184,23 @@ async def test_options_change_country_and_postcode_together(hass):
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            {CONF_COUNTRY: "AT", CONF_POSTCODE: "1010", CONF_KEEP_DELIVERED_DAYS: 3},
+            {CONF_COUNTRY: "at", CONF_POSTCODE: "1010", CONF_KEEP_DELIVERED_DAYS: 3},
         )
         await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options[CONF_COUNTRY] == "AT"
+    assert entry.options[CONF_COUNTRY] == "at"
     assert entry.options[CONF_POSTCODE] == "1010"
-    assert entry_country(entry) == "AT"
+    assert entry_country(entry) == "at"
 
 
 async def test_changing_the_country_never_wipes_a_stored_postcode_silently(hass):
     """Country changed, the prefilled 5-digit postcode left as it was: a form error."""
-    stored = {CONF_COUNTRY: "DE", CONF_POSTCODE: "20095", CONF_KEEP_DELIVERED_DAYS: 3}
+    stored = {CONF_COUNTRY: "de", CONF_POSTCODE: "20095", CONF_KEEP_DELIVERED_DAYS: 3}
     entry, result = await _options_form(hass, options=dict(stored))
     assert _field(result, CONF_POSTCODE)["description"]["suggested_value"] == "20095"
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {CONF_COUNTRY: "AT", CONF_POSTCODE: "20095", CONF_KEEP_DELIVERED_DAYS: 3},
+        {CONF_COUNTRY: "at", CONF_POSTCODE: "20095", CONF_KEEP_DELIVERED_DAYS: 3},
     )
     assert result["type"] is FlowResultType.FORM
     assert result["errors"] == {CONF_POSTCODE: "invalid_postcode_4"}
@@ -209,21 +209,21 @@ async def test_changing_the_country_never_wipes_a_stored_postcode_silently(hass)
 
 
 async def test_options_back_to_germany_is_stored_over_the_country_of_the_setup(hass):
-    entry, result = await _options_form(hass, data={CONF_COUNTRY: "AT", CONF_POSTCODE: "1010"})
+    entry, result = await _options_form(hass, data={CONF_COUNTRY: "at", CONF_POSTCODE: "1010"})
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            {CONF_COUNTRY: "DE", CONF_POSTCODE: "10115", CONF_KEEP_DELIVERED_DAYS: 3},
+            {CONF_COUNTRY: "de", CONF_POSTCODE: "10115", CONF_KEEP_DELIVERED_DAYS: 3},
         )
         await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options[CONF_COUNTRY] == "DE"
-    assert entry_country(entry) == "DE"
+    assert entry.options[CONF_COUNTRY] == "de"
+    assert entry_country(entry) == "de"
 
 
 async def test_options_without_a_submitted_country_keep_the_stored_one(hass):
     entry, result = await _options_form(
-        hass, options={CONF_COUNTRY: "CH", CONF_POSTCODE: "8001", CONF_KEEP_DELIVERED_DAYS: 3}
+        hass, options={CONF_COUNTRY: "ch", CONF_POSTCODE: "8001", CONF_KEEP_DELIVERED_DAYS: 3}
     )
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
@@ -231,12 +231,12 @@ async def test_options_without_a_submitted_country_keep_the_stored_one(hass):
         )
         await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options[CONF_COUNTRY] == "CH"
+    assert entry.options[CONF_COUNTRY] == "ch"
     assert entry.options[CONF_POSTCODE] == "8001"
 
 
 async def test_setup_hands_the_country_to_the_gls_lookup(hass):
-    entry = MockConfigEntry(domain=DOMAIN, data={CONF_COUNTRY: "DE"}, options={CONF_COUNTRY: "AT"})
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_COUNTRY: "de"}, options={CONF_COUNTRY: "at"})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

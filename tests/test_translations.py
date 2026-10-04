@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 from custom_components.parcel_tracker import const
@@ -177,9 +178,9 @@ def test_create_entry_says_to_reload_before_adding_the_card():
 
 def test_country_translations_present():
     labels = {
-        "strings.json": ("Country", {"DE": "Germany", "AT": "Austria", "CH": "Switzerland"}),
+        "strings.json": ("Country", {"de": "Germany", "at": "Austria", "ch": "Switzerland"}),
         "translations/de.json": (
-            "Land", {"DE": "Deutschland", "AT": "Österreich", "CH": "Schweiz"},
+            "Land", {"de": "Deutschland", "at": "Österreich", "ch": "Schweiz"},
         ),
     }
     for name, (label, options) in labels.items():
@@ -202,3 +203,36 @@ def test_postcode_errors_name_the_expected_length():
         for part in ("config", "options"):
             assert strings[part]["error"]["invalid_postcode"] == five
             assert strings[part]["error"]["invalid_postcode_4"] == four
+
+
+_KEY = re.compile(r"^[a-z0-9]([a-z0-9-_]*[a-z0-9])?$")
+
+
+def _selector_keys(strings: dict) -> list[tuple[str, str]]:
+    return [
+        (name, key)
+        for name, selector in strings["selector"].items()
+        for key in selector.get("options", {})
+    ]
+
+
+def test_selector_option_keys_are_valid_translation_keys():
+    """hassfest only accepts [a-z0-9-_]+ as a translation key; selector option values are
+    translation keys, so e.g. "DE" fails CI ("Invalid translation key")."""
+    for name in ("strings.json", "translations/de.json", "translations/en.json"):
+        keys = _selector_keys(_load(name))
+        assert keys, name
+        for selector, key in keys:
+            assert _KEY.match(key), f"{name}: selector.{selector}.options.{key}"
+
+
+def test_selector_options_in_code_match_the_translation_keys():
+    strings = _load("strings.json")
+    assert set(strings["selector"]["country"]["options"]) == set(const.COUNTRIES)
+    assert all(_KEY.match(c) for c in const.COUNTRIES)
+
+
+def test_known_country_is_tolerant_of_case():
+    assert [const.known_country(v) for v in ("AT", "at", " Ch ", "DE", "FR", None, 1)] == [
+        "at", "at", "ch", "de", "de", "de", "de",
+    ]

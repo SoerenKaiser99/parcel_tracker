@@ -30,11 +30,13 @@ CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_TARGETS = "notify_targets"
 CONF_NOTIFY_EVENTS = "notify_events"
 
-# Countries on offer (ISO 3166-1 alpha-2). An entry without one behaves as Germany.
-COUNTRIES = ("DE", "AT", "CH")
-DEFAULT_COUNTRY = "DE"
+# Countries on offer (ISO 3166-1 alpha-2, lower case: selector option values double as
+# translation keys, which hassfest only accepts as [a-z0-9-_]+). An entry without one
+# behaves as Germany.
+COUNTRIES = ("de", "at", "ch")
+DEFAULT_COUNTRY = "de"
 # Digits of a postcode per country.
-POSTCODE_DIGITS = {"DE": 5, "AT": 4, "CH": 4}
+POSTCODE_DIGITS = {"de": 5, "at": 4, "ch": 4}
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
 MIN_KEEP_DELIVERED_DAYS = 1
@@ -149,8 +151,10 @@ class _Entry(Protocol):
 
 
 def known_country(value: object) -> str:
-    """``value`` if it is one of ``COUNTRIES``, else Germany."""
-    return value if isinstance(value, str) and value in COUNTRIES else DEFAULT_COUNTRY
+    """``value`` (any case) as one of ``COUNTRIES``, else Germany."""
+    if isinstance(value, str) and (country := value.strip().lower()) in COUNTRIES:
+        return country
+    return DEFAULT_COUNTRY
 
 
 def entry_country(entry: _Entry) -> str:

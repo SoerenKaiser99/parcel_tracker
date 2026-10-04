@@ -16,7 +16,7 @@ def build_carriers(
 ) -> dict[str, Carrier]:
     """Instantiate all carriers available in this release.
 
-    ``country`` (``DE``, ``AT``, ``CH``) only picks the path of the GLS lookup.
+    ``country`` (``de``, ``at``, ``ch``) only picks the path of the GLS lookup.
     """
     return {
         "dhl": DhlCarrier(session, dhl_api_key),

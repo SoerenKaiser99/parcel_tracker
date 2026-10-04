@@ -313,7 +313,7 @@ async def test_untouched_form_of_an_entry_without_country_stores_no_country(hass
     entry = _entry(hass)
     result = await hass.config_entries.options.async_init(entry.entry_id)
     initial = _frontend_initial(_fields(result))
-    assert initial[CONF_COUNTRY] == "DE"
+    assert initial[CONF_COUNTRY] == "de"
     assert initial[CONF_POSTCODE] == "20095"
     result, checks = await _save(hass, entry, _frontend_initial)
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -326,7 +326,7 @@ async def test_untouched_form_of_an_entry_without_country_stores_no_country(hass
 
 @pytest.mark.parametrize(
     ("country", "postcode", "in_data"),
-    [("DE", "20095", False), ("AT", "1010", False), ("CH", "8001", False), ("AT", "1010", True)],
+    [("de", "20095", False), ("at", "1010", False), ("ch", "8001", False), ("at", "1010", True)],
     ids=["de", "at", "ch", "at-from-setup"],
 )
 async def test_untouched_form_with_a_stored_country_changes_nothing(

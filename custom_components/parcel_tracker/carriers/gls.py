@@ -38,7 +38,7 @@ GLS_BASE = "https://gls-group.com/app/service/open/rest"
 # with an invalid number: AT/de answers exactly like DE/de (same JSON, same lastError
 # codes, German texts). CH/de answers in the same shape but with English texts, like any
 # unknown path does, so Switzerland (and everything else) stays on DE/de.
-_PATHS = {"DE": "DE/de", "AT": "AT/de"}
+_PATHS = {"de": "DE/de", "at": "AT/de"}
 _DEFAULT_PATH = "DE/de"
 GLS_URL = f"{GLS_BASE}/{_DEFAULT_PATH}"
 _TIMEOUT = aiohttp.ClientTimeout(total=20)
@@ -73,8 +73,9 @@ _NO_ETA: tuple[date | None, datetime | None, datetime | None] = (None, None, Non
 
 
 def gls_url(country: str | None) -> str:
-    """Base URL of both lookups for a country (``DE``, ``AT``, ``CH``)."""
-    path = _PATHS.get(country, _DEFAULT_PATH) if isinstance(country, str) else _DEFAULT_PATH
+    """Base URL of both lookups for a country (``de``, ``at``, ``ch``, any case)."""
+    key = country.strip().lower() if isinstance(country, str) else ""
+    path = _PATHS.get(key, _DEFAULT_PATH)
     return f"{GLS_BASE}/{path}"
 
 

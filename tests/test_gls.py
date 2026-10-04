@@ -247,15 +247,16 @@ def test_url_by_country():
     CH/de answers in the same shape but with English texts, so Switzerland stays on DE/de."""
     base = "https://gls-group.com/app/service/open/rest"
     assert GLS_URL == f"{base}/DE/de"
-    assert gls_url("DE") == f"{base}/DE/de"
-    assert gls_url("AT") == f"{base}/AT/de"
-    assert gls_url("CH") == f"{base}/DE/de"
-    for other in ("FR", "", None, "at"):
+    assert gls_url("de") == f"{base}/DE/de"
+    assert gls_url("at") == f"{base}/AT/de"
+    assert gls_url("ch") == f"{base}/DE/de"
+    assert gls_url("AT") == f"{base}/AT/de"  # tolerant of the case
+    for other in ("fr", "FR", "", None):
         assert gls_url(other) == f"{base}/DE/de"
 
 
 @pytest.mark.parametrize(
-    ("country", "path"), [(None, "DE/de"), ("DE", "DE/de"), ("AT", "AT/de"), ("CH", "DE/de")]
+    ("country", "path"), [(None, "DE/de"), ("de", "DE/de"), ("at", "AT/de"), ("ch", "DE/de")]
 )
 @pytest.mark.parametrize("postcode", ["1010", None])
 async def test_both_lookups_use_the_path_of_the_country(country, path, postcode):
@@ -275,7 +276,7 @@ async def test_both_lookups_use_the_path_of_the_country(country, path, postcode)
 async def test_build_carriers_passes_the_country_to_gls_only():
     async with aiohttp.ClientSession() as session:
         default = build_carriers(session, None)
-        austria = build_carriers(session, None, "AT")
+        austria = build_carriers(session, None, "at")
     assert default["gls"].url == GLS_URL
     assert austria["gls"].url.endswith("/AT/de")
     assert list(austria) == list(default)

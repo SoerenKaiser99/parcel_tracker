@@ -201,9 +201,9 @@
   "selector": {
     "country": {
       "options": {
-        "DE": "Deutschland",
-        "AT": "Österreich",
-        "CH": "Schweiz"
+        "de": "Deutschland",
+        "at": "Österreich",
+        "ch": "Schweiz"
       }
     },
     "notify_events": {

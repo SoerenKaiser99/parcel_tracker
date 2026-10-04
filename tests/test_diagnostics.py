@@ -736,16 +736,16 @@ async def test_diagnostics_count_pending_announcements_only(hass, hass_storage, 
 async def test_diagnostics_name_the_country_and_never_the_postcode(hass, hass_storage, freezer):
     entry = await _setup(hass, hass_storage, freezer)
     result = await async_get_config_entry_diagnostics(hass, entry)
-    assert result["country"] == "DE"  # an entry from before v0.3.13
+    assert result["country"] == "de"  # an entry from before v0.3.13
     assert CONF_COUNTRY not in result["entry"]["options"]
 
     hass.config_entries.async_update_entry(
-        entry, options={**OPTIONS, CONF_COUNTRY: "AT", CONF_POSTCODE: "4871"}
+        entry, options={**OPTIONS, CONF_COUNTRY: "at", CONF_POSTCODE: "4871"}
     )
     await hass.async_block_till_done()
     result = await async_get_config_entry_diagnostics(hass, entry)
-    assert result["country"] == "AT"
-    assert result["entry"]["options"][CONF_COUNTRY] == "AT"
+    assert result["country"] == "at"
+    assert result["entry"]["options"][CONF_COUNTRY] == "at"
     assert result["entry"]["options"][CONF_POSTCODE] == REDACTED
     assert "4871" not in _dump(result)
 
@@ -757,5 +757,5 @@ async def test_diagnostics_show_only_a_known_country(hass, hass_storage, freezer
     )
     await hass.async_block_till_done()
     result = await async_get_config_entry_diagnostics(hass, entry)
-    assert result["country"] == "DE"
+    assert result["country"] == "de"
     assert "Musterstra" not in _dump(result)
