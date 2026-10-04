@@ -91,6 +91,21 @@ Die Integration ist für Deutschland gebaut; die Einstellung **Land** ist die Gr
 
 Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops aus Österreich und der Schweiz (siehe [Beispielmails einreichen](#beispielmails-einreichen)) und bei Fehlern die Diagnose-Datei (siehe [Fehler melden](#fehler-melden)).
 
+## Was brauche ich für welchen Dienst?
+
+| Dienst | Live-Status direkt | aus Mails (Mail-Import) | Voraussetzung |
+|---|---|---|---|
+| DHL | nur mit DHL-API-Key | ja, aus den DHL-Mails | kostenloser [DHL-API-Key](#dhl-api-key-anlegen); ohne Key kommt der Status nur aus den DHL-Mails |
+| DPD | ja, ohne Key (nur Status, kein Ort) | optional: eine DPD-Mail legt das Paket an, den Status liefert die Abfrage | keine |
+| GLS | ja, ohne Key (offene Abfrage, mit PLZ auch der Verlauf) | ja, aus den GLS-Mails | keine; die PLZ für den Verlauf |
+| Hermes | ja, ohne Key | ja, aus den Hermes-Mails (sie nennen den Liefertag) | keine |
+| UPS | nur mit eigenem UPS-Entwicklerzugang | ja, aus den UPS-Mails | ohne Zugang nur aus den UPS-Mails; für den Live-Status [Client-ID und Secret](#ups-live-status-optional) |
+| Amazon | nein (keine Anmeldung bei Amazon) | ja, nur aus Mails | [E-Mail-Import](#e-mail-import) |
+| eBay | nein | ja, nur aus Mails | [E-Mail-Import](#e-mail-import) |
+| andere Carrier | über den optionalen 17track-Knopf: „Andere (über 17track)“ | nein | eigener [17track-Key](#17track-optional), 200 Nummern einmalig |
+
+„Aus Mails“ setzt den [E-Mail-Import](#e-mail-import) mit einem eigenen Paket-Postfach voraus. Ohne DHL-API-Key und ohne Mail-Import bleibt ein von Hand eingetragenes DHL-Paket ohne Status: Die Karte zeigt „Kein Live-Status“ und sagt das gleich beim Hinzufügen (siehe [Karte hinzufügen](#karte-hinzufügen)). Für UPS ohne Zugangsdaten gilt dasselbe.
+
 ## DHL-API-Key anlegen
 
 1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain (siehe Hinweis unten).
@@ -119,7 +134,7 @@ GLS-Pakete fragt die Integration über die offene Sendungsverfolgung von gls-gro
 
 ## UPS-Live-Status (optional)
 
-Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails. Mit einer eigenen UPS-App fragt die Integration zusätzlich die offizielle UPS Track API ab – auch für von Hand eingetragene `1Z…`-Nummern.
+Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails; eine von Hand eingetragene `1Z…`-Nummer zeigt dann „Kein Live-Status“, aufgeklappt „Kein Live-Status: UPS-Zugangsdaten fehlen (unter „Konfigurieren“ eintragen).“, bis eine UPS-Mail zu ihr kommt. Mit einer eigenen UPS-App fragt die Integration zusätzlich die offizielle UPS Track API ab – auch für von Hand eingetragene `1Z…`-Nummern.
 
 1. Auf [developer.ups.com](https://developer.ups.com) ein Konto anlegen oder anmelden.
 2. Eine App anlegen und als Produkt **Tracking** wählen (nicht „Track Alert“).
@@ -302,7 +317,9 @@ Oben rechts stehen bis zu drei Schilder, gelesen aus `sensor.pakete_heute`:
 
 Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“ – die Karte zeigt dann z. B. „0 heute“ und „1 zugestellt“. Die Erklärung steht auch als Tooltip auf jedem Schild. Auf schmalen Karten rutschen die Schilder gemeinsam unter den Titel, der Plus-Knopf bleibt rechts.
 
-**Paket aufklappen:** Ein Tipp auf ein Paket klappt es auf, der kleine Pfeil rechts in der Zeile zeigt das an. Aufgeklappt stehen dort der Verlauf der Sendung und die Knöpfe „Umbenennen“ und „Löschen“ (mit Rückfrage „Wirklich löschen?“), je nach Paket auch „Details über 17track holen“ und „Code anzeigen“. Ein weiterer Tipp klappt das Paket wieder zu. „Noch kein Termin“ heißt: Das Paket hat einen Status, aber noch keinen Zustelltag. „Kein Live-Status“ heißt: Der Carrier lässt sich nicht abfragen, weil der Key fehlt.
+**Hinweis nach dem Hinzufügen:** Lässt sich der Carrier des neuen Pakets nicht abfragen, steht direkt unter der Eingabe eine Zeile in gedämpfter Schrift – für DHL ohne API-Key: „Hinzugefügt. Ohne DHL-API-Key gibt es dafür keinen Live-Status: Key unter „Konfigurieren“ eintragen – oder der Status kommt aus den DHL-Mails über den Mail-Import.“ Für UPS ohne Zugangsdaten: „Hinzugefügt. Ohne UPS-Zugangsdaten gibt es dafür keinen Live-Status: Zugangsdaten unter „Konfigurieren“ eintragen – oder der Status kommt aus den UPS-Mails über den Mail-Import.“ Die Eingabe klappt dabei wie gewohnt zu, die Zeile bleibt unter dem Kartentitel stehen (mit `add_form: always` unter der Eingabe), bis das × am Zeilenende sie schließt, das nächste Paket hinzugefügt oder die Eingabe wieder geschlossen wird. Sie verschwindet auch, sobald das Paket einen Status bekommt. Für Pakete aus Mails und für Pakete, die schon in der Liste standen, erscheint sie nie.
+
+**Paket aufklappen:** Ein Tipp auf ein Paket klappt es auf, der kleine Pfeil rechts in der Zeile zeigt das an. Aufgeklappt stehen dort der Verlauf der Sendung und die Knöpfe „Umbenennen“ und „Löschen“ (mit Rückfrage „Wirklich löschen?“), je nach Paket auch „Details über 17track holen“ und „Code anzeigen“. Ein weiterer Tipp klappt das Paket wieder zu. „Noch kein Termin“ heißt: Das Paket hat einen Status, aber noch keinen Zustelltag. „Kein Live-Status“ heißt: Der Carrier lässt sich nicht abfragen, weil der DHL-API-Key oder die UPS-Zugangsdaten fehlen.
 
 Die Karte ist deutsch, unabhängig von der Sprache, die in Home Assistant eingestellt ist: Auch die Statusangaben („Unterwegs“, „Zugestellt“ …) kommen aus der Karte selbst.
 

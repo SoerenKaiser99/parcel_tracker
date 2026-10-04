@@ -7,6 +7,9 @@
 //   ?add=always   card option add_form: always (form always shown, no plus button)
 //   ?add=never    card option add_form: never (no form, no plus button)
 //   ?hint=1       pretend the integration was updated: the card shows its reload hint
+//   ?added=missing_key  add a DHL parcel through the form, as without a DHL key: the card
+//                 shows its note under the head (?added=ups: the same for UPS without
+//                 credentials; with ?add=always the note stands under the form)
 //   ?show=active  card option show (also ?show=today, ?show=today_possible): the card is
 //                 only there while something is due; with the demo's parcels it stays
 //   ?empty=1      no parcels at all: together with ?show=… the card hides itself
@@ -226,9 +229,19 @@
     entities,
     callService: (domain, service, data) => {
       console.log(`[Demo] Dienst ${domain}.${service} (nicht ausgeführt)`, data);
+      // ?added=…: pretend the integration created the parcel, as it does without a key.
+      if (service === "add_parcel" && params.has("added")) {
+        const p = parcel("unknown", ADDED.carrier, data.number, data.name || null, {
+          last_error: "missing_key", last_update: null });
+        add(`sensor.paket_${data.number.toLowerCase()}`, p.state, p.attributes);
+        card.hass = hass;
+      }
       return Promise.resolve();
     },
   };
+  const ADDED = params.get("added") === "ups"
+    ? { carrier: "ups", number: "1Z9999999999999912" }
+    : { carrier: "dhl", number: "00340999999999999912" };
 
   const card = document.createElement("parcel-tracker-card");
   const addForm = params.get("add");
@@ -255,5 +268,17 @@
   window.demo = { hass, card, todayGroup, deliveredToday };
   // For the screenshot script: the page is rendered, and this is how tall its content is.
   const main = document.querySelector("main");
-  document.documentElement.dataset.height = String(Math.ceil(main.getBoundingClientRect().height));
+  const measure = () => {
+    document.documentElement.dataset.height = String(Math.ceil(main.getBoundingClientRect().height));
+  };
+  measure();
+  // ?added=…: type a number into the form and add it like a user would.
+  if (params.has("added")) {
+    const root = card.shadowRoot;
+    if (addForm !== "always" && addForm !== "open") root.getElementById("toggle").click();
+    root.getElementById("num").value = ADDED.number;
+    root.getElementById("car").value = ADDED.carrier;
+    root.getElementById("add").click();
+    setTimeout(measure, 0);
+  }
 })();

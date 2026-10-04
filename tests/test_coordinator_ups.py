@@ -118,12 +118,32 @@ async def test_rejected_ups_credentials_raise_ups_auth_issue(hass, session, free
 async def test_ups_without_api_is_added_as_mail_only(hass):
     coord = await _coordinator(hass, lambda store: {})
     parcel = await coord.async_add(NUMBER, "auto", None)
-    assert (parcel.carrier, parcel.carrier_mode, parcel.last_error) == ("ups", "auto", None)
-    assert parcel.last_poll_at is None
+    assert (parcel.carrier, parcel.carrier_mode) == ("ups", "auto")
+    # Never asked, and marked like a DHL parcel without key: the card says so (v0.3.14).
+    assert (parcel.last_error, parcel.last_poll_at, parcel.next_poll_at) == (
+        "missing_key", None, None,
+    )
     other = await coord.async_add("1Z999AA10123456785", "ups", "Schuhe")
-    assert (other.carrier, other.carrier_mode) == ("ups", "manual")
+    assert (other.carrier, other.carrier_mode, other.last_error) == (
+        "ups", "manual", "missing_key",
+    )
     with pytest.raises(ValueError):
         await coord.async_add("H9999999999999999901", "hermes", None)
+
+
+async def test_ups_credentials_entered_later_replace_the_missing_key_marker(hass, session, freezer):
+    freezer.move_to(DAYTIME)
+    coord = await _coordinator(hass, lambda store: {})
+    parcel = await coord.async_add(NUMBER, "ups", None)
+    assert parcel.last_error == "missing_key"
+    await coord.async_refresh()  # still no API: not asked, the marker stays
+    assert (parcel.last_error, parcel.last_poll_at) == ("missing_key", None)
+    coord.carriers["ups"] = UpsCarrier(session, "id", "secret", coord.store.ups_budget, 100)
+    with aioresponses() as m:
+        m.post(UPS_TOKEN_URL, payload=_body("ups_synthetic_token.json"))
+        m.get(TRACK, payload=_body("ups_synthetic_in_transit.json"))
+        await coord.async_refresh()
+    assert (parcel.last_error, parcel.status) == (None, ParcelStatus.IN_TRANSIT)
 
 
 class NoEtaCarrier(Carrier):

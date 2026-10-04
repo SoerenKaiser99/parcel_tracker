@@ -1095,6 +1095,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 parcel.last_error = "carrier_not_found"
                 parcel.last_poll_at = now
                 parcel.next_poll_at = now + timedelta(hours=1)
+            elif parcel.carrier in OPTIONAL_API_CARRIERS and not self._pollable(parcel):
+                # UPS without API credentials is never asked: say so the way DHL does
+                # without a key. The first poll with credentials replaces the marker.
+                parcel.last_error = "missing_key"
             else:
                 await self._poll_safely(parcel, now)
             await self.store.async_save()

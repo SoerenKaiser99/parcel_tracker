@@ -723,3 +723,74 @@ def test_readme_english_summary_names_the_country_setting():
 def test_readme_diagnostics_name_the_country():
     section = README.split("\n## Fehler melden\n")[1].split("\n## ")[0]
     assert "das eingestellte Land" in section
+
+
+def test_readme_table_says_what_each_service_needs():
+    """v0.3.14: new users add a DHL number without a key and think the integration is broken."""
+    assert README.index("\n## Installation\n") < README.index(
+        "\n## Was brauche ich für welchen Dienst?\n"
+    ) < README.index("\n## DHL-API-Key anlegen\n")
+    section = _section("Was brauche ich für welchen Dienst?")
+    rows = [
+        [cell.strip() for cell in line.strip("|").split("|")]
+        for line in section.splitlines()
+        if line.startswith("|")
+    ]
+    assert rows[0] == ["Dienst", "Live-Status direkt", "aus Mails (Mail-Import)", "Voraussetzung"]
+    table = {row[0]: row[1:] for row in rows[2:]}
+    assert list(table) == ["DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "andere Carrier"]
+    assert all(len(cells) == 3 for cells in table.values())
+    expected = {
+        "DHL": ("nur mit DHL-API-Key", "DHL-Mails", "kostenloser [DHL-API-Key]"),
+        "DPD": ("ohne Key (nur Status, kein Ort)", "optional", "keine"),
+        "GLS": ("ohne Key (offene Abfrage, mit PLZ auch der Verlauf)", "GLS-Mails", "keine"),
+        "Hermes": ("ja, ohne Key", "Hermes-Mails", "keine"),
+        "UPS": ("nur mit eigenem UPS-Entwicklerzugang", "UPS-Mails", "Client-ID und Secret"),
+        "Amazon": ("nein", "nur aus Mails", "E-Mail-Import"),
+        "eBay": ("nein", "nur aus Mails", "E-Mail-Import"),
+        "andere Carrier": ("17track", "nein", "200 Nummern einmalig"),
+    }
+    for service, texts in expected.items():
+        for cell, text in zip(table[service], texts, strict=True):
+            assert text in cell, (service, text)
+    assert "„Kein Live-Status“" in section and "beim Hinzufügen" in section
+    assert "bitte" not in section.lower()
+
+
+def test_readme_table_matches_what_the_integration_does():
+    """The table's statements, checked against the code they describe."""
+    from custom_components.parcel_tracker import const
+    from custom_components.parcel_tracker.mail.base import DPD_DOMAINS
+
+    assert const.OPTIONAL_API_CARRIERS == frozenset({"ups"})  # UPS: live only with credentials
+    assert set(const.MAIL_CARRIERS) == {"amazon", "ebay"}  # shops: mails only
+    assert "service.dpd.de" in DPD_DOMAINS  # DPD mails are read (for the number)
+    assert "200 Nummern" in _section("17track (optional)")
+
+
+def test_readme_explains_the_note_after_adding_a_parcel_without_key():
+    card = _section("Karte hinzufügen")
+    source = (
+        ROOT / "custom_components" / "parcel_tracker" / "frontend" / "parcel-tracker-card.js"
+    ).read_text(encoding="utf-8")
+    for text in (
+        "Hinzugefügt. Ohne DHL-API-Key gibt es dafür keinen Live-Status: Key unter"
+        " „Konfigurieren“ eintragen – oder der Status kommt aus den DHL-Mails über den"
+        " Mail-Import.",
+        "Hinzugefügt. Ohne UPS-Zugangsdaten gibt es dafür keinen Live-Status: Zugangsdaten"
+        " unter „Konfigurieren“ eintragen – oder der Status kommt aus den UPS-Mails über den"
+        " Mail-Import.",
+    ):
+        assert text in card and text in source, text
+    for text in ("**Hinweis nach dem Hinzufügen:**", "das ×", "`add_form: always`", "aus Mails"):
+        assert text in card, text
+    ups = _section("UPS-Live-Status (optional)")
+    assert "„Kein Live-Status: UPS-Zugangsdaten fehlen (unter „Konfigurieren“ eintragen).“" in ups
+
+
+def test_demo_page_can_show_the_note_after_adding():
+    js = (DEMO / "demo.js").read_text(encoding="utf-8")
+    for text in ("?added=missing_key", "?added=ups", 'last_error: "missing_key"'):
+        assert text in js, text
+    html = (DEMO / "index.html").read_text(encoding="utf-8")
+    assert 'href="?added=missing_key"' in html
