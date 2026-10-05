@@ -194,6 +194,7 @@ Diese Absender in die Filterregel aufnehmen:
 - `shipment-tracking@amazon.de`
 - `order-update@amazon.de`
 - `noreply@dhl.de`
+- `paketankuendigung@dhl.de`
 - `noreply@service.dpd.de`
 - `pkginfo@ups.com`
 - `noreply@paketankuendigung.myhermes.de`
@@ -207,7 +208,7 @@ require ["copy"];
 if address :is "from" [
   "bestellbestaetigung@amazon.de", "versandbestaetigung@amazon.de",
   "shipment-tracking@amazon.de", "order-update@amazon.de",
-  "noreply@dhl.de", "noreply@service.dpd.de", "pkginfo@ups.com",
+  "noreply@dhl.de", "paketankuendigung@dhl.de", "noreply@service.dpd.de", "pkginfo@ups.com",
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no-reply@gls-pakete.de"
 ] {
