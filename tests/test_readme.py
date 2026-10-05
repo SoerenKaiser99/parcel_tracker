@@ -911,7 +911,7 @@ def test_readme_lists_the_three_dhl_senders_and_the_domain_rule():
 
 def test_readme_gives_the_tip_for_the_dhl_key_application():
     section = README.split("## DHL-API-Key anlegen")[1].split("### Kein Key?")[0]
-    assert "eigene Sendungen verfolgen" in section
+    assert "eigenen Sendungen verfolgen" in section
     assert "dafür ist die Tracking-API gedacht" in section
 
 
