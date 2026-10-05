@@ -225,7 +225,9 @@ def test_international_number_in_groups_keeps_letters_and_groups(tmp_path, numbe
     for text in (plain, markup):
         found = _replaced(number, text)
         assert re.sub(r"[ \t.]", "", found) == same != S10
-        assert "456" not in found and "785" not in found
+        # The invented digits are random: compare the whole number, not single groups
+        # (an invented number may contain "456" by chance).
+        assert re.sub(r"\D", "", found) != "123456785"
 
 
 @pytest.mark.parametrize(
