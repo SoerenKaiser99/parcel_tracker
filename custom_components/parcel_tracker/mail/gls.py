@@ -1,8 +1,8 @@
 """GLS notification mails (no Home Assistant imports).
 
-Only number, status, day, window and the sender company's name are taken. The drop-off
-place, the delivery address, the recipient's name, the phone number and references are
-never read into an update.
+Only number, status, day, window, the time of a delivery and the sender company's name
+are taken. The drop-off place, the delivery address, the recipient's name, the phone number
+and references are never read into an update.
 """
 
 from __future__ import annotations
@@ -16,13 +16,12 @@ from .base import (
     MailUpdate,
     at,
     body_text,
+    company_name,
     is_forwarded,
-    known_shop,
     resolve_dates,
     sender,
     sent_at,
     shop_of,
-    shorten,
     subject,
 )
 
@@ -45,12 +44,29 @@ _PICKUP_TEXT = re.compile(r"paketshop\b[^\n]*zur abholung bereit")
 _HOME_TEXT = re.compile(r"wunschort zugestellt|erfolgreich zugestellt")
 _ETA_LABEL = "voraussichtliche lieferung"
 _WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s*Uhr")
-_SENDER_LABELS = frozenset({"versender", "dein paket von", "dein paket von dem absender"})
-# A company, never a private sender: only such a name may become the parcel's name.
-_LEGAL_FORM = re.compile(
-    r"(?<![\w.])(?:GmbH|GMBH|AG|KG|UG|SE|OHG|GbR|Ltd\.?|e\.\s?K\.|B\.\s?V\.|S\.\s?à\s?r\.\s?l\.)"
-    r"(?!\w)"
+_SENDER_LABELS = frozenset(
+    {"versender", "absender", "dein paket von", "dein paket von dem absender"}
 )
+
+# noreply@gls-group.eu and noreply@gls-rtt.com (seen from GLS Austria, read whatever the
+# country): the label in capitals on its own line, the value on the next one.
+GLS_GROUP_SENDER = "noreply@gls-group.eu"
+GLS_RTT_SENDER = "noreply@gls-rtt.com"
+GLS_GROUP_SENDERS = frozenset({GLS_GROUP_SENDER, GLS_RTT_SENDER})
+_GROUP_NUMBER = re.compile(r"(?:Paketnummer|Sendungsnummer)\s*:?\s*(\d{11})(?!\d)", re.IGNORECASE)
+# "Dies betrifft ebenso das Paket/die Pakete A, B." and "(Wir wurden ebenfalls) beauftragt
+# mit der Zustellung des Paketes/der Pakete A, B.": the same news for every number listed.
+_GROUP_MORE = re.compile(
+    r"(?:betrifft\s+ebenso\s+das\s+Paket/die\s+Pakete"
+    r"|beauftragt\s+mit\s+der\s+Zustellung\s+des\s+Paketes/der\s+Pakete)"
+    r"\s+((?:\d{11}\b[\s,]*(?:und\s+)?)+)"
+)
+_GROUP_DELIVERED = re.compile(r"\bwurde\b.*\b(?:zugestellt|geliefert|abgestellt)\b")
+_GROUP_NOT = re.compile(
+    r"\bnicht\b(?:\s+\S+){0,5}?\s+(?:zugestellt|geliefert|abgestellt|übergeben)\b"
+    r"|konnte nicht|zustellversuch"
+)
+_GROUP_TIME = re.compile(r"Zustellung\s*\n\s*Heute\s+(\d{1,2})[:.](\d{2})\s*Uhr", re.IGNORECASE)
 
 
 def _lines(text: str) -> list[str]:
@@ -81,7 +97,11 @@ def _status(subj: str, text: str) -> ParcelStatus | None:
 
 
 def _company(lines: list[str]) -> str | None:
-    """The line after 'Versender' or 'dein Paket von [dem Absender]'."""
+    """The line after 'Versender' or 'dein Paket von [dem Absender]' as the mail has it.
+
+    It may go on behind the company ("… OHG (AT-B2C) Erika Musterfrau"): only
+    ``company_name`` makes a parcel name of it.
+    """
     for label, value in zip(lines, lines[1:], strict=False):
         if label.lower() in _SENDER_LABELS:
             return value
@@ -118,17 +138,13 @@ def parse_gls_mail(msg: EmailMessage) -> list[MailUpdate]:
         return []
     sent = sent_at(msg)
     company = _company(lines)
-    named = (
-        company is not None
-        and not is_forwarded(msg)
-        and (known_shop(company) or _LEGAL_FORM.search(company) is not None)
-    )
+    title = company_name(company) if company and not is_forwarded(msg) else None
     update = MailUpdate(
         number=number.group(1),
         carrier="gls",
         status=status,
         sent_at=sent,
-        title=shorten(company) if named else None,
+        title=title,
         shop=shop_of(company) if company else None,
     )
     if status is ParcelStatus.DELIVERED:
@@ -138,3 +154,64 @@ def parse_gls_mail(msg: EmailMessage) -> list[MailUpdate]:
     elif status is ParcelStatus.IN_TRANSIT and (eta := _eta(lines, sent.date())):
         update.eta_date, update.eta_from, update.eta_to = eta
     return [update]
+
+
+def _group_status(address: str, subj: str, text: str) -> ParcelStatus | None:
+    lower = subj.lower()
+    if _GROUP_NOT.search(lower):
+        return None  # the GLS lookup tells what happened
+    if address == GLS_RTT_SENDER:
+        # Real-time tracking only starts once the parcel is on the delivery vehicle.
+        if "auf dem weg" in lower or "ihr paket ist fast da" in text.lower():
+            return ParcelStatus.OUT_FOR_DELIVERY
+        return None
+    if _GROUP_DELIVERED.search(lower):
+        # Handed to a ParcelShop it still waits for its recipient (the lookup goes on).
+        shop = "paketshop" in lower or "parcelshop" in lower
+        return ParcelStatus.AWAITING_PICKUP if shop else ParcelStatus.DELIVERED
+    if "ist unterwegs" in lower:
+        return ParcelStatus.IN_TRANSIT
+    return None
+
+
+def parse_gls_group_mail(msg: EmailMessage) -> list[MailUpdate]:
+    """'ist unterwegs', 'abgestellt'/'zugestellt' (with the time) and real-time tracking.
+
+    One mail may speak for several parcels: each number it lists gets the same update.
+    """
+    address = sender(msg)[0]
+    subj = subject(msg)
+    lines = _lines(body_text(msg))
+    text = "\n".join(lines)
+    first = _GROUP_NUMBER.search(text)
+    if not first:
+        return []
+    numbers = [first.group(1)]
+    for listed in _GROUP_MORE.finditer(text):
+        numbers += [n for n in re.findall(r"\d{11}", listed.group(1)) if n not in numbers]
+    sent = sent_at(msg)
+    status = _group_status(address, subj, text)
+    company = _company(lines)
+    title = company_name(company) if company and not is_forwarded(msg) else None
+    delivered_at = eta_date = None
+    if status is ParcelStatus.DELIVERED:
+        delivered_at = sent
+        if time := _GROUP_TIME.search(text):
+            hour, minute = int(time.group(1)), int(time.group(2))
+            if hour < 24 and minute < 60:
+                delivered_at = at(sent.date(), hour, minute)
+    elif status is ParcelStatus.OUT_FOR_DELIVERY:
+        eta_date = sent.date()
+    return [
+        MailUpdate(
+            number=number,
+            carrier="gls",
+            status=status,
+            sent_at=sent,
+            title=title,
+            eta_date=eta_date,
+            delivered_at=delivered_at,
+            shop=shop_of(company) if company else None,
+        )
+        for number in numbers
+    ]

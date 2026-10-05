@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
 
@@ -119,6 +120,11 @@ def parse_dhl(data: dict[str, Any]) -> TrackingResult:
     )
 
 
+# International shipments: a UPU S10 number issued in Germany ("CQ…DE", "RR…DE"). No other
+# carrier's rule takes 13 characters, so it is a sure match.
+_S10 = re.compile(r"[A-Z]{2}\d{9}DE")
+
+
 class DhlCarrier(Carrier):
     """DHL Germany."""
 
@@ -132,6 +138,8 @@ class DhlCarrier(Carrier):
     @staticmethod
     def matches(number: str) -> Match:
         if len(number) == 20 and number.isdigit() and number.startswith("00340"):
+            return Match.SURE
+        if _S10.fullmatch(number):
             return Match.SURE
         if number.startswith("JJD"):
             return Match.POSSIBLE

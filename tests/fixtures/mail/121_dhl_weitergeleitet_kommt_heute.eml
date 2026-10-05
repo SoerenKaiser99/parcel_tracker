@@ -1,0 +1,93 @@
+X-Fixture: derived from an anonymised mail of the maintainer; parcel number
+ and company names are invented, the Date header is shifted by a fixed
+ invented offset; the forwarding sender and the legal notice of its mail
+ system are replaced or removed
+From: Erika Musterfrau <erika.musterfrau@example.org>
+To: max@example.org
+Subject: Fw: Ihre Beispielmarke GmbH Sendung kommt heute
+Date: Mon, 28 Sep 2026 10:31:34 +0000
+Message-ID: <fixture-121@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============0576184011169870263=="
+
+--===============0576184011169870263==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+
+
+________________________________
+Von: DHL Zustell-Update<zustellung@dhl.de>
+Gesendet: Montag, September 28, 2026 11:51 AM
+An: max@example.org
+Betreff: Ihre Beispielmarke GmbH Sendung kommt heute
+
+
+Onlineversion<https://example.org/…> | Datenschutzhinweis zur Übersetzung<https://example.org/…>
+
+[https://storage.content-editor.campaign.optimizely.com/…]
+Deutsch  ▾<https://example.org/…>
+
+Hallo,
+
+Ihre Beispielmarke GmbH Sendung wird Ihnen heute durch Ihre Brief- und Paketzustellkraft zugestellt.
+
+Ihr dauerhaft gebuchter Ablageort wird bei der Zustellung berücksichtigt.
+Ihre Zustelloptionen
+[Ablageort<br>ändern] <https://example.org/…> Ablageort<https://example.org/…>
+ändern<https://example.org/…>
+[Nebenan<br>abgeben] <https://example.org/…> Nebenan<https://example.org/…>
+abgeben<https://example.org/…>
+[Paketmitnahme buchen]<https://example.org/…>
+Paketmitnahme buchen<https://example.org/…>
+
+Ihre Sendungsnummer
+00340999999999999902
+
+[Sendung verfolgen]<https://example.org/…>
+
+Sendung verfolgen<https://example.org/…>
+
+Viele Grüße
+
+[https://custcomm.dhl.de/…]
+
+Sie möchten keine oder nur noch bestimmte Informationen zu Ihrer Sendung erhalten?
+E-Mail-Einstellungen verwalten<https://example.org/…>
+
+Datenschutzhinweise<https://example.org/…>
+Impressum<https://example.org/…>
+
+DHL Group
+
+2026 © DHL Paket GmbH. All rights reserved.
+
+--===============0576184011169870263==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Von: DHL Zustell-Update&lt;zustellung@dhl.de&gt;</p>
+<p>Gesendet: Montag, September 28, 2026 11:51 AM</p>
+<p>An: max@example.org</p>
+<p>Betreff: Ihre Beispielmarke GmbH Sendung kommt heute</p>
+<p>Onlineversion</p>
+<p>| Datenschutzhinweis</p>
+<p>zur Übersetzung</p>
+<p>Hallo,</p>
+<p>Ihre Beispielmarke GmbH Sendung wird Ihnen heute durch Ihre Brief- und Paketzustellkraft zugestellt.</p>
+<p>Ihr dauerhaft gebuchter Ablageort wird bei der Zustellung berücksichtigt.</p>
+<p>Ihre Zustelloptionen</p>
+<p>Ihre Sendungsnummer</p>
+<p>00340999999999999902</p>
+<p>Sendung</p>
+<p>verfolgen</p>
+<p>Viele Grüße</p>
+<p>DHL Group</p>
+<p>2026 ©</p>
+<p>DHL Paket GmbH. All rights reserved.</p>
+</body></html>
+
+--===============0576184011169870263==--

@@ -1,0 +1,45 @@
+X-Fixture: derived from an anonymised tester submission (issue 3); parcel
+ numbers, sender company and reference replaced by invented values;
+ the Date header is shifted by a fixed invented offset
+From: GLS <noreply@gls-group.eu>
+To: max@example.org
+Subject: Ihr Paket von Beispiel Handels OHG (AT-B2C) ist unterwegs
+Date: Thu, 10 Sep 2026 17:38:52 +0200
+Message-ID: <fixture-116@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>IHR PAKET IST BALD DA</p>
+<p>PAKETNUMMER</p>
+<p>99999999901</p>
+<p>Sendung verfolgen</p>
+<p>ABSENDER</p>
+<p>Beispiel Handels OHG (AT-B2C)</p>
+<p>ZUSTELLADRESSE</p>
+<p>Musterstraße 1/2</p>
+<p>12345</p>
+<p>Musterstadt</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihr Paket 99999999901</p>
+<p>(Referenz: AT000000-000000-001) ist heute bei uns eingegangen.</p>
+<p>Zusätzliche Informationen:</p>
+<p>Wir wurden ebenfalls</p>
+<p>beauftragt mit der Zustellung des Paketes/der Pakete 99999999902, 99999999903.</p>
+<p>Sollten wir Sie nicht antreffen, behalten wir uns vor, Ihr Paket alternativ beim Nachbarn oder im nächstgelegenen GLS PaketShop zuzustellen.</p>
+<p>NICHT ZU HAUSE?</p>
+<p>Wählen Sie eine alternative Zustelloption:</p>
+<p>Abstellort festlegen</p>
+<p>In PaketShop liefern lassen</p>
+<p>Zustellung zu einem definierten Tag</p>
+<p>Zustellung an neue Adresse</p>
+<p>Selbstabholung im GLS-Depot</p>
+<p>Paketannahme verweigern</p>
+<p>Viele Max</p>
+<p>Dies ist eine automatisch generierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.</p>
+<p>General Logistics Systems</p>
+<p>Austria GmbH</p>
+<p>Firmenbuch:FN 75418i (LG Linz)</p>
+<p>Datenschutz | GLS Austria</p>
+</body></html>

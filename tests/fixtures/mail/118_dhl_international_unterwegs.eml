@@ -1,0 +1,47 @@
+X-Fixture: derived from an anonymised tester submission (issue 3); parcel
+ numbers, sender company and reference replaced by invented values;
+ the Date header is shifted by a fixed invented offset
+From: DHL Paket <noreply@dhl.de>
+To: max@example.org
+Subject: Ihre Beispiel GmbH Sendung ist unterwegs
+Date: Fri, 21 Aug 2026 20:05:27 +0200
+Message-ID: <fixture-118@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Wichtige Information zu Ihrer Sendung</p>
+<p>Onlineversion | Datenschutzhinweis zur Übersetzung</p>
+<p>English English</p>
+<p>Türkçe Türkçe</p>
+<p>العربية العربية</p>
+<p>Polski Polski</p>
+<p>English</p>
+<p>Türkçe</p>
+<p>العربية</p>
+<p>Polski</p>
+<p>Español</p>
+<p>Русский</p>
+<p>Français</p>
+<p>Italiano</p>
+<p>Українська</p>
+<p>עברית</p>
+<p>Shqip</p>
+<p>Română</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihre Beispiel GmbH Sendung wurde an uns übergeben und befindet sich in der Vorbereitung für den Versand nach Österreich.</p>
+<p>Die Sendung wird Ihnen voraussichtlich in den nächsten</p>
+<p>2 Werktagen</p>
+<p>von der Österreichischen Post zugestellt.</p>
+<p>Sendungsstatus bei DHL einsehen</p>
+<p>CQ999999901DE</p>
+<p>Unser Zustellpartner wird Sie über den weiteren Sendungsverlauf informieren, sobald die Sendung in Österreich angekommen ist.</p>
+<p>Ab diesem Zeitpunkt können Sie die Sendungsdetails hier einsehen.</p>
+<p>Sie möchten keine oder nur noch bestimmte Informationen zu Ihrer Sendung erhalten?</p>
+<p>E-Mail-Einstellungen verwalten</p>
+<p>Datenschutzhinweise</p>
+<p>Impressum</p>
+<p>DHL Group</p>
+<p>2026 © DHL Paket GmbH. All rights reserved.</p>
+</body></html>

@@ -66,3 +66,24 @@ def test_empty_rejected():
     with pytest.raises(UnsupportedNumber) as err:
         candidates("", CARRIERS)
     assert err.value.reason == "empty"
+
+
+def test_international_dhl_number_is_dhl_alone_among_the_real_carriers():
+    """v0.3.15: "CQ…DE" collides with no other rule (DPD/Hermes 14 digits, GLS 11 digits,
+    Hermes "H…", UPS "1Z…"; eBay and Amazon orders never come through here)."""
+    from custom_components.parcel_tracker.carriers.dhl import DhlCarrier
+    from custom_components.parcel_tracker.carriers.dpd import DpdCarrier
+    from custom_components.parcel_tracker.carriers.gls import GlsCarrier
+    from custom_components.parcel_tracker.carriers.hermes import HermesCarrier
+    from custom_components.parcel_tracker.carriers.ups import UpsCarrier
+
+    real = {
+        "dhl": DhlCarrier, "dpd": DpdCarrier, "hermes": HermesCarrier, "gls": GlsCarrier,
+        "ups": UpsCarrier,
+    }
+    assert candidates(normalize("cq 9999 9990 1 de"), real) == ["dhl"]
+    for carrier in (DpdCarrier, HermesCarrier, GlsCarrier, UpsCarrier):
+        assert carrier.matches("CQ999999901DE") is Match.NO
+    # the existing rules are untouched
+    assert candidates("09999999999901", real) == ["dpd", "hermes"]
+    assert candidates("99999999901", real) == ["gls"]

@@ -20,7 +20,10 @@ with any or no house number), every mail address but the sender's (the sender of
 or answered mail is a person and is replaced too, as is a sender address that carries another
 address in its local part), phone numbers, links (cut to the host), tracking, order and other
 long numbers (same length and structure, invented digits, the same number becomes the same
-replacement in every mail of a run), drop-off places and permissions, salutations, recipient
+replacement in every mail of a run, a number of ten digits or more written in groups with
+spaces, tabs, dots or dashes keeps its groups, as does an international number, and a
+tracking number that stands only in a link or in the text of an image is kept as a marked
+line "[Nummer nur im Link oder Bildtext: ...]"), drop-off places and permissions, salutations, recipient
 address blocks ("PLZ Ort", "Ort, PLZ", "ORT BUNDESLAND PLZ"), addresses without a label
 (street line above a postcode and city, lines with postcode and city), Amazon's "first name –
 place" line above the order number, the names of neighbours and of the person that took the
@@ -170,20 +173,66 @@ _T_DATE = r"\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?!\d)"
 # One pass, the first alternative that fits wins: links and addresses stay as the first pass
 # left them, then order numbers, labelled numbers, one-time codes, IBANs, long tokens of
 # letters and digits, phone numbers, tracking numbers and every other long digit run.
+# A number written in groups ("0034 0434 1610 9401 2345", "1234.5678.901"): groups of two to
+# six digits with one kind of separator (space, tab, dot or dash), ten digits or more in all.
+# Only digits joined by that one separator count ("2026-09-28 11:51" is a date and a time).
+# It may not end inside a date, a time or a price. With 14 digits or more it is no phone
+# number, so it is looked for before the phone rule (which took the first digits and left the
+# rest), with fewer digits after it. Without a label in front of it, a row of years ("2026
+# 2027 2028") or of two-digit numbers ("10 20 30 40 50 60") is no number in groups.
+def _t_groups(minimum, labelled=False):
+    runs = []
+    for gap in (" ", r"\t", r"\.", "-"):
+        ahead = rf"(?=(?:{gap}?\d){{{minimum}}})"
+        if not labelled:
+            year, end = r"(?:19|20)\d\d", rf"(?!{gap}?\d)"
+            ahead += rf"(?!(?:{year}{gap})+{year}{end})(?!(?:\d\d{gap})+\d\d{end})"
+        runs.append(rf"{ahead}\d{{2,6}}(?:{gap}\d{{2,6}})+")
+    return rf"(?<![\w+./=-])(?:{'|'.join(runs)})(?![.,:]?\d)"
+
+
+_T_GROUPED = _t_groups(10)
+_T_GROUPED_LONG = _t_groups(14)
+_T_GROUPED_LABELLED = _t_groups(10, labelled=True)
+_T_GROUPED_MIN = 10
+# An international number (UPU S10) in groups: "CQ 123 456 785 DE".
+_T_S10_GROUPED = (
+    r"(?<![A-Za-z0-9])[A-Z]{2}(?=(?:[ \t.-]?\d){9}[ \t.-]?[A-Z]{2}(?![A-Za-z0-9]))"
+    r"(?:[ \t.-]?\d)+[ \t.-]?[A-Z]{2}"
+)
+_T_IN_GROUPS = re.compile(rf"{_T_S10_GROUPED}|{_T_GROUPED_LABELLED}")
+# A no-break space between two digits, also as an entity in a text part that carries HTML.
+# (also next to the letters of an international number: "CQ&nbsp;123&nbsp;456&nbsp;785&nbsp;DE")
+_T_DIGIT_GAP = re.compile(
+    r"(?<=[0-9A-Z])(?i:&nbsp;|&#160;|&#xa0;|[\xa0\u2007\u2009\u202f])(?=[0-9A-Z])"
+)
+# Tracking numbers in a link or in the text of an image: the known forms, or the value of a
+# parameter that names a parcel.
+_T_HIDDEN = re.compile(
+    r"(?<![A-Za-z0-9])(?:00340\d{15}|JJD\d{12,22}|1Z[0-9A-Z]{16}|H\d{19}|[A-Z]{2}\d{9}[A-Z]{2})"
+    r"(?![A-Za-z0-9])"
+    r"|(?i:(?:piececode|idc|tracknum|tracking_?(?:number|no|id|code)|parcel_?(?:number|no|id)"
+    r"|sendungsnummer|paketnummer)=)(?P<value>[A-Za-z]{0,4}\d{8,30}[A-Za-z]{0,2})(?![A-Za-z0-9])"
+)
+_T_HIDDEN_NOTE = "[Nummer nur im Link oder Bildtext: {}]"
+_T_HIDDEN_MARK = re.compile("\x00([^\x00]*)\x00")
 _T_GENERIC = re.compile(
     _T_LINKS.pattern
     + r"|(?P<order>(?<![\w-])(?:\d{3}-\d{7}-\d{7}|\d{2}-\d{5}-\d{5})(?![\w-]))"
     + r"|(?P<label>(?:(?i:[\w-]*(?:nummer|nr|number|code|pin|referenz|reference|passwort"
     + r"|kennwort))|\bID|\bTAN)\b[ \t.:#*]*\n?[ \t#*]*)"
-    + r"(?P<token>(?=[\w-]*\d)[A-Za-z0-9][A-Za-z0-9_-]{2,})"
+    + rf"(?P<token>{_T_S10_GROUPED}|{_T_GROUPED_LABELLED}|(?=[\w-]*\d)[A-Za-z0-9][A-Za-z0-9_-]{{2,}})"
     + r"|(?P<otp_label>(?i:passwort|kennwort|code|pin|tan)\b[^0-9\n]{0,40})(?P<otp>\d{4,8})(?!\d)"
+    + rf"|(?P<s10>{_T_S10_GROUPED})"
     + r"|(?P<iban>(?<![A-Za-z0-9])[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?"
     + r"(?![A-Za-z0-9]))"
     + r"|(?P<blob>(?<![A-Za-z0-9])(?=[A-Za-z0-9]*?\d)(?=[A-Za-z0-9]*?[A-Za-z])[A-Za-z0-9]{16,}"
     + r"(?![A-Za-z0-9]))"
+    + rf"|(?P<grouped>{_T_GROUPED_LONG})"
     # up to three separators between two digits: "0211 / 123 45 67"
     + r"|(?P<phone>\+\d[\d /()-]{6,}\d"
     + rf"|(?<![\w+./=-])(?!{_T_DATE})\(?0\d(?:[ /()-]{{0,3}}\d){{6,16}}(?!\d))"
+    + rf"|(?P<grouped_short>{_T_GROUPED})"
     + r"|(?P<track>(?<![A-Za-z0-9])(?:1Z[0-9A-Z]{16}|[A-Z]{1,4}\d{6,}[A-Z]{0,2})(?![A-Za-z0-9]))"
     + r"|(?P<dashed>(?<![\w-])\d{2,}(?:-\d{2,})+(?![\w-]))"
     + r"|(?P<digits>\d{6,})"
@@ -324,6 +373,8 @@ _T_PLZ_CITY = re.compile(
 _T_QUOTED_TO = re.compile(r"(?im)^([> \t]*(?:An|To|Cc|Kopie):)[ \t]*\S[^\n]*$")
 # A forwarded or answered mail: its outer sender is a person, whatever the address.
 _T_FORWARD = re.compile(r"(?i)\s*(?:WG|Fwd?|FW|AW|Re)\s*:")
+# Passed on by hand: the forwarder's own lines (a signature) may stand above the mail.
+_T_PASSED_ON = re.compile(r"(?i)\s*(?:(?:AW|Re)\s*:\s*)*(?:WG|Fwd?|FW)\s*:")
 _T_QUOTED_FROM = re.compile(
     r"(?im)^[>*_ \t]*(?:Von|From):[^\n]*\n(?:[^\n]*\n){0,3}?"
     r"[>*_ \t]*(?:Gesendet|Sent|Datum|Date|An|To|Betreff|Subject):"
@@ -353,6 +404,43 @@ _T_SUBJECT_NAMES = (
     (re.compile(rf"^(?:(?:WG|Fwd?|FW|AW|Re):\s*)*({_T_NAME2}) (?:hat|sendet|schickt|möchte)\b"),
      False),
 )
+
+
+def _t_hidden(text):
+    """The tracking numbers a link or an image text carries."""
+    return [match.group("value") or match.group(0) for match in _T_HIDDEN.finditer(text)]
+
+
+class _TText(_Text):
+    """Tester mode: a tracking number that stands only in a link or in the text of an image
+    is kept as a marked number (nothing else of such an attribute is ever taken)."""
+
+    def handle_starttag(self, tag, attrs):
+        super().handle_starttag(tag, attrs)
+        if self.skip:
+            return
+        for name, value in attrs:
+            if value and name in ("href", "alt", "title", "aria-label"):
+                self.out.extend(f"\x00{number}\x00" for number in _t_hidden(value))
+
+
+def _t_html_to_text(markup):
+    """html_to_text, plus one note line for each number that is not in the visible text."""
+    parser = _TText()
+    parser.feed(markup.replace("\x00", ""))
+    text = "".join(parser.out)
+    visible, noted = _T_HIDDEN_MARK.sub("", text), set()
+
+    def note(match):
+        number = match.group(1)
+        if number in visible or number in noted:
+            return ""
+        noted.add(number)
+        return "\n" + _T_HIDDEN_NOTE.format(number) + "\n"
+
+    text = _T_HIDDEN_MARK.sub(note, text)
+    lines = (re.sub(r"[ \t\xa0]+", " ", line).strip() for line in text.splitlines())
+    return "\n".join(line for line in lines if line)
 
 
 class _TUsage(Exception):
@@ -757,7 +845,21 @@ class _TScrubber:
             rest, tail = country.groups()
         return head + re.sub(r"\d+|[A-Za-z]+", lambda m: self._run(m.group(0)), rest) + tail
 
-    def _link(self, match, keep):
+    def _grouped(self, text):
+        """A number written in groups: invented as one number, written in the same groups
+        (so it is the same number as without groups). Groups joined by dashes are invented
+        group by group, like every other dashed number."""
+        if text[0].isdigit() and sum(char.isdigit() for char in text) < _T_GROUPED_MIN:
+            # only the digits behind it made it look long: no number in groups
+            return re.sub(r"\d{6,}", lambda m: self.fake(m.group(0)), text)
+        if "-" in text:
+            return self.fake(text)
+        invented = iter(self.fake(re.sub(r"[ \t.]", "", text)))
+        return re.sub(r"[0-9A-Za-z]", lambda m: next(invented), text)
+
+    def _link(self, match, keep, visible=None, noted=None):
+        """A mail address or a link cut to its host. In the first pass over a text
+        (``visible`` given) a tracking number that only the link carries is noted behind it."""
         text = match.group(0)
         if match.lastgroup == "mail":
             return text if text.lower() in keep else _T_MAIL
@@ -766,14 +868,24 @@ class _TScrubber:
         rest = text[host.end() - (len(host.group(2)) - len(server)):]
         if not rest.strip("/.,;:!?…"):
             return text
-        return (host.group(1) or "") + server + "/…"
+        notes = ""
+        if visible is not None:
+            for number in _t_hidden(rest):
+                if number not in visible and number not in noted:
+                    noted.add(number)
+                    notes += " " + _T_HIDDEN_NOTE.format(number)
+        return (host.group(1) or "") + server + "/…" + notes
 
     def _generic(self, match, keep):
         kind, text = match.lastgroup, match.group(0)
         if kind in ("url", "mail"):
             return self._link(match, keep)
         if kind == "token":
-            return match.group("label") + self.fake(match.group("token"))
+            token = match.group("token")
+            return match.group("label") + (
+                self._grouped(token) if _T_IN_GROUPS.fullmatch(token) else self.fake(token))
+        if kind in ("grouped", "grouped_short", "s10"):
+            return self._grouped(text)
         if kind == "otp":
             return match.group("otp_label") + self._run(match.group("otp"))
         if kind == "phone":
@@ -788,9 +900,10 @@ class _TScrubber:
     def scrub(self, text, keep=()):
         """Scrubbed text; ``keep`` are the mail addresses that stay (the shop or carrier)."""
         text = unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n")
-        text = _T_INVISIBLE.sub("", text)
+        text = _T_DIGIT_GAP.sub(" ", _T_INVISIBLE.sub("", text))
         # Links and addresses first: a replaced name would tear a link apart.
-        text = _T_LINKS.sub(lambda m: self._link(m, keep), text)
+        visible, noted = _T_LINKS.sub(" ", text), set()
+        text = _T_LINKS.sub(lambda m: self._link(m, keep, visible, noted), text)
         text = _T_ADDRESS_BLOCK.sub(self._block, text)
         text = _T_ADDRESS_LINE.sub(self._line, text)
         text = _T_DELIVERED_TO.sub(self._delivered, text)
@@ -844,7 +957,7 @@ def _t_texts(msg):
         if kind == "text/plain":
             plain.append(_t_content(part))
         elif kind == "text/html":
-            markup.append(html_to_text(_t_content(part)))
+            markup.append(_t_html_to_text(_t_content(part)))
     return "\n".join(plain), "\n".join(markup), bool(plain), bool(markup)
 
 
@@ -887,6 +1000,15 @@ def _t_private(msg, address, scrubber, subject, text):
         or any(value in address for value in scrubber.own)
         or _T_FORWARD.match(subject)
         or _T_QUOTED_FROM.search(text.replace("\r\n", "\n"))
+    )
+
+
+def _t_passed_on(msg):
+    """A mail that looks forwarded: subject prefix (WG:, Fwd:, Fw:) or a quoted header block."""
+    plain, markup = _t_texts(msg)[:2]
+    return bool(
+        _T_PASSED_ON.match(_t_header(msg, "Subject"))
+        or _T_QUOTED_FROM.search((plain + "\n" + markup).replace("\r\n", "\n"))
     )
 
 
@@ -1041,7 +1163,7 @@ def _t_run(args):
         _t_clear(out_dir)
     except OSError:
         raise _TUsage("Der Zielordner lässt sich nicht anlegen oder leeren.") from None
-    written, forwarded, doubtful = [], 0, []
+    written, forwarded, doubtful, passed_on = [], 0, [], []
     for source, mail in mails:
         number = len(written) + 1
         try:
@@ -1057,6 +1179,8 @@ def _t_run(args):
         forwarded += private
         if left:
             doubtful.append(name)
+        if _t_passed_on(mail):
+            passed_on.append(name)
     print(f"{len(written)} Mail(s) anonymisiert, Ordner: {os.path.abspath(out_dir)}")
     for name, _ in written:
         print(f"  {name}")
@@ -1070,6 +1194,11 @@ def _t_run(args):
     if forwarded:
         print(f"Hinweis: {forwarded} Mail(s) kommen von einer privaten Adresse (weitergeleitet?);"
               " der Absender wurde ersetzt. Besser die Original-Mail als .eml speichern.")
+    if passed_on:
+        print("ACHTUNG: Diese Mails sehen weitergeleitet aus: " + ", ".join(passed_on))
+        print("Eine Signatur oder eigene Zeilen der Person, die weitergeleitet hat, kann das")
+        print("Skript nicht erkennen. Diese Dateien besonders genau lesen. Hilfreicher ist die")
+        print("Original-Mail, als .eml gespeichert.")
     if doubtful:
         print("ACHTUNG: In diesen Dateien steht noch eine der eigenen Angaben, vielleicht als")
         print("Teil eines anderen Wortes. Besonders genau lesen: " + ", ".join(doubtful))

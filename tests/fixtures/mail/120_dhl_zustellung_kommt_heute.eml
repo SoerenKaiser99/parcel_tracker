@@ -1,0 +1,141 @@
+X-Fixture: derived from an anonymised mail of the maintainer; parcel number
+ and company names are invented, the Date header is shifted by a fixed
+ invented offset
+From: DHL Zustell-Update <zustellung@dhl.de>
+To: max@example.org
+Subject: Ihre DHL Paket (Austria) GmbH c/o Beispiellager Musterquell Sendung
+ kommt heute
+Date: Mon, 28 Sep 2026 11:51:35 +0200
+Message-ID: <fixture-120@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============8545008251659469292=="
+
+--===============8545008251659469292==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+
+[Onlineversion](https://custcomm.dhl.de/…) | [Datenschutzhinweis zur Übersetzung](https://custcomm.dhl.de/…)
+[Image]
+[Image]
+Deutsch  ▾ [https://custcomm.dhl.de/…]
+Deutsch  ▾▴
+Deutsch [https://custcomm.dhl.de/…] English
+[https://custcomm.dhl.de/…]
+<p>Hallo,</p>
+<p>Ihre DHL Paket (Austria) GmbH c/o Beispiellager Musterquell Sendung wird Ihnen <strong>heute</strong> durch Ihre Brief- und Paketzustellkraft zugestellt.</p>
+Ihre Zustelloptionen
+<!-- Dynamic Mailix Button, target group needed, only -->
+<table border="0" cellpadding="0" cellspacing="0" role="presentation">
+            <tr>        <td align="center" valign="top">
+                <!--[if !mso]><! -->
+                <a href="
+https://custcomm.dhl.de/…
+" target="_blank">
+                    <div>
+               <!--<![endif]-->
+                        <img src="https://storage.content-editor.campaign.optimizely.com/…" width="58" alt="Ablageort<br>buchen" title="Ablageort<br>buchen" />
+                        <span>
+                            Ablageort<br>buchen
+                        </span>
+                <!--[if !mso]><! -->
+                    </div>
+                </a>
+                <!--<![endif]-->
+</td>
+                    <td align="center" valign="top">
+                <a href="
+https://custcomm.dhl.de/…
+" target="_blank">
+                        <img src="https://storage.content-editor.campaign.optimizely.com/…" width="58" alt="Nebenan<br>abgeben" title="Nebenan<br>abgeben" />
+                        <span>
+                            Nebenan<br>abgeben
+                        </span>
+                </a>
+</td>
+        </tr>
+    </table>
+<table border="0" cellpadding="0" cellspacing="0" width="100%" role="presentation">
+  <tbody>
+    <tr>
+      <td align="center" style="font-family:'Delivery',Calibri,Arial,sans-serif;font-size:16px;font-weight:700;color:#333333;line-height:1.3;padding:0 0 4px;">
+        Ihre Sendungsnummer
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="font-family:'Delivery',Calibri,Arial,sans-serif;font-size:14px;color:#8a8a8a;line-height:1.3;padding:0 0 8px;">
+        999999999901
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <!--[if !mso]><!-->
+        <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+          <tbody>
+            <tr>
+              <td>&nbsp;</td>
+              <td>
+                <a href="
+https://custcomm.dhl.de/…
+" rel="noopener">
+                  <img src="https://storage.content-editor.campaign.optimizely.com/…" width="24" alt="Sendung verfolgen" title="Sendung verfolgen">
+                </a>
+              </td>
+              <td>&nbsp;</td>
+              <td>
+                <a href="
+https://custcomm.dhl.de/…
+" rel="noopener">
+                  Sendung verfolgen
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <!--<![endif]-->
+      </td>
+    </tr>
+  </tbody>
+</table>
+Viele Grüße
+[Image]
+_____________________________
+Sie möchten keine oder nur noch bestimmte Informationen zu Ihrer Sendung erhalten?
+[E-Mail-Einstellungen verwalten](https://custcomm.dhl.de/…)
+[Datenschutzhinweise](https://custcomm.dhl.de/…)
+[Impressum](https://custcomm.dhl.de/…)
+**DHL Group**
+**2026 ****©** **DHL Paket GmbH. All ****rights**** ****reserved****.**
+
+--===============8545008251659469292==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Empfangsoptionen ansehen</p>
+<p>Onlineversion | Datenschutzhinweis zur Übersetzung</p>
+<p>Deutsch ▾</p>
+<p>Deutsch</p>
+<p>English</p>
+<p>Hallo,</p>
+<p>Ihre DHL Paket (Austria) GmbH c/o Beispiellager Musterquell Sendung wird Ihnen heute durch Ihre Brief- und Paketzustellkraft zugestellt.</p>
+<p>Ihre Zustelloptionen</p>
+<p>Ablageort</p>
+<p>buchen</p>
+<p>Nebenan</p>
+<p>abgeben</p>
+<p>Ihre Sendungsnummer</p>
+<p>999999999901</p>
+<p>Sendung verfolgen</p>
+<p>Viele Grüße</p>
+<p>Sie möchten keine oder nur noch bestimmte Informationen zu Ihrer Sendung erhalten?</p>
+<p>E-Mail-Einstellungen verwalten</p>
+<p>Datenschutzhinweise</p>
+<p>Impressum</p>
+<p>DHL Group</p>
+<p>2026 © DHL Paket GmbH. All rights reserved.</p>
+</body></html>
+
+--===============8545008251659469292==--

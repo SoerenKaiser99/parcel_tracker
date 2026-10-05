@@ -31,6 +31,29 @@ def test_matches():
     assert DhlCarrier.matches("09999999999901") is Match.NO
 
 
+@pytest.mark.parametrize("number", ["CQ999999901DE", "RR999999902DE", "LX000000001DE"])
+def test_matches_international_s10_numbers_issued_in_germany(number):
+    """v0.3.15: two letters, nine digits, "DE" (UPU S10), e.g. a parcel to Austria."""
+    assert DhlCarrier.matches(number) is Match.SURE
+
+
+@pytest.mark.parametrize(
+    "number",
+    [
+        "CQ999999901AT",  # issued by another post
+        "CQ99999990DE",  # eight digits
+        "CQ9999999012DE",  # ten digits
+        "C9999999901DE",  # one letter
+        "cq999999901de",  # numbers arrive normalised (upper case)
+        "1Z999AA10123456784",
+        "H9999999999999999901",
+        "999999999012",  # 12 digits stay "possible", see above
+    ],
+)
+def test_s10_rule_takes_nothing_else(number):
+    assert DhlCarrier.matches(number) is not Match.SURE
+
+
 def test_parse_out_for_delivery():
     r = parse_dhl(load_fixture("dhl_synthetic_out_for_delivery.json"))
     assert r.status is ParcelStatus.OUT_FOR_DELIVERY

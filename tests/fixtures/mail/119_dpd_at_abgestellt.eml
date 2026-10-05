@@ -1,0 +1,25 @@
+X-Fixture: derived from an anonymised tester submission (issue 3); parcel
+ numbers, sender company and reference replaced by invented values;
+ the Date header is shifted by a fixed invented offset
+From: DPD Versandinfo <no_reply@dpd.at>
+To: max@example.org
+Subject: Neuigkeiten zu deinem Paket
+Date: Fri, 25 Sep 2026 18:16:05 +0200
+Message-ID: <fixture-119@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Hallo Max Mustermann,</p>
+<p>wir haben gute Nachrichten für dich:</p>
+<p>dein Paket 09999999999902 wurde heute um 16:52 Uhr an deinem gewünschten Abstellort hinterlegt.</p>
+<p>Liebe Max Mustermann</p>
+<p>dein DPD Team</p>
+<p>dpd.at</p>
+<p>DPD Direct Parcel Distribution Austria GmbH, Arbeitergasse 46, 2333 Leopoldsdorf</p>
+<p>Rechtsform: Gesellschaft m.b.H. | Sitz der Gesellschaft: 2333 Leopoldsdorf</p>
+<p>Firmenbuch: Landesgericht Korneuburg | Firmenbuchnummer: FN 62467p</p>
+<p>DVR Nr.: 4589557</p>
+<p>Auf diese E-Mail kannst du leider nicht antworten. Bei Rückfragen erreichst du uns zwischen 7.00 und 18.00 Uhr über unsere zentrale Servicenummer +49 000 0000000. Die E-Mail dient lediglich zur Information. Wir verwenden deine E-Mail-Adresse ausschließlich, um dich über deinen Auftrag zu informieren. Sie wird nicht für werbliche Zwecke genutzt.</p>
+</body></html>

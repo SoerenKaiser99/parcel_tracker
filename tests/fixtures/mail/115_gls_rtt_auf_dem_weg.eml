@@ -1,0 +1,28 @@
+X-Fixture: derived from an anonymised tester submission (issue 3); parcel
+ numbers, sender company and reference replaced by invented values;
+ the Date header is shifted by a fixed invented offset
+From: GLS Real Time Tracking <noreply@gls-rtt.com>
+To: max@example.org
+Subject: Ihr Paket ist auf dem Weg!
+Date: Mon, 14 Sep 2026 10:39:57 +0000
+Message-ID: <fixture-115@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Tippen Sie auf, um zu sehen, wo es ist.</p>
+<p>Hallo Max Mustermann, gute Nachrichten!</p>
+<p>Ihr Paket ist fast da.</p>
+<p>Mit Real-Time-Tracking können Sie live den Standort des Zustellfahrzeugs und den Lieferzeitraum verfolgen.</p>
+<p>Erteilen Sie eine Abstellgenehmigung oder lassen Sie es kurzfristig bei Ihren Nachbarn zustellen!</p>
+<p>Sendungsnummer: 99999999902</p>
+<p>Zum Real-Time Tracking</p>
+<p>Haben Sie noch Fragen rund um Ihre Zustellung?</p>
+<p>Schauen Sie in unsere Q&amp;A um Antworten zu finden.</p>
+<p>Dies ist eine automatisch generierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.</p>
+<p>General Logistics Systems</p>
+<p>Austria GmbH</p>
+<p>Firmenbuch:FN 75418i (LG Linz)</p>
+<p>Datenschutz | GLS Austria</p>
+</body></html>

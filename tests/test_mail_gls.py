@@ -179,6 +179,9 @@ def test_delivery_variants(subject, body, status):
         ("Otto Beispiel", None),
         ("Tag und Nacht Versand", None),  # "ag" inside a word is no legal form
         ("X" * 70 + " GmbH", "X" * 59 + "…"),
+        # nothing behind the legal form is taken
+        ("Beispiel Handels OHG (AT-B2C) Erika Musterfrau", "Beispiel Handels OHG"),
+        ("Beispiel GmbH Max Mustermann", "Beispiel GmbH"),
     ],
 )
 def test_only_a_shop_or_company_becomes_the_name(sender, title):

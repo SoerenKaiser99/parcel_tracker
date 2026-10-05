@@ -83,6 +83,7 @@ OTHER = "LX123456789CN"
 NUMBERS = (JJD, DHL, DPD, GLS, HERMES, UPS, AMAZON, AMAZON_REF, EBAY, OTHER)
 
 MASKED = {
+    "CQ999999901DE": "AA999999999AA",
     JJD: "JJD" + "9" * 18,
     DHL: "9" * 20,
     DPD: "9" * 14,
@@ -156,6 +157,10 @@ def test_mask_number_none():
         ("no-reply@gls-pakete.de", "gls-pakete.de"),
         ("noreply@paketankuendigung.myhermes.de", "paketankuendigung.myhermes.de"),
         ("noreply@service.dpd.de", "service.dpd.de"),
+        ("paketankuendigung@dhl.de", "dhl.de"),
+        ("noreply@gls-group.eu", "gls-group.eu"),
+        ("noreply@gls-rtt.com", "gls-rtt.com"),
+        ("no_reply@dpd.at", "dpd.at"),
         ("news@marketing.amazon.de", "amazon.de"),  # a sub-domain counts as its known parent
         ("erika.mustermann@privat.example", "other"),
         ("someone@notamazon.de", "other"),

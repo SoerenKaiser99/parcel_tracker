@@ -479,3 +479,51 @@ def test_script_uses_only_the_standard_library_and_no_network():
         "email", "glob", "hashlib", "html", "os", "re", "secrets", "sys", "unicodedata", "zipfile",
     }
     assert not modules & {"socket", "urllib", "http", "ssl", "subprocess"}
+
+
+# ----- v0.3.15 second review: a forwarded mail may still carry the forwarder's signature -----
+def _forward_case(subject: str, body: str, sender: str = "Jörg Probst <jp1987@gmx.de>") -> bytes:
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = "pakete@postfach.example"
+    msg["Subject"] = subject
+    msg["Date"] = "Tue, 18 Jul 2023 08:02:46 +0000"
+    msg.set_content(body)
+    return bytes(msg)
+
+
+QUOTED = (
+    "Viele Grüße\n\n-------- Weitergeleitete Nachricht --------\n"
+    "Von: DHL <noreply@dhl.de>\nGesendet: Dienstag, 18. Juli 2023 08:00\n"
+    "Betreff: Ihr Paket kommt\n\nIhr Paket kommt.\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("subject", "body"),
+    [
+        ("WG: Ihr Paket kommt", "Ihr Paket kommt.\n"),
+        ("Fwd: Ihr Paket kommt", "Ihr Paket kommt.\n"),
+        ("Fw: Ihr Paket kommt", "Ihr Paket kommt.\n"),
+        ("FW: WG: Ihr Paket kommt", "Ihr Paket kommt.\n"),
+        ("Ihr Paket kommt", QUOTED),
+    ],
+)
+def test_a_mail_that_looks_forwarded_gets_a_warning_line(tmp_path, subject, body):
+    src = _write(tmp_path / "mails", [_known(), _forward_case(subject, body)])
+    done = _call(src, "--name", "Jörg Probst")
+    assert done.returncode == 0, done.stderr
+    [line] = [text for text in done.stdout.splitlines() if "weitergeleitet aus" in text]
+    assert line.startswith("ACHTUNG:")
+    names = sorted(path.name for path in (src / "anonymisiert").glob("*.eml"))
+    assert names[1] in line and names[0] not in line
+    assert "Signatur" in done.stdout and "Original" in done.stdout
+    for secret in ("jörg", "probst", "jp1987"):
+        assert secret not in done.stdout.lower(), secret
+
+
+def test_original_mails_get_no_forward_warning(tmp_path):
+    src = _write(tmp_path / "mails", [_known(), _unknown()])
+    done = _call(src, "--name", "Jörg Probst")
+    assert done.returncode == 0, done.stderr
+    assert "weitergeleitet aus" not in done.stdout

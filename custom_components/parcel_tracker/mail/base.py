@@ -209,6 +209,170 @@ def known_shop(text: str) -> bool:
     return shop_of(text) is not None or _KNOWN_SHOP.fullmatch(text) is not None
 
 
+# A company, never a private sender: only such a name may become the parcel's name.
+LEGAL_FORM = re.compile(
+    r"(?<![\w.])(?:GmbH|GMBH|AG|KG|UG|SE|OHG|GbR|Ltd\.?|e\.\s?K\.|B\.\s?V\.|SARL"
+    r"|S\.\s?[aà]\.?\s?r\.\s?[lL]\.)(?!\w)"
+)
+# "GmbH & Co KG", "AG & Co. KGaA": still the legal form.
+_FORM_TAIL = re.compile(r"\s*(?:&|\+|und|u\.)\s*Co\.?(?:\s*(?:KGaA|KG|OHG))?(?!\w)")
+_KNOWN_SHOP_NAME = re.compile(
+    r"(?:otto|zalando|about you|media ?markt|saturn|ikea|lidl|tchibo|bonprix|thomann"
+    r"|notebooksbilliger|alternate|cyberport|galaxus|decathlon|conrad|kaufland|shein|temu"
+    r"|aliexpress)(?:\.(?:de|com))?(?:\s+(?:versand|online|shop|deutschland|germany"
+    r"|electronic)\b)*",
+    re.IGNORECASE,
+)
+_SHOP_WORD = re.compile(r"[^\s,;:()]*(?:amazon|ebay)[^\s,;:()]*", re.IGNORECASE)
+
+# Carriers as they sign their mails ("DHL Paket", "myDPD", "UPS Quantum View") ...
+_CARRIER_NAME = re.compile(
+    r"(?<![^\W\d_])(?:(?:my)?(?:dhl|dpd|gls|hermes|ups)|fedex|tnt|deutsche\s+post"
+    r"|österreichische\s+post|amazon\s+logistics)(?![^\W\d_])",
+    re.IGNORECASE,
+)
+# ... and the words such a display name is made of besides the carrier.
+_NOTICE_WORDS = frozenset(
+    {
+        "paket", "pakete", "paketankündigung", "paketankuendigung", "paketinfo",
+        "paketbenachrichtigung", "sendung", "sendungen", "sendungsverfolgung",
+        "sendungsinfo", "sendungsinformation", "sendungsbenachrichtigung", "versandinfo",
+        "versandinformation", "versandbenachrichtigung", "zustellung", "zustell", "zustellupdate",
+        "zustellbenachrichtigung", "zustellinformation", "update", "info", "information",
+        "benachrichtigung", "service", "kundenservice", "team", "tracking", "real", "time",
+        "quantum", "view", "express", "germany", "deutschland", "austria", "österreich",
+        "de", "at", "noreply",
+    }
+)
+
+
+def _display_words(text: str) -> tuple[bool, list[str]]:
+    """(a carrier is named, the other words) of a display name; emoji and marks dropped."""
+    rest, carriers = _CARRIER_NAME.subn(" ", text)
+    return carriers > 0, re.findall(r"[^\W_]+", rest.lower())
+
+
+def names_carrier(text: str) -> bool:
+    """True if ``text`` names a carrier or is the title of a notification ("📦 DHL
+    Paketankündigung", "Zustell-Update"): such a text is never taken as a parcel name."""
+    carrier, words = _display_words(text)
+    return carrier or (bool(words) and all(word in _NOTICE_WORDS for word in words))
+
+
+def is_carrier_title(text: str) -> bool:
+    """True if ``text`` is nothing but a carrier's display name or a notification title:
+    no name a mail may give a parcel. A text with any other word ("DHL Schuhe",
+    "Amazon-Sendung (DHL)") is a name.
+    """
+    carrier, words = _display_words(text)
+    return (carrier or bool(words)) and all(word in _NOTICE_WORDS for word in words)
+
+
+# What older versions stored as the name of a parcel: a carrier ...
+_LEGACY_CARRIER = re.compile(
+    r"(?<![^\W\d_])(?:(?:my)?(?:dhl|dpd|gls|hermes|ups)|deutsche\s+post)(?![^\W\d_])",
+    re.IGNORECASE,
+)
+# ... together with the words of a notification, and nothing else.
+_LEGACY_NOTICE = frozenset(
+    {
+        "paket", "pakete", "paketankündigung", "paketankuendigung", "paketinfo",
+        "paketbenachrichtigung", "sendungsinfo", "sendungsinformation",
+        "sendungsbenachrichtigung", "sendungsverfolgung", "versandinfo", "versandinformation",
+        "versandbenachrichtigung", "zustellung", "zustell", "update", "zustellupdate",
+        "zustellbenachrichtigung", "zustellinformation", "benachrichtigung", "tracking",
+        "real", "time", "quantum", "view",
+    }
+)
+
+
+def is_carrier_display(text: str) -> bool:
+    """True if a stored name is a carrier's display name of an older version and may be
+    replaced: a carrier and at least one notification word, nothing else but emoji and
+    punctuation ("📦 DHL Paketankündigung", "DHL Zustell-Update", "DPD Versandinfo").
+
+    Anything else may be a name somebody gave ("Hermes", "DHL Express", "Paket",
+    "Österreich") and stays.
+    """
+    rest, carriers = _LEGACY_CARRIER.subn(" ", text)
+    words = re.findall(r"[^\W_]+", rest.lower())
+    return carriers > 0 and bool(words) and all(word in _LEGACY_NOTICE for word in words)
+
+
+def is_company(text: str) -> bool:
+    """The naming gate: a known shop or a name with a legal form (never a person)."""
+    return known_shop(text) or LEGAL_FORM.search(text) is not None
+
+
+def company_name(text: str) -> str | None:
+    """The parcel name a sender line of a mail gives, None if it passes no naming gate.
+
+    A name with a legal form ends at that form ("Beispiel Handels OHG (AT-B2C) Erika
+    Musterfrau" -> "Beispiel Handels OHG"): what follows may be a contact person, and so may
+    what stands in front of a comma ("Erika Musterfrau, Beispiel GmbH" -> "Beispiel GmbH"). A
+    shop we know is taken alone ("Zalando Versand"); a word with "amazon" or "ebay" in it is
+    just "Amazon" or "eBay", never a seller's handle. A name that names a carrier ("DHL Paket
+    (Austria) GmbH") is no shop. Every name a parser takes from a mail goes through here.
+    """
+    text = " ".join(text.split())
+    name = None
+    if form := LEGAL_FORM.search(text):
+        head = text[: form.start()]
+        start = max(head.rfind(","), head.rfind(";")) + 1
+        if not head[start:].strip(" ,;:-"):
+            return None  # nothing in front of the form: where the name ends is unknown
+        tail = _FORM_TAIL.match(text, form.end())
+        name = text[start : (tail or form).end()].strip()
+    elif (shop := _KNOWN_SHOP_NAME.match(text)) and _KNOWN_SHOP.fullmatch(text):
+        name = shop.group(0)
+    elif word := _SHOP_WORD.search(text):
+        name = "Amazon" if "amazon" in word.group(0).lower() else "eBay"
+    # "DHL Paket (Austria) GmbH c/o …" is the carrier's own company, not a shop.
+    # (what stands behind a legal form is cut anyway: "… GmbH c/o DHL Lager" is fine)
+    if not name or names_carrier(name if form else text):
+        return None
+    return shorten(name)
+
+
+# Words too many companies carry in their name: a brand made only of them tells no order.
+_NO_BRAND = frozenset(
+    {
+        "der", "die", "das", "the", "und", "and", "für", "von", "dein", "deine", "mein",
+        "meine", "ihr", "ihre", "shop", "store", "online", "versand", "handel", "handels",
+        "markt", "deutschland", "germany", "europe", "europa", "international", "global",
+        "group", "gruppe", "service", "services", "logistik", "logistics", "express", "post",
+        "paket", "pakete", "home", "haus", "best", "new", "neu", "top", "mini", "maxi", "auto",
+        "bio", "baby", "sport", "sports", "black", "smart", "premium", "plus", "pro", "max",
+        "super", "direkt", "direct", "original", "set", "trade", "trading", "vertrieb",
+        "vertriebs", "company", "solutions",
+    }
+)
+
+
+def brand_of(title: str | None) -> str | None:
+    """The brand in a company name a carrier mail gives: the name without its legal form
+    ("Beispielmarke GmbH" -> "Beispielmarke"), its words joined by single spaces.
+
+    None for anything that says too little to tell a shop order by: no company name, a shop
+    we know (it sells other makers' articles), a single word of fewer than five letters, and
+    a name without a word of its own ("Neu GmbH", "Smart Home GmbH"). A common word next to
+    a word of its own stays part of the brand ("Beispielmarke Premium").
+    """
+    name = company_name(title) if title else None
+    if not name or name.endswith("…") or known_shop(name):
+        return None
+    form = LEGAL_FORM.search(name)
+    words = (name[: form.start()] if form else name).strip(" ,;:&+-").split()
+    brand = " ".join(words)
+    if not brand or known_shop(brand):
+        return None
+    letters = [re.sub(r"[\W\d_]", "", word) for word in words]
+    own = [word for word in letters if len(word) >= 3 and word.lower() not in _NO_BRAND]
+    if not own or (len(words) == 1 and len(letters[0]) < 5):
+        return None
+    return brand
+
+
 def _raw_subject(msg: EmailMessage) -> str:
     return clean(str(msg.get("Subject", ""))).replace("\n", " ").strip()
 

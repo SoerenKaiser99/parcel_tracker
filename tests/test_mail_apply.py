@@ -1,6 +1,8 @@
 from dataclasses import replace
 from datetime import UTC, date, datetime
 
+import pytest
+
 from custom_components.parcel_tracker.carriers.base import BERLIN
 from custom_components.parcel_tracker.carriers.track17 import standalone
 from custom_components.parcel_tracker.mail import parse_mail
@@ -490,3 +492,299 @@ def test_raw_hint_of_another_carrier_or_no_hint_does_not_merge():
         [gls] = _updates(GLS_SOON)
         in_window = replace(gls, eta_date=date(2026, 1, 28), eta_from=None, eta_to=None)
         assert apply_update(parcels, in_window, NOW).created, hint
+
+
+# ----- v0.3.15 review: a carrier's display name stored as the name counts as "no name" -----
+def _named(name: str | None, carrier: str = "dhl") -> dict[str, Parcel]:
+    number = "00340999999999999917" if carrier == "dhl" else "AMZ99999999999999901"
+    return {number: Parcel(number, carrier, "mail", name, NOW, NOW)}
+
+
+def _dhl_update(title: str | None, status=ParcelStatus.IN_TRANSIT) -> MailUpdate:
+    return MailUpdate("00340999999999999917", "dhl", status, NOW.astimezone(BERLIN), title=title)
+
+
+def test_a_stored_carrier_display_name_is_replaced_by_a_proper_name():
+    for legacy in ("📦 DHL Paketankündigung", "DHL Zustell-Update", "DHL Paket",
+                   "DPD Versandinfo", "GLS Real Time Tracking", "Hermes Sendungsinfo"):
+        parcels = _named(legacy)
+        change = apply_update(parcels, _dhl_update("Beispiel GmbH"), NOW)
+        assert change is not None and not change.created
+        [parcel] = parcels.values()
+        assert parcel.name == "Beispiel GmbH", legacy
+
+
+def test_a_stored_carrier_display_name_is_replaced_even_without_a_status():
+    parcels = _named("DHL Zustell-Update")
+    change = apply_update(parcels, _dhl_update("Beispiel GmbH", status=None), NOW)
+    assert change is not None
+    assert next(iter(parcels.values())).name == "Beispiel GmbH"
+
+
+def test_a_stored_carrier_display_name_stays_until_a_mail_brings_a_name():
+    parcels = _named("DHL Zustell-Update")
+    apply_update(parcels, _dhl_update(None), NOW)
+    assert next(iter(parcels.values())).name == "DHL Zustell-Update"
+
+
+def test_any_other_stored_name_is_never_replaced():
+    for name in ("Schuhe", "DHL Schuhe für Erika", "Back-UPS 700", "Amazon-Sendung (DHL)",
+                 "Beispiel GmbH", "Österreich", "Paket", "Express", "Info", "Hermes", "DPD",
+                 "DHL Express", "DHL Geschenk", "Zustell-Update", "Deutschland Service"):
+        parcels = _named(name)
+        apply_update(parcels, _dhl_update("Andere Beispiel AG"), NOW)
+        assert next(iter(parcels.values())).name == name
+
+
+def test_a_mail_never_names_a_parcel_after_a_carrier():
+    """Defence in depth: whatever a parser hands over, a carrier's display name is no name."""
+    parcels: dict[str, Parcel] = {}
+    change = apply_update(parcels, _dhl_update("DHL Paketankündigung"), NOW)
+    assert change.created and next(iter(parcels.values())).name is None
+    apply_update(parcels, _dhl_update("📦 DHL Zustell-Update", ParcelStatus.DELIVERED), NOW)
+    assert next(iter(parcels.values())).name is None
+
+
+# ----- v0.3.15: a carrier mail naming the brand joins the one open shop order -----
+TODAY = NOW.astimezone(BERLIN).date()
+ORDER = "AMZ99999999999999901"
+OTHER_ORDER = "AMZ99999999999999902"
+SHORT_DHL = "999999999901"
+
+
+def _order(number: str, title: str, first=None, last=None, carrier: str = "amazon",
+           status=ParcelStatus.IN_TRANSIT) -> Parcel:
+    result = TrackingResult(status, "Versendet", first, None, None, None, None, None, None, [],
+                            eta_latest=last)
+    return Parcel(number, carrier, "mail", title, NOW, NOW, result=result, mail_title=title)
+
+
+def _brand_mail(title: str | None = "Beispielmarke GmbH", day=TODAY, carrier: str = "dhl",
+                status=ParcelStatus.OUT_FOR_DELIVERY) -> MailUpdate:
+    return MailUpdate(SHORT_DHL, carrier, status, NOW.astimezone(BERLIN), title=title,
+                      eta_date=day)
+
+
+def _range():
+    from datetime import timedelta
+
+    return TODAY - timedelta(days=1), TODAY + timedelta(days=2)
+
+
+def test_carrier_mail_naming_the_brand_joins_the_one_order_whose_title_starts_with_it():
+    first, last = _range()
+    parcels = {
+        ORDER: _order(ORDER, "Beispielmarke Trinkflasche 600 ml Edelstahl…", first, last),
+        OTHER_ORDER: _order(OTHER_ORDER, "Musterfirma Kabel 2 m", first, last),
+    }
+    change = apply_update(parcels, _brand_mail(), NOW)
+    assert not change.created and change.parcel is parcels[ORDER]
+    assert set(parcels) == {ORDER, OTHER_ORDER}  # no parcel of its own
+    order = parcels[ORDER]
+    assert (order.tracking_ref, order.tracking_carrier) == (SHORT_DHL, "dhl")
+    assert order.name == "Beispielmarke Trinkflasche 600 ml Edelstahl…"
+    assert order.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert order.poll_target == ("dhl", SHORT_DHL)
+    assert parcels[OTHER_ORDER].tracking_ref is None
+    # the next mail about the number finds the order again
+    again = apply_update(parcels, _brand_mail(status=ParcelStatus.DELIVERED), NOW)
+    assert again.parcel is order and len(parcels) == 2
+
+
+@pytest.mark.parametrize("carrier", ["dhl", "hermes", "gls", "ups"])
+def test_brand_merge_for_every_carrier(carrier):
+    parcels = {ORDER: _order(ORDER, "BEISPIELMARKE Trinkflasche", *_range())}
+    change = apply_update(parcels, _brand_mail(carrier=carrier), NOW)
+    assert not change.created and parcels[ORDER].tracking_carrier == carrier
+
+
+@pytest.mark.parametrize("carrier", ["dhl", "hermes", "gls", "ups"])
+def test_brand_merge_never_takes_an_ebay_order(carrier):
+    number = "EBAY999999999901"
+    parcels = {number: _order(number, "Beispielmarke Trinkflasche", *_range(), carrier="ebay")}
+    change = apply_update(parcels, _brand_mail(carrier=carrier), NOW)
+    assert change.created and parcels[number].tracking_ref is None
+    assert parcels[SHORT_DHL].name == "Beispielmarke GmbH"
+
+
+@pytest.mark.parametrize(
+    ("order_day", "mail_day", "merged"),
+    [
+        ("range", "today", True),
+        ("today", "today", True),
+        (None, "today", True),  # the order names no day, but it is shipped
+        ("range", None, True),  # the mail names no day, but the order is shipped
+        ("later", "today", False),  # the day is outside of the order's range
+        ("earlier", "today", False),
+    ],
+)
+def test_brand_merge_needs_a_day_that_fits(order_day, mail_day, merged):
+    from datetime import timedelta
+
+    days = {
+        "range": _range(),
+        "today": (TODAY, None),
+        None: (None, None),
+        "later": (TODAY + timedelta(days=2), TODAY + timedelta(days=4)),
+        "earlier": (TODAY - timedelta(days=5), TODAY - timedelta(days=1)),
+    }[order_day]
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", *days)}
+    status = ParcelStatus.OUT_FOR_DELIVERY if mail_day else ParcelStatus.IN_TRANSIT
+    change = apply_update(parcels, _brand_mail(day=TODAY if mail_day else None, status=status), NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+    assert (SHORT_DHL in parcels) is not merged
+
+
+def test_two_orders_of_the_brand_are_never_merged():
+    first, last = _range()
+    parcels = {
+        ORDER: _order(ORDER, "Beispielmarke Trinkflasche", first, last),
+        # even if only one of them fits the day
+        OTHER_ORDER: _order(OTHER_ORDER, "Beispielmarke Filter", None, None),
+    }
+    change = apply_update(parcels, _brand_mail(), NOW)
+    assert change.created and SHORT_DHL in parcels
+    assert parcels[SHORT_DHL].name == "Beispielmarke GmbH"
+    assert all(parcels[n].tracking_ref is None for n in (ORDER, OTHER_ORDER))
+
+
+@pytest.mark.parametrize(
+    ("title", "order_title"),
+    [
+        ("AB GmbH", "AB Trinkflasche"),  # shorter than three characters
+        ("Shop GmbH", "Shop Trinkflasche"),  # a word that says nothing
+        ("Die Beste GmbH", "Die Trinkflasche"),  # only a part of the name fits
+        ("Beispiel GmbH", "Beispielmarke Trinkflasche"),  # not at a word boundary
+        ("Beispielmarke GmbH", "Trinkflasche von Beispielmarke"),  # not the beginning
+        ("Beispielmarke GmbH", "Musterfirma Trinkflasche"),
+        (None, "Beispielmarke Trinkflasche"),  # the mail names no company
+        ("Erika Beispielmarke", "Erika Beispielmarke Trinkflasche"),  # a person, no company
+        ("DHL Paket GmbH", "DHL Paket Karton"),  # a carrier is no brand
+        # words that are the "brand" of too many companies
+        ("Neu GmbH", "NEU Apple iPhone 99 Hülle"),
+        ("Top Shop GmbH", "Top Shop Kabel 2 m"),
+        ("Smart Home GmbH", "Smart Home Steckdose"),
+        ("Premium Handel GmbH & Co. KG", "Premium Handel Kabel"),
+        ("Abcd GmbH", "Abcd Trinkflasche"),  # one word of fewer than five letters
+        # a shop we know is a shop, never the brand of an article
+        ("IKEA", "IKEA Kallax Regal weiß"),
+        ("IKEA Deutschland GmbH & Co. KG", "IKEA Deutschland Kallax Regal"),
+        ("Otto GmbH & Co KG", "Otto Trinkflasche"),
+        ("Conrad Electronic SE", "Conrad Electronic Kabel"),
+        ("Tchibo GmbH", "Tchibo Kaffee"),
+        ("Zalando SE", "Zalando Schuhe"),
+        ("Amazon EU SARL", "Amazon EU Kabel"),
+        # every word of the brand must begin the title, in order
+        ("Kabelwerk Premium GmbH", "Kabelwerk Aderleitung 10 m"),
+        ("Kabelwerk Premium GmbH", "Premium Kabelwerk Aderleitung 10 m"),
+    ],
+)
+def test_short_ambiguous_or_missing_shop_names_are_never_merged(title, order_title):
+    parcels = {ORDER: _order(ORDER, order_title, *_range())}
+    change = apply_update(parcels, _brand_mail(title), NOW)
+    assert change.created and parcels[ORDER].tracking_ref is None
+
+
+def test_brand_merge_leaves_other_orders_alone():
+    first, last = _range()
+    done = _order(ORDER, "Beispielmarke Trinkflasche", first, last, status=ParcelStatus.DELIVERED)
+    tracked = _order(OTHER_ORDER, "Beispielmarke Filter", first, last)
+    tracked.tracking_ref, tracked.tracking_carrier = "00340999999999999917", "dhl"
+    parcels = {ORDER: done, OTHER_ORDER: tracked}
+    change = apply_update(parcels, _brand_mail(), NOW)
+    # a delivered order and one that has its number are no candidates
+    assert change.created and done.tracking_ref is None
+    assert tracked.tracking_ref == "00340999999999999917"
+    # and a mail without a status never merges
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", first, last)}
+    assert apply_update(parcels, _brand_mail(status=None, day=None), NOW).created
+
+
+def test_an_existing_carrier_parcel_is_left_alone():
+    """Folding a parcel that already exists into an order is not done: both stay."""
+    first, last = _range()
+    parcels = {
+        ORDER: _order(ORDER, "Beispielmarke Trinkflasche", first, last),
+        SHORT_DHL: Parcel(SHORT_DHL, "dhl", "mail", None, NOW, NOW),
+    }
+    change = apply_update(parcels, _brand_mail(), NOW)
+    assert change.parcel is parcels[SHORT_DHL] and parcels[ORDER].tracking_ref is None
+
+
+# ----- v0.3.15 second review: the brand rule is for Amazon orders and needs more proof -----
+def test_two_word_brand_with_a_common_second_word_still_merges():
+    """The production case: "<Marke> Premium GmbH" and the title "<Marke> Premium …"."""
+    parcels = {ORDER: _order(ORDER, "Kabelwerk Premium Aderleitung H07V-K 10 m", *_range())}
+    change = apply_update(parcels, _brand_mail("Kabelwerk Premium GmbH"), NOW)
+    assert not change.created and parcels[ORDER].tracking_ref == SHORT_DHL
+
+
+def test_brand_merge_skips_an_order_that_names_another_carrier():
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", *_range())}
+    parcels[ORDER].shipping_carrier_hint = "Hermes"
+    change = apply_update(parcels, _brand_mail(carrier="dhl"), NOW)
+    assert change.created and parcels[ORDER].tracking_ref is None
+    # an order that names this carrier or none is still taken, also next to the other one
+    parcels = {
+        ORDER: _order(ORDER, "Beispielmarke Trinkflasche", *_range()),
+        OTHER_ORDER: _order(OTHER_ORDER, "Beispielmarke Filter", *_range()),
+    }
+    parcels[ORDER].shipping_carrier_hint = "hermes"
+    parcels[OTHER_ORDER].shipping_carrier_hint = "DHL Paket"
+    change = apply_update(parcels, _brand_mail(carrier="dhl"), NOW)
+    assert not change.created and change.parcel is parcels[OTHER_ORDER]
+
+
+def _ordered(first=None, last=None) -> dict[str, Parcel]:
+    order = _order(ORDER, "Beispielmarke Trinkflasche", first, last,
+                   status=ParcelStatus.PRE_TRANSIT)
+    return {ORDER: order}
+
+
+def test_delivered_mail_never_turns_an_ordered_parcel_into_delivered():
+    for days in ((None, None), (TODAY, None), _range()):
+        parcels = _ordered(*days)
+        mail = _brand_mail(day=None, status=ParcelStatus.DELIVERED)
+        change = apply_update(parcels, mail, NOW)
+        assert change.created and parcels[ORDER].status is ParcelStatus.PRE_TRANSIT, days
+        assert parcels[ORDER].tracking_ref is None
+
+
+@pytest.mark.parametrize(
+    ("status", "mail_day", "order_days", "order_status", "merged"),
+    [
+        # an order that is only "Bestellt" needs a matching day
+        (ParcelStatus.IN_TRANSIT, "today", "range", ParcelStatus.PRE_TRANSIT, True),
+        (ParcelStatus.OUT_FOR_DELIVERY, None, "range", ParcelStatus.PRE_TRANSIT, True),
+        (ParcelStatus.IN_TRANSIT, None, "range", ParcelStatus.PRE_TRANSIT, False),
+        (ParcelStatus.IN_TRANSIT, "today", None, ParcelStatus.PRE_TRANSIT, False),
+        (ParcelStatus.OUT_FOR_DELIVERY, None, None, ParcelStatus.PRE_TRANSIT, False),
+        (ParcelStatus.PRE_TRANSIT, None, None, ParcelStatus.PRE_TRANSIT, False),
+        # without a day on one side the order must be shipped
+        (ParcelStatus.IN_TRANSIT, None, "range", ParcelStatus.IN_TRANSIT, True),
+        (ParcelStatus.OUT_FOR_DELIVERY, None, None, ParcelStatus.IN_TRANSIT, True),
+        (ParcelStatus.DELIVERED, None, None, ParcelStatus.IN_TRANSIT, True),
+        # the day a mail was sent counts for "in Zustellung" and "zugestellt"
+        (ParcelStatus.DELIVERED, None, "range", ParcelStatus.IN_TRANSIT, True),
+        (ParcelStatus.OUT_FOR_DELIVERY, None, "later", ParcelStatus.IN_TRANSIT, False),
+        (ParcelStatus.DELIVERED, None, "later", ParcelStatus.IN_TRANSIT, False),
+        (ParcelStatus.DELIVERED, None, "earlier", ParcelStatus.IN_TRANSIT, False),
+        # ... not for "unterwegs": that mail names no day
+        (ParcelStatus.IN_TRANSIT, None, "later", ParcelStatus.IN_TRANSIT, True),
+    ],
+)
+def test_brand_merge_day_and_shipping_rules(status, mail_day, order_days, order_status, merged):
+    from datetime import timedelta
+
+    days = {
+        "range": _range(),
+        None: (None, None),
+        "later": (TODAY + timedelta(days=2), TODAY + timedelta(days=4)),
+        "earlier": (TODAY - timedelta(days=5), TODAY - timedelta(days=1)),
+    }[order_days]
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", *days, status=order_status)}
+    mail = _brand_mail(day=TODAY if mail_day else None, status=status)
+    change = apply_update(parcels, mail, NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged

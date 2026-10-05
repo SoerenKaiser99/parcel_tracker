@@ -1,0 +1,53 @@
+X-Fixture: derived from an anonymised tester submission (issue 3); parcel
+ numbers, sender company and reference replaced by invented values;
+ the Date header is shifted by a fixed invented offset
+From: GLS <noreply@gls-group.eu>
+To: max@example.org
+Subject: Ihr Paket von Beispiel Handels OHG (AT-B2C) wurde durch GLS am
+ =?utf-8?q?gew=C3=BCnschten?= Ort abgestellt
+Date: Mon, 14 Sep 2026 14:06:12 +0200
+Message-ID: <fixture-117@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>IHR PAKET WURDE ZUGESTELLT</p>
+<p>PAKETNUMMER</p>
+<p>99999999901</p>
+<p>ZUSTELLUNG</p>
+<p>Heute 12:33 Uhr</p>
+<p>Sendung verfolgen</p>
+<p>ABSENDER</p>
+<p>Beispiel Handels OHG (AT-B2C)</p>
+<p>ZUSTELLADRESSE</p>
+<p>Musterstraße 1/2</p>
+<p>12345</p>
+<p>Musterstadt</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihr Paket 99999999901 (Referenz: AT000000-000000-001) von Beispiel Handels OHG (AT-B2C) haben wir heute um 12:33 Uhr an dem von Ihnen gewünschten Ort abgestellt.</p>
+<p>Zusätzliche Informationen:</p>
+<p>Dies betrifft ebenso das Paket/die Pakete 99999999902, 99999999903.</p>
+<p>Ihre Meinung zählt!</p>
+<p>Wie wahrscheinlich ist es, dass Sie GLS Ihren Freunden und Ihrer Familie weiterempfehlen?</p>
+<p>0</p>
+<p>1</p>
+<p>2</p>
+<p>3</p>
+<p>4</p>
+<p>5</p>
+<p>6</p>
+<p>7</p>
+<p>8</p>
+<p>9</p>
+<p>10</p>
+<p>sehr unwahrscheinlich</p>
+<p>sehr wahrscheinlich</p>
+<p>Mit Klick auf die Bewertungsskala zählt Ihr Feedback. Vielen Dank!</p>
+<p>Viele Max</p>
+<p>Dies ist eine automatisch generierte Nachricht. Bitte antworten Sie nicht auf diese E-Mail.</p>
+<p>General Logistics Systems</p>
+<p>Austria GmbH</p>
+<p>Firmenbuch:FN 75418i (LG Linz)</p>
+<p>Datenschutz | GLS Austria</p>
+</body></html>

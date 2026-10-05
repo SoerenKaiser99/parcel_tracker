@@ -15,12 +15,12 @@ from .base import (
     MailUpdate,
     at,
     body_text,
+    company_name,
     find_numbers,
     known_shop,
     resolve_dates,
     sent_at,
     shop_of,
-    shorten,
     subject,
     upcoming_date,
 )
@@ -91,7 +91,7 @@ def parse_hermes_mail(msg: EmailMessage) -> list[MailUpdate]:
         status=status,
         sent_at=sent,
         # Only a known shop becomes the name, never a private sender.
-        title=shorten(shop) if shop and known_shop(shop) else None,
+        title=company_name(shop) if shop and known_shop(shop) else None,
         shop=shop_of(shop) if shop else None,
     )
     if status is ParcelStatus.DELIVERED:

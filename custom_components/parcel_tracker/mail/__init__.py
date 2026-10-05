@@ -12,10 +12,12 @@ from .amazon import (
     subject_status,
 )
 from .base import DPD_DOMAINS, MailResult, body_text, domain_of, is_forwarded, sender, subject
+from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_mail
 from .ebay import EBAY_SENDER, parse_ebay
-from .gls import GLS_SENDER, parse_gls_mail
+from .gls import GLS_GROUP_SENDERS, GLS_SENDER, parse_gls_group_mail, parse_gls_mail
 from .hermes import HERMES_SENDER, parse_hermes_mail
 from .shipping import (
+    DHL_DOMAIN,
     DHL_SENDER,
     KNOWN_SENDER_DOMAINS,
     UPS_SENDER,
@@ -47,6 +49,8 @@ KNOWN_MAIL_DOMAINS = frozenset(
                 *AMAZON_SENDERS,
                 EBAY_SENDER,
                 GLS_SENDER,
+                *GLS_GROUP_SENDERS,
+                DPD_AT_SENDER,
                 HERMES_SENDER,
                 DHL_SENDER,
                 UPS_SENDER,
@@ -100,11 +104,19 @@ def parse_mail(msg: EmailMessage, read_otp: bool = False) -> MailResult:
         if updates or real_amazon:
             return MailResult(updates=updates, amazon=real_amazon)
         return MailResult(updates=parse_generic(msg))
-    if address == DHL_SENDER and (updates := parse_dhl_mail(msg)):
+    domain = domain_of(address)
+    if (domain == DHL_DOMAIN or domain.endswith(f".{DHL_DOMAIN}")) and (
+        updates := parse_dhl_mail(msg)
+    ):
         return MailResult(updates=updates)
     if address == UPS_SENDER and (updates := parse_ups_mail(msg)):
         return MailResult(updates=updates)
     if address == HERMES_SENDER and (updates := parse_hermes_mail(msg)):
+        return MailResult(updates=updates)
+    if address in GLS_GROUP_SENDERS and (updates := parse_gls_group_mail(msg)):
+        return MailResult(updates=updates)
+    # DPD Austria tells the status in its mails; DPD Germany only names the number.
+    if domain == DPD_AT_DOMAIN and (updates := parse_dpd_mail(msg)):
         return MailResult(updates=updates)
     # GLS numbers (11 digits) are never read by the generic parser: a GLS mail someone
     # forwarded by hand is recognised by its subject instead.

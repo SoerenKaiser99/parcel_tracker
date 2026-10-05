@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -15,7 +16,14 @@ from ..models import (
     TrackingEvent,
     TrackingResult,
 )
-from .base import MailUpdate, carrier_key, title_key
+from .base import (
+    MailUpdate,
+    brand_of,
+    carrier_key,
+    is_carrier_display,
+    is_carrier_title,
+    title_key,
+)
 
 _DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
 
@@ -175,30 +183,89 @@ def _hint_key(parcel: Parcel) -> str | None:
     return (carrier_key(hint) or hint) if hint else None
 
 
+_SENT_DAY_STATUSES = (ParcelStatus.OUT_FOR_DELIVERY, ParcelStatus.DELIVERED)
+
+
+def _mail_day(update: MailUpdate):
+    """The day a carrier mail is about: the day it names, else for "in Zustellung" and
+    "zugestellt" the day it was sent."""
+    if update.eta_date:
+        return update.eta_date
+    return update.sent_at.date() if update.status in _SENT_DAY_STATUSES else None
+
+
+def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
+    """The one open Amazon order whose title begins with the brand the carrier mail names.
+
+    Deliberately narrow: only Amazon orders (never eBay), none that names another carrier
+    than the mail's; all words of the brand must begin the title (whole words, any case) of
+    exactly one of them. The mail's day must lie in the order's day or window; if one of the
+    two has no day, the order must be shipped ("Versendet"). A mail about a delivery never
+    takes an order that is only "Bestellt".
+    """
+    brand = brand_of(update.title)
+    if brand is None:
+        return None
+    words = r"\s+".join(re.escape(word) for word in brand.split())
+    begins = re.compile(rf"{words}(?![^\W_])", re.IGNORECASE)
+    matches = [
+        p
+        for p in orders
+        if p.carrier == "amazon"
+        and _hint_key(p) in (None, update.carrier)
+        and begins.match((p.mail_title or p.name or "").strip())
+    ]
+    if len(matches) != 1:
+        return None
+    order = matches[0]
+    shipped = _step(order.status) >= _step(ParcelStatus.IN_TRANSIT)
+    if update.status is ParcelStatus.DELIVERED and not shipped:
+        return None
+    day = _mail_day(update)
+    dated = order.result is not None and order.result.eta_date is not None
+    if day and dated:
+        return order if _in_window(order, day) else None
+    return order if order.status is ParcelStatus.IN_TRANSIT else None
+
+
 def _merge_candidate(parcels: dict[str, Parcel], update: MailUpdate) -> Parcel | None:
     """The one open shop order a carrier mail belongs to, if unambiguous.
 
     The order qualifies when the carrier mail names its shop or the shop mail named
     this carrier; the day must match the order's day or window (without a day: the
-    order must be in transit).
+    order must be in transit). A mail that names another company than the shop (the
+    brand that sells at Amazon) may still belong to an order: see ``_brand_candidate``.
     """
-    open_orders = [
+    orders = [
         p
         for p in parcels.values()
         if p.carrier in SHOP_CARRIERS
         and p.tracking_ref is None
         and p.status is not ParcelStatus.DELIVERED
-        and (p.carrier == update.shop or _hint_key(p) == update.carrier)
+    ]
+    open_orders = [
+        p for p in orders if p.carrier == update.shop or _hint_key(p) == update.carrier
     ]
     if update.eta_date:
         matches = [p for p in open_orders if _in_window(p, update.eta_date)]
     else:
         matches = [p for p in open_orders if p.status is ParcelStatus.IN_TRANSIT]
-    return matches[0] if len(matches) == 1 else None
+    if len(matches) == 1:
+        return matches[0]
+    if not matches and update.shop is None:
+        return _brand_candidate(orders, update)
+    return None
+
+
+def _mail_name(update: MailUpdate) -> str | None:
+    """The name a carrier mail gives; a carrier's own display name is none."""
+    title = update.title
+    return title if title and not is_carrier_title(title) else None
 
 
 def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
     number = update.number.upper()
+    name = _mail_name(update)
     target = parcels.get(number) or next(
         (p for p in parcels.values() if p.tracking_ref == number), None
     )
@@ -213,14 +280,18 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
             _forward(target, update, now)
             return Change(target, old, False)
     if target is None:
-        target = Parcel(number, update.carrier, "mail", update.title, now, now)
+        target = Parcel(number, update.carrier, "mail", name, now, now)
         parcels[number] = target
         _forward(target, update, now)
         return Change(target, None, True)
     old = target.status
     named = False
-    if target.name is None and update.title and target.carrier not in SHOP_CARRIERS:
-        target.name = update.title  # e.g. the shop a Hermes mail names
+    # Older versions stored a carrier's display name ("DHL Zustell-Update") as the name: it
+    # counts as no name. Any other name stays, also "Hermes" or "DHL Express" (the model
+    # cannot tell who set it).
+    unnamed = target.name is None or is_carrier_display(target.name)
+    if unnamed and name and target.carrier not in SHOP_CARRIERS:
+        target.name = name  # e.g. the shop a Hermes mail names
         named = True
     target_carrier = target.poll_target[0] if target.poll_target else None
     if target.poll_target is not None and target_carrier not in OPTIONAL_API_CARRIERS:

@@ -412,3 +412,115 @@ async def test_gls_mails_become_two_parcels_and_the_shop_mail_is_unrecognised(
     dump = str(hass_storage["parcel_tracker"]["data"]) + caplog.text
     for secret in ("Garage", "Musterstraße", "Musterstadt", "Mustermann", "REF-0001", "+49"):
         assert secret not in dump, secret
+
+
+# ----- v0.3.15: DPD Austria mails tell the status themselves -----
+class _CountingDpd:
+    """Stands in for the DPD lookup: counts its calls and answers "in transit"."""
+
+    key = "dpd"
+    name = "DPD"
+
+    def __init__(self):
+        self.calls = 0
+
+    async def fetch(self, number, postcode):
+        from custom_components.parcel_tracker.models import TrackingResult
+
+        self.calls += 1
+        return TrackingResult(
+            ParcelStatus.IN_TRANSIT, "Paket unterwegs", None, None, None, None, None, None,
+            None, [],
+        )
+
+
+async def test_dpd_mail_status_and_the_live_lookup(hass, freezer):
+    """The announcing mail creates the parcel and the lookup may move it on; once a mail
+    says "delivered", the lookup is never asked again and cannot move the parcel back."""
+    from custom_components.parcel_tracker.mail.base import at, sent_at
+
+    from .conftest import load_mail
+
+    new, dropped = "114_dpd_at_neues_paket.eml", "119_dpd_at_abgestellt.eml"
+    # just after the second mail was sent (in the evening, before the night window)
+    freezer.move_to(sent_at(load_mail(dropped)) + timedelta(minutes=5))
+    number = "09999999999901"
+    # the second mail speaks about the same parcel here
+    same_parcel = raw(dropped).replace(b"09999999999902", number.encode())
+    mailbox = FakeMailbox([("1", raw(new))])
+    dpd = _CountingDpd()
+    entry = MockConfigEntry(domain=DOMAIN, data={"postcode": "1010", "country": "at"})
+    entry.add_to_hass(hass)
+    store = ParcelStore(hass)
+    await store.async_load()
+    coord = ParcelCoordinator(hass, entry, store, {"dpd": dpd}, mailbox)
+
+    await coord.async_import_mail()
+    parcel = coord.store.get(number)
+    assert (parcel.carrier, parcel.status) == ("dpd", ParcelStatus.PRE_TRANSIT)
+    await coord.async_refresh()
+    assert dpd.calls == 1 and parcel.status is ParcelStatus.IN_TRANSIT  # the lookup knows more
+
+    events = async_capture_events(hass, EVENT_STATUS_CHANGED)
+    mailbox.mails = [("2", same_parcel)]
+    freezer.tick(timedelta(minutes=6))  # the next look into the mailbox, no poll due yet
+    await coord.async_import_mail()
+    assert dpd.calls == 1 and parcel.status is ParcelStatus.DELIVERED
+    delivered_at = at(sent_at(load_mail(dropped)).date(), 16, 52)
+    assert parcel.result.delivered_at == delivered_at
+    await hass.async_block_till_done()
+    assert [e.data["new_status"] for e in events] == ["delivered"]
+
+    freezer.tick(timedelta(hours=2))
+    await coord.async_refresh()
+    await coord.async_refresh_parcels(number)  # even on request
+    assert dpd.calls == 1
+    assert parcel.status is ParcelStatus.DELIVERED
+    assert parcel.result.delivered_at == delivered_at
+    # nothing but the number, the status and the time is stored
+    assert "Abstellort" not in str(parcel.to_dict()) and parcel.name is None
+
+
+# ----- v0.3.15: a 12-digit DHL number from a mail is asked at DHL -----
+async def test_12_digit_dhl_number_from_a_mail_is_polled_and_can_be_added_by_hand(hass, freezer):
+    from custom_components.parcel_tracker.mail.base import sent_at
+
+    from .conftest import load_mail
+
+    name = "120_dhl_zustellung_kommt_heute.eml"
+    freezer.move_to(sent_at(load_mail(name)) + timedelta(minutes=5))
+    dhl = _CountingDpd()
+    dhl.key, dhl.name = "dhl", "DHL"
+    from custom_components.parcel_tracker.carriers.dhl import DhlCarrier
+
+    dhl.matches = DhlCarrier.matches
+    asked = []
+
+    async def fetch(number, postcode):
+        asked.append(number)
+        return await _CountingDpd.fetch(dhl, number, postcode)
+
+    dhl.fetch = fetch
+    entry = MockConfigEntry(domain=DOMAIN, data={"postcode": "10115", "api_key": "invented"})
+    entry.add_to_hass(hass)
+    store = ParcelStore(hass)
+    await store.async_load()
+    coord = ParcelCoordinator(hass, entry, store, {"dhl": dhl}, FakeMailbox([("1", raw(name))]))
+
+    await coord.async_import_mail()
+    parcel = coord.store.get("999999999901")
+    assert (parcel.carrier, parcel.status, parcel.name) == (
+        "dhl", ParcelStatus.OUT_FOR_DELIVERY, None,
+    )
+    await coord.async_refresh()
+    assert asked == ["999999999901"]  # with a key the DHL lookup takes over
+    assert parcel.status is ParcelStatus.IN_TRANSIT
+
+    by_hand = await coord.async_add("9999 9999 9902", "dhl", None)
+    assert (by_hand.number, by_hand.carrier, by_hand.carrier_mode) == (
+        "999999999902", "dhl", "manual",
+    )
+    automatic = await coord.async_add("999999999903", "auto", None)
+    assert automatic.carrier_mode == "auto"
+    await coord.async_refresh()
+    assert set(asked) == {"999999999901", "999999999902", "999999999903"}

@@ -106,6 +106,10 @@ def test_delivered_needs_wurde_before_zugestellt():
         ("Otto Beispiel", None),
         ("OTTO GmbH & Co KG", "OTTO GmbH & Co KG"),
         ("Zalando SE", "Zalando SE"),
+        # nothing behind the legal form or the shop is taken
+        ("OTTO GmbH & Co KG Erika Musterfrau", "OTTO GmbH & Co KG"),
+        ("Zalando Versand Max Mustermann", "Zalando Versand"),
+        ("Beispiel GmbH Erika Musterfrau", None),  # Hermes: only a shop we know
     ],
 )
 def test_only_a_known_shop_becomes_the_name(sender, title):

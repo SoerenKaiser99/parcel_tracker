@@ -14,7 +14,12 @@ SENDERS = [
     "shipment-tracking@amazon.de",
     "order-update@amazon.de",
     "noreply@dhl.de",
+    "paketankuendigung@dhl.de",
+    "zustellung@dhl.de",
     "noreply@service.dpd.de",
+    "no_reply@dpd.at",
+    "noreply@gls-group.eu",
+    "noreply@gls-rtt.com",
     "pkginfo@ups.com",
     "noreply@paketankuendigung.myhermes.de",
     "ebay@ebay.com",
@@ -695,10 +700,11 @@ def test_readme_says_honestly_what_works_in_austria_and_switzerland():
         "mit echten Paketen noch nicht getestet",
         "Für die Schweiz bleibt die GLS-Abfrage auf der deutschen Variante",
         "Noch nicht",
-        "DPD Österreich und DPD Schweiz",
+        "DPD-Live-Abfrage für Österreich",
+        "DPD Schweiz",
         "Österreichische Post",
         "Schweizerische Post",
-        "erkennt ausländische Nummernformate nicht automatisch",
+        "erkennt andere ausländische Nummernformate nicht automatisch",
         "anonymisierte Beispielmails",
         "Diagnose-Datei",
         "(#beispielmails-einreichen)",
@@ -794,3 +800,179 @@ def test_demo_page_can_show_the_note_after_adding():
         assert text in js, text
     html = (DEMO / "index.html").read_text(encoding="utf-8")
     assert 'href="?added=missing_key"' in html
+
+
+def test_readme_sieve_example_names_every_listed_sender():
+    """v0.3.15: three more senders (GLS and DPD Austria)."""
+    sieve = README.split("```sieve")[1].split("```")[0]
+    for address in SENDERS:
+        assert f'"{address}"' in sieve, address
+
+
+def test_readme_says_what_v0_3_15_reads_from_austria():
+    section = README.split("### Österreich und Schweiz")[1].split("\n## ")[0]
+    for text in (
+        "`noreply@gls-group.eu`",
+        "`noreply@gls-rtt.com`",
+        "mehrere Pakete in einer Mail",
+        "`no_reply@dpd.at`",
+        "„Ein DPD Paket für dich“",
+        "„Neuigkeiten zu deinem Paket“",
+        "derzeit nur aus diesen Mails",
+        "mydpd.at",
+        "anderen Format",
+        "ungültigen Nummer",
+        "`CQ…DE`",
+        "ohne Liefertag",
+    ):
+        assert text in section, text
+    assert "versteht weiter nur deutsche Mails" not in README
+
+
+def test_readme_says_dhl_mails_name_the_shop():
+    section = README.split("### Kein Key? Dann die DHL-Mails")[1].split("\n## ")[0]
+    assert "„Ihre Beispiel GmbH Sendung ist unterwegs“" in section
+    assert "Rechtsform" in section and "nie der Name einer Privatperson" in section
+
+
+def test_readme_matches_the_senders_the_parsers_know():
+    from custom_components.parcel_tracker.mail.dpd import DPD_AT_SENDER
+    from custom_components.parcel_tracker.mail.gls import GLS_GROUP_SENDER, GLS_RTT_SENDER
+
+    for address in (DPD_AT_SENDER, GLS_GROUP_SENDER, GLS_RTT_SENDER):
+        assert address in SENDERS
+
+
+# ----- v0.3.15 review -----
+def test_readme_says_where_a_company_name_ends_and_that_carriers_never_name_a_parcel():
+    dhl = README.split("### Kein Key? Dann die DHL-Mails")[1].split("\n## ")[0]
+    gls = README.split("### GLS-Pakete")[1].split("\n### ")[0]
+    for section in (dhl, gls):
+        assert "endet an der Rechtsform" in section
+    assert "Anzeigename eines Carriers" in dhl and "„DHL Paketankündigung“" in dhl
+    privacy = README.split("## Datenschutz")[1].split("\n## ")[0]
+    assert "den Namen eines Shops oder einer Firma (nur bis zur Rechtsform" in privacy
+    assert "nie den Anzeigenamen eines Carriers" in privacy
+
+
+def test_readme_says_which_dhl_subjects_set_a_status():
+    section = README.split("### Kein Key? Dann die DHL-Mails")[1].split("\n## ")[0]
+    for text in (
+        "nur aus dem Betreff",
+        "„ist unterwegs“",
+        "„kommt heute“",
+        "„wurde zugestellt“",
+        "Zustellfoto",
+        "Packstation",
+        "Abholcodes liest der Import nie",
+    ):
+        assert text in section, text
+
+
+def test_readme_says_what_a_dpd_austria_mail_means():
+    section = README.split("### Österreich und Schweiz")[1].split("\n## ")[0]
+    for text in (
+        "„zugestellt“, „abgestellt“",
+        "am gewünschten Abstellort bzw. Wunschort „hinterlegt“",
+        "Pickup Paketshop",
+        "„Abholbereit“",
+        "an DPD übergeben",
+        "im Depot",
+        "setzt keinen Status",
+    ):
+        assert text in section, text
+
+
+def test_readme_says_one_gls_mail_may_create_several_parcels():
+    section = README.split("### Österreich und Schweiz")[1].split("\n## ")[0]
+    assert "für jede Nummer ein eigenes Paket" in section
+
+
+def test_readme_says_which_grouped_numbers_the_anonymiser_replaces():
+    section = README.split("## Beispielmails einreichen")[1].split("\n## ")[0]
+    assert (
+        "Nummern ab 10 Ziffern, die in Gruppen geschrieben sind (getrennt durch Leerzeichen,"
+        " Tabulator, Punkt oder Bindestrich), und internationale Nummern in Gruppen"
+        " („CQ 123 456 785 DE“) behalten ihre Gruppen und bekommen erfundene Ziffern"
+    ) in section
+    assert "in Gruppen geschriebene Nummern behalten ihre Gruppen." not in section
+
+
+def test_readme_lists_the_three_dhl_senders_and_the_domain_rule():
+    senders = README.split("### Welche Absender")[1].split("\n### ")[0]
+    for address in ("noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de"):
+        assert f"`{address}`" in senders
+        assert f'"{address}"' in senders  # the Sieve example
+    assert "Regel auf die ganze Domain `dhl.de`" in senders
+    no_key = README.split("### Kein Key? Dann die DHL-Mails")[1].split("\n## ")[0]
+    assert "`noreply@dhl.de`, `paketankuendigung@dhl.de` und `zustellung@dhl.de`" in no_key
+    assert "12 Ziffern" in no_key and "„Ihre Sendungsnummer“" in no_key
+
+
+def test_readme_gives_the_tip_for_the_dhl_key_application():
+    section = README.split("## DHL-API-Key anlegen")[1].split("### Kein Key?")[0]
+    assert "eigene Sendungen verfolgen" in section
+    assert "dafür ist die Tracking-API gedacht" in section
+
+
+def test_readme_says_when_a_carrier_mail_joins_a_shop_order():
+    section = README.split("### Zusammenführen")[1].split("\n### ")[0]
+    for text in (
+        "Nennt die Carrier-Mail statt des Shops die Marke",
+        "genau eines offenen",
+        "beginnt",
+        "Besteht das Carrier-Paket schon",
+        # second review: Amazon only, and under which conditions
+        "nur zu einem offenen **Amazon-Paket**",
+        "nie zu einem eBay-Paket",
+        "keinen anderen Versanddienstleister nennt",
+        "muss das Paket schon „Versendet“ sein",
+        "ein Wort ab 5 Buchstaben oder mehrere Wörter",
+        "bekannte Shops (IKEA",
+        "aus einem nur bestellten Paket nie ein zugestelltes",
+    ):
+        assert text in section, text
+    assert "Amazon- oder eBay-Paket ohne Sendungsnummer nur dann" not in section
+
+
+def test_readme_says_which_stored_carrier_names_are_replaced():
+    section = README.split("### Kein Key? Dann die DHL-Mails")[1].split("\n## ")[0]
+    for text in (
+        "Wörtern einer Benachrichtigung",
+        "„DPD Versandinfo“",
+        "auch „Hermes“, „DHL Express“ oder „Paket“",
+    ):
+        assert text in section, text
+
+
+def test_readme_names_the_further_dhl_subjects():
+    section = README.split("### Kein Key? Dann die DHL-Mails")[1].split("\n## ")[0]
+    for text in (
+        "„kommt morgen“",
+        "„wird heute zugestellt“",
+        "„wurde an den gewünschten Ablageort zugestellt“",
+        "„Abholbereit“",
+        "Fragezeichen",
+        "nie einen Status zurück",
+    ):
+        assert text in section, text
+
+
+def test_readme_says_what_a_forwarded_sample_mail_means():
+    section = _section("Beispielmails einreichen")
+    for text in (
+        "Weitergeleitete Mails helfen deutlich weniger als Originale",
+        "besonders genau gelesen",
+        "Signatur",
+        "„ACHTUNG“-Zeile",
+        "„2026-09-28 11:51“",
+    ):
+        assert text in section, text
+
+
+def test_readme_privacy_covers_the_ups_shipper_and_seller_names():
+    privacy = README.split("## Datenschutz")[1].split("\n## ")[0]
+    assert "Absenderzeile „Von:“ einer UPS-Mail" in privacy
+    assert "nur „Amazon“ bzw. „eBay“" in privacy
+    dpd = README.split("### Österreich und Schweiz")[1].split("\n## ")[0]
+    assert "„beim Nachbarn abgegeben“" in dpd and "„umgeleitet“ reicht nicht" in dpd
