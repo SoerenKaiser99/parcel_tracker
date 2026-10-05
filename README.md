@@ -108,6 +108,8 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 
 ## DHL-API-Key anlegen
 
+**Der Key ist optional – nicht darauf versteifen.** DHL prüft jeden Antrag selbst und lehnt Privatpersonen häufig ab. Wer keinen Key bekommt, verliert wenig: siehe [Kein Key? Dann die DHL-Mails](#kein-key-dann-die-dhl-mails).
+
 1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain (siehe Hinweis unten).
 2. Zu **Meine Apps** wechseln und eine neue App anlegen.
 3. Das Feld **Firma / Company** ausfüllen – **Pflichtfeld**: Bleibt es leer, lehnt DHL den Key ab. Auch als Privatperson etwas eintragen, das zur E-Mail-Adresse des Kontos passt, z. B. die eigene Domain.
@@ -118,7 +120,20 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 
 **Key abgelehnt?** DHL nennt in der Ablehnungsmail als Bedingung einen gültigen Firmennamen **und eine dazu passende Domain-E-Mail-Adresse**. Es reicht also nicht, nur das Feld **Firma / Company** auszufüllen: Das DHL-Konto selbst sollte auf eine Adresse unter eigener Domain laufen (eigene Domain oder Arbeitsadresse), und der Firmenname sollte dazu passen. Mit Freemail-Adressen (Gmail, GMX, web.de …) wird der Antrag häufig abgelehnt. Danach den Key erneut beantragen.
 
+### Kein Key? Dann die DHL-Mails
+
 Ohne DHL-Key läuft die Integration trotzdem: DPD, GLS und Hermes brauchen keine Zugangsdaten, DHL-Pakete kommen weiter aus den DHL-Mails, und „Details über 17track holen“ liefert Status und Verlauf über [17track](#17track-optional).
+
+So kommen DHL-Pakete ohne Key von selbst in die Übersicht:
+
+1. Im (kostenlosen) DHL-Kundenkonto die E-Mail-Benachrichtigungen zu Sendungen einschalten.
+2. Die DHL-Absender `noreply@dhl.de` und `paketankuendigung@dhl.de` in die Filterregel zum Paket-Postfach aufnehmen (siehe [E-Mail-Import](#e-mail-import)).
+3. Fertig: Die Integration legt die Pakete aus den Mails an und führt den Status mit – samt Liefertag, wenn die Mail ihn nennt. Mit Key kämen nur Ort und Verlauf dazu.
+
+**Warum es keinen anderen Weg gibt:**
+
+- **Nutzungsbedingungen:** DHL erlaubt automatische Abfragen nur über die offizielle Schnittstelle. Die Sendungsverfolgung der Webseite ist laut DHL ausdrücklich nur für Menschen gedacht; automatisches Auslesen ist untersagt und wird technisch geblockt. Das umgeht diese Integration nicht.
+- **Kein Login mit dem DHL-Kundenkonto:** Dafür gibt es keine offizielle Schnittstelle. Eine Integration müsste sich als DHL-App ausgeben, würde bei jeder Änderung von DHL ausfallen, und in Home Assistant läge ein Zugang zum ganzen Konto (Adresse, Packstation, Sendungen). Das bauen wir bewusst nicht ein.
 
 Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key auf der Karte „Kein Live-Status“ statt eines Termins; aufgeklappt steht dort „Kein Live-Status: DHL-API-Key fehlt (unter „Konfigurieren“ eintragen).“ Die Integration kann eine solche Nummer nicht prüfen: Ob sie stimmt, vertippt oder längst zugestellt ist, erfährt sie ohne Key nicht. Erst mit Key meldet DHL bei einer unbekannten Nummer „Noch keine Daten vom Carrier“.
 
