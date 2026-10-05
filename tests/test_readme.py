@@ -1007,3 +1007,34 @@ def test_readme_says_what_the_script_does_with_a_forwarded_sample_mail():
         "nicht weiterleiten",
     ):
         assert text in section, text
+
+
+# ----- v0.3.17: hints from DHL's API team -----
+
+
+def test_readme_passes_on_which_mail_providers_dhl_accepts():
+    section = README.split("## DHL-API-Key anlegen")[1].split("### Kein Key?")[0]
+    for text in (
+        "von Hand geprüft",
+        "Bots",
+        "gmx.de und web.de",
+        "Gmail",
+        "hotmail.com und outlook.com",
+        "eine andere Adresse",
+    ):
+        assert text in section, text
+    # The older, blanket warning named GMX and web.de among the refused ones.
+    assert "Gmail, GMX, web.de" not in README
+
+
+def test_readme_says_when_dhl_shows_a_delivery_window():
+    section = README.split("## DHL-API-Key anlegen")[1].split("### Kein Key?")[0]
+    assert "Zeitfenster" in section
+    assert "wenn DHL eines nennt" in section
+    assert "im Lauf des Tages erscheinen und wieder verschwinden" in section
+
+
+def test_readme_says_automatic_asks_dhl_for_numbers_nobody_recognises():
+    section = README.split("## DHL-API-Key anlegen")[1].split("### Kein Key?")[0]
+    assert "„Automatisch“" in section
+    assert "einmal bei DHL" in section

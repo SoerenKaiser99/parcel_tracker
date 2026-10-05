@@ -189,12 +189,13 @@ async def test_hermes_answer_without_day_keeps_the_mail_day(hass, freezer):
 
 
 async def test_other_carrier_without_day_drops_the_mail_day(hass, freezer):
+    """DPD always names its days. (DHL keeps a day since v0.3.17: test_coordinator_dhl.)"""
     freezer.move_to(DAYTIME)
-    dhl = NoEtaCarrier("dhl")
-    coord = await _coordinator(hass, lambda store: {"dhl": dhl})
+    dpd = NoEtaCarrier("dpd")
+    coord = await _coordinator(hass, lambda store: {"dpd": dpd})
     now = dt_util.utcnow()
-    number = "JJD000012978217606560"
-    coord.store.add(Parcel(number, "dhl", "mail", None, now, now, result=_known_day()))
+    number = "09999999999901"
+    coord.store.add(Parcel(number, "dpd", "mail", None, now, now, result=_known_day()))
     await coord.async_refresh()
     parcel = coord.store.get(number)
     assert parcel.status is ParcelStatus.IN_TRANSIT

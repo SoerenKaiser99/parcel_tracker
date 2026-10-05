@@ -183,3 +183,160 @@ async def test_postcode_is_sent_as_stored_and_no_country_parameter(postcode):
     assert call.kwargs["params"] == {
         "trackingNumber": NUMBER, "language": "de", "recipientPostalCode": postcode,
     }
+
+
+# ----- v0.3.17: the delivery estimate as DHL's API team described it (invented values) -----
+
+
+def _estimate(**fields) -> dict:
+    status = {
+        "timestamp": "2026-10-05T07:10:00+02:00",
+        "statusCode": "transit",
+        "status": "Die Sendung wurde in das Zustellfahrzeug geladen.",
+    }
+    return {"shipments": [{"id": "00340999999999999903", "status": status, **fields}]}
+
+
+def _eta(result):
+    return result.eta_date, result.eta_from, result.eta_to
+
+
+def test_estimate_with_day_and_time_frame():
+    """The real key is "estimatedDeliveryTimeFrame" (v0.3.16 read another one)."""
+    r = parse_dhl(
+        _estimate(
+            estimatedTimeOfDelivery="2026-10-05",
+            estimatedDeliveryTimeFrame={
+                "estimatedFrom": "2026-10-05T10:35:00+02:00",
+                "estimatedThrough": "2026-10-05T12:05:00+02:00",
+            },
+        )
+    )
+    assert r.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert _eta(r) == (
+        date(2026, 10, 5),
+        datetime(2026, 10, 5, 10, 35, tzinfo=BERLIN),
+        datetime(2026, 10, 5, 12, 5, tzinfo=BERLIN),
+    )
+    assert r.eta_from.utcoffset() == r.eta_to.utcoffset() == BERLIN.utcoffset(r.eta_from)
+
+
+def test_estimate_with_the_day_only_has_no_window():
+    assert _eta(parse_dhl(_estimate(estimatedTimeOfDelivery="2026-10-05"))) == (
+        date(2026, 10, 5), None, None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "day"),
+    [
+        ("2026-10-05T14:00:00+02:00", date(2026, 10, 5)),
+        ("2026-10-05T14:00:00", date(2026, 10, 5)),  # no offset: German time
+        ("2026-10-05T22:30:00Z", date(2026, 10, 6)),  # 00:30 in Berlin
+        ("2026-10-05T23:30:00+00:00", date(2026, 10, 6)),
+        ("2026-10-06T00:30:00+05:00", date(2026, 10, 5)),  # 21:30 in Berlin the day before
+    ],
+)
+def test_estimate_as_a_timestamp_gives_the_day_in_berlin_and_no_window(value, day):
+    assert _eta(parse_dhl(_estimate(estimatedTimeOfDelivery=value))) == (day, None, None)
+
+
+def test_estimate_with_the_time_frame_only():
+    frame = {
+        "estimatedFrom": "2026-10-05T10:35:00+02:00",
+        "estimatedThrough": "2026-10-05T12:05:00+02:00",
+    }
+    r = parse_dhl(_estimate(estimatedDeliveryTimeFrame=frame))
+    assert _eta(r) == (
+        date(2026, 10, 5),
+        datetime(2026, 10, 5, 10, 35, tzinfo=BERLIN),
+        datetime(2026, 10, 5, 12, 5, tzinfo=BERLIN),
+    )
+
+
+def test_time_frame_in_utc_is_shown_in_berlin():
+    frame = {"estimatedFrom": "2026-10-05T22:30:00Z", "estimatedThrough": "2026-10-05T23:30:00Z"}
+    r = parse_dhl(_estimate(estimatedTimeOfDelivery="2026-10-05", estimatedDeliveryTimeFrame=frame))
+    assert r.eta_date == date(2026, 10, 6)
+    assert (r.eta_from.hour, r.eta_from.minute, r.eta_to.hour) == (0, 30, 1)
+
+
+def test_the_day_of_the_time_frame_wins_over_the_estimated_day():
+    frame = {
+        "estimatedFrom": "2026-10-06T09:00:00+02:00",
+        "estimatedThrough": "2026-10-06T11:00:00+02:00",
+    }
+    r = parse_dhl(_estimate(estimatedTimeOfDelivery="2026-10-05", estimatedDeliveryTimeFrame=frame))
+    assert r.eta_date == date(2026, 10, 6)
+    assert r.eta_from == datetime(2026, 10, 6, 9, 0, tzinfo=BERLIN)
+
+
+def test_without_estimate_there_is_no_day_and_no_window():
+    assert _eta(parse_dhl(_estimate())) == (None, None, None)
+    assert _eta(
+        parse_dhl(_estimate(estimatedTimeOfDelivery=None, estimatedDeliveryTimeFrame=None))
+    ) == (None, None, None)
+
+
+def test_old_key_of_the_time_frame_is_still_read_and_the_real_one_wins():
+    old = {"estimatedFrom": "2026-10-05T14:00:00", "estimatedThrough": "2026-10-05T16:00:00"}
+    new = {"estimatedFrom": "2026-10-05T10:35:00+02:00"}
+    r = parse_dhl(_estimate(estimatedTimeOfDeliveryTimeFrame=old))
+    assert (r.eta_from.hour, r.eta_to.hour) == (14, 16)
+    r = parse_dhl(_estimate(estimatedTimeOfDeliveryTimeFrame=old, estimatedDeliveryTimeFrame=new))
+    assert (r.eta_from, r.eta_to) == (datetime(2026, 10, 5, 10, 35, tzinfo=BERLIN), None)
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"estimatedTimeOfDelivery": "bald"},
+        {"estimatedTimeOfDelivery": ""},
+        {"estimatedTimeOfDelivery": 20261005},
+        {"estimatedTimeOfDelivery": {"day": "2026-10-05"}},
+        {"estimatedTimeOfDelivery": "2026-13-45"},
+        {"estimatedDeliveryTimeFrame": "10-12 Uhr"},
+        {"estimatedDeliveryTimeFrame": ["2026-10-05T10:35:00+02:00"]},
+        {"estimatedDeliveryTimeFrame": {"estimatedFrom": "vormittags", "estimatedThrough": 12}},
+        {"estimatedDeliveryTimeFrame": {"estimatedFrom": None, "estimatedThrough": None}},
+        {"estimatedDeliveryTimeFrame": {}},
+    ],
+)
+def test_malformed_estimate_is_ignored(fields):
+    r = parse_dhl(_estimate(**fields))
+    assert r.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert _eta(r) == (None, None, None)
+
+
+def test_malformed_part_does_not_take_the_readable_part_along():
+    frame = {"estimatedFrom": "vormittags", "estimatedThrough": "2026-10-05T12:05:00+02:00"}
+    r = parse_dhl(_estimate(estimatedTimeOfDelivery="bald", estimatedDeliveryTimeFrame=frame))
+    assert _eta(r) == (date(2026, 10, 5), None, datetime(2026, 10, 5, 12, 5, tzinfo=BERLIN))
+    # A bare day inside the frame is no time: it only tells the day.
+    frame = {"estimatedFrom": "2026-10-05", "estimatedThrough": "2026-10-05"}
+    assert _eta(parse_dhl(_estimate(estimatedDeliveryTimeFrame=frame))) == (
+        date(2026, 10, 5), None, None,
+    )
+    r = parse_dhl(_estimate(estimatedTimeOfDelivery="2026-10-05", estimatedDeliveryTimeFrame=7))
+    assert _eta(r) == (date(2026, 10, 5), None, None)
+
+
+async def test_fetch_never_sends_a_service_or_country_parameter():
+    """DHL finds the service itself; a fixed one would turn Express into a 404."""
+    with aioresponses() as m:
+        m.get(re.compile(rf"^{re.escape(DHL_URL)}\?"), payload=_estimate(), repeat=True)
+        async with aiohttp.ClientSession() as session:
+            await DhlCarrier(session, "key").fetch("9999999901", "10115")
+            await DhlCarrier(session, "key").fetch("9999999901", None)
+        queries = [dict(url.query) for (_, url), calls in m.requests.items() for _ in calls]
+    assert queries == [
+        {"trackingNumber": "9999999901", "language": "de", "recipientPostalCode": "10115"},
+        {"trackingNumber": "9999999901", "language": "de"},
+    ]
+
+
+async def test_configured_tells_whether_a_key_is_set():
+    async with aiohttp.ClientSession() as session:
+        assert DhlCarrier(session, "key").configured is True
+        assert DhlCarrier(session, None).configured is False
+        assert DhlCarrier(session, "").configured is False

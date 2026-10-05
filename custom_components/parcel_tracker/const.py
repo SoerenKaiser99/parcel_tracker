@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.16"
+VERSION = "0.3.17"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -96,6 +96,13 @@ OPTIONAL_API_CARRIERS = frozenset({"ups"})
 SELECTABLE_CARRIERS = ("dhl", "dpd", "gls", "hermes", "ups")
 # Their lookup often tells no delivery day: the day a mail named is kept then.
 MAIL_ETA_CARRIERS = frozenset({"hermes", "gls"})
+# DHL may take an estimate back and compute it anew: a day and window it named are kept
+# while the parcel is on its way, until that day is over.
+KEEP_ETA_UNTIL_DAY_CARRIERS = frozenset({"dhl"})
+# "Automatisch" with a number no rule takes: with a DHL key DHL is asked (it knows all
+# its own formats, e.g. Express). At most this often while DHL cannot be reached; an
+# answer "not found" ends it at once.
+DHL_FALLBACK_TRIES = 3
 # A carrier without own connection: status only via 17track (needs a 17track key).
 CARRIER_OTHER = "other"
 CARRIER_NAMES = {

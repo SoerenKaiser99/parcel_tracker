@@ -61,10 +61,12 @@ from .const import (
     DEFAULT_NOTIFY_EVENTS,
     DEFAULT_READ_OTP,
     DHL_DAILY_SOFT_LIMIT,
+    DHL_FALLBACK_TRIES,
     DOMAIN,
     EVENT_STATUS_CHANGED,
     FOLDER_PROCESSED,
     FOLDER_UNRECOGNIZED,
+    KEEP_ETA_UNTIL_DAY_CARRIERS,
     MAIL_ETA_CARRIERS,
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
@@ -553,9 +555,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         else:
             keys = candidates(number, self.carriers)
         probing = carrier_key is None  # "Automatisch": no carrier failure counted yet
+        # No rule takes the number: DHL is the last candidate (see _dhl_fallback).
+        fallback = not keys and self._dhl_fallback(parcel)
+        if fallback:
+            keys = ["dhl"]
         parcel.last_poll_at = now
         if not keys:
             parcel.last_error = "carrier_not_found"
+            parcel.error_streak = 0  # left over when the DHL fallback gave up
+            parcel.first_error_at = None
             parcel.next_poll_at = now + timedelta(hours=1)
             return
         last_error = "not_found"
@@ -596,11 +604,36 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if isinstance(err, RateLimited):
                 parcel.last_error = "rate_limited"
                 parcel.next_poll_at = now + timedelta(seconds=err.retry_after or 3600)
+                if fallback:
+                    parcel.error_streak += 1  # counts towards DHL_FALLBACK_TRIES
             else:
                 self._fail(parcel, now, key, "unavailable", backoff_only=probing)
             return
+        if fallback:
+            # DHL does not know it either: unknown as without a key, and never asked again.
+            last_error = "carrier_not_found"
+            parcel.error_streak = 0
+            parcel.first_error_at = None
         parcel.last_error = last_error
         parcel.next_poll_at = now + timedelta(hours=1)
+
+    def _dhl_fallback(self, parcel: Parcel) -> bool:
+        """Ask DHL about a number typed in with "Automatisch" that no carrier's rule takes?
+
+        Only with a DHL key, and only until DHL gave an answer: "not found" marks the
+        parcel "carrier_not_found" (as without a key), which ends the asking for good, so
+        the hourly look at an unknown number and "Aktualisieren" cost no call. While DHL
+        cannot be reached it is tried DHL_FALLBACK_TRIES times in all. Parcels that were
+        unknown before v0.3.17 carry that marker already and are not asked.
+        """
+        return (
+            parcel.carrier is None
+            and parcel.tracking_ref is None
+            and parcel.carrier_mode == "auto"
+            and parcel.last_error != "carrier_not_found"
+            and parcel.error_streak < DHL_FALLBACK_TRIES
+            and getattr(self.carriers.get("dhl"), "configured", False)
+        )
 
     def _fail(
         self, parcel: Parcel, now: datetime, key: str, code: str, backoff_only: bool = False
@@ -639,6 +672,26 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # Hermes never tells a day, GLS not always: keep the day a mail or an
             # earlier lookup named, but not once the parcel is delivered, waits for
             # pickup or ran into a problem (that day no longer holds).
+            result = replace(
+                result,
+                eta_date=known.eta_date,
+                eta_latest=known.eta_latest,
+                eta_from=known.eta_from,
+                eta_to=known.eta_to,
+            )
+        elif (
+            key in KEEP_ETA_UNTIL_DAY_CARRIERS
+            and known is not None
+            and known.eta_date is not None
+            and result.eta_date in (None, known.eta_date)
+            and result.eta_from is None
+            and result.eta_to is None
+            and result.status not in NO_ETA_STATUSES
+            and known.eta_date >= dt_util.as_local(now).date()
+        ):
+            # DHL may take its estimate back and compute it anew: the day and window
+            # named before stay while the parcel is on its way, until that day is over.
+            # An answer with the same day but without window keeps the window too.
             result = replace(
                 result,
                 eta_date=known.eta_date,
@@ -1093,7 +1146,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         )
         async with self._lock:
             self.store.add(parcel)  # raises DuplicateParcel
-            if parcel.carrier is None and not keys:
+            if parcel.carrier is None and not keys and not self._dhl_fallback(parcel):
                 parcel.last_error = "carrier_not_found"
                 parcel.last_poll_at = now
                 parcel.next_poll_at = now + timedelta(hours=1)

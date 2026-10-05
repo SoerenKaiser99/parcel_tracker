@@ -112,7 +112,7 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 
 **Der Key ist optional – nicht darauf versteifen.** DHL prüft jeden Antrag selbst; ohne passende Angaben (siehe unten) wird er manchmal abgelehnt. Wer keinen Key bekommt, verliert wenig: siehe [Kein Key? Dann die DHL-Mails](#kein-key-dann-die-dhl-mails).
 
-1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain (siehe Hinweis unten).
+1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain, sonst bei gmx.de oder web.de (siehe Hinweise unten).
 2. Zu **Meine Apps** wechseln und eine neue App anlegen.
 3. Das Feld **Firma / Company** ausfüllen – **Pflichtfeld**: Bleibt es leer, lehnt DHL den Key ab. Auch als Privatperson etwas eintragen, das zur E-Mail-Adresse des Kontos passt, z. B. die eigene Domain.
 4. Als API **"Shipment Tracking – Unified"** auswählen (nicht "Parcel DE …").
@@ -122,9 +122,13 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 
 **Wichtig beim Antrag:** Als Zweck angeben, dass du deine eigenen Sendungen verfolgen möchtest – am besten wörtlich **„I want to track my own shipments“**. Laut einem Hinweis aus dem DHL-API-Team bekommt grundsätzlich jeder Zugriff, der seine eigenen Sendungen verfolgen will; dafür ist die Tracking-API gedacht.
 
-Die Schnittstelle kennt alle DHL-Sendungen, nicht nur DHL Paket in Deutschland, sondern auch Express und eCommerce. Mit hinterlegter Postleitzahl des Empfängers liefert sie mehr Details.
+**Welche E-Mail-Adresse?** Laut DHL werden die Anträge von Hand geprüft, weil Bots die Schnittstelle missbrauchen. Adressen bei gmx.de und web.de gehen dabei meist durch; Adressen bei Gmail und vor allem bei hotmail.com und outlook.com werden deutlich häufiger abgelehnt. Wer kann, nimmt für das Entwicklerkonto also eine andere Adresse.
 
-**Key abgelehnt?** DHL nennt in der Ablehnungsmail als Bedingung einen gültigen Firmennamen **und eine dazu passende Domain-E-Mail-Adresse**. Es reicht also nicht, nur das Feld **Firma / Company** auszufüllen: Das DHL-Konto selbst sollte auf eine Adresse unter eigener Domain laufen (eigene Domain oder Arbeitsadresse), und der Firmenname sollte dazu passen. Mit Freemail-Adressen (Gmail, GMX, web.de …) wird der Antrag häufig abgelehnt. Danach den Key erneut beantragen.
+Die Schnittstelle kennt alle DHL-Sendungen, nicht nur DHL Paket in Deutschland, sondern auch Express und eCommerce. Mit hinterlegter Postleitzahl des Empfängers liefert sie mehr Details. Passt eine mit „Automatisch“ eingetragene Nummer zu keinem Carrier, fragt die Integration deshalb mit Key einmal bei DHL nach: Kennt DHL die Sendung, wird sie ein DHL-Paket, sonst bleibt der Carrier wie ohne Key unbekannt.
+
+**Zeitfenster:** Liefertag und Zeitfenster der Zustellung zeigt die Integration, wenn DHL eines nennt. DHL berechnet beides laufend neu; ein Zeitfenster kann deshalb im Lauf des Tages erscheinen und wieder verschwinden. Nimmt DHL die Angabe zwischendurch zurück, bleibt die zuletzt genannte stehen, solange das Paket unterwegs und der Tag nicht vorbei ist.
+
+**Key abgelehnt?** DHL nennt in der Ablehnungsmail als Bedingung einen gültigen Firmennamen **und eine dazu passende Domain-E-Mail-Adresse**. Es reicht also nicht, nur das Feld **Firma / Company** auszufüllen: Das DHL-Konto selbst sollte auf eine Adresse unter eigener Domain laufen (eigene Domain oder Arbeitsadresse), und der Firmenname sollte dazu passen. Ohne eigene Domain helfen die Hinweise unter „Welche E-Mail-Adresse?“ weiter. Danach den Key erneut beantragen.
 
 ### Kein Key? Dann die DHL-Mails
 
@@ -529,6 +533,7 @@ Landet eine Paketmail im Ordner `Paket-Tracker-Nicht-erkannt` oder fehlt ein Sho
 - Benachrichtigungen (Optionen und Blueprint): umgesetzt, an Benachrichtigungs-Entitäten und klassische Dienste (z. B. Pushover); die frühere Meldung ersetzen über den klassischen Dienst der Home-Assistant-App oder den Blueprint, Antippen öffnet ein Dashboard nur über den Blueprint
 - Land (Deutschland, Österreich, Schweiz): umgesetzt für PLZ-Länge und GLS-Abfrage; GLS Österreich mit echten Paketen noch nicht getestet
 - Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports
+- Push-Schnittstelle von DHL (DHL meldet Statusänderungen von sich aus): geprüft, wartet auf Klärung des Zugangs für Privatnutzer
 - **Barcode-Scan** (Wunsch aus [Issue #2](https://github.com/SoerenKaiser99/parcel_tracker/issues/2)): Sendungsnummer mit der Handykamera vom Label erfassen – geplant über den Scanner der Home-Assistant-App bzw. die Barcode-Erkennung des Browsers, ohne Fremdbibliothek; braucht Beispiel-Scans je Carrier, weil auf den Labels oft mehr als die Sendungsnummer steht
 - **International**: Karte auch auf Englisch, weitere Amazon-Länder im Mail-Import, nationale Carrier (Beispiele: Österreichische Post, Royal Mail, PostNL, USPS) – erst sinnvoll mit anonymisierten Beispielmails von Testern aus den jeweiligen Ländern
 

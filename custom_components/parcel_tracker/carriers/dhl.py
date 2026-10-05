@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 import aiohttp
@@ -51,6 +51,42 @@ def _ts(value: str | None) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=BERLIN)
 
 
+def _estimate(value: Any) -> tuple[date | None, datetime | None]:
+    """Day (in German time) and moment of one estimate value.
+
+    DHL sends a bare day ("2026-10-05") or a timestamp; a bare day has no moment.
+    Anything unreadable is ignored: an estimate is optional and may be missing anyway.
+    """
+    if not isinstance(value, str):
+        return None, None
+    text = value.strip()
+    try:
+        if len(text) == 10:
+            return date.fromisoformat(text), None
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None, None
+    moment = parsed.replace(tzinfo=BERLIN) if parsed.tzinfo is None else parsed.astimezone(BERLIN)
+    return moment.date(), moment
+
+
+def _eta(shipment: dict[str, Any]) -> tuple[date | None, datetime | None, datetime | None]:
+    """Delivery day and time window of a shipment (each None when DHL names none).
+
+    The window is "estimatedDeliveryTimeFrame"; up to v0.3.16 another key was read, it
+    is still accepted. The day is the window's day, else "estimatedTimeOfDelivery".
+    """
+    frame = shipment.get("estimatedDeliveryTimeFrame")
+    if not isinstance(frame, dict) or not frame:
+        frame = shipment.get("estimatedTimeOfDeliveryTimeFrame")
+    if not isinstance(frame, dict):
+        frame = {}
+    from_day, eta_from = _estimate(frame.get("estimatedFrom"))
+    to_day, eta_to = _estimate(frame.get("estimatedThrough"))
+    day, _ = _estimate(shipment.get("estimatedTimeOfDelivery"))
+    return from_day or to_day or day, eta_from, eta_to
+
+
 def _locality(node: dict[str, Any] | None) -> str | None:
     raw = (((node or {}).get("location") or {}).get("address") or {}).get("addressLocality")
     if not isinstance(raw, str):
@@ -90,11 +126,7 @@ def parse_dhl(data: dict[str, Any]) -> TrackingResult:
     known = _SHORT_CODE_MAP.get(current.get("status"))
     status = known or _refine(_CODE_MAP.get(current.get("statusCode"), ParcelStatus.UNKNOWN), text)
 
-    frame = shipment.get("estimatedTimeOfDeliveryTimeFrame") or {}
-    eta_from = _ts(frame.get("estimatedFrom"))
-    eta_to = _ts(frame.get("estimatedThrough"))
-    eta_point = _ts(shipment.get("estimatedTimeOfDelivery"))
-    eta_date = (eta_from or eta_point).date() if (eta_from or eta_point) else None
+    eta_date, eta_from, eta_to = _eta(shipment)
 
     events = [
         TrackingEvent(
@@ -135,6 +167,11 @@ class DhlCarrier(Carrier):
         self._session = session
         self._api_key = api_key
 
+    @property
+    def configured(self) -> bool:
+        """An API key is set (whether DHL accepts it shows the first call)."""
+        return bool(self._api_key)
+
     @staticmethod
     def matches(number: str) -> Match:
         if len(number) == 20 and number.isdigit() and number.startswith("00340"):
@@ -161,6 +198,8 @@ class DhlCarrier(Carrier):
             raise CarrierUnavailable(str(err)) from err
 
     async def fetch(self, number: str, postcode: str | None) -> TrackingResult:
+        # No "service": DHL finds it from the number, and a fixed one ("parcel-de") would
+        # turn Express and eCommerce shipments into a 404. No country codes either.
         params = {"trackingNumber": number, "language": "de"}
         if postcode:
             params["recipientPostalCode"] = postcode
