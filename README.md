@@ -110,7 +110,7 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 
 ## DHL-API-Key anlegen
 
-**Der Key ist optional – nicht darauf versteifen.** DHL prüft jeden Antrag selbst und lehnt Privatpersonen häufig ab. Wer keinen Key bekommt, verliert wenig: siehe [Kein Key? Dann die DHL-Mails](#kein-key-dann-die-dhl-mails).
+**Der Key ist optional – nicht darauf versteifen.** DHL prüft jeden Antrag selbst; ohne passende Angaben (siehe unten) wird er manchmal abgelehnt. Wer keinen Key bekommt, verliert wenig: siehe [Kein Key? Dann die DHL-Mails](#kein-key-dann-die-dhl-mails).
 
 1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain (siehe Hinweis unten).
 2. Zu **Meine Apps** wechseln und eine neue App anlegen.
@@ -120,7 +120,9 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 6. Nur der **API Key** wird gebraucht, das Secret nicht.
 7. Die Freischaltung dauert bis zu 24 Stunden.
 
-**Tipp aus der Praxis:** Im Antrag angeben, dass du eigene Sendungen verfolgen möchtest – dafür ist die Tracking-API gedacht. Ein Nutzer hat berichtet, dass sein Antrag mit dieser Angabe durchging.
+**Wichtig beim Antrag:** Als Zweck angeben, dass du deine eigenen Sendungen verfolgen möchtest – am besten wörtlich **„I want to track my own shipments“**. Laut einem Hinweis aus dem DHL-API-Team bekommt grundsätzlich jeder Zugriff, der seine eigenen Sendungen verfolgen will; dafür ist die Tracking-API gedacht.
+
+Die Schnittstelle kennt alle DHL-Sendungen, nicht nur DHL Paket in Deutschland, sondern auch Express und eCommerce. Mit hinterlegter Postleitzahl des Empfängers liefert sie mehr Details.
 
 **Key abgelehnt?** DHL nennt in der Ablehnungsmail als Bedingung einen gültigen Firmennamen **und eine dazu passende Domain-E-Mail-Adresse**. Es reicht also nicht, nur das Feld **Firma / Company** auszufüllen: Das DHL-Konto selbst sollte auf eine Adresse unter eigener Domain laufen (eigene Domain oder Arbeitsadresse), und der Firmenname sollte dazu passen. Mit Freemail-Adressen (Gmail, GMX, web.de …) wird der Antrag häufig abgelehnt. Danach den Key erneut beantragen.
 
