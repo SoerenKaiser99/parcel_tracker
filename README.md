@@ -196,6 +196,12 @@ Amazon liefert viele Pakete selbst aus und bietet dafür keine öffentliche Send
    - **Postfach abfragen alle (Minuten)** (1–60, Standard: 5).
 4. Speichern prüft die Anmeldung sofort.
 
+**Anmeldung abgelehnt?** Viele Anbieter verlangen für IMAP nicht das normale Passwort, sondern ein eigenes **App-Passwort** (auch „Anwendungspasswort“ genannt), das man in den Einstellungen des Mail-Kontos erzeugt und hier als Passwort einträgt:
+
+- **mailbox.org:** je nach Kontoeinstellung (z. B. mit Zwei-Faktor-Anmeldung) ein Anwendungspasswort für IMAP anlegen.
+- **Gmail** und **iCloud:** immer ein App-Passwort; das normale Passwort funktioniert für IMAP nicht.
+- **GMX** und **web.de:** den Zugriff per IMAP in den Einstellungen des Postfachs erst erlauben.
+
 Ausschalten geht nur über den Schalter **E-Mail-Import aktiv**: Ausgeschaltet gespeichert, entfernt er Benutzername und Passwort.
 
 Der Import schaut im eingestellten Intervall (1–60 Minuten, Standard 5) nach ungelesenen Mails im Posteingang. Der Dienst `parcel_tracker.refresh` (auf der Karte „Aktualisieren“) fragt zusätzlich das Postfach sofort ab. Ist das Postfach nicht erreichbar, wartet der Import unabhängig vom Intervall länger (5 → 10 → 20 → 40 → 60 Minuten). Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
