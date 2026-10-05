@@ -56,7 +56,7 @@ def test_readme_roadmap_and_status():
     for line in (
         "UPS Live-Status (offizielle API): umgesetzt, noch nicht mit echten Zugangsdaten "
         "getestet (UPS-Freischaltung ausstehend)",
-        "Hermes Live-Abfrage: umgesetzt; mit einer aktuellen Sendung noch nicht live getestet",
+        "Hermes Live-Abfrage: umgesetzt; von einem Tester mit einer aktuellen Sendung bestätigt",
         "eBay-Mails: umgesetzt",
         "17track: Anmeldung live getestet, Anreicherung noch ohne Live-Fall",
         "GLS-Live-Abfrage: umgesetzt, Live-Test ausstehend",
