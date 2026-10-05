@@ -18,7 +18,10 @@ nothing is asked, only the generic scrubbing runs and a warning says that names 
 remain. Replaced are the given values in every spelling (case, ae/oe/ue, name parts, street
 with any or no house number), every mail address but the sender's (the sender of a forwarded
 or answered mail is a person and is replaced too, as is a sender address that carries another
-address in its local part), phone numbers, links (cut to the host), tracking, order and other
+address in its local part; of a forwarded mail with a quoted header block "Von: … / Gesendet:
+… / An: … / Betreff: …" only that block and the mail below it are taken, the lines above it
+are dropped, the quoted sender address stays and the quoted recipients are replaced), phone
+numbers, links (cut to the host), tracking, order and other
 long numbers (same length and structure, invented digits, the same number becomes the same
 replacement in every mail of a run, a number of ten digits or more written in groups with
 spaces, tabs, dots or dashes keeps its groups, as does an international number, and a
@@ -379,6 +382,16 @@ _T_QUOTED_FROM = re.compile(
     r"(?im)^[>*_ \t]*(?:Von|From):[^\n]*\n(?:[^\n]*\n){0,3}?"
     r"[>*_ \t]*(?:Gesendet|Sent|Datum|Date|An|To|Betreff|Subject):"
 )
+# One line of the header block a mail program quotes above a forwarded mail: the label
+# (maybe bold or behind quote marks) and its value.
+_T_QUOTED_LINE = re.compile(
+    r"(?i)^(?P<head>[>*_ \t]*(?P<label>Von|From|Gesendet|Sent|Datum|Date|An|To|Cc|Bcc|Kopie"
+    r"|Betreff|Subject|Antwort an|Reply-To)[*_ \t]*:[*_ \t]*)(?P<value>.*)$"
+)
+_T_QUOTED_KIND = {
+    "von": "from", "from": "from", "betreff": "subject", "subject": "subject",
+    "gesendet": "date", "sent": "date", "datum": "date", "date": "date",
+}
 _T_INVISIBLE = re.compile("[\u00ad\u034f\u200b-\u200f\u202a-\u202e\u2060\ufeff]")
 _T_SELLER = re.compile(r"(?i)(Verk(?:ä|ae)ufer(?:in)?:[ \t]*\n?[ \t]*)([^\n]+)")
 _T_GREETING = (
@@ -1003,6 +1016,92 @@ def _t_private(msg, address, scrubber, subject, text):
     )
 
 
+def _t_quoted_blocks(lines):
+    """(start, end, kinds) of the quoted header blocks in the lines of a text: runs of header
+    lines that name a sender and a subject or a date. A value may stand on the line below its
+    label, and a long recipient list may go on for two lines when another header follows."""
+    blocks, index = [], 0
+    while index < len(lines):
+        if not _T_QUOTED_LINE.match(lines[index]):
+            index += 1
+            continue
+        start, kinds, kind = index, set(), ""
+        while index < len(lines):
+            match = _T_QUOTED_LINE.match(lines[index])
+            if match:
+                found = _T_QUOTED_KIND.get(match.group("label").lower(), "to")
+                if found != "to" and found in kinds:
+                    break  # a second sender, subject or date: a line of the mail itself
+                kind = found
+                kinds.add(kind)
+                index += 1
+                if (not match.group("value").strip() and index < len(lines)
+                        and lines[index].strip("> \t")
+                        and not _T_QUOTED_LINE.match(lines[index])):
+                    index += 1
+                continue
+            ahead = lines[index:index + 3]
+            more = next((n for n, line in enumerate(ahead) if _T_QUOTED_LINE.match(line)), 0)
+            if kind == "to" and more and all(line.strip("> \t") for line in ahead[:more]):
+                index += more
+                continue
+            break
+        if "from" in kinds and kinds & {"subject", "date"}:
+            blocks.append((start, index))
+    return blocks
+
+
+def _t_original(text, private):
+    """(the text from the innermost quoted header block on, the quoted sender's address).
+
+    What stands above that block (the note and signature of the person that forwarded the
+    mail, the blocks of earlier forwards) is dropped. In the block the recipients are replaced;
+    the sender stays (the importer tells the original mail by it) unless ``private`` says it
+    is a person. Without such a block the text comes back as it is, with no address.
+    """
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    blocks = _t_quoted_blocks(lines)
+    if not blocks:
+        return text, None
+    start, end = blocks[-1]
+    kept, kind, pending, address = [], None, False, None
+    for line in lines[start:end]:
+        match = _T_QUOTED_LINE.match(line)
+        if match:
+            kind = _T_QUOTED_KIND.get(match.group("label").lower(), "to")
+            value = match.group("value").strip()
+            pending = not value
+            if not value:
+                kept.append(line)
+            elif kind == "to":
+                kept.append(match.group("head") + _T_MAIL)
+            elif kind == "from":
+                address, line = _t_quoted_sender(match.group("head"), value, private)
+                kept.append(line)
+            else:
+                kept.append(line)
+        elif kind == "to":
+            if pending:  # the value on the line below its label
+                kept.append(_T_MAIL)
+            pending = False  # (a wrapped recipient list is dropped)
+        elif kind == "from" and pending:
+            address, line = _t_quoted_sender("", line, private)
+            kept.append(line)
+            pending = False
+        else:
+            kept.append(line)
+    return "\n".join(kept + lines[end:]), address
+
+
+def _t_quoted_sender(head, value, private):
+    """(address to keep or None, the quoted sender line)."""
+    found = re.findall(_T_ADDRESS, value)
+    address = found[-1].lower() if found else ""
+    if not address or re.search(r"[=%]", address.rpartition("@")[0]) or private(address):
+        return None, head + _T_MAIL
+    return address, head + value
+
+
 def _t_passed_on(msg):
     """A mail that looks forwarded: subject prefix (WG:, Fwd:, Fw:) or a quoted header block."""
     plain, markup = _t_texts(msg)[:2]
@@ -1033,6 +1132,18 @@ def _t_build(msg, number, scrubber):
     raw_subject = _t_header(msg, "Subject")
     private = _t_private(msg, address, scrubber, raw_subject, plain + "\n" + markup)
     keep = () if private else (address,)
+
+    def person(quoted):
+        return bool(
+            quoted == address
+            or quoted.rsplit("@", 1)[-1] in _T_FREEMAIL
+            or any(value in quoted for value in scrubber.own)
+        )
+
+    # A forwarded mail: only the quoted header block and the mail below it are taken.
+    plain, quoted_plain = _t_original(plain, person)
+    markup, quoted_markup = _t_original(markup, person)
+    keep += tuple(quoted for quoted in (quoted_plain, quoted_markup) if quoted)
     local, _, host = address.rpartition("@")
     if not private and re.search(r"[=%]", local):
         # The local part carries another address (bounce+user=gmx.de@shop.example).

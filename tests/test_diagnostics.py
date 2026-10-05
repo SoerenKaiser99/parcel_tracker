@@ -621,6 +621,54 @@ async def test_mail_import_counts_and_remembers_only_domain_and_forwarded(hass, 
         assert plain not in text
 
 
+def _forwarded_mail(i: int, quoted_sender: str, body: str, subject: str = "WG: Paket"):
+    return str(i), (
+        "From: Erika Mustermann <erika.mustermann@privat.example>\r\n"
+        f"Message-ID: <diag{i}@synthetic.example>\r\n"
+        f"Subject: {subject}\r\n"
+        "Date: Tue, 29 Sep 2026 08:00:00 +0000\r\n"
+        "Content-Type: text/plain; charset=utf-8\r\n\r\n"
+        "Zur Info, Erika\r\n\r\n"
+        f"Von: Absender <{quoted_sender}>\r\n"
+        "Gesendet: Montag, 28. September 2026 11:51\r\n"
+        "An: erika.mustermann@privat.example\r\n"
+        "Betreff: Ihre Sendung kommt heute\r\n\r\n"
+        f"{body}\r\n"
+    ).encode()
+
+
+async def test_forwarded_mail_is_booked_under_its_original_sender(hass, freezer):
+    """v0.3.16: recognised when the original's parser reads it; an unrecognised one is
+    remembered with the domain of the original sender (if known) and as forwarded."""
+    freezer.move_to(DAYTIME)
+    mailbox = FakeMailbox(
+        [
+            _forwarded_mail(1, "zustellung@dhl.de", "Ihre Sendungsnummer\r\n999999999901"),
+            _forwarded_mail(2, "zustellung@dhl.de", MAIL_BODY),
+            _forwarded_mail(3, "info@shop.example", MAIL_BODY),
+            _forwarded_mail(4, "pkginfo@ups.com", MAIL_BODY, subject="Paket"),
+            # the same forward again: skipped by its own Message-ID
+            _forwarded_mail(1, "zustellung@dhl.de", "Ihre Sendungsnummer\r\n999999999901"),
+        ]
+    )
+    entry = await _mail_entry(hass, mailbox)
+    coordinator = entry.runtime_data
+    await coordinator.async_refresh()
+    state = (await async_get_config_entry_diagnostics(hass, entry))["mail_import"]
+    assert (state["recognized"], state["unrecognized"]) == (1, 3)
+    assert state["known_message_ids"] == 4
+    assert state["last_unrecognized"] == [
+        {"domain": "dhl.de", "forwarded": True},
+        {"domain": "other", "forwarded": True},
+        {"domain": "ups.com", "forwarded": True},
+    ]
+    [parcel] = coordinator.store.parcels.values()
+    assert (parcel.number, parcel.carrier) == ("999999999901", "dhl")
+    text = _dump(await async_get_config_entry_diagnostics(hass, entry))
+    for plain in ("Mustermann", "privat.example", "shop.example", "Zur Info", "@"):
+        assert plain not in text
+
+
 async def test_unrecognised_mails_are_bounded_to_the_last_ten(hass, freezer):
     freezer.move_to(DAYTIME)
     mails = [_mail(i, f"absender{i}@privat.example") for i in range(12)]

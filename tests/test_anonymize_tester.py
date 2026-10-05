@@ -15,6 +15,9 @@ from pathlib import Path
 
 import pytest
 
+from custom_components.parcel_tracker.mail import parse_mail
+from custom_components.parcel_tracker.models import ParcelStatus
+
 SCRIPT = Path(__file__).parent.parent / "scripts" / "anonymize_mail.py"
 VALUES = [
     "--name", "Jörg Probst", "--street", "Lindenweg 7", "--postcode", "54321",
@@ -527,3 +530,161 @@ def test_original_mails_get_no_forward_warning(tmp_path):
     done = _call(src, "--name", "Jörg Probst")
     assert done.returncode == 0, done.stderr
     assert "weitergeleitet aus" not in done.stdout
+
+
+# ----- v0.3.16: of a forwarded mail only the quoted header block and the mail below it stay -----
+FORWARD_NOTE = (
+    "Hallo,\n\nhier die Mail zu meinem Paket, die alte Nummer war 00340434161094099999.\n\n"
+    "Viele Grüße\nJörg\n--\nProbst Holzbau GmbH\nGeheimgasse 12, Tel. 0151 12345678\n\n"
+)
+FORWARD_MAIL = (
+    "Hallo,\n\nIhre Beispielmarke GmbH Sendung wird Ihnen heute zugestellt.\n\n"
+    "Ihre Sendungsnummer\n123456789012\n\nViele Grüße\nDHL Group\n"
+)
+FORWARD_BLOCKS = {
+    "outlook": (
+        "________________________________\n"
+        "Von: DHL Zustell-Update <zustellung@dhl.de>\n"
+        "Gesendet: Dienstag, 18. Juli 2023 08:00\n"
+        "An: Jörg Probst <jp1987@gmx.de>\n"
+        "Cc: Erika Sonnenschein <erika@zweitadresse.example>\n"
+        "Betreff: Ihre Beispielmarke GmbH Sendung kommt heute\n\n"
+    ),
+    "outlook_bold": (
+        "*Von:* DHL Zustell-Update <mailto:zustellung@dhl.de>\n"
+        "*Gesendet:* Dienstag, 18. Juli 2023 08:00\n"
+        "*An:* Jörg Probst <mailto:jp1987@gmx.de>; Erika Sonnenschein\n"
+        "<mailto:erika@zweitadresse.example>\n"
+        "*Betreff:* Ihre Beispielmarke GmbH Sendung kommt heute\n\n"
+    ),
+    "apple": (
+        "Anfang der weitergeleiteten Nachricht:\n\n"
+        "Von: DHL Zustell-Update <zustellung@dhl.de>\n"
+        "Betreff: Ihre Beispielmarke GmbH Sendung kommt heute\n"
+        "Datum: 18. Juli 2023 um 08:00:12 MESZ\n"
+        "An: Jörg Probst <jp1987@gmx.de>\n\n"
+    ),
+    "gmail": (
+        "---------- Forwarded message ---------\n"
+        "Von: DHL Zustell-Update <zustellung@dhl.de>\n"
+        "Date: Di., 18. Juli 2023 um 08:00 Uhr\n"
+        "Subject: Ihre Beispielmarke GmbH Sendung kommt heute\n"
+        "To: Jörg Probst <jp1987@gmx.de>\n\n"
+    ),
+    "thunderbird": (
+        "-------- Weitergeleitete Nachricht --------\n"
+        "Betreff: \tIhre Beispielmarke GmbH Sendung kommt heute\n"
+        "Datum: \tTue, 18 Jul 2023 08:00:12 +0200\n"
+        "Von: \tDHL Zustell-Update <zustellung@dhl.de>\n"
+        "An: \tJörg Probst <jp1987@gmx.de>\n\n"
+    ),
+}
+FORWARD_SECRETS = (
+    "jörg", "probst", "jp1987", "gmx", "holzbau", "geheimgasse", "alte nummer", "hier die mail",
+    "erika", "sonnenschein", "zweitadresse", "12345678", "00340434161094099999",
+)
+
+
+def _forwarded(src, body: str, *args: str):
+    mails = _write(src, [_forward_case("WG: Ihre Beispielmarke GmbH Sendung kommt heute", body)])
+    done = _call(mails, *(args or ("--ohne-angaben",)))
+    assert done.returncode == 0, done.stderr
+    [written] = (mails / "anonymisiert").glob("*.eml")
+    return done, written.read_bytes()
+
+
+@pytest.mark.parametrize("style", sorted(FORWARD_BLOCKS))
+def test_forwarders_note_and_signature_above_the_block_are_dropped(tmp_path, style):
+    done, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + FORWARD_BLOCKS[style] + FORWARD_MAIL)
+    dump = _dump(data)
+    for secret in FORWARD_SECRETS:
+        assert secret not in dump, secret
+        assert secret not in done.stdout.lower(), secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    # the quoted sender stays as it was: the importer tells the original mail by it
+    assert "zustellung@dhl.de" in text and "DHL Zustell-Update" in text
+    assert "Ihre Beispielmarke GmbH Sendung kommt heute" in text
+    assert "2023" in text and "08:00" in text
+    assert text.count("max@example.org") >= 1
+    assert "Ihre Sendungsnummer" in text and "DHL Group" in text
+    assert str(_msg(data)["From"]) == "Max Mustermann <max@example.org>"
+    # the warning stays: lines below the block cannot be told from the mail
+    assert "weitergeleitet aus" in done.stdout
+
+
+@pytest.mark.parametrize("style", sorted(FORWARD_BLOCKS))
+def test_anonymised_forward_is_still_read_like_the_original(tmp_path, style):
+    _, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + FORWARD_BLOCKS[style] + FORWARD_MAIL)
+    [update] = parse_mail(_msg(data)).updates
+    assert (update.carrier, update.status) == ("dhl", ParcelStatus.OUT_FOR_DELIVERY)
+    assert len(update.number) == 12 and update.number != "123456789012"
+    assert update.title == "Beispielmarke GmbH"
+    assert (update.sent_at.year, update.sent_at.month, update.sent_at.day) == (2023, 7, 18)
+
+
+def test_forward_in_an_html_part_is_cut_too(tmp_path):
+    msg = EmailMessage()
+    msg["From"] = "Jörg Probst <jp1987@gmx.de>"
+    msg["To"] = "pakete@postfach.example"
+    msg["Subject"] = "Fwd: Ihre Beispielmarke GmbH Sendung kommt heute"
+    msg["Date"] = "Tue, 18 Jul 2023 08:02:46 +0000"
+    msg.set_content(
+        "<html><body><div>Hier die Mail, Gruß Jörg</div><div>Probst Holzbau GmbH</div><hr>"
+        '<div><b>Von:</b> DHL Zustell-Update &lt;<a href="mailto:zustellung@dhl.de">'
+        "zustellung@dhl.de</a>&gt;<br><b>Gesendet:</b> Dienstag, 18. Juli 2023 08:00<br>"
+        "<b>An:</b> Jörg Probst &lt;jp1987@gmx.de&gt;<br>"
+        "<b>Betreff:</b> Ihre Beispielmarke GmbH Sendung kommt heute</div>"
+        "<p>Ihre Sendungsnummer</p><p>123456789012</p></body></html>",
+        subtype="html",
+    )
+    mails = _write(tmp_path / "mails", [bytes(msg)])
+    done = _call(mails, "--ohne-angaben")
+    assert done.returncode == 0, done.stderr
+    [written] = (mails / "anonymisiert").glob("*.eml")
+    dump = _dump(written.read_bytes())
+    for secret in ("jörg", "probst", "jp1987", "holzbau", "hier die mail"):
+        assert secret not in dump, secret
+    assert "zustellung@dhl.de" in dump and "ihre sendungsnummer" in dump
+
+
+def test_nested_forward_keeps_only_the_innermost_block(tmp_path):
+    outer = (
+        "Von: Erika Sonnenschein <erika@zweitadresse.example>\n"
+        "Gesendet: Dienstag, 18. Juli 2023 08:01\n"
+        "An: Jörg Probst <jp1987@gmx.de>\n"
+        "Betreff: WG: Ihre Beispielmarke GmbH Sendung kommt heute\n\n"
+        "Hallo Jörg, das ist deins. Erika\n\n"
+    )
+    done, data = _forwarded(
+        tmp_path / "mails", FORWARD_NOTE + outer + FORWARD_BLOCKS["outlook"] + FORWARD_MAIL
+    )
+    dump = _dump(data)
+    for secret in (*FORWARD_SECRETS, "das ist deins", "08:01"):
+        assert secret not in dump, secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    assert text.count("Von:") == 1 and "zustellung@dhl.de" in text
+
+
+def test_quoted_private_sender_is_replaced_like_the_outer_one(tmp_path):
+    block = (
+        "Von: Erika Sonnenschein <erika.sonnenschein@web.de>\n"
+        "Gesendet: Dienstag, 18. Juli 2023 08:00\n"
+        "An: Jörg Probst <jp1987@gmx.de>\n"
+        "Betreff: Paket\n\n"
+    )
+    done, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + block + "Dein Paket ist da.\n")
+    dump = _dump(data)
+    for secret in (*FORWARD_SECRETS, "web.de"):
+        assert secret not in dump, secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    [quoted] = [line for line in text.splitlines() if line.startswith("Von:")]
+    assert "max@example.org" in quoted and "Erika" not in quoted
+    assert "Dein Paket ist da." in text
+
+
+def test_mail_without_a_quoted_block_keeps_its_text(tmp_path):
+    """A subject prefix alone tells nothing about where the forwarded mail starts."""
+    done, data = _forwarded(tmp_path / "mails", "Gruß\n\n" + FORWARD_MAIL)
+    text = _msg(data).get_body(("plain",)).get_content()
+    assert text.startswith("Gruß") and "Ihre Sendungsnummer" in text
+    assert "weitergeleitet aus" in done.stdout

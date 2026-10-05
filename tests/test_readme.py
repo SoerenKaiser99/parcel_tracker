@@ -976,3 +976,34 @@ def test_readme_privacy_covers_the_ups_shipper_and_seller_names():
     assert "nur „Amazon“ bzw. „eBay“" in privacy
     dpd = README.split("### Österreich und Schweiz")[1].split("\n## ")[0]
     assert "„beim Nachbarn abgegeben“" in dpd and "„umgeleitet“ reicht nicht" in dpd
+
+
+# ----- v0.3.16: a forward by hand is read like the original -----
+def test_readme_says_how_a_forward_by_hand_is_recognised():
+    section = README.split("### Von Hand weiterleiten\n")[1].split("\n### ")[0]
+    for text in (
+        "erkennt der Import wie die Original-Mail",
+        "der ursprüngliche Absender",
+        "„Von: … / Gesendet: … / An: … / Betreff: …\"",
+        "Alle gängigen Mailprogramme",
+        "Outlook, Apple Mail, Gmail, Thunderbird",
+        "„Als Anhang weiterleiten\" funktioniert",
+        "ab dem Datum der Original-Mail",
+        "zählt der Zeitpunkt der Weiterleitung",
+        "liest er nie mit",
+        "Am zuverlässigsten bleibt trotzdem die automatische Filterregel",
+        "ist der ursprüngliche Absender unbekannt, gilt wie bisher",
+    ):
+        assert text in section, text
+
+
+def test_readme_says_what_the_script_does_with_a_forwarded_sample_mail():
+    section = _section("Beispielmails einreichen")
+    for text in (
+        "übernimmt das Skript nur diesen Block und die Mail darunter",
+        "alles darüber (eigene Zeilen, die eigene Signatur) lässt es weg",
+        "den ursprünglichen Absender im Block lässt es stehen",
+        "die Empfänger ersetzt es",
+        "nicht weiterleiten",
+    ):
+        assert text in section, text

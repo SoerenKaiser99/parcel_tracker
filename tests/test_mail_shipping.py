@@ -448,16 +448,20 @@ def test_delivery_update_mail_with_a_12_digit_number_in_table_markup():
     assert (u.title, u.shop) == (None, None)
 
 
-def test_forwarded_dhl_mail_only_names_the_parcel():
-    """Forwarded from a private address: the generic path, no status, never a name."""
+def test_forwarded_dhl_mail_is_read_like_the_original():
+    """v0.3.16: forwarded from a private address, the quoted header names DHL as the sender:
+    the DHL parser reads it, with the day of the original mail and the shop of its subject."""
     msg = load_mail(FORWARDED)
     assert str(msg["Subject"]).startswith("Fw: ") and "dhl.de" not in str(msg["From"])
+    original = datetime.fromisoformat("2026-09-28T11:51:00").replace(tzinfo=BERLIN)
+    assert "Gesendet: Montag, September 28, 2026 11:51 AM" in msg.get_body(("plain",)).get_content()
     [u] = parse_mail(msg).updates
     assert (u.number, u.carrier, u.status, u.title) == (
-        "00340999999999999902", "dhl", None, None,
+        "00340999999999999902", "dhl", ParcelStatus.OUT_FOR_DELIVERY, "Beispielmarke GmbH",
     )
-    assert u.sent_at == sent_at(msg) and u.sent_at.date() == sent_at(msg).date()
-    assert (u.eta_date, u.eta_from, u.delivered_at) == (None, None, None)
+    assert u.sent_at == original and original < sent_at(msg)
+    assert u.eta_date == original.date()
+    assert (u.eta_from, u.eta_to, u.delivered_at, u.shop) == (None, None, None, None)
 
 
 @pytest.mark.parametrize(

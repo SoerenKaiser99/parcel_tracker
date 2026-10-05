@@ -81,7 +81,7 @@ from .const import (
     TRACK17_QUOTA_RETRY,
 )
 from .detect import candidates, normalize
-from .mail import OTHER_DOMAIN, known_sender_domain, parse_mail
+from .mail import OTHER_DOMAIN, forwarded_original, known_sender_domain, parse_mail
 from .mail.apply import Change, apply_update
 from .mail.base import MailResult, is_forwarded, sender, sent_at
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
@@ -124,8 +124,10 @@ def _parse_one(raw: bytes, read_otp: bool, now: datetime) -> _ParsedMail:
         msg = email.message_from_bytes(raw, policy=policy.default)
         item.message_id = str(msg.get("Message-ID") or "").strip()
         try:
-            item.domain = known_sender_domain(sender(msg)[0])
-            item.forwarded = is_forwarded(msg)
+            # A forward of a known sender's mail is booked under that original sender.
+            original = forwarded_original(msg)
+            item.domain = known_sender_domain(sender(original or msg)[0])
+            item.forwarded = original is not None or is_forwarded(msg)
         except Exception:  # noqa: BLE001 - odd headers: the parser below reports them
             pass
         try:

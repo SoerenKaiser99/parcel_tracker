@@ -14,6 +14,7 @@ from .amazon import (
 from .base import DPD_DOMAINS, MailResult, body_text, domain_of, is_forwarded, sender, subject
 from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_mail
 from .ebay import EBAY_SENDER, parse_ebay
+from .forward import original_message
 from .gls import GLS_GROUP_SENDERS, GLS_SENDER, parse_gls_group_mail, parse_gls_mail
 from .hermes import HERMES_SENDER, parse_hermes_mail
 from .shipping import (
@@ -82,8 +83,38 @@ def is_ignored(address: str) -> bool:
     )
 
 
+def _known(address: str) -> bool:
+    return known_sender_domain(address) != OTHER_DOMAIN
+
+
+def forwarded_original(msg: EmailMessage) -> EmailMessage | None:
+    """The original of a mail forwarded by hand, if a sender we know wrote it (else None).
+
+    Looked for only in a mail whose own sender is none we know: what a shop's or carrier's
+    own mail quotes is its text. A quoted header can therefore do no more than a mail from
+    that sender could, and what stands above it (the forwarder's lines) is never read.
+    """
+    address = sender(msg)[0]
+    if _known(address) or is_ignored(address):
+        return None
+    return original_message(msg, _known)
+
+
 def parse_mail(msg: EmailMessage, read_otp: bool = False) -> MailResult:
-    """Route a mail to its parser. Parser exceptions propagate to the caller."""
+    """Route a mail to its parser. Parser exceptions propagate to the caller.
+
+    A forward whose original sender we know is parsed as that original (see
+    ``forwarded_original``); it never counts as a mail Amazon sent itself.
+    """
+    original = forwarded_original(msg)
+    if original is None:
+        return _route(msg, read_otp)
+    result = _route(original, read_otp)
+    result.amazon = False
+    return result
+
+
+def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
     address, _ = sender(msg)
     if is_ignored(address):
         return MailResult(ignored=True)
