@@ -58,7 +58,9 @@ def test_readme_roadmap_and_status():
         "getestet (UPS-Freischaltung ausstehend)",
         "Hermes Live-Abfrage: umgesetzt; von einem Tester mit einer aktuellen Sendung bestätigt",
         "eBay-Mails: umgesetzt",
-        "17track: Anmeldung live getestet, Anreicherung noch ohne Live-Fall",
+        "17track: umgesetzt; Abfrage von einem Tester bestätigt (das Kontingent wird einmal "
+        "belastet, die Karte füllt sich)",
+        "Von Hand weitergeleitete Mails: umgesetzt; von einem Tester bestätigt",
         "GLS-Live-Abfrage: umgesetzt, Live-Test ausstehend",
         "GLS-Mails: umgesetzt",
         "Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports",
@@ -82,7 +84,7 @@ def test_readme_explains_17track():
         "höchstens 40 Nummern",
     ):
         assert text in README, text
-    assert "17track registration has been tested live" in README
+    assert "the 17track lookup was confirmed by a tester" in README
 
 
 def test_readme_explains_gls():
@@ -1038,3 +1040,42 @@ def test_readme_says_automatic_asks_dhl_for_numbers_nobody_recognises():
     section = README.split("## DHL-API-Key anlegen")[1].split("### Kein Key?")[0]
     assert "„Automatisch“" in section
     assert "einmal bei DHL" in section
+
+
+# ----- v0.3.18: ready for pickup, DPD's announcement, tester confirmations -----
+def test_readme_explains_the_pickup_sensor_and_its_attributes():
+    what = _section("Was es kann")
+    sensors = next(line for line in what.splitlines() if line.startswith("- **Sensoren**"))
+    for text in (
+        "`sensor.pakete_abholbereit`",
+        "`awaiting_pickup`",
+        "`awaiting_pickup_count`",
+        "Packstation, Filiale, PaketShop",
+        "{{ state_attr('sensor.pakete_heute', 'awaiting_pickup_count') }}",
+        "Vier weitere Sensoren",
+    ):
+        assert text in sensors, text
+    assert "Drei weitere Sensoren" not in README
+    assert "bitte" not in sensors.lower()
+    english = _section("English summary")
+    for text in ("`sensor.pakete_abholbereit`", "`awaiting_pickup`", "`awaiting_pickup_count`"):
+        assert text in english, text
+
+
+def test_readme_explains_the_dpd_announcement():
+    senders = README.split("\n### Welche Absender\n")[1].split("\n### ")[0]
+    for text in (
+        "„Bald ist Ihr DPD Paket da“",
+        "`noreply@service.dpd.de`",
+        "nie eine Privatperson",
+        "„Ihre Sendung stellen wir in 1-2 Werktagen zu“",
+        "Montag bis Samstag",
+        "ab dem Tag der Mail",
+    ):
+        assert text in senders, text
+    assert "bitte" not in senders.lower() and "erfolgreich" not in senders.lower()
+    assert "Versender und Lieferschätzung" in _section("Was brauche ich für welchen Dienst?")
+    assert "Versender in der Ankündigung von DPD" in _section("Datenschutz")
+    english = _section("English summary")
+    assert "Bald ist Ihr DPD Paket da" in english and "delivery estimate" in english
+    assert "mails forwarded by hand were confirmed by a tester" in english

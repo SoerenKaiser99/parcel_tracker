@@ -194,6 +194,7 @@
       "active": {"name": "Parcels on the way"},
       "possible": {"name": "Parcels possible today"},
       "delivered_today": {"name": "Parcels delivered today"},
+      "awaiting_pickup": {"name": "Parcels ready for pickup"},
       "track17_quota": {"name": "17track quota"}
     },
     "calendar": {"deliveries": {"name": "Parcels"}}

@@ -12,7 +12,7 @@ from .amazon import (
     subject_status,
 )
 from .base import DPD_DOMAINS, MailResult, body_text, domain_of, is_forwarded, sender, subject
-from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_mail
+from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_de_mail, parse_dpd_mail
 from .ebay import EBAY_SENDER, parse_ebay
 from .forward import original_message
 from .gls import GLS_GROUP_SENDERS, GLS_SENDER, parse_gls_group_mail, parse_gls_mail
@@ -146,8 +146,11 @@ def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
         return MailResult(updates=updates)
     if address in GLS_GROUP_SENDERS and (updates := parse_gls_group_mail(msg)):
         return MailResult(updates=updates)
-    # DPD Austria tells the status in its mails; DPD Germany only names the number.
+    # DPD Austria tells the status in its mails; DPD Germany only names the number, but
+    # its announcement adds the shipper and an estimate in working days.
     if domain == DPD_AT_DOMAIN and (updates := parse_dpd_mail(msg)):
+        return MailResult(updates=updates)
+    if domain in DPD_DOMAINS and (updates := parse_dpd_de_mail(msg)):
         return MailResult(updates=updates)
     # GLS numbers (11 digits) are never read by the generic parser: a GLS mail someone
     # forwarded by hand is recognised by its subject instead.

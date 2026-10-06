@@ -151,9 +151,11 @@ def test_phone_numbers_are_still_replaced_whatever_the_space(tmp_path):
     [(plain, markup)] = _run(tmp_path, _mail(cell))
     for text in (plain, markup):
         assert text.count("+49 000 0000000") == 3
+        [replacement] = set(_numbers(text))
+        # the replacement is made of random digits and may hold such a group by chance
+        rest = text.replace(replacement, "")
         for secret in ("123 45 67", "1234", "5678", "9876543", "4111", "1111 1111"):
-            assert secret not in text, secret
-        assert len(set(_numbers(text))) == 1
+            assert secret not in rest, secret
 
 
 # ----- v0.3.15 review: numbers in groups with fewer than 16 digits kept original digits -----

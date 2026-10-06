@@ -236,3 +236,14 @@ def test_known_country_is_tolerant_of_case():
     assert [const.known_country(v) for v in ("AT", "at", " Ch ", "DE", "FR", None, 1)] == [
         "at", "at", "ch", "de", "de", "de", "de",
     ]
+
+
+def test_pickup_sensor_is_named_in_every_language():
+    """v0.3.18: the count sensor for parcels that wait at a pickup point."""
+    names = {
+        "strings.json": "Parcels ready for pickup",
+        "translations/en.json": "Parcels ready for pickup",
+        "translations/de.json": "Pakete abholbereit",
+    }
+    for name, text in names.items():
+        assert _load(name)["entity"]["sensor"]["awaiting_pickup"] == {"name": text}, name

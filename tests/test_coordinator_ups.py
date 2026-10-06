@@ -189,7 +189,21 @@ async def test_hermes_answer_without_day_keeps_the_mail_day(hass, freezer):
 
 
 async def test_other_carrier_without_day_drops_the_mail_day(hass, freezer):
-    """DPD always names its days. (DHL keeps a day since v0.3.17: test_coordinator_dhl.)"""
+    """UPS names its days itself. (DHL keeps a day since v0.3.17: test_coordinator_dhl.)"""
+    freezer.move_to(DAYTIME)
+    ups = NoEtaCarrier("ups")
+    coord = await _coordinator(hass, lambda store: {"ups": ups})
+    now = dt_util.utcnow()
+    coord.store.add(Parcel(NUMBER, "ups", "mail", None, now, now, result=_known_day()))
+    await coord.async_refresh()
+    parcel = coord.store.get(NUMBER)
+    assert parcel.status is ParcelStatus.IN_TRANSIT
+    assert (parcel.result.eta_date, parcel.result.eta_latest) == (None, None)
+
+
+async def test_dpd_answer_without_day_keeps_the_estimate_of_the_announcement(hass, freezer):
+    """v0.3.18: DPD's lookup names a day only for "out for delivery"; until then the
+    estimate of its announcement mail ("in 1-2 Werktagen") stays, as with Hermes and GLS."""
     freezer.move_to(DAYTIME)
     dpd = NoEtaCarrier("dpd")
     coord = await _coordinator(hass, lambda store: {"dpd": dpd})
@@ -199,6 +213,14 @@ async def test_other_carrier_without_day_drops_the_mail_day(hass, freezer):
     await coord.async_refresh()
     parcel = coord.store.get(number)
     assert parcel.status is ParcelStatus.IN_TRANSIT
+    assert (parcel.result.eta_date, parcel.result.eta_latest) == (
+        date(2026, 10, 1),
+        date(2026, 10, 2),
+    )
+    # delivered, waiting for pickup or a problem: that estimate no longer holds
+    dpd.status = ParcelStatus.AWAITING_PICKUP
+    freezer.tick(timedelta(minutes=31))
+    await coord.async_refresh()
     assert (parcel.result.eta_date, parcel.result.eta_latest) == (None, None)
 
 

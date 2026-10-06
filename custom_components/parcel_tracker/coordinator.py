@@ -669,9 +669,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             and known.eta_date is not None
             and result.status not in NO_ETA_STATUSES
         ):
-            # Hermes never tells a day, GLS not always: keep the day a mail or an
-            # earlier lookup named, but not once the parcel is delivered, waits for
-            # pickup or ran into a problem (that day no longer holds).
+            # Hermes never tells a day, GLS not always, DPD only for "out for delivery":
+            # keep the day a mail or an earlier lookup named, but not once the parcel is
+            # delivered, waits for pickup or ran into a problem (that day no longer holds).
             result = replace(
                 result,
                 eta_date=known.eta_date,

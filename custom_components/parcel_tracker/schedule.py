@@ -116,6 +116,7 @@ class ParcelSummary:
     sure: list[Parcel] = field(default_factory=list)  # come today for sure
     possible: list[Parcel] = field(default_factory=list)  # delivery window includes today
     delivered_today: list[Parcel] = field(default_factory=list)
+    awaiting_pickup: list[Parcel] = field(default_factory=list)  # wait at a pickup point
 
 
 def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> ParcelSummary:
@@ -123,12 +124,15 @@ def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> Pa
 
     On the way is every parcel that is not delivered, whatever else its status says
     (unknown, a problem, waiting at a pickup point, no answer from the carrier yet).
-    Today's lists follow ``today_group`` and ``delivered_today``.
+    Today's lists follow ``today_group`` and ``delivered_today``. Ready for pickup is
+    every parcel with that status (Packstation, branch, parcel shop); it stays on the way.
     """
     summary = ParcelSummary()
     for parcel in parcels:
         if parcel.status is not ParcelStatus.DELIVERED:
             summary.active.append(parcel)
+        if parcel.status is ParcelStatus.AWAITING_PICKUP:
+            summary.awaiting_pickup.append(parcel)
         group = today_group(parcel, today, tz)
         if group == TODAY_SURE:
             summary.sure.append(parcel)

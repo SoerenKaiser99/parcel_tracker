@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.17"
+VERSION = "0.3.18"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -94,8 +94,9 @@ MAIL_CARRIERS = SHOP_CARRIERS
 OPTIONAL_API_CARRIERS = frozenset({"ups"})
 # Carriers a user can pick for a manually added parcel.
 SELECTABLE_CARRIERS = ("dhl", "dpd", "gls", "hermes", "ups")
-# Their lookup often tells no delivery day: the day a mail named is kept then.
-MAIL_ETA_CARRIERS = frozenset({"hermes", "gls"})
+# Their lookup often tells no delivery day: the day a mail named is kept then. (DPD names
+# a day only once the parcel is out for delivery; its announcement mail gives an estimate.)
+MAIL_ETA_CARRIERS = frozenset({"hermes", "gls", "dpd"})
 # DHL may take an estimate back and compute it anew: a day and window it named are kept
 # while the parcel is on its way, until that day is over.
 KEEP_ETA_UNTIL_DAY_CARRIERS = frozenset({"dhl"})

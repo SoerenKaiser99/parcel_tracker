@@ -417,6 +417,19 @@ def relative_day(word: str, ref: datetime) -> date:
     return ref.date() + timedelta(days=1 if word.lower() == "morgen" else 0)
 
 
+def add_workdays(day: date, count: int) -> date:
+    """The day ``count`` working days after ``day``.
+
+    Working days are the days parcels are delivered on: Monday to Saturday. Public holidays
+    are not known here and count like any other day.
+    """
+    while count > 0:
+        day += timedelta(days=1)
+        if day.weekday() != 6:
+            count -= 1
+    return day
+
+
 def at(day: date, hour: int, minute: int) -> datetime:
     """Local Europe/Berlin time on a day."""
     return datetime.combine(day, time(hour, minute), tzinfo=BERLIN)

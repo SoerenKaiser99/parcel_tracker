@@ -1,0 +1,286 @@
+X-Fixture: derived from an anonymised tester submission (issue 6); parcel
+ number and shipper company replaced by invented values, the legal notice
+ of the carrier is cut; the Date header and the quoted date are shifted by
+ a fixed invented offset
+From: Max Mustermann <max@example.org>
+To: max@example.org
+Subject: WG: Bald ist Ihr DPD Paket da
+Date: Mon, 21 Sep 2026 15:07:12 +0200
+Message-ID: <fixture-123@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============0067985269768256454=="
+
+--===============0067985269768256454==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Von: DPD<noreply@service.dpd.de>
+Gesendet: Montag, 21. September 2026 14:33
+An: max@example.org
+Betreff: Bald ist Ihr DPD Paket da
+
+ 
+
+
+
+
+ 
+
+
+ 
+
+
+
+ <https://my.dpd.de/> 
+
+  <https://my.dpd.de/…> 
+
+
+ 
+
+ 
+
+
+
+
+
+
+
+ 
+
+
+  <http://my.dpd.de/…> 
+
+
+Guten Tag,
+
+
+Ihre Sendung stellen wir in 1-2 Werktagen zu.
+
+
+ 
+
+ 
+
+
+ 
+
+ 
+
+
+
+
+
+ 
+
+
+ 
+
+
+
+
+Versender & Paketnummer:
+
+
+Beispiel Autoteile GmbH
+ <https://my.dpd.de/…> 09999999999904
+
+
+Empfänger:
+
+
+Max | Max Mustermann
+Max | Max Mustermann
+
+
+ 
+
+ 
+
+
+
+
+  <http://my.dpd.de/…> 
+
+
+
+
+ 
+
+
+Weitere Informationen zu Ihrem Paket erhalten Sie von uns am Tag der Zustellung.
+
+ 
+
+
+ 
+
+
+
+
+ 
+
+
+ 
+
+
+
+  <https://my.dpd.de/…> 
+
+ 
+
+
+Wählen Sie Abstell-Okay oder Paketshop und profitieren Sie von einer flexiblen Zustellung.
+
+
+  <http://my.dpd.de/…> 
+
+ 
+
+
+  <https://my.dpd.de/…> 
+
+
+
+
+  <http://my.dpd.de/…> 
+
+
+Sie können Ihr Paket nicht entgegennehmen?
+
+
+ 
+
+
+
+
+
+
+  <http://my.dpd.de/…> 
+
+
+Abstell-Okay geben
+
+
+
+
+  <http://my.dpd.de/…> 
+
+
+Paketshop wählen
+
+
+
+
+
+
+  <http://my.dpd.de/…> 
+
+
+Nachbar wählen
+
+
+
+
+  <http://my.dpd.de/…> 
+
+
+Tag ändern
+
+
+ 
+
+
+
+ <https://my.dpd.de/…> Jetzt Änderungs-Option wählen
+
+
+ 
+
+
+ 
+
+
+  <https://my.dpd.de/…> 
+
+ 
+
+
+
+
+ 
+
+
+ 
+
+
+DPD Deutschland GmbH, Musterstraße 1, 12345 Musterstadt
+
+
+  <http://my.dpd.de/…> 
+
+
+ 
+
+
+Auf diese E-Mail können Sie leider nicht antworten. In unserem  <https://www.dpd.com/…> Support-Bereich finden Sie rund um die Uhr Antworten auf die häufigsten Fragen. Wir haben Ihre personenbezogenen Daten (Name, Adresse, E-Mail Adresse) vom Versender einer an Sie adressierten Lieferung erhalten. Diese E-Mail dient lediglich zu Ihrer Information. Wir verwenden Ihre E-Mail Adresse ausschließlich, um Ihr Paket anzukündigen. Sie wird nicht für werbliche Zwecke genutzt, es sei denn, es liegt uns Ihre Einwilligung dazu vor. Die Datenschutzhinweise und Ihre Datenschutzrechte finden Sie unter  <https://www.dpd.com/…> dpd.de/datenschutz.
+
+Sie möchten unsere Paketankündigung abbestellen? Klicken Sie  <https://my.dpd.de/…> hier.
+
+
+  <http://my.dpd.de/…> 
+
+
+  <http://my.dpd.de/…> 
+
+
+
+ <https://www.dpd.com/…> 
+
+ <https://www.dpd.com/…> dpd.de
+
+
+  <http://my.dpd.de/…> 
+
+ 
+
+
+  <http://my.dpd.de/…> 
+
+ 
+
+
+--===============0067985269768256454==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Von: DPD&lt;noreply@service.dpd.de&gt;</p>
+<p>Gesendet: Montag, 21. September 2026 14:33</p>
+<p>An: max@example.org</p>
+<p>Betreff: Bald ist Ihr DPD Paket da</p>
+<p>Guten Tag,</p>
+<p>Ihre Sendung stellen wir in 1-2 Werktagen zu.</p>
+<p>Versender &amp; Paketnummer:</p>
+<p>Beispiel Autoteile GmbH</p>
+<p>09999999999904</p>
+<p>Empfänger:</p>
+<p>Max | Max Mustermann</p>
+<p>Max | Max Mustermann</p>
+<p>Weitere Informationen zu Ihrem Paket erhalten Sie von uns am Tag der Zustellung.</p>
+<p>Wählen Sie Abstell-Okay oder Paketshop und profitieren Sie von einer flexiblen Zustellung.</p>
+<p>Sie können Ihr Paket nicht entgegennehmen?</p>
+<p>Abstell-Okay geben</p>
+<p>Paketshop wählen</p>
+<p>Nachbar wählen</p>
+<p>Tag ändern</p>
+<p>Jetzt Änderungs-Option wählen</p>
+<p>DPD Deutschland GmbH, Musterstraße 1, 12345 Musterstadt</p>
+<p>Auf diese E-Mail können Sie leider nicht antworten. In unserem Support-Bereich finden Sie rund um die Uhr Antworten auf die häufigsten Fragen. Wir haben Ihre personenbezogenen Daten (Name, Adresse, E-Mail Adresse) vom Versender einer an Sie adressierten Lieferung erhalten. Diese E-Mail dient lediglich zu Ihrer Information. Wir verwenden Ihre E-Mail Adresse ausschließlich, um Ihr Paket anzukündigen. Sie wird nicht für werbliche Zwecke genutzt, es sei denn, es liegt uns Ihre Einwilligung dazu vor. Die Datenschutzhinweise und Ihre Datenschutzrechte finden Sie unter dpd.de/datenschutz.</p>
+<p>Sie möchten unsere Paketankündigung abbestellen? Klicken Sie hier.</p>
+<p>dpd.de</p>
+</body></html>
+
+--===============0067985269768256454==--

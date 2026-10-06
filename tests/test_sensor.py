@@ -421,6 +421,7 @@ async def test_delivered_today_follows_the_home_assistant_time_zone(hass, freeze
 
 SUMMARY_IDS = (
     "sensor.pakete_unterwegs", "sensor.pakete_moeglich", "sensor.pakete_zugestellt_heute",
+    "sensor.pakete_abholbereit",
 )
 
 
@@ -463,7 +464,8 @@ async def test_three_summary_sensors_count_what_the_today_sensor_lists(hass, fre
     assert today.state == "1"
     assert set(today.attributes) == {
         "parcels", "possible", "possible_count", "delivered_today", "delivered_today_count",
-        "integration_version", "friendly_name", "icon",
+        "awaiting_pickup", "awaiting_pickup_count", "integration_version", "friendly_name",
+        "icon",
     }
     for state, name, icon in (
         (active, "Pakete unterwegs", "mdi:truck-fast"),
@@ -495,7 +497,7 @@ async def test_summary_sensor_ids_do_not_depend_on_the_language(hass, freezer):
     await hass.async_block_till_done()
     registry = er.async_get(hass)
     for entity_id, suffix in zip(
-        SUMMARY_IDS, ("active", "possible", "delivered_today"), strict=True
+        SUMMARY_IDS, ("active", "possible", "delivered_today", "awaiting_pickup"), strict=True
     ):
         assert hass.states.get(entity_id) is not None, entity_id
         assert registry.async_get(entity_id).unique_id == f"{entry.entry_id}_{suffix}"
@@ -532,3 +534,69 @@ async def test_summary_sensors_follow_a_delivery(hass, freezer):
     await hass.async_block_till_done()
     assert hass.states.get("sensor.pakete_unterwegs").state == "0"
     assert hass.states.get("sensor.pakete_zugestellt_heute").state == "1"
+
+
+# ----- v0.3.18: parcels ready for pickup (issue 7) -----
+async def test_pickup_sensor_counts_the_parcels_that_wait_for_pickup(hass, freezer):
+    freezer.move_to(DAYTIME)
+    now = dt_util.utcnow()
+    await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Fahrer", ParcelStatus.OUT_FOR_DELIVERY),
+        _mail_parcel("AMZ99900000000000002", "Packstation", ParcelStatus.AWAITING_PICKUP),
+        _mail_parcel("AMZ99900000000000003", "Spanne", ParcelStatus.IN_TRANSIT, 0, 3),
+        _mail_parcel("AMZ99900000000000004", "Paketshop", ParcelStatus.AWAITING_PICKUP),
+        _delivered("AMZ99900000000000005", "Da", now - timedelta(hours=1)),
+    ])
+
+    pickup = hass.states.get("sensor.pakete_abholbereit")
+    today = hass.states.get("sensor.pakete_heute")
+    assert pickup.state == "2" == str(today.attributes["awaiting_pickup_count"])
+    assert [p["name"] for p in pickup.attributes["parcels"]] == ["Packstation", "Paketshop"]
+    assert pickup.attributes["parcels"] == today.attributes["awaiting_pickup"]
+    # Same item shape as ``delivered_today`` and ``parcels``.
+    assert today.attributes["awaiting_pickup"][0] == {
+        "number": "AMZ99900000000000002",
+        "name": "Packstation",
+        "carrier": "amazon",
+        "eta_from": None,
+        "eta_to": None,
+    }
+    assert set(today.attributes["awaiting_pickup"][0]) == set(
+        today.attributes["delivered_today"][0]
+    )
+    # Built like its siblings: a name, an icon, the parcels and no state class.
+    assert pickup.attributes["friendly_name"] == "Pakete abholbereit"
+    assert pickup.attributes["icon"] == "mdi:locker-multiple"
+    assert set(pickup.attributes) == {"parcels", "friendly_name", "icon"}
+    # The other sensors count what they counted before.
+    assert today.state == "1"
+    assert hass.states.get("sensor.pakete_unterwegs").state == "4"
+    assert hass.states.get("sensor.pakete_moeglich").state == "1"
+    assert hass.states.get("sensor.pakete_zugestellt_heute").state == "1"
+
+
+async def test_today_without_waiting_parcels_has_an_empty_pickup_list(hass, freezer):
+    freezer.move_to(DAYTIME)
+    await _setup_with(hass, [])
+    today = hass.states.get("sensor.pakete_heute")
+    assert today.attributes["awaiting_pickup"] == []
+    assert today.attributes["awaiting_pickup_count"] == 0
+
+
+async def test_pickup_sensor_follows_the_status(hass, freezer):
+    freezer.move_to(DAYTIME)
+    coordinator = await _setup_with(hass, [
+        _mail_parcel("AMZ99900000000000001", "Eins", ParcelStatus.IN_TRANSIT),
+    ])
+    assert hass.states.get("sensor.pakete_abholbereit").state == "0"
+
+    result = coordinator.store.get("AMZ99900000000000001").result
+    result.status = ParcelStatus.AWAITING_PICKUP
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.pakete_abholbereit").state == "1"
+
+    result.status, result.delivered_at = ParcelStatus.DELIVERED, dt_util.utcnow()
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.pakete_abholbereit").state == "0"

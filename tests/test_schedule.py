@@ -280,6 +280,7 @@ def test_summarize_sorts_every_parcel_into_its_lists():
     assert summary.sure == [driver]
     assert summary.possible == [span]
     assert summary.delivered_today == [done]
+    assert summary.awaiting_pickup == [pickup]
     # The same rules as the single functions.
     assert summary.sure == [p for p in parcels if today_group(p, TODAY) == TODAY_SURE]
     assert summary.possible == [p for p in parcels if today_group(p, TODAY) == TODAY_POSSIBLE]
@@ -287,7 +288,7 @@ def test_summarize_sorts_every_parcel_into_its_lists():
 
 
 def test_summarize_without_parcels():
-    assert summarize([], TODAY) == ParcelSummary([], [], [], [])
+    assert summarize([], TODAY) == ParcelSummary([], [], [], [], [])
 
 
 def test_summarize_reads_the_day_in_the_given_time_zone():
@@ -295,3 +296,21 @@ def test_summarize_reads_the_day_in_the_given_time_zone():
     parcel = _delivered_parcel(late, late)
     assert summarize([parcel], date(2026, 9, 30)).delivered_today == [parcel]
     assert summarize([parcel], date(2026, 9, 30), UTC).delivered_today == []
+
+
+# ----- v0.3.18: parcels waiting at a pickup point -----
+def test_summarize_lists_the_parcels_that_wait_for_pickup():
+    """Packstation, branch, parcel shop: the status decides, a day does not matter."""
+    plain = _eta_parcel(ParcelStatus.AWAITING_PICKUP)
+    dated = _eta_parcel(ParcelStatus.AWAITING_PICKUP, 0)
+    driver = _eta_parcel(ParcelStatus.OUT_FOR_DELIVERY, 0)
+    done = _delivered_parcel(TODAY_NOON, TODAY_NOON)
+    fresh = Parcel("N0", "dhl", "manual", None, TODAY_NOON, TODAY_NOON)  # no answer yet
+
+    summary = summarize([plain, driver, dated, done, fresh], TODAY)
+
+    assert summary.awaiting_pickup == [plain, dated]
+    # The other lists count what they counted before: waiting parcels stay "on the way".
+    assert summary.active == [plain, driver, dated, fresh]
+    assert summary.sure == [driver, dated]
+    assert summary.delivered_today == [done]

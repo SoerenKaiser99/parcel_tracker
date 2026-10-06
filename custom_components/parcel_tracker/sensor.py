@@ -26,7 +26,9 @@ def _iso(value) -> str | None:
 
 
 # Unique-id suffixes of the fixed sensors (everything else is a parcel number).
-_FIXED = frozenset({"today", "active", "possible", "delivered_today", "track17_quota"})
+_FIXED = frozenset(
+    {"today", "active", "possible", "delivered_today", "awaiting_pickup", "track17_quota"}
+)
 
 
 def _location_source(parcel: Parcel) -> str | None:
@@ -192,7 +194,8 @@ class _SummarySensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
 class TodaySensor(_SummarySensor):
     """Number of parcels that come today for sure; ranges including today are "possible".
 
-    Parcels delivered today are listed too, they do not count.
+    Parcels delivered today and those waiting at a pickup point are listed too, they do
+    not count (a waiting parcel with a fixed day today counts by that day, as before).
     """
 
     _attr_translation_key = "today"
@@ -218,6 +221,8 @@ class TodaySensor(_SummarySensor):
             "possible_count": len(summary.possible),
             "delivered_today": _items(summary.delivered_today),
             "delivered_today_count": len(summary.delivered_today),
+            "awaiting_pickup": _items(summary.awaiting_pickup),
+            "awaiting_pickup_count": len(summary.awaiting_pickup),
             # The card compares this with its own version: a browser that still runs the
             # card from before an update shows a hint to reload the page.
             "integration_version": VERSION,
@@ -236,6 +241,7 @@ _GROUP_SENSORS = (
         "Pakete zugestellt heute",
         "mdi:package-variant-closed-check",
     ),
+    ("awaiting_pickup", "sensor.pakete_abholbereit", "Pakete abholbereit", "mdi:locker-multiple"),
 )
 
 
