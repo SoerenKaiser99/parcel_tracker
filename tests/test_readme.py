@@ -1079,3 +1079,22 @@ def test_readme_explains_the_dpd_announcement():
     english = _section("English summary")
     assert "Bald ist Ihr DPD Paket da" in english and "delivery estimate" in english
     assert "mails forwarded by hand were confirmed by a tester" in english
+
+
+# ----- v0.3.19: the 12-digit number of GLS mails and links (issue 8) -----
+def test_readme_explains_the_twelve_digit_gls_number():
+    gls = README.split("\n## GLS\n")[1].split("\n## ")[0]
+    numbers = next(line for line in gls.splitlines() if line.startswith("- **Nummern**"))
+    for text in (
+        "Die 12-stellige Nummer aus den GLS-Mails und dem Link zur Sendungsverfolgung",
+        "Die letzte Ziffer ist eine Prüfziffer",
+        "funktioniert mit der Carrier-Wahl „GLS“ und beim Import der GLS-Mails",
+        "mit den ersten 11 Ziffern",
+        "„Automatisch“ erkennt eine 12-stellige Nummer nicht als GLS",
+        "Trag die ersten 11 Ziffern ein oder wähle „GLS“",
+    ):
+        assert text in numbers, text
+    assert "gelten nie automatisch als GLS" not in README
+    assert "bitte" not in numbers.lower() and "erfolgreich" not in numbers.lower()
+    mails = README.split("\n### GLS-Pakete\n")[1].split("\n### ")[0]
+    assert "Prüfziffer als zwölfte Ziffer" in mails and "`gls-group.eu/track/…`" in mails

@@ -27,8 +27,13 @@ from .base import (
 
 GLS_SENDER = "no-reply@gls-pakete.de"
 
-# 11 digits right after the label (the text part puts them on the next line).
-_NUMBER = re.compile(r"(?:Paketnummer|Sendungsnummer)\s*:?\s*(\d{11})(?!\d)")
+# 11 digits right after the label (the text part puts them on the next line). GLS's own
+# mails may add a check digit as the 12th: it is read apart and never stored, so the
+# parcel is the one known by its 11 digits.
+_NUMBER = re.compile(r"(?:Paketnummer|Sendungsnummer)\s*:?\s*(\d{11})(\d?)(?!\d)")
+# The tracking link of GLS's own mails ("gls-group.eu/track/<number>"), with or without
+# the check digit: only looked at when no label names a number.
+_TRACK_LINK = re.compile(r"\bgls-group\.(?:eu|com)/track/(\d{11})\d?(?!\d)", re.IGNORECASE)
 _DELIVERED = re.compile(r"\bwurde\b.*\b(?:zugestellt|geliefert)\b")
 # "wurde GLS übergeben" is the shop handing the parcel over: only a neighbour delivers.
 _HANDED_OVER = re.compile(r"\bwurde\b.*\bübergeben\b")
@@ -53,13 +58,15 @@ _SENDER_LABELS = frozenset(
 GLS_GROUP_SENDER = "noreply@gls-group.eu"
 GLS_RTT_SENDER = "noreply@gls-rtt.com"
 GLS_GROUP_SENDERS = frozenset({GLS_GROUP_SENDER, GLS_RTT_SENDER})
-_GROUP_NUMBER = re.compile(r"(?:Paketnummer|Sendungsnummer)\s*:?\s*(\d{11})(?!\d)", re.IGNORECASE)
+_GROUP_NUMBER = re.compile(
+    r"(?:Paketnummer|Sendungsnummer)\s*:?\s*(\d{11})\d?(?!\d)", re.IGNORECASE
+)
 # "Dies betrifft ebenso das Paket/die Pakete A, B." and "(Wir wurden ebenfalls) beauftragt
 # mit der Zustellung des Paketes/der Pakete A, B.": the same news for every number listed.
 _GROUP_MORE = re.compile(
     r"(?:betrifft\s+ebenso\s+das\s+Paket/die\s+Pakete"
     r"|beauftragt\s+mit\s+der\s+Zustellung\s+des\s+Paketes/der\s+Pakete)"
-    r"\s+((?:\d{11}\b[\s,]*(?:und\s+)?)+)"
+    r"\s+((?:\d{11,12}\b[\s,]*(?:und\s+)?)+)"
 )
 _GROUP_DELIVERED = re.compile(r"\bwurde\b.*\b(?:zugestellt|geliefert|abgestellt)\b")
 _GROUP_NOT = re.compile(
@@ -134,6 +141,10 @@ def parse_gls_mail(msg: EmailMessage) -> list[MailUpdate]:
     if not direct and (status is None or not _GLS_WORD.search(f"{subj}\n{text}")):
         return []  # a forwarded mail only counts with a GLS subject we know and the word GLS
     number = _NUMBER.search(text)
+    if number and number.group(2) and not direct:
+        return []  # 12 digits in a mail of anybody else say nothing (eBay item numbers)
+    if not number and direct:
+        number = _TRACK_LINK.search(text)
     if not number:
         return []
     sent = sent_at(msg)
@@ -183,12 +194,14 @@ def parse_gls_group_mail(msg: EmailMessage) -> list[MailUpdate]:
     subj = subject(msg)
     lines = _lines(body_text(msg))
     text = "\n".join(lines)
-    first = _GROUP_NUMBER.search(text)
+    first = _GROUP_NUMBER.search(text) or _TRACK_LINK.search(text)
     if not first:
         return []
     numbers = [first.group(1)]
     for listed in _GROUP_MORE.finditer(text):
-        numbers += [n for n in re.findall(r"\d{11}", listed.group(1)) if n not in numbers]
+        for found in re.findall(r"\d{11,12}", listed.group(1)):
+            if found[:11] not in numbers:  # without the check digit
+                numbers.append(found[:11])
     sent = sent_at(msg)
     status = _group_status(address, subj, text)
     company = _company(lines)

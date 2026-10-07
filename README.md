@@ -155,7 +155,7 @@ Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key
 
 GLS-Pakete fragt die Integration über die offene Sendungsverfolgung von gls-group.com ab – ohne Zugangsdaten und ohne Anmeldung.
 
-- **Nummern**: 11 Ziffern erkennt „Automatisch“ als GLS. 12-stellige Nummern gelten nie automatisch als GLS (so sehen eBay-Artikelnummern aus). Die achtstelligen Track-IDs aus Buchstaben und Ziffern trägst du mit der Carrier-Wahl „GLS“ ein.
+- **Nummern**: 11 Ziffern erkennt „Automatisch“ als GLS. Die 12-stellige Nummer aus den GLS-Mails und dem Link zur Sendungsverfolgung funktioniert mit der Carrier-Wahl „GLS“ und beim Import der GLS-Mails ebenfalls: Die letzte Ziffer ist eine Prüfziffer, GLS wird mit den ersten 11 Ziffern gefragt. „Automatisch“ erkennt eine 12-stellige Nummer nicht als GLS (so sehen auch DHL-Nummern und eBay-Artikelnummern aus): Trag die ersten 11 Ziffern ein oder wähle „GLS“. Die achtstelligen Track-IDs aus Buchstaben und Ziffern trägst du mit der Carrier-Wahl „GLS“ ein.
 - **PLZ**: Ist in den Einstellungen eine PLZ hinterlegt, schickt die Integration sie mit, und GLS liefert zusätzlich den Verlauf (bis zu 20 Ereignisse). Ohne PLZ – oder wenn die PLZ nicht zur Sendung passt – gibt es nur den Status.
 - **Liefertag**: Nennt die Abfrage keinen eindeutigen Tag, bleiben Liefertag und Zeitfenster aus der GLS-Mail erhalten.
 - **Abfragen**: höchstens alle 30 Minuten, nachts (22–6 Uhr) stündlich, nach der Zustellung nie mehr.
@@ -296,7 +296,7 @@ Fehlt der Block oder ist der ursprüngliche Absender unbekannt, gilt wie bisher:
 ### GLS-Pakete
 
 - „Dein Paket wird in wenigen Tagen zugestellt“ setzt „Unterwegs“ samt Liefertag und Zeitfenster, „Dein GLS Paket kommt heute!“ setzt „In Zustellung“ für den Tag der Mail, „Dein Paket wurde … zugestellt“ setzt „Zugestellt“ – liegt das Paket im PaketShop zur Abholung bereit, „Abholbereit“. „Dein Paket wird an dem gewünschten Ort abgestellt“ legt das Paket nur an („Angekündigt“) und setzt nie einen Status zurück.
-- Die Paketnummer liest der Import nur direkt nach „Paketnummer“ bzw. „Sendungsnummer“ (11 Ziffern).
+- Die Paketnummer liest der Import nur direkt nach „Paketnummer“ bzw. „Sendungsnummer“ (11 Ziffern). In Mails, die GLS selbst geschickt hat, darf eine Prüfziffer als zwölfte Ziffer folgen; gespeichert wird die Nummer ohne sie. Nennt eine solche Mail keine Nummer, zählt die aus dem Link `gls-group.eu/track/…`.
 - Der Versender wird nur dann zum Namen, wenn es ein bekannter Shop ist oder der Name eine Rechtsform trägt (z. B. GmbH, AG, KG, e.K.) – Namen privater Absender übernimmt die Integration nie. Der Name endet an der Rechtsform: Aus „Beispiel Handels OHG (AT-B2C) Erika Musterfrau“ wird „Beispiel Handels OHG“.
 - Abstellort, Zustelladresse, Empfängername, Telefonnummer und Referenzen übernimmt die Integration nie – weder in Attribute noch ins Log.
 - Versandmails von Shops ohne Paketnummer (z. B. „Versand Ihrer Bestellung“) landen in „Nicht erkannt“.

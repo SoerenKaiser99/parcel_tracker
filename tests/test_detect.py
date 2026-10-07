@@ -87,3 +87,15 @@ def test_international_dhl_number_is_dhl_alone_among_the_real_carriers():
     # the existing rules are untouched
     assert candidates("09999999999901", real) == ["dpd", "hermes"]
     assert candidates("99999999901", real) == ["gls"]
+
+
+def test_twelve_digits_are_never_gls_on_their_own():
+    """v0.3.19 (issue 8): GLS asks 12 digits only when "GLS" is chosen by hand."""
+    from custom_components.parcel_tracker.carriers.dhl import DhlCarrier
+    from custom_components.parcel_tracker.carriers.dpd import DpdCarrier
+    from custom_components.parcel_tracker.carriers.gls import GlsCarrier
+    from custom_components.parcel_tracker.carriers.hermes import HermesCarrier
+
+    real = {"dhl": DhlCarrier, "dpd": DpdCarrier, "hermes": HermesCarrier, "gls": GlsCarrier}
+    assert candidates("999999999012", real) == ["dhl"]
+    assert candidates("99999999901", real) == ["gls"]

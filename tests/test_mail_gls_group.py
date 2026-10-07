@@ -151,3 +151,22 @@ def test_other_numbers_are_not_parcels():
     )
     updates = parse_gls_group_mail(_msg("Ihr Paket von Beispiel GmbH ist unterwegs", body))
     assert [u.number for u in updates] == ["99999999901"]
+
+
+# ----- v0.3.19 (issue 8): 11 digits plus a check digit -----
+def test_twelve_digits_are_stored_without_the_check_digit():
+    body = (
+        "IHR PAKET IST UNTERWEGS\nPAKETNUMMER\n999999999017\n"
+        "Dies betrifft ebenso das Paket/die Pakete 999999999025, 99999999903 und 999999999017.\n"
+    )
+    updates = parse_gls_group_mail(_msg("Ihr Paket von Beispiel GmbH ist unterwegs", body))
+    assert [u.number for u in updates] == NUMBERS
+    assert {u.status for u in updates} == {ParcelStatus.IN_TRANSIT}
+
+
+def test_number_of_the_tracking_link_counts_when_no_label_names_one():
+    body = "Ihr Paket ist unterwegs.\nhttps://gls-group.eu/track/999999999017\n"
+    [u] = parse_gls_group_mail(_msg("Ihr Paket von Beispiel GmbH ist unterwegs", body))
+    assert (u.number, u.status) == ("99999999901", ParcelStatus.IN_TRANSIT)
+    longer = "https://gls-group.eu/track/9999999990171\n"
+    assert parse_gls_group_mail(_msg("Ihr Paket von Beispiel GmbH ist unterwegs", longer)) == []

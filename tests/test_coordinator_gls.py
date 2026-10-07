@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from yarl import URL
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
+from custom_components.parcel_tracker.carriers.dhl import DHL_URL, DhlCarrier
 from custom_components.parcel_tracker.carriers.gls import GLS_URL, GlsCarrier
 from custom_components.parcel_tracker.carriers.track17 import TRACK17_URL, Track17Client
 from custom_components.parcel_tracker.const import CONF_POSTCODE, DOMAIN
@@ -21,7 +22,7 @@ from custom_components.parcel_tracker.coordinator import ParcelCoordinator
 from custom_components.parcel_tracker.mail.apply import apply_update
 from custom_components.parcel_tracker.mail.base import MailUpdate
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
-from custom_components.parcel_tracker.store import ParcelStore
+from custom_components.parcel_tracker.store import DuplicateParcel, ParcelStore
 
 from .conftest import DAYTIME, load_fixture
 
@@ -315,3 +316,116 @@ async def test_add_parcel_service_accepts_gls_and_names_the_carrier(hass):
     assert state.state == "in_transit"
     assert (state.attributes["carrier"], state.attributes["carrier_name"]) == ("gls", "GLS")
     assert state.attributes["friendly_name"] == "GLS ZABCD123"
+
+
+# ----- v0.3.19 (issue 8): the 12-digit number of GLS mails and links -----
+TWELVE = f"{NUMBER}7"  # the parcel number plus an invented check digit
+DHL = re.compile(rf"^{re.escape(DHL_URL)}\?")
+
+
+async def _with_dhl(hass, session, key):
+    coord = await _coordinator(hass, session)
+    coord.carriers = {"dhl": DhlCarrier(session, key), "gls": coord.carriers["gls"]}
+    return coord
+
+
+async def test_twelve_digits_are_kept_but_gls_is_asked_with_eleven(hass, session, freezer):
+    freezer.move_to(DAYTIME)
+    coord = await _coordinator(hass, session)
+    with aioresponses() as m:
+        m.get(SEARCH, payload=_search("INTRANSIT"))
+        parcel = await coord.async_add(TWELVE, "gls", None)
+        [url] = _urls(m)
+    assert f"match={NUMBER}&" in url and TWELVE not in url
+    assert (parcel.number, parcel.carrier, parcel.carrier_mode) == (TWELVE, "gls", "manual")
+    assert (parcel.status, parcel.last_error) == (ParcelStatus.IN_TRANSIT, None)
+
+
+async def test_stored_parcel_with_twelve_digits_starts_working(hass, session, freezer):
+    freezer.move_to(DAYTIME)
+    coord = await _coordinator(hass, session, {CONF_POSTCODE: "10115"})
+    now = dt_util.utcnow()
+    stored = Parcel(TWELVE, "gls", "manual", None, now, now)
+    stored.last_error = "not_found"
+    coord.store.add(stored)
+    with aioresponses() as m:
+        m.get(DETAIL, payload=_detail("INTRANSIT"))
+        await coord.async_refresh()
+        [url] = _urls(m)
+    assert f"/rstt028/{NUMBER}?" in url
+    assert (stored.number, stored.status, stored.last_error) == (
+        TWELVE, ParcelStatus.IN_TRANSIT, None,
+    )
+
+
+@pytest.mark.parametrize("key", [None, "key"])
+async def test_auto_never_asks_gls_about_twelve_digits(hass, session, freezer, key):
+    """Without a verified check digit 12 digits may be DHL's or an eBay item number."""
+    freezer.move_to(DAYTIME)
+    coord = await _with_dhl(hass, session, key)
+    with aioresponses() as m:
+        m.get(DHL, status=404, payload={"status": 404}, repeat=True)
+        m.get(SEARCH, payload=_search("INTRANSIT"), repeat=True)
+        parcel = await coord.async_add(TWELVE, "auto", None)
+        freezer.tick(timedelta(hours=2))
+        await coord.async_refresh()
+        assert not any("gls-group" in url for url in _urls(m))
+    assert parcel.carrier is None
+    assert parcel.last_error == ("not_found" if key else "missing_key")
+
+
+@pytest.mark.parametrize(("first", "second"), [(NUMBER, TWELVE), (TWELVE, NUMBER)])
+async def test_other_form_of_a_gls_number_is_a_duplicate(hass, session, freezer, first, second):
+    freezer.move_to(DAYTIME)
+    coord = await _coordinator(hass, session)
+    with aioresponses() as m:
+        m.get(SEARCH, payload=_search("INTRANSIT"))
+        await coord.async_add(first, "gls", None)
+        with pytest.raises(DuplicateParcel):
+            await coord.async_add(second, "gls", None)
+        assert len(_urls(m)) == 1
+    assert list(coord.store.parcels) == [first]
+
+
+async def test_twelve_digits_of_another_carrier_are_no_duplicate_of_a_gls_parcel(
+    hass, session, freezer
+):
+    freezer.move_to(DAYTIME)
+    coord = await _with_dhl(hass, session, None)
+    with aioresponses() as m:
+        m.get(SEARCH, payload=_search("INTRANSIT"))
+        await coord.async_add(NUMBER, "gls", None)
+        parcel = await coord.async_add(TWELVE, "dhl", None)
+        # "Automatisch" is no duplicate either: 12 digits may be another carrier's.
+        auto = await coord.async_add(f"{NUMBER}8", "auto", None)
+    assert (parcel.carrier, parcel.last_error) == ("dhl", "missing_key")
+    assert (auto.carrier, auto.last_error) == (None, "missing_key")
+    assert list(coord.store.parcels) == [NUMBER, TWELVE, f"{NUMBER}8"]
+
+
+async def test_gls_mail_updates_the_parcel_stored_with_twelve_digits(hass, session, freezer):
+    freezer.move_to(DAYTIME)
+    coord = await _coordinator(hass, session)
+    with aioresponses() as m:
+        m.get(SEARCH, payload=_search("INTRANSIT"), repeat=True)
+        parcel = await coord.async_add(TWELVE, "gls", None)
+    sent = datetime(2026, 9, 29, 9, 0, tzinfo=BERLIN)
+    mail = MailUpdate(NUMBER, "gls", ParcelStatus.OUT_FOR_DELIVERY, sent, eta_date=sent.date())
+    change = apply_update(coord.store.parcels, mail, dt_util.utcnow())
+    assert change.parcel is parcel and not change.created
+    assert list(coord.store.parcels) == [TWELVE]
+    assert parcel.status is ParcelStatus.OUT_FOR_DELIVERY
+    # Another carrier's mail with the same eleven digits is a parcel of its own.
+    other = MailUpdate(NUMBER, "hermes", ParcelStatus.IN_TRANSIT, sent)
+    assert apply_update(coord.store.parcels, other, dt_util.utcnow()).created
+
+
+async def test_gls_mail_leaves_an_unresolved_twelve_digit_parcel_alone(hass, session, freezer):
+    freezer.move_to(DAYTIME)
+    coord = await _with_dhl(hass, session, None)
+    parcel = await coord.async_add(TWELVE, "auto", None)
+    sent = datetime(2026, 9, 29, 9, 0, tzinfo=BERLIN)
+    mail = MailUpdate(NUMBER, "gls", ParcelStatus.IN_TRANSIT, sent)
+    change = apply_update(coord.store.parcels, mail, dt_util.utcnow())
+    assert change.created and change.parcel is not parcel
+    assert list(coord.store.parcels) == [TWELVE, NUMBER]

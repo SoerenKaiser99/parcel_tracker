@@ -14,7 +14,12 @@ from custom_components.parcel_tracker.carriers.base import (
     ParseError,
     RateLimited,
 )
-from custom_components.parcel_tracker.carriers.gls import GLS_URL, GlsCarrier, gls_url
+from custom_components.parcel_tracker.carriers.gls import (
+    GLS_URL,
+    GlsCarrier,
+    gls_number,
+    gls_url,
+)
 from custom_components.parcel_tracker.detect import candidates
 from custom_components.parcel_tracker.models import ParcelStatus
 
@@ -44,7 +49,7 @@ async def _fetch(postcode: str | None, number: str = NUMBER):
 
 def test_matches_only_eleven_digits():
     assert GlsCarrier.matches("99999999901") is Match.SURE
-    assert GlsCarrier.matches("999999999012") is Match.NO  # 12 digits: eBay item numbers
+    assert GlsCarrier.matches("999999999012") is Match.NO  # 12 digits: DHL, eBay item numbers
     assert GlsCarrier.matches("9999999990") is Match.NO
     assert GlsCarrier.matches("ZABCD123") is Match.NO  # track IDs only with carrier "GLS"
     assert GlsCarrier.matches("9999999990A") is Match.NO
@@ -122,6 +127,7 @@ async def test_postcode_mismatch_is_remembered_per_number():
 async def test_postcode_mismatch_then_dummy_answer_is_not_found():
     dummy = _search()
     dummy["tuStatus"][0]["owners"] = []
+    dummy["tuStatus"][0]["progressBar"]["evtNos"] = [f"{n}.0" for n in range(1578)]
     with aioresponses() as m:
         m.get(DETAIL, status=404, payload={"lastError": "E609"})
         m.get(SEARCH, payload=dummy)
@@ -132,6 +138,7 @@ async def test_postcode_mismatch_then_dummy_answer_is_not_found():
 @pytest.mark.parametrize(
     ("status", "body"),
     [
+        (200, {"lastError": "E000", "exceptionText": "Leider ergab Ihre Suche keinen Treffer"}),
         (404, {"lastError": "E206", "exceptionText": "x"}),
         (404, {"lastError": "E800", "exceptionText": "x"}),
         (500, {"lastError": "E801", "exceptionText": "x"}),
@@ -155,6 +162,40 @@ async def test_too_short_input_is_not_asked_at_all():
         with pytest.raises(NotFound):
             await _fetch("10115", "1234567")
         assert _urls(m) == []
+
+
+# ----- v0.3.19 (issue 8): 12 digits are the parcel number plus a check digit -----
+def test_gls_number_drops_the_check_digit_of_twelve_digits_only():
+    assert gls_number("999999999012") == "99999999901"
+    assert gls_number("99999999901") == "99999999901"
+    assert gls_number("9999999990123") == "9999999990123"
+    assert gls_number("ZABCD1234567") == "ZABCD1234567"  # 12 characters, but no digits
+    assert gls_number("ZABCD123") == "ZABCD123"
+
+
+@pytest.mark.parametrize("postcode", ["10115", None])
+async def test_twelve_digits_are_asked_with_the_first_eleven(postcode):
+    with aioresponses() as m:
+        m.get(DETAIL, payload=_detail())
+        m.get(SEARCH, payload=_search())
+        r = await _fetch(postcode, f"{NUMBER}2")
+        [url] = _urls(m)
+    assert r.status is (ParcelStatus.DELIVERED if postcode else ParcelStatus.OUT_FOR_DELIVERY)
+    assert (f"/rstt028/{NUMBER}?" if postcode else f"match={NUMBER}&") in f"{url}&"
+    assert f"{NUMBER}2" not in url
+
+
+async def test_refused_postcode_is_remembered_for_both_forms_of_a_number():
+    async with aiohttp.ClientSession() as session:
+        carrier = GlsCarrier(session)
+        with aioresponses() as m:
+            m.get(DETAIL, status=404, payload={"lastError": "E609"})
+            m.get(SEARCH, payload=_search(), repeat=True)
+            await carrier.fetch(f"{NUMBER}2", "10115")
+            await carrier.fetch(NUMBER, "10115")
+            await carrier.fetch(f"{NUMBER}2", "10115")
+            urls = [str(url) for (_, url), calls in m.requests.items() for _ in calls]
+    assert sum("rstt028" in url for url in urls) == 1 and len(urls) == 4
 
 
 async def test_dummy_answer_for_an_invalid_number_is_not_found():

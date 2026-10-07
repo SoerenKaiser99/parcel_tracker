@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
+from ..carriers.gls import gls_number
 from ..carriers.track17 import strip_enrichment, with_track17
 from ..const import MAX_EVENTS, OPTIONAL_API_CARRIERS, SHOP_CARRIERS
 from ..models import (
@@ -269,6 +270,18 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
     target = parcels.get(number) or next(
         (p for p in parcels.values() if p.tracking_ref == number), None
     )
+    if target is None and update.carrier == "gls":
+        # Typed in with the check digit GLS shows in mails and links: the same parcel.
+        target = next(
+            (
+                p
+                for p in parcels.values()
+                if p.carrier == "gls"
+                and p.number != number
+                and gls_number(p.number) == number
+            ),
+            None,
+        )
     if target is None and update.status is not None:
         target = _merge_candidate(parcels, update)
         if target is not None:

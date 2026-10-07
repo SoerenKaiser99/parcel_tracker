@@ -44,10 +44,12 @@ GLS_URL = f"{GLS_BASE}/{_DEFAULT_PATH}"
 _TIMEOUT = aiohttp.ClientTimeout(total=20)
 _HEADERS = {"Accept": "application/json"}
 _CALLER = "witt002"  # the caller id of the public GLS tracking page
-# lastError codes: unknown reference, not carried, input too short.
-_NOT_FOUND_CODES = frozenset({"E206", "E800", "E801"})
+# lastError codes: no hit for the search (answered with HTTP 200), unknown reference,
+# not carried, input too short.
+_NOT_FOUND_CODES = frozenset({"E000", "E206", "E800", "E801"})
 _POSTCODE_MISMATCH = "E609"
 _MIN_LENGTH = 8  # shorter input cannot be a GLS number: not asked at all
+_NUMBER_LENGTH = 11  # digits of a parcel number; GLS mails and links add a check digit
 _MAX_RETRY_AFTER = 24 * 60 * 60  # seconds: a longer (or absurd) Retry-After waits a day
 
 # progressBar.statusInfo, compared exactly: DELIVEREDPS (ParcelShop) is not DELIVERED.
@@ -64,8 +66,9 @@ _STATUS = {
     "UNAVAILABLE": ParcelStatus.UNKNOWN,
 }
 _WARNED: set[str] = set()
-# For invalid numbers GLS sometimes answers 200 with a dummy parcel: no owner code, or
-# every event code there is.
+# For invalid numbers GLS sometimes answers 200 with a dummy parcel that carries every
+# event code there is (1578 seen live on 2026-10-07; a real parcel has a handful). A
+# missing owner code says nothing: real parcels come with ``"owners": []`` too.
 _DUMMY_EVENT_CODES = 50
 _DATE = re.compile(r"(?<!\d)(\d{1,2})\.(\d{1,2})\.(\d{4})(?!\d)")
 _WINDOW = re.compile(r"(?<![\d:])(\d{1,2}):(\d{2})\s*(?:[–-]|bis)\s*(\d{1,2}):(\d{2})(?![\d:])")
@@ -77,6 +80,18 @@ def gls_url(country: str | None) -> str:
     key = country.strip().lower() if isinstance(country, str) else ""
     path = _PATHS.get(key, _DEFAULT_PATH)
     return f"{GLS_BASE}/{path}"
+
+
+def gls_number(number: str) -> str:
+    """The number GLS's lookup knows a parcel by.
+
+    GLS mails and tracking links show 12 digits: the 11-digit parcel number plus a check
+    digit. The lookup only finds the parcel by the 11 digits (12 digits and a postcode
+    answer E800), so the check digit is dropped. Everything else stays as it is.
+    """
+    if len(number) == _NUMBER_LENGTH + 1 and number.isascii() and number.isdigit():
+        return number[:_NUMBER_LENGTH]
+    return number
 
 
 def _list(value: Any) -> list[Any]:
@@ -166,12 +181,9 @@ def _eta(value: Any) -> tuple[date | None, datetime | None, datetime | None]:
 
 
 def _is_dummy(entry: dict[str, Any]) -> bool:
-    has_owner = any(
-        isinstance(owner, dict) and owner.get("code") for owner in _list(entry.get("owners"))
-    )
     progress = entry.get("progressBar")
     codes = _list(progress.get("evtNos")) if isinstance(progress, dict) else []
-    return not has_owner or len(codes) > _DUMMY_EVENT_CODES
+    return len(codes) > _DUMMY_EVENT_CODES
 
 
 def parse_gls(data: Any, now: datetime) -> TrackingResult:
@@ -236,8 +248,10 @@ class GlsCarrier(Carrier):
 
     @staticmethod
     def matches(number: str) -> Match:
-        # 12 digits are deliberately no GLS match: eBay item numbers look like that.
-        return Match.SURE if len(number) == 11 and number.isdigit() else Match.NO
+        # 12 digits (the parcel number plus its check digit) are deliberately no GLS
+        # match: DHL numbers and eBay item numbers look the same. That form is asked
+        # (see ``fetch``) once "GLS" is chosen by hand.
+        return Match.SURE if len(number) == _NUMBER_LENGTH and number.isdigit() else Match.NO
 
     async def _ask(self, url: str, params: dict[str, str]) -> Any | None:
         """JSON of one lookup; None when GLS says the postcode does not match (E609)."""
@@ -269,6 +283,9 @@ class GlsCarrier(Carrier):
     async def fetch(self, number: str, postcode: str | None) -> TrackingResult:
         if len(number) < _MIN_LENGTH:
             raise NotFound(number)
+        # Asked without the check digit, whatever form the parcel is stored under; the
+        # postcode memory below is keyed by that form too.
+        number = gls_number(number)
         now = datetime.now(UTC)
         millis = str(int(time.time() * 1000))
         code = (postcode or "").replace(" ", "")

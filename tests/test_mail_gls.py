@@ -237,7 +237,48 @@ def test_forwarded_mail_needs_the_word_gls_not_just_the_letters():
 def test_eleven_digits_only_after_a_label():
     assert parse_gls_mail(_msg("📦 Dein GLS Paket kommt heute!", f"Nummer {FIRST}")) == []
     assert parse_gls_mail(
-        _msg("📦 Dein GLS Paket kommt heute!", "Sendungsnummer\n999999999012")  # 12 digits
+        _msg("📦 Dein GLS Paket kommt heute!", "Sendungsnummer\n9999999990123")  # 13 digits
     ) == []
     [u] = parse_gls_mail(_msg("Neuigkeiten", f"Paketnummer: {FIRST}"))
     assert (u.number, u.status) == (FIRST, None)
+
+
+# ----- v0.3.19 (issue 8): GLS's own mails may carry 11 digits plus a check digit -----
+@pytest.mark.parametrize(
+    "body", ["*Sendungsnummer*\n{n}7\n", "Paketnummer: {n}7 (Referenz: REF-0001)"]
+)
+def test_twelve_digits_after_a_label_are_stored_without_the_check_digit(body):
+    [u] = parse_gls_mail(_msg("📦 Dein GLS Paket kommt heute!", body.format(n=FIRST)))
+    assert (u.number, u.carrier, u.status) == (FIRST, "gls", ParcelStatus.OUT_FOR_DELIVERY)
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "https://gls-group.eu/track/{n}7",
+        "https://www.gls-group.eu/track/{n}",
+        "Zur Sendungsverfolgung ( https://gls-group.com/track/{n}7?x=1 )",
+    ],
+)
+def test_number_of_the_tracking_link_counts_when_no_label_names_one(link):
+    [u] = parse_gls_mail(_msg("📦 Dein GLS Paket kommt heute!", f"Hallo\n{link.format(n=FIRST)}\n"))
+    assert (u.number, u.status) == (FIRST, ParcelStatus.OUT_FOR_DELIVERY)
+    # The label wins over a link.
+    both = f"Sendungsnummer\n{SECOND}\n{link.format(n=FIRST)}\n"
+    [u] = parse_gls_mail(_msg("📦 Dein GLS Paket kommt heute!", both))
+    assert u.number == SECOND
+
+
+def test_twelve_digits_and_links_only_count_in_mails_gls_sent_itself():
+    sender = "Erika Musterfrau <erika@example.org>"
+    subject = "WG: Dein GLS Paket wurde zugestellt"
+    for body in (
+        f"GLS\n*Sendungsnummer*\n{FIRST}7\n",
+        f"GLS\nhttps://gls-group.eu/track/{FIRST}7\n",
+        f"GLS\nhttps://gls-group.eu/track/{FIRST}\n",
+    ):
+        assert parse_gls_mail(_msg(subject, body, sender)) == [], body
+    assert parse_mail(_msg("Dein Artikel", f"Sendungsnummer {FIRST}7", sender)).updates == []
+    # Other links and longer numbers are never parcels.
+    for body in (f"https://example.org/track/{FIRST}7", f"https://gls-group.eu/track/{FIRST}789"):
+        assert parse_gls_mail(_msg("📦 Dein GLS Paket kommt heute!", body)) == [], body

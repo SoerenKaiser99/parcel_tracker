@@ -180,9 +180,25 @@ def test_missing_arrival_time_gives_no_eta():
 
 
 @pytest.mark.parametrize("owners", [[], [{"code": "", "type": "DELIVERY"}], None])
-def test_dummy_answer_without_owner_code_is_not_found(owners):
+def test_real_parcel_without_owner_code_parses(owners):
+    """v0.3.19 (issue 8): a real parcel may come with ``"owners": []`` and a few event codes."""
     data = _search()
     data["tuStatus"][0]["owners"] = owners
+    data["tuStatus"][0]["progressBar"]["evtNos"] = ["11.0", "2.0", "0.0"]
+    assert parse_gls(data, NOW).status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+def test_entry_with_owner_code_still_parses():
+    data = _search()
+    assert data["tuStatus"][0]["owners"] == [{"code": "DE03", "type": "DELIVERY"}]
+    assert parse_gls(data, NOW).status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+def test_dummy_answer_with_every_event_code_is_not_found():
+    """Seen live with an invented number: no owner and 1578 event codes."""
+    data = _search()
+    data["tuStatus"][0]["owners"] = []
+    data["tuStatus"][0]["progressBar"]["evtNos"] = [f"{n}.0" for n in range(1578)]
     with pytest.raises(NotFound):
         parse_gls(data, NOW)
 

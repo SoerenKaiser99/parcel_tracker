@@ -31,6 +31,7 @@ from .carriers.base import (
     ParseError,
     RateLimited,
 )
+from .carriers.gls import gls_number
 from .carriers.track17 import (
     NotRegistered,
     Quota,
@@ -1145,6 +1146,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             last_change_at=now,
         )
         async with self._lock:
+            if self._gls_twin(parcel) is not None:
+                raise DuplicateParcel(norm)
             self.store.add(parcel)  # raises DuplicateParcel
             if parcel.carrier is None and not keys and not self._dhl_fallback(parcel):
                 parcel.last_error = "carrier_not_found"
@@ -1159,6 +1162,28 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
         return parcel
+
+    def _gls_twin(self, parcel: Parcel) -> Parcel | None:
+        """The GLS parcel already tracked under the other form of this number.
+
+        GLS shows a parcel number with 11 digits or, with its check digit, with 12 (see
+        ``gls_number``). Only looked for when "GLS" was chosen for the new parcel: with
+        "Automatisch" 12 digits may be another carrier's number.
+        """
+        if parcel.carrier != "gls":
+            return None
+        short = gls_number(parcel.number)
+        return next(
+            (
+                p
+                for p in self.store.parcels.values()
+                if p.carrier == "gls"
+                and p.tracking_ref is None
+                and p.number != parcel.number
+                and short in (p.number, gls_number(p.number))
+            ),
+            None,
+        )
 
     async def async_remove(self, number: str) -> None:
         async with self._lock:  # not while a refresh or a registration works on the parcels
