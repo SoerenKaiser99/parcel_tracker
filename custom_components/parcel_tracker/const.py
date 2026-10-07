@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.19"
+VERSION = "0.3.20"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -90,6 +90,13 @@ GLS_MAX_EVENTS = 20  # GLS history entries kept per parcel
 # carrier number (tracking_ref) tell their status, the order itself is never polled.
 SHOP_CARRIERS = frozenset({"amazon", "ebay"})
 MAIL_CARRIERS = SHOP_CARRIERS
+# A shop order without a carrier number is known only from mails, and a marketplace
+# seller's parcel often gets no "delivered" mail. Such an order is closed on its own
+# ("Abgeschlossen ohne Zustellbestätigung") once its last delivery day lies more than
+# ORDER_OVERDUE_DAYS full days back; without any delivery day ORDER_NO_ETA_DAYS days
+# after its last change. A mail that changes the order starts the wait anew.
+ORDER_OVERDUE_DAYS = 3
+ORDER_NO_ETA_DAYS = 14
 # Polled only while their optional API is configured; otherwise mail-only.
 OPTIONAL_API_CARRIERS = frozenset({"ups"})
 # Carriers a user can pick for a manually added parcel.

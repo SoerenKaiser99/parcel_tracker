@@ -162,6 +162,13 @@ class Parcel:
     # parcel had before the first such change. Persisted, so it survives a reload and a
     # restart; None once announced or when the parcel is back at that status.
     unannounced_from: ParcelStatus | None = None
+    # A shop order closed on its own because no delivery mail came (see
+    # ORDER_OVERDUE_DAYS): shown as delivered, but nobody confirmed it. Persisted.
+    assumed_delivered: bool = False
+    # Looked at once when it was delivered: does it close an open shop order (see
+    # mail.apply.fold_delivered)? Persisted, so that question is asked exactly once, as
+    # things stood then, and never again after a restart or when other orders change.
+    order_checked: bool = False
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -215,6 +222,8 @@ class Parcel:
             "track17_next_at": _iso(self.track17_next_at),
             "track17_result": self.track17_result.to_dict() if self.track17_result else None,
             "unannounced_from": self.unannounced_from.value if self.unannounced_from else None,
+            "assumed_delivered": self.assumed_delivered,
+            "order_checked": self.order_checked,
         }
 
     @classmethod
@@ -245,6 +254,8 @@ class Parcel:
                 else None
             ),
             unannounced_from=_status(data.get("unannounced_from")),
+            assumed_delivered=data.get("assumed_delivered") is True,
+            order_checked=data.get("order_checked") is True,
         )
 
 

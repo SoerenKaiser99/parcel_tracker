@@ -1098,3 +1098,59 @@ def test_readme_explains_the_twelve_digit_gls_number():
     assert "bitte" not in numbers.lower() and "erfolgreich" not in numbers.lower()
     mails = README.split("\n### GLS-Pakete\n")[1].split("\n### ")[0]
     assert "Prüfziffer als zwölfte Ziffer" in mails and "`gls-group.eu/track/…`" in mails
+
+
+# ----- v0.3.20: orders that get no "delivered" mail -----
+def test_readme_explains_the_later_merge_of_a_delivered_carrier_parcel():
+    merge = README.split("\n### Zusammenführen\n")[1].split("\n### ")[0]
+    assert "führt die Integration nicht nachträglich zusammen" not in merge
+    assert "von Hand entfernen" not in merge
+    for text in (
+        "Wird ein Carrier-Paket zugestellt",
+        "nach denselben Regeln",
+        "genau ein",
+        "von Hand eingetragen",
+        "nur einmal",
+    ):
+        assert text in merge, text
+
+
+def test_readme_explains_orders_closed_without_a_delivery_mail():
+    amazon = README.split("\n### Amazon-Pakete\n")[1].split("\n### ")[0]
+    for text in (
+        "Abgeschlossen ohne Zustellbestätigung",
+        "mehr als 3 volle Tage",
+        "14 Tage",
+        "`assumed_delivered`",
+        "keine Benachrichtigung",
+        "`sensor.pakete_zugestellt_heute`",
+        "Sendungsnummer",
+    ):
+        assert text in amazon, text
+    ebay = README.split("\n### eBay-Pakete\n")[1].split("\n### ")[0]
+    assert "Abgeschlossen ohne Zustellbestätigung" in ebay
+    what = _section("Was es kann")
+    assert "`assumed_delivered`" in what
+    card = _section("Karte hinzufügen")
+    assert "Abgeschlossen (ohne Zustellbestätigung)" in card
+
+
+def test_readme_documents_the_assumed_field_of_the_event():
+    section = _section("Beispiel-Automation")
+    assert "`assumed`" in section
+    notify = _section("Benachrichtigungen")
+    assert "`assumed`" in notify
+    assert "Abgeschlossen ohne Zustellbestätigung" in notify
+
+
+def test_readme_english_summary_mentions_both_behaviours():
+    english = _section("English summary")
+    for text in ("`assumed_delivered`", "`assumed`", "folded into", "more than 3 full days",
+                 "14 days"):
+        assert text in english, text
+
+
+def test_readme_roadmap_has_no_line_about_merging_existing_doubles():
+    roadmap = _section("Roadmap & Status")
+    assert "Doppel" not in roadmap
+    assert "Bestellungen ohne Zustellmail" in roadmap

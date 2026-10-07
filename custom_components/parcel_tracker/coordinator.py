@@ -85,7 +85,7 @@ from .const import (
 )
 from .detect import candidates, normalize
 from .mail import OTHER_DOMAIN, forwarded_original, known_sender_domain, parse_mail
-from .mail.apply import Change, apply_update
+from .mail.apply import Change, apply_update, close_unconfirmed, fold_delivered
 from .mail.base import MailResult, is_forwarded, sender, sent_at
 from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
 from .models import (
@@ -97,7 +97,7 @@ from .models import (
     carrier_name,
 )
 from .notification import build_notification, notification_tag, service_name
-from .schedule import GLS_MIN_INTERVAL, backoff, poll_interval, should_remove
+from .schedule import GLS_MIN_INTERVAL, backoff, order_overdue, poll_interval, should_remove
 from .store import DuplicateParcel, ParcelStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -253,6 +253,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # Not during the first refresh: setup must not wait for 17track.
             if self._first_refresh_done and await self._poll_track17(now):
                 changed = True
+            if self._settle_orders(now):
+                changed = True
             if changed:
                 await self.store.async_save()
         # Not during the first refresh: setup must not wait for the mailbox or 17track.
@@ -352,6 +354,45 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 parcel.delivery_code = parcel.delivery_code_day = None
         return bool(removed)
 
+    def _settle_orders(self, now: datetime) -> bool:
+        """Close shop orders that get no "delivered" mail; True if something changed.
+
+        First a delivered carrier parcel that a mail created on its own is folded into
+        the one open order it belongs to (see ``fold_delivered``): the order is delivered
+        and carries the number, the parcel of its own is gone, and its sensor with it
+        (the sensor platform drops what is no longer stored). Nothing is announced here:
+        the delivery was announced with the carrier parcel, or still waits and is
+        announced with the order.
+
+        Then every order nobody can ask about whose delivery day is long over is closed
+        (see ``order_overdue``). That fires the status event, marked ``assumed``, but
+        sends no notification: nothing arrived just now.
+
+        Runs with every refresh and after every mail import, so it also settles what
+        was stored before this version. A delivered parcel is looked at once
+        (``Parcel.order_checked``, stored): later changes of other orders never make it
+        fit after all. A closed order is delivered and matches neither rule again.
+        """
+        changed = False
+        for parcel in list(self.store.parcels.values()):
+            if parcel.status is not ParcelStatus.DELIVERED or parcel.order_checked:
+                continue
+            parcel.order_checked = True
+            changed = True
+            delivered = parcel.result.delivered_at or parcel.last_change_at
+            if fold_delivered(self.store.parcels, parcel, dt_util.as_local(delivered)):
+                self._announced.pop(parcel.number, None)
+        today = dt_util.as_local(now).date()
+        for parcel in self.store.parcels.values():
+            if not order_overdue(parcel, today, dt_util.get_default_time_zone()):
+                continue
+            old = parcel.status
+            close_unconfirmed(parcel, now)
+            if old is not None:
+                self._fire(parcel, old)
+            changed = True
+        return changed
+
     # ----- mail import -----
     async def async_import_mail(self) -> None:
         """Fetch unseen mails, apply them to the parcels and file them away.
@@ -402,6 +443,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 (uid, self._handle_mail(item, now))
                 for (uid, _), item in zip(mails, parsed, strict=True)
             ]
+            self._settle_orders(now)
             await self.store.async_save()
         try:
             await self.hass.async_add_executor_job(
@@ -774,6 +816,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "eta_from": r.eta_from.isoformat() if r.eta_from else None,
                 "eta_to": r.eta_to.isoformat() if r.eta_to else None,
                 "location": r.location,
+                # True for a shop order closed without a delivery mail ("delivered" is
+                # only assumed); such a change is never pushed.
+                "assumed": parcel.assumed_delivered,
             },
         )
         self._notify(parcel, old)
@@ -784,7 +829,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
         Called exactly where the status event fires. The text is built right away
         (from the parcel as it is now); sending runs in a task of its own, so it can
-        neither delay nor break the refresh or the caller.
+        neither delay nor break the refresh or the caller. An order closed without a
+        delivery mail is never pushed (``build_notification`` gives no text for it).
         """
         try:
             targets = self._notify_targets

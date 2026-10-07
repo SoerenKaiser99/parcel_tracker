@@ -127,6 +127,10 @@ variables:
 conditions:
   - condition: template
     value_template: "{{ new_status in statuses }}"
+  # A shop order closed without a delivery mail ("Abgeschlossen ohne
+  # Zustellbestätigung"): nothing arrived just now, so nothing is announced.
+  - condition: template
+    value_template: "{{ not trigger.event.data.get('assumed', false) }}"
   - condition: and
     conditions: !input extra_conditions
 

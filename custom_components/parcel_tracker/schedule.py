@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, tzinfo
 
 from .carriers.base import BERLIN
-from .const import STALE_REMOVE_DAYS
+from .const import ORDER_NO_ETA_DAYS, ORDER_OVERDUE_DAYS, SHOP_CARRIERS, STALE_REMOVE_DAYS
 from .models import Parcel, ParcelStatus
 
 _INTERVALS = {
@@ -58,6 +58,33 @@ def should_remove(parcel: Parcel, now: datetime, keep_delivered_days: int) -> bo
     return now - parcel.last_change_at > timedelta(days=STALE_REMOVE_DAYS)
 
 
+# Nothing more is expected for an order in one of these statuses.
+_ORDER_FINAL = frozenset(
+    {ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP, ParcelStatus.EXCEPTION}
+)
+
+
+def order_overdue(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
+    """Tell whether a shop order waits in vain for its "delivered" mail.
+
+    Only an order nobody can ask about (Amazon, eBay, no carrier number) that is not
+    delivered, ready for pickup or in trouble. Its last delivery day must lie more than
+    ORDER_OVERDUE_DAYS full days before ``today`` (a day in ``tz``); a mail that changed
+    the order after that day counts from the day it came. Without any delivery day:
+    ORDER_NO_ETA_DAYS days after the last change.
+    """
+    if parcel.carrier not in SHOP_CARRIERS or parcel.tracking_ref is not None:
+        return False
+    result = parcel.result
+    if result is not None and result.status in _ORDER_FINAL:
+        return False
+    changed = parcel.last_change_at.astimezone(tz).date()
+    last = (result.eta_latest or result.eta_date) if result else None
+    if last is None:
+        return (today - changed).days >= ORDER_NO_ETA_DAYS
+    return (today - max(last, changed)).days > ORDER_OVERDUE_DAYS
+
+
 def days_until(eta: date | None, today: date) -> int | None:
     """Days from today to the ETA (0 = today)."""
     return (eta - today).days if eta else None
@@ -99,10 +126,13 @@ def delivered_today(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
     """Tell whether a parcel was delivered today (``today`` is a day in ``tz``).
 
     The time of delivery decides; a carrier or mail that names none leaves the day the
-    status changed. Such a parcel is in no group of ``today_group`` any more.
+    status changed. Such a parcel is in no group of ``today_group`` any more. An order
+    closed without a delivery mail never counts: nobody knows when it came.
     """
     result = parcel.result
     if result is None or result.status is not ParcelStatus.DELIVERED:
+        return False
+    if parcel.assumed_delivered:
         return False
     delivered = result.delivered_at or parcel.last_change_at
     return delivered.astimezone(tz).date() == today

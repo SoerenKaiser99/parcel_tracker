@@ -156,6 +156,8 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
         "tracking_ref": mask_number(parcel.tracking_ref),
         "shipping_carrier_hint": _code(parcel.shipping_carrier_hint),
         "status": result.status.value if result else None,
+        "assumed_delivered": parcel.assumed_delivered,
+        "order_checked": parcel.order_checked,
         "last_error": _code(parcel.last_error),
         "error_streak": parcel.error_streak,
         "first_error_at": _iso(parcel.first_error_at),

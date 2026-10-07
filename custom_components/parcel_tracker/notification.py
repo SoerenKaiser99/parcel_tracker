@@ -110,6 +110,8 @@ def build_notification(
     result = parcel.result
     if result is None or result.status is old_status:
         return None
+    if parcel.assumed_delivered:
+        return None  # closed without a delivery mail: nothing arrived just now
     label = _label(parcel)
     match result.status:
         case ParcelStatus.OUT_FOR_DELIVERY:

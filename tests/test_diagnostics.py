@@ -400,6 +400,8 @@ async def test_diagnostics_parcels(hass, hass_storage, freezer):
         "tracking_ref": None,
         "shipping_carrier_hint": None,
         "status": "out_for_delivery",
+        "assumed_delivered": False,
+        "order_checked": False,
         "last_error": None,
         "error_streak": 0,
         "first_error_at": None,

@@ -230,3 +230,17 @@ async def test_default_text_names_the_parcel_without_its_number(hass, changes, m
     await _fire(hass, **changes)
     assert calls[0].data["message"] == message
     assert NUMBER not in calls[0].data["message"]
+
+
+async def test_an_assumed_delivery_is_not_announced(hass):
+    """v0.3.20: an order closed without a delivery mail fires the event with
+    ``assumed: true``; nothing arrived just now, so the blueprint stays quiet."""
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass)
+    await _fire(hass, new_status="delivered", assumed=True)
+    assert calls == []
+    await _fire(hass, new_status="delivered", assumed=False)
+    assert len(calls) == 1
+    # An event of an older version of the integration carries no such field.
+    await _fire(hass, new_status="delivered")
+    assert len(calls) == 2

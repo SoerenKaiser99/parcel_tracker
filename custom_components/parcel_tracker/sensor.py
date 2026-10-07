@@ -153,6 +153,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "last_error": p.last_error,
             "progress": PROGRESS_STEP[r.status] if r else 0,
             "delivered_at": _iso(r.delivered_at) if r else None,
+            # A shop order closed without a delivery mail: "delivered" is only assumed.
+            "assumed_delivered": p.assumed_delivered,
             "events": [e.to_dict() for e in r.events] if r else [],
             "tracking_ref": p.tracking_ref,
             "tracking_carrier": p.tracking_carrier,
