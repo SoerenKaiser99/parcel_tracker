@@ -1,5 +1,7 @@
 from datetime import UTC, date, datetime
 
+import pytest
+
 from custom_components.parcel_tracker.models import (
     Parcel,
     ParcelStatus,
@@ -153,3 +155,24 @@ def test_unreadable_unannounced_from_does_not_cost_the_parcel():
         p = Parcel.from_dict(stored)
         assert p.unannounced_from is None
         assert p.status is ParcelStatus.IN_TRANSIT
+
+
+# ----- v0.3.21: the one-time GLS question is remembered with the parcel -----
+def test_gls_probes_round_trip_and_default():
+    now = datetime(2026, 9, 29, 10, 0, tzinfo=UTC)
+    parcel = Parcel("999999999017", None, "auto", None, now, now)
+    assert parcel.gls_probes == 0
+    parcel.gls_probes = 2
+    data = parcel.to_dict()
+    assert data["gls_probes"] == 2
+    assert Parcel.from_dict(data).gls_probes == 2
+    del data["gls_probes"]  # stored by an older version
+    assert Parcel.from_dict(data).gls_probes == 0
+
+
+@pytest.mark.parametrize("stored", [None, "2", True, -1, 1.5, [1]])
+def test_unreadable_gls_probes_count_as_not_asked(stored):
+    now = datetime(2026, 9, 29, 10, 0, tzinfo=UTC)
+    data = Parcel("999999999017", None, "auto", None, now, now).to_dict()
+    data["gls_probes"] = stored
+    assert Parcel.from_dict(data).gls_probes == 0

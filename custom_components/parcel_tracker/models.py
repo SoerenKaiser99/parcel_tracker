@@ -61,6 +61,11 @@ def _status(value: Any) -> ParcelStatus | None:
         return None
 
 
+def _count(value: Any) -> int:
+    """A stored counter; anything unreadable (or missing) counts as zero."""
+    return value if type(value) is int and value > 0 else 0
+
+
 @dataclass(frozen=True)
 class TrackingEvent:
     """One scan event."""
@@ -169,6 +174,10 @@ class Parcel:
     # mail.apply.fold_delivered)? Persisted, so that question is asked exactly once, as
     # things stood then, and never again after a restart or when other orders change.
     order_checked: bool = False
+    # How often GLS was asked the one-time question of "Automatisch" about 12 digits (see
+    # GLS_PROBE_TRIES); an answer sets it to that limit at once. Persisted, so GLS is
+    # never asked again for this parcel, also not after a restart.
+    gls_probes: int = 0
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -224,6 +233,7 @@ class Parcel:
             "unannounced_from": self.unannounced_from.value if self.unannounced_from else None,
             "assumed_delivered": self.assumed_delivered,
             "order_checked": self.order_checked,
+            "gls_probes": self.gls_probes,
         }
 
     @classmethod
@@ -256,6 +266,7 @@ class Parcel:
             unannounced_from=_status(data.get("unannounced_from")),
             assumed_delivered=data.get("assumed_delivered") is True,
             order_checked=data.get("order_checked") is True,
+            gls_probes=_count(data.get("gls_probes")),
         )
 
 

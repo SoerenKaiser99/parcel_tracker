@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.20"
+VERSION = "0.3.21"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -111,6 +111,10 @@ KEEP_ETA_UNTIL_DAY_CARRIERS = frozenset({"dhl"})
 # its own formats, e.g. Express). At most this often while DHL cannot be reached; an
 # answer "not found" ends it at once.
 DHL_FALLBACK_TRIES = 3
+# "Automatisch" with 12 digits that no carrier knows (or without a DHL key): GLS is asked
+# once with all 12 digits, as GLS only finds a parcel for the right check digit. At most
+# this often while GLS cannot be reached; an answer (hit or "not found") ends it at once.
+GLS_PROBE_TRIES = 3
 # A carrier without own connection: status only via 17track (needs a 17track key).
 CARRIER_OTHER = "other"
 CARRIER_NAMES = {

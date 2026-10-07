@@ -61,7 +61,7 @@ def test_readme_roadmap_and_status():
         "17track: umgesetzt; Abfrage von einem Tester bestätigt (das Kontingent wird einmal "
         "belastet, die Karte füllt sich)",
         "Von Hand weitergeleitete Mails: umgesetzt; von einem Tester bestätigt",
-        "GLS-Live-Abfrage: umgesetzt, Live-Test ausstehend",
+        "GLS-Live-Abfrage: umgesetzt; von einem Tester mit einem echten Paket bestätigt",
         "GLS-Mails: umgesetzt",
         "Amazon per Konto-Anmeldung: verworfen zugunsten des Mail-Imports",
     ):
@@ -105,7 +105,11 @@ def test_readme_explains_gls():
     ):
         assert text in README, text
     assert '"no-reply@gls-pakete.de"\n] {' in README
-    assert "the GLS live lookup is implemented (live test pending)" in README
+    assert (
+        "the GLS live lookup is implemented and confirmed by a tester with a real parcel"
+        in README
+    )
+    assert "live test pending" not in README and "Live-Test ausstehend" not in README
 
 
 def test_readme_privacy_names_dhl_and_gls_for_the_postcode():
@@ -1090,8 +1094,6 @@ def test_readme_explains_the_twelve_digit_gls_number():
         "Die letzte Ziffer ist eine Prüfziffer",
         "funktioniert mit der Carrier-Wahl „GLS“ und beim Import der GLS-Mails",
         "mit den ersten 11 Ziffern",
-        "„Automatisch“ erkennt eine 12-stellige Nummer nicht als GLS",
-        "Trag die ersten 11 Ziffern ein oder wähle „GLS“",
     ):
         assert text in numbers, text
     assert "gelten nie automatisch als GLS" not in README
@@ -1154,3 +1156,50 @@ def test_readme_roadmap_has_no_line_about_merging_existing_doubles():
     roadmap = _section("Roadmap & Status")
     assert "Doppel" not in roadmap
     assert "Bestellungen ohne Zustellmail" in roadmap
+
+
+# ----- v0.3.21: "Automatisch" asks GLS once with all 12 digits (issue 8) -----
+def test_readme_explains_the_one_time_gls_question_of_automatisch():
+    gls = README.split("\n## GLS\n")[1].split("\n## ")[0]
+    numbers = next(line for line in gls.splitlines() if line.startswith("- **Nummern**"))
+    for text in (
+        "Mit „Automatisch“ fragt die Integration eine 12-stellige Nummer einmal mit allen "
+        "12 Ziffern bei GLS an",
+        "nur mit der richtigen Prüfziffer",
+        "Bei einem Treffer wird sie ein GLS-Paket",
+        "Mit DHL-Key wird zuerst DHL gefragt",
+        "wird GLS für dieses Paket nicht noch einmal gefragt",
+        "höchstens drei Versuche",
+        "eBay-Artikelnummern",
+    ):
+        assert text in numbers, text
+    # What v0.3.19 said no longer holds.
+    assert "erkennt eine 12-stellige Nummer nicht als GLS" not in README
+    assert "Trag die ersten 11 Ziffern ein oder wähle „GLS“" not in README
+    assert "bitte" not in numbers.lower() and "erfolgreich" not in numbers.lower()
+
+
+def test_readme_privacy_says_twelve_digits_may_go_to_gls_once():
+    privacy = next(
+        line for line in README.splitlines()
+        if line.startswith("Sendungsnummern gehen nur an den jeweiligen Carrier")
+    )
+    for text in (
+        "(DHL, DPD, GLS, Hermes bzw.",
+        "Eine Ausnahme: Eine 12-stellige Nummer, die du mit „Automatisch“ einträgst",
+        "einmal an GLS",
+        "mit DHL-Key zuerst an DHL",
+        "ohne PLZ",
+        "Nummern aus Mails und Shop-Bestellungen gehen auf diesem Weg nie an GLS",
+    ):
+        assert text in privacy, text
+    assert "bitte" not in privacy.lower() and "erfolgreich" not in privacy.lower()
+    english = README.split("## English summary")[1]
+    for text in (
+        "Tracking numbers are sent only to the matching carrier",
+        'a 12-digit number entered with "Automatisch"',
+        "sent once to GLS",
+        "only for the correct check digit",
+        "never sent to GLS this way",
+    ):
+        assert text in english, text

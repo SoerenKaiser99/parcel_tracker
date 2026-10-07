@@ -31,7 +31,7 @@ from .carriers.base import (
     ParseError,
     RateLimited,
 )
-from .carriers.gls import gls_number
+from .carriers.gls import gls_number, has_check_digit
 from .carriers.track17 import (
     NotRegistered,
     Quota,
@@ -67,6 +67,7 @@ from .const import (
     EVENT_STATUS_CHANGED,
     FOLDER_PROCESSED,
     FOLDER_UNRECOGNIZED,
+    GLS_PROBE_TRIES,
     KEEP_ETA_UNTIL_DAY_CARRIERS,
     MAIL_ETA_CARRIERS,
     MAIL_INTERVAL,
@@ -106,6 +107,9 @@ _LOGGER = logging.getLogger(__name__)
 UNRECOGNIZED_KEEP = 10
 # Seconds one notify target may take; after that it counts as failed.
 NOTIFY_TIMEOUT = 30
+# What an "Automatisch" parcel shows when no carrier asked knows its number (or DHL has
+# no key): only then GLS gets its one-time question about 12 digits (see _gls_probe).
+_NO_CARRIER_ERRORS = frozenset({"missing_key", "not_found", "carrier_not_found"})
 
 
 @dataclass
@@ -557,18 +561,28 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self._dhl_day, self._dhl_calls = today, 0
         self._dhl_calls += 1
 
-    async def _poll_safely(self, parcel: Parcel, now: datetime) -> None:
-        """Poll one parcel, never letting an unexpected error take down the refresh."""
+    async def _poll_safely(self, parcel: Parcel, now: datetime) -> bool:
+        """Poll one parcel, never letting an unexpected error take down the refresh.
+
+        True only when the one-time GLS question (see ``_gls_probe``) found that the
+        parcel is tracked already under the 11-digit form of its number.
+        """
         tried: list[str] = []
+        twin = False
         try:
             await self._poll(parcel, now, tried)
         except Exception:  # noqa: BLE001 - isolate one bad parcel from the rest
             _LOGGER.exception("Unexpected error polling %s", parcel.number)
             self._fail(parcel, now, parcel.carrier or "unknown", "unavailable", backoff_only=True)
+        else:
+            # Only after the regular candidates (DHL) said they do not know the number.
+            if parcel.last_error in _NO_CARRIER_ERRORS and self._gls_probe_due(parcel):
+                twin = await self._gls_probe(parcel, now, tried)
         if "ups" in tried:
             self._ups_floor(parcel, now)
         if "gls" in tried:
             self._gls_floor(parcel, now)
+        return twin
 
     @staticmethod
     def _gls_floor(parcel: Parcel, now: datetime) -> None:
@@ -677,6 +691,64 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             and parcel.error_streak < DHL_FALLBACK_TRIES
             and getattr(self.carriers.get("dhl"), "configured", False)
         )
+
+    def _gls_probe_due(self, parcel: Parcel) -> bool:
+        """Ask GLS the one-time question about a 12-digit number typed in with "Automatisch"?
+
+        12 digits are a GLS parcel number with its check digit, a DHL number or an eBay
+        item number, so no rule makes GLS a candidate for them. Only a parcel added by
+        hand or service with "Automatisch" that has no carrier yet is asked about, never
+        one a mail created and never a shop order. An answer ends the asking for good
+        (``Parcel.gls_probes``, stored); while GLS cannot be reached it is tried
+        GLS_PROBE_TRIES times in all. Parcels stored unresolved by an older version carry
+        no count and get the same single question.
+        """
+        return (
+            parcel.carrier is None
+            and parcel.tracking_ref is None
+            and parcel.carrier_mode == "auto"
+            and parcel.gls_probes < GLS_PROBE_TRIES
+            and has_check_digit(parcel.number)
+            and callable(getattr(self.carriers.get("gls"), "probe", None))
+        )
+
+    async def _gls_probe(self, parcel: Parcel, now: datetime, tried: list[str]) -> bool:
+        """Ask GLS with all 12 digits; a hit makes the parcel an ordinary GLS parcel.
+
+        Called after the regular poll left the parcel without a carrier. "Not found"
+        leaves it exactly as that poll left it. So does a GLS that cannot be reached or
+        limits the rate: no carrier failure, no repair issue, and the next try comes with
+        the parcel's next regular poll (never sooner than GLS_MIN_INTERVAL, see
+        ``_gls_floor``, and not before a Retry-After is over).
+
+        Returns True when GLS knows the parcel but its 11-digit form is tracked already:
+        the parcel then stays as it is and no second GLS entry appears (``async_add``
+        refuses the new parcel as a duplicate).
+        """
+        tried.append("gls")
+        parcel.gls_probes += 1
+        try:
+            result = await self.carriers["gls"].probe(parcel.number)
+        except NotFound:
+            parcel.gls_probes = GLS_PROBE_TRIES
+            return False
+        except RateLimited as err:
+            _LOGGER.debug("GLS did not answer the question about %s: %s", parcel.number, err)
+            wait = now + timedelta(seconds=err.retry_after or 0)
+            if parcel.next_poll_at is not None and parcel.next_poll_at < wait:
+                parcel.next_poll_at = wait
+            return False
+        except CarrierError as err:
+            _LOGGER.debug("GLS did not answer the question about %s: %s", parcel.number, err)
+            return False
+        except Exception:  # noqa: BLE001 - a bug here must not touch the parcel's own state
+            _LOGGER.exception("Unexpected error asking GLS about %s", parcel.number)
+            return False
+        parcel.gls_probes = GLS_PROBE_TRIES
+        if self._gls_other_form(parcel.number) is not None:
+            return True
+        self._success(parcel, now, "gls", result)
+        return False
 
     def _fail(
         self, parcel: Parcel, now: datetime, key: str, code: str, backoff_only: bool = False
@@ -1195,7 +1267,12 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if self._gls_twin(parcel) is not None:
                 raise DuplicateParcel(norm)
             self.store.add(parcel)  # raises DuplicateParcel
-            if parcel.carrier is None and not keys and not self._dhl_fallback(parcel):
+            if (
+                parcel.carrier is None
+                and not keys
+                and not self._dhl_fallback(parcel)
+                and not self._gls_probe_due(parcel)
+            ):
                 parcel.last_error = "carrier_not_found"
                 parcel.last_poll_at = now
                 parcel.next_poll_at = now + timedelta(hours=1)
@@ -1203,8 +1280,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # UPS without API credentials is never asked: say so the way DHL does
                 # without a key. The first poll with credentials replaces the marker.
                 parcel.last_error = "missing_key"
-            else:
-                await self._poll_safely(parcel, now)
+            elif await self._poll_safely(parcel, now):
+                # GLS knows these 12 digits, and the parcel is tracked with its 11.
+                self.store.remove(norm)
+                raise DuplicateParcel(norm)
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
         return parcel
@@ -1218,14 +1297,18 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         """
         if parcel.carrier != "gls":
             return None
-        short = gls_number(parcel.number)
+        return self._gls_other_form(parcel.number)
+
+    def _gls_other_form(self, number: str) -> Parcel | None:
+        """The GLS parcel stored under the other form (11 or 12 digits) of a GLS number."""
+        short = gls_number(number)
         return next(
             (
                 p
                 for p in self.store.parcels.values()
                 if p.carrier == "gls"
                 and p.tracking_ref is None
-                and p.number != parcel.number
+                and p.number != number
                 and short in (p.number, gls_number(p.number))
             ),
             None,

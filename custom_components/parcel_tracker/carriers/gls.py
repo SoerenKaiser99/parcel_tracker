@@ -89,9 +89,13 @@ def gls_number(number: str) -> str:
     digit. The lookup only finds the parcel by the 11 digits (12 digits and a postcode
     answer E800), so the check digit is dropped. Everything else stays as it is.
     """
-    if len(number) == _NUMBER_LENGTH + 1 and number.isascii() and number.isdigit():
-        return number[:_NUMBER_LENGTH]
-    return number
+    return number[:_NUMBER_LENGTH] if has_check_digit(number) else number
+
+
+def has_check_digit(number: str) -> bool:
+    """12 ASCII digits: the form of a GLS parcel number with its check digit (and of
+    DHL numbers and eBay item numbers)."""
+    return len(number) == _NUMBER_LENGTH + 1 and number.isascii() and number.isdigit()
 
 
 def _list(value: Any) -> list[Any]:
@@ -250,7 +254,8 @@ class GlsCarrier(Carrier):
     def matches(number: str) -> Match:
         # 12 digits (the parcel number plus its check digit) are deliberately no GLS
         # match: DHL numbers and eBay item numbers look the same. That form is asked
-        # (see ``fetch``) once "GLS" is chosen by hand.
+        # (see ``fetch``) once "GLS" is chosen by hand; "Automatisch" asks about it one
+        # time only (see ``probe``), never as a candidate that is polled.
         return Match.SURE if len(number) == _NUMBER_LENGTH and number.isdigit() else Match.NO
 
     async def _ask(self, url: str, params: dict[str, str]) -> Any | None:
@@ -300,6 +305,23 @@ class GlsCarrier(Carrier):
             # Postcode of another address (E609): the lookup by number still tells the
             # status. Remembered, so later polls cost one request instead of two.
             self._postcode_refused[number] = code
+        return await self._search(number, millis, now)
+
+    async def probe(self, number: str) -> TrackingResult:
+        """Ask whether 12 digits are a GLS parcel number with its check digit.
+
+        The lookup by number alone checks the check digit itself: with all 12 digits it
+        answers the parcel only for the right twelfth digit and "no hit" (E000) for the
+        nine others (seen live with a real parcel, issue 8). So, unlike ``fetch``, the
+        number is sent whole and no postcode with it. Anything but 12 digits is not
+        asked at all.
+        """
+        if not has_check_digit(number):
+            raise NotFound(number)
+        return await self._search(number, str(int(time.time() * 1000)), datetime.now(UTC))
+
+    async def _search(self, number: str, millis: str, now: datetime) -> TrackingResult:
+        """The lookup by number alone (``rstt029``)."""
         data = await self._ask(
             f"{self.url}/rstt029",
             {"match": number, "type": "", "caller": _CALLER, "millis": millis},

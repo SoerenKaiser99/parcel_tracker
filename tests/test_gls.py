@@ -321,3 +321,66 @@ async def test_build_carriers_passes_the_country_to_gls_only():
     assert default["gls"].url == GLS_URL
     assert austria["gls"].url.endswith("/AT/de")
     assert list(austria) == list(default)
+
+
+# ----- v0.3.21 (issue 8): the one-time question of "Automatisch" with all 12 digits -----
+TWELVE = f"{NUMBER}7"  # the parcel number plus an invented check digit
+
+
+async def _probe(number: str = TWELVE):
+    async with aiohttp.ClientSession() as session:
+        return await GlsCarrier(session).probe(number)
+
+
+async def test_probe_asks_the_search_endpoint_with_all_twelve_digits():
+    with aioresponses() as m:
+        m.get(SEARCH, payload=_search())
+        result = await _probe()
+        [url] = _urls(m)
+    assert "/rstt029?" in url and f"match={TWELVE}&" in url
+    assert "postalCode" not in url and "rstt028" not in url
+    assert result.status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+@pytest.mark.parametrize(
+    "number", [NUMBER, f"{TWELVE}1", "ZABCD1234567", "９９９９９９９９９９９９"]
+)
+async def test_probe_sends_nothing_but_twelve_ascii_digits(number):
+    with aioresponses() as m:
+        with pytest.raises(NotFound):
+            await _probe(number)
+        assert _urls(m) == []
+
+
+async def test_probe_with_a_wrong_check_digit_is_not_found():
+    with aioresponses() as m:
+        m.get(SEARCH, payload={"lastError": "E000"})
+        with pytest.raises(NotFound):
+            await _probe()
+
+
+async def test_probe_takes_a_dummy_answer_as_not_found():
+    dummy = _search()
+    dummy["tuStatus"][0]["progressBar"]["evtNos"] = [f"{n}.0" for n in range(60)]
+    with aioresponses() as m:
+        m.get(SEARCH, payload=dummy)
+        with pytest.raises(NotFound):
+            await _probe()
+
+
+@pytest.mark.parametrize(
+    ("answer", "error"),
+    [
+        ({"status": 503, "body": "<html>maintenance</html>"}, CarrierUnavailable),
+        ({"status": 429, "headers": {"Retry-After": "60"}, "body": "slow down"}, RateLimited),
+        ({"status": 403, "body": "<html>blocked</html>"}, RateLimited),
+        ({"payload": {"tuStatus": "unexpected"}}, ParseError),
+        ({"exception": aiohttp.ClientConnectionError("down")}, CarrierUnavailable),
+    ],
+    ids=["unavailable", "rate_limited", "blocked", "parse_error", "network"],
+)
+async def test_probe_maps_errors_like_every_gls_lookup(answer, error):
+    with aioresponses() as m:
+        m.get(SEARCH, **answer)
+        with pytest.raises(error):
+            await _probe()

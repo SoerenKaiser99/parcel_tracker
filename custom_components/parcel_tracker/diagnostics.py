@@ -158,6 +158,7 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
         "status": result.status.value if result else None,
         "assumed_delivered": parcel.assumed_delivered,
         "order_checked": parcel.order_checked,
+        "gls_probes": parcel.gls_probes,
         "last_error": _code(parcel.last_error),
         "error_streak": parcel.error_streak,
         "first_error_at": _iso(parcel.first_error_at),

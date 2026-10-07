@@ -402,6 +402,7 @@ async def test_diagnostics_parcels(hass, hass_storage, freezer):
         "status": "out_for_delivery",
         "assumed_delivered": False,
         "order_checked": False,
+        "gls_probes": 0,
         "last_error": None,
         "error_streak": 0,
         "first_error_at": None,
