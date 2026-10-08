@@ -129,7 +129,7 @@ def _track17_client(hass: HomeAssistant, entry: ConfigEntry) -> Track17Client | 
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register card, services and the mail endpoint once."""
+    """Register card and services once."""
     # In the test harness `http` may not be set up, so hass.http can be None.
     # Guard the static-path registration; the card is exercised in a real HA.
     if getattr(hass, "http", None) is not None:

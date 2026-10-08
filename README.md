@@ -292,7 +292,7 @@ Die Antwort ist JSON, z. B. `{"result": "recognized", "parcels": ["0034099999999
 - `stale`: älter als 14 Tage
 - `duplicate`: diese Mail wurde schon gelesen
 
-Ohne gültiges Token antwortet Home Assistant mit 401, auf eine leere Anfrage mit 400, auf eine Mail über 16 MB mit 413 und mit 503, solange Paket Tracker nicht geladen ist.
+Ohne gültiges Token antwortet Home Assistant mit 401, auf eine leere Anfrage mit 400, auf einen Formular-Upload (`curl -F`) mit 415, auf eine Mail über 16 MB mit 413 und mit 503, solange Paket Tracker nicht geladen ist.
 
 Einen Dienst gibt es dafür bewusst nicht: Home Assistant gibt jeden Dienstaufruf samt Daten als Ereignis weiter, die Mail stünde dann in der Recorder-Datenbank. Der Inhalt einer HTTP-Anfrage geht dagegen nur an den Import und wird nicht gespeichert.
 

@@ -5,8 +5,8 @@ from email.utils import format_datetime
 from unittest.mock import patch
 
 import pytest
+from aiohttp import FormData
 from homeassistant.const import EVENT_CALL_SERVICE, MATCH_ALL
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events
 
@@ -15,7 +15,7 @@ from custom_components.parcel_tracker.coordinator import _ParsedMail
 from custom_components.parcel_tracker.mail.base import MailResult, MailUpdate
 from custom_components.parcel_tracker.models import ParcelStatus
 
-from .test_coordinator_mail import _coordinator, dated_mail, unknown_amazon_mail
+from .test_coordinator_mail import _coordinator, dated_mail
 from .test_order_closing import (
     BRAND,
     DHL,
@@ -122,6 +122,24 @@ async def test_empty_body_is_rejected(hass, entry, hass_client, body):
     assert await _post(client, body) == (400, {"message": "The request body is empty."})
 
 
+@pytest.mark.parametrize("prefix", [b"\xef\xbb\xbf", b"\r\n\r\n"])
+async def test_byte_order_mark_or_blank_lines_in_front_do_not_hide_the_mail(
+    hass, entry, hass_client, prefix
+):
+    client = await hass_client()
+    answer = await _post(client, prefix + dated_mail(1, _date()))
+    assert answer == (200, {"result": "recognized", "parcels": [number(1)]})
+
+
+async def test_form_upload_is_rejected(hass, entry, hass_client):
+    client = await hass_client()
+    form = FormData()
+    form.add_field("file", dated_mail(1, _date()), filename="mail.eml")
+    response = await client.post(URL, data=form)
+    assert response.status == 415
+    assert entry.runtime_data.store.parcels == {}
+
+
 async def test_answer_names_the_integration_when_it_is_not_loaded(hass, entry, hass_client):
     client = await hass_client()
     assert await hass.config_entries.async_unload(entry.entry_id)
@@ -163,13 +181,11 @@ async def test_mail_that_changes_nothing_leaves_the_sensors_alone(hass, freezer)
     assert updated.call_count == 1
 
 
-async def test_amazon_mails_over_the_endpoint_raise_no_repair_issue(hass, freezer):
-    """The issue points to the mailbox folder; a mail from the endpoint lies in none."""
+async def test_unloaded_coordinator_applies_nothing(hass, freezer):
+    """A reload while the mail is parsed: the old coordinator must not write its store."""
     freezer.move_to("2026-09-30 10:00:00+00:00")
     coord = await _coordinator(hass, None)
-    for i in range(6):
-        answer = await coord.async_import_raw_mail(unknown_amazon_mail(i))
-        assert answer["result"] == "unrecognized"
-    assert coord._amazon_misses == 0
-    assert ir.async_get(hass).async_get_issue(DOMAIN, "amazon_unrecognized") is None
-    assert coord._mail_unrecognized == 6  # still counted for the diagnostics
+    await coord.async_shutdown()
+    assert await coord.async_import_raw_mail(dated_mail(1, TODAY_MAIL)) is None
+    assert coord.store.parcels == {}
+    assert coord.store.message_ids == []

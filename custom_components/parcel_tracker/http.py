@@ -24,12 +24,20 @@ class ImportMailView(HomeAssistantView):
 
     async def post(self, request: web.Request) -> web.Response:
         hass = request.app[KEY_HASS]
-        raw = await request.read()
-        if not raw.strip():
+        if request.content_type.startswith("multipart/"):
+            # A form upload wraps the mail: the parser would find no headers in it.
+            return self.json_message(
+                "Send the mail itself as the request body, not as a form upload.",
+                HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+            )
+        # A byte order mark or a blank line in front would hide the headers as well.
+        raw = (await request.read()).removeprefix(b"\xef\xbb\xbf").lstrip()
+        if not raw:
             return self.json_message("The request body is empty.", HTTPStatus.BAD_REQUEST)
         entries = hass.config_entries.async_loaded_entries(DOMAIN)
-        if not entries:
+        result = await entries[0].runtime_data.async_import_raw_mail(raw) if entries else None
+        if result is None:
             return self.json_message(
                 "Parcel Tracker is not set up or not loaded.", HTTPStatus.SERVICE_UNAVAILABLE
             )
-        return self.json(await entries[0].runtime_data.async_import_raw_mail(raw))
+        return self.json(result)
