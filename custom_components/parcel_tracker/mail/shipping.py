@@ -37,6 +37,12 @@ _DHL_WINDOW = re.compile(r"heute\s+zwischen\s+(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1
 _DHL_DAY = re.compile(
     r"voraussichtlich[\s*_–—-]*am\s+\w+,\s+den\s+(\d{1,2})\.(?:(\d{1,2})\.)?"
 )
+# "Ihr neuer voraussichtlicher Zustelltag ist — Donnerstag, der 08.10. —" (the mail
+# "DHL Sendungs-Update" after a delay)
+_DHL_NEW_DAY = re.compile(
+    r"neuer\s+voraussichtlicher\s+Zustelltag\s+ist[\s*_–—-]*\w+,\s+de[rn]\s+"
+    r"(\d{1,2})\.(?:(\d{1,2})\.)?"
+)
 # International shipments carry a UPU S10 number issued in Germany ("CQ…DE"). Read only
 # in DHL's own mails: two letters, nine digits and "DE" say too little anywhere else.
 _DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}DE)(?![A-Za-z0-9])")
@@ -131,6 +137,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             title = company_name(shop)
     status, ahead = _dhl_status(subj)
     eta_date = eta_from = eta_to = delivered_at = None
+    postponed = False
     if status is ParcelStatus.OUT_FOR_DELIVERY:
         eta_date = sent.date()
         if window := _DHL_WINDOW.search(text):
@@ -141,6 +148,10 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     elif "ist unterwegs" in subj.lower() and (day := _DHL_DAY.search(text)):
         month = int(day.group(2)) if day.group(2) else None
         eta_date = upcoming_date(int(day.group(1)), month, sent.date())
+    elif status is ParcelStatus.IN_TRANSIT and (day := _DHL_NEW_DAY.search(text)):
+        month = int(day.group(2)) if day.group(2) else None
+        eta_date = upcoming_date(int(day.group(1)), month, sent.date())
+        postponed = eta_date is not None
     elif status is ParcelStatus.DELIVERED:
         delivered_at = sent
     return [
@@ -155,6 +166,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             eta_to=eta_to,
             delivered_at=delivered_at,
             shop=shop_name,
+            postponed=postponed,
         )
     ]
 

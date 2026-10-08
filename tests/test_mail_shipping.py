@@ -559,3 +559,31 @@ def test_a_subject_naming_a_carrier_company_gives_no_name(subject, title):
     assert (u.title, u.status, u.eta_date) == (
         title, ParcelStatus.OUT_FOR_DELIVERY, sent_at(msg).date(),
     )
+
+
+# ----- v0.3.23 (issue 11): "DHL Sendungs-Update", the delivery was postponed -----
+_UPDATE_BODY = (
+    "Hallo Max Mustermann,\n"
+    "leider kam es auf dem Transportweg Ihrer Beispiel GmbH Sendung zu Verzögerungen.\xa0\n"
+    "Ihr neuer voraussichtlicher Zustelltag ist\n\n"
+    "**— \xa0Donnerstag, der 08.10.\xa0 —**\n\n"
+    "Wir bitten um Entschuldigung.\n"
+    "Ihre Sendungsnummer\n999999999912\n"
+)
+
+
+def test_dhl_update_mail_tells_the_new_delivery_day():
+    msg = _msg("❗ DHL Sendungs-Update", _UPDATE_BODY, "DHL <sendungsupdate@dhl.de>")
+    [u] = parse_dhl_mail(msg)
+    assert (u.number, u.carrier) == ("999999999912", "dhl")
+    assert u.status is ParcelStatus.IN_TRANSIT
+    assert u.eta_date == date(2026, 10, 8)
+    assert u.postponed is True
+    assert u.title is None  # the body's shop is not read, the greeting never
+
+
+def test_dhl_mail_without_a_new_day_is_not_postponed():
+    body = "Ihre Sendungsnummer\n999999999912\n"
+    msg = _msg("❗ DHL Sendungs-Update", body, "DHL <sendungsupdate@dhl.de>")
+    [u] = parse_dhl_mail(msg)
+    assert u.postponed is False and u.eta_date is None

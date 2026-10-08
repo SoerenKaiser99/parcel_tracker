@@ -47,6 +47,9 @@ class MailUpdate:
     shipping_carrier_hint: str | None = None  # shop mail names the carrier (display, merging)
     tracking_ref: str | None = None  # shop mail carries the carrier's number
     tracking_carrier: str | None = None
+    # The carrier postponed the delivery: this mail may take the parcel back from "in
+    # Zustellung" (never from delivered or ready for pickup).
+    postponed: bool = False
 
 
 @dataclass

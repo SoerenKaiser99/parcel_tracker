@@ -28,6 +28,8 @@ from .base import (
 )
 
 _DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
+# A postponed delivery (MailUpdate.postponed) never takes these back.
+_ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
 
 SHOP_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Bestellt",
@@ -70,9 +72,11 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     # An order closed without a delivery mail is not delivered for sure: whatever a mail
     # tells afterwards holds, the real delivery as well as a new day or "in Zustellung".
     assumed = parcel.assumed_delivered
+    # A postponed delivery is a step back the carrier itself tells; what has arrived stays.
+    postponed = update.postponed and parcel.status not in _ARRIVED
     # "Backwards" is measured against what is shown, also if that is 17track's status.
     if update.status is not None and (
-        assumed or _step(update.status) >= _step(parcel.status)
+        assumed or postponed or _step(update.status) >= _step(parcel.status)
     ):
         parcel.assumed_delivered = False
         texts = SHOP_TEXT if parcel.carrier in SHOP_CARRIERS else CARRIER_TEXT
