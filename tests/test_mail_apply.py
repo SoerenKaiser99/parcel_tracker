@@ -788,3 +788,51 @@ def test_brand_merge_day_and_shipping_rules(status, mail_day, order_days, order_
     change = apply_update(parcels, mail, NOW)
     assert change.created is not merged
     assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+
+
+# ----- v0.3.23 (issue 11): a postponed delivery may move a parcel back -----
+_DHL = "999999999912"
+
+
+def _dhl(status, sent, **more):
+    return MailUpdate(number=_DHL, carrier="dhl", status=status, sent_at=sent, **more)
+
+
+def test_a_postponed_delivery_takes_the_parcel_back_with_its_new_day():
+    parcels: dict[str, Parcel] = {}
+    morning = datetime(2026, 10, 7, 8, 0, tzinfo=BERLIN)
+    today = _dhl(ParcelStatus.OUT_FOR_DELIVERY, morning, eta_date=date(2026, 10, 7))
+    apply_update(parcels, today, NOW)
+    late = datetime(2026, 10, 7, 17, 0, tzinfo=BERLIN)
+    change = apply_update(
+        parcels,
+        _dhl(ParcelStatus.IN_TRANSIT, late, eta_date=date(2026, 10, 8), postponed=True),
+        NOW,
+    )
+    assert change is not None and change.old_status is ParcelStatus.OUT_FOR_DELIVERY
+    p = parcels[_DHL]
+    assert p.status is ParcelStatus.IN_TRANSIT
+    assert p.result.eta_date == date(2026, 10, 8)
+    assert p.result.eta_from is None and p.result.eta_to is None
+
+
+def test_the_same_mail_without_the_mark_does_not_move_the_parcel_back():
+    parcels: dict[str, Parcel] = {}
+    morning = datetime(2026, 10, 7, 8, 0, tzinfo=BERLIN)
+    today = _dhl(ParcelStatus.OUT_FOR_DELIVERY, morning, eta_date=date(2026, 10, 7))
+    apply_update(parcels, today, NOW)
+    late = datetime(2026, 10, 7, 17, 0, tzinfo=BERLIN)
+    update = _dhl(ParcelStatus.IN_TRANSIT, late, eta_date=date(2026, 10, 8))
+    assert apply_update(parcels, update, NOW) is None
+    assert parcels[_DHL].status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+@pytest.mark.parametrize("final", [ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP])
+def test_a_postponed_delivery_never_reopens_a_parcel_that_arrived(final):
+    parcels: dict[str, Parcel] = {}
+    done = datetime(2026, 10, 7, 12, 0, tzinfo=BERLIN)
+    apply_update(parcels, _dhl(final, done), NOW)
+    late = datetime(2026, 10, 7, 17, 0, tzinfo=BERLIN)
+    update = _dhl(ParcelStatus.IN_TRANSIT, late, eta_date=date(2026, 10, 8), postponed=True)
+    assert apply_update(parcels, update, NOW) is None
+    assert parcels[_DHL].status is final

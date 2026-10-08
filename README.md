@@ -231,7 +231,7 @@ Diese Absender in die Filterregel aufnehmen:
 - `noreply@dhl.de`
 - `paketankuendigung@dhl.de`
 - `zustellung@dhl.de`
-- `sendungsupdate@dhl.de`
+- `sendungsupdate@dhl.de` (meldet einen verschobenen Zustelltag; der neue Tag wird übernommen)
 - `noreply@service.dpd.de`
 - `no_reply@dpd.at` (DPD Österreich)
 - `pkginfo@ups.com`
