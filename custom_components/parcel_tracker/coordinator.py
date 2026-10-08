@@ -112,7 +112,7 @@ NOTIFY_TIMEOUT = 30
 _NO_CARRIER_ERRORS = frozenset({"missing_key", "not_found", "carrier_not_found"})
 
 
-# What became of one mail; the import service returns it as "result".
+# What became of one mail; the import endpoint returns it as "result".
 MAIL_RECOGNIZED = "recognized"
 MAIL_UNRECOGNIZED = "unrecognized"
 MAIL_IGNORED = "ignored"  # shop advertising, account mails: nothing about parcels
@@ -493,7 +493,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         """Apply one parsed mail; return its outcome (a key of _MAIL_FOLDERS).
 
         ``changed`` collects the numbers of the parcels the mail created or changed.
-        ``mailbox`` is False for a mail a service call handed in: it lies in no folder,
+        ``mailbox`` is False for a mail the endpoint handed in: it lies in no folder,
         so it does not count towards the Amazon repair issue that points to one.
         """
         try:
@@ -528,7 +528,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         return MAIL_RECOGNIZED
 
     async def async_import_raw_mail(self, raw: bytes) -> dict[str, Any]:
-        """Apply one raw RFC 822 mail handed in by a service call (no mailbox needed).
+        """Apply one raw RFC 822 mail handed in over the endpoint (no mailbox needed).
 
         Same parser, dedup (Message-ID) and age limit as the IMAP import; returns the
         outcome and the numbers of the parcels it created or changed.

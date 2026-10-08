@@ -174,9 +174,7 @@
     "track17_quota": {"message": "Das 17track-Kontingent ist erschöpft."},
     "track17_auth": {"message": "17track hat den API-Key abgelehnt. Prüf ihn in den Optionen von Paket Tracker."},
     "track17_unavailable": {"message": "17track ist gerade nicht erreichbar. Versuch es später noch einmal."},
-    "track17_not_possible": {"message": "Dieses Paket lässt sich nicht an 17track schicken (zugestellt oder noch keine Sendungsnummer)."},
-    "invalid_mail": {"message": "Die Mail ist kein gültiges Base64 oder leer."},
-    "not_loaded": {"message": "Paket Tracker ist nicht eingerichtet oder nicht geladen."}
+    "track17_not_possible": {"message": "Dieses Paket lässt sich nicht an 17track schicken (zugestellt oder noch keine Sendungsnummer)."}
   },
   "entity": {
     "sensor": {
@@ -250,13 +248,6 @@
       "name": "Über 17track verfolgen",
       "description": "Schickt ein Paket an 17track, um Ort, Zeitfenster und Verlauf zu ergänzen. Verbraucht 1 deiner 17track-Nummern.",
       "fields": {"number": {"name": "Sendungsnummer", "description": "Paket aus der Liste."}}
-    },
-    "import_mail": {
-      "name": "Mail importieren",
-      "description": "Liest eine Versandmail wie der E-Mail-Import, aber ohne Postfach (z. B. aus n8n). Liefert das Ergebnis und die betroffenen Pakete zurück.",
-      "fields": {
-        "raw": {"name": "Rohe Mail (base64)", "description": "Die komplette Mail als Quelltext (RFC 822, .eml), base64-kodiert."}
-      }
     }
   }
 }

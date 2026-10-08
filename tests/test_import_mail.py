@@ -1,15 +1,15 @@
-"""The import_mail service: one raw mail handed in by a service call, without a mailbox."""
+"""The import_mail endpoint: one raw mail handed in over HTTP, without a mailbox."""
 
-import base64
+from datetime import timedelta
+from email.utils import format_datetime
 from unittest.mock import patch
 
 import pytest
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.const import EVENT_CALL_SERVICE, MATCH_ALL
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_capture_events
 
-from custom_components.parcel_tracker import decode_raw_mail
 from custom_components.parcel_tracker.const import CONF_POSTCODE, DOMAIN
 from custom_components.parcel_tracker.coordinator import _ParsedMail
 from custom_components.parcel_tracker.mail.base import MailResult, MailUpdate
@@ -30,26 +30,37 @@ from .test_order_closing import (
 )
 from .test_order_closing import _coordinator as _stored_coordinator
 
+URL = "/api/parcel_tracker/import_mail"
 FETCH = "custom_components.parcel_tracker.carriers.dhl.DhlCarrier.fetch"
 TODAY_MAIL = "Wed, 30 Sep 2026 08:00:00 +0000"
-OLD_MAIL = "Tue, 15 Sep 2026 09:00:00 +0000"  # 15 days before the frozen time
-NO_NUMBER = (
-    b"From: Shop <shop@example.org>\r\nMessage-ID: <n@example.org>\r\n"
-    b"Subject: Danke\r\nDate: Wed, 30 Sep 2026 08:00:00 +0000\r\n\r\nDanke\r\n"
-)
-ADVERTISING = (
-    b"From: Prime Video <no-reply@primevideo.com>\r\nMessage-ID: <p@example.org>\r\n"
-    b"Subject: Neu\r\nDate: Wed, 30 Sep 2026 08:00:00 +0000\r\n\r\nFilm\r\n"
-)
+
+
+def no_number(date: str) -> bytes:
+    return (
+        "From: Shop <shop@example.org>\r\nMessage-ID: <n@example.org>\r\n"
+        f"Subject: Danke\r\nDate: {date}\r\n\r\nDanke\r\n"
+    ).encode()
+
+
+def advertising(date: str) -> bytes:
+    return (
+        "From: Prime Video <no-reply@primevideo.com>\r\nMessage-ID: <p@example.org>\r\n"
+        f"Subject: Neu\r\nDate: {date}\r\n\r\nFilm\r\n"
+    ).encode()
 
 
 def number(i: int) -> str:
     return f"0034099999999999991{i}"
 
 
+def _date(days_ago: int = 0) -> str:
+    """Date header relative to the real clock (see ``entry``)."""
+    return format_datetime(dt_util.utcnow() - timedelta(days=days_ago, hours=1))
+
+
 @pytest.fixture
-async def entry(hass, freezer):
-    freezer.move_to("2026-09-30 10:00:00+00:00")
+async def entry(hass):
+    # Real clock: the access token of the test client is not valid in a frozen past.
     e = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     e.add_to_hass(hass)
     with patch(FETCH):
@@ -58,66 +69,64 @@ async def entry(hass, freezer):
     return e
 
 
-async def _call(hass, raw: bytes) -> dict:
-    return await hass.services.async_call(
-        DOMAIN,
-        "import_mail",
-        {"raw": base64.b64encode(raw).decode()},
-        blocking=True,
-        return_response=True,
-    )
+async def _post(client, raw: bytes) -> tuple[int, dict]:
+    response = await client.post(URL, data=raw)
+    return response.status, await response.json()
 
 
-def test_decode_accepts_the_usual_base64_spellings():
-    raw = b"\xfb\xff\xfe a mail"
-    standard = base64.b64encode(raw).decode()
-    assert "+" in standard and "/" in standard
-    assert decode_raw_mail(standard) == raw
-    assert decode_raw_mail(base64.urlsafe_b64encode(raw).decode().rstrip("=")) == raw
-    assert decode_raw_mail(f"{standard[:4]}\r\n {standard[4:]}\n") == raw
-
-
-@pytest.mark.parametrize("data", ["!!!", "a", base64.b64encode(b" \r\n").decode()])
-def test_decode_rejects_what_is_no_mail(data):
-    with pytest.raises(ServiceValidationError) as err:
-        decode_raw_mail(data)
-    assert err.value.translation_key == "invalid_mail"
-
-
-async def test_mail_creates_a_parcel_and_is_applied_once(hass, entry):
-    mail = dated_mail(1, TODAY_MAIL)
-    assert await _call(hass, mail) == {"result": "recognized", "parcels": [number(1)]}
+async def test_mail_creates_a_parcel_and_is_applied_once(hass, entry, hass_client):
+    client = await hass_client()
+    mail = dated_mail(1, _date())
+    assert await _post(client, mail) == (200, {"result": "recognized", "parcels": [number(1)]})
     assert entry.runtime_data.store.get(number(1)).carrier == "dhl"
-    assert await _call(hass, mail) == {"result": "duplicate", "parcels": []}
+    assert await _post(client, mail) == (200, {"result": "duplicate", "parcels": []})
 
 
-async def test_call_without_a_response_applies_the_mail(hass, entry):
-    answer = await hass.services.async_call(
-        DOMAIN,
-        "import_mail",
-        {"raw": base64.b64encode(dated_mail(1, TODAY_MAIL)).decode()},
-        blocking=True,
-    )
-    assert answer is None
-    assert entry.runtime_data.store.get(number(1)) is not None
-
-
-async def test_old_mail_is_not_read(hass, entry):
-    assert await _call(hass, dated_mail(1, OLD_MAIL)) == {"result": "stale", "parcels": []}
+async def test_old_mail_is_not_read(hass, entry, hass_client):
+    client = await hass_client()
+    old = dated_mail(1, _date(days_ago=15))
+    assert await _post(client, old) == (200, {"result": "stale", "parcels": []})
     assert entry.runtime_data.store.get(number(1)) is None
 
 
-async def test_mails_without_a_parcel(hass, entry):
-    assert await _call(hass, NO_NUMBER) == {"result": "unrecognized", "parcels": []}
-    assert await _call(hass, ADVERTISING) == {"result": "ignored", "parcels": []}
+async def test_mails_without_a_parcel(hass, entry, hass_client):
+    client = await hass_client()
+    answer = await _post(client, no_number(_date()))
+    assert answer == (200, {"result": "unrecognized", "parcels": []})
+    answer = await _post(client, advertising(_date()))
+    assert answer == (200, {"result": "ignored", "parcels": []})
     assert entry.runtime_data.store.parcels == {}
 
 
-async def test_error_names_the_integration_when_it_is_not_loaded(hass, entry):
+async def test_mail_stays_off_the_event_bus(hass, entry, hass_client):
+    """Why this is no service: a service call would carry the whole mail as an event."""
+    client = await hass_client()
+    events = async_capture_events(hass, MATCH_ALL)
+    mail = dated_mail(1, _date()) + b"Ablageort: Gartenhaus\r\n"
+    assert (await _post(client, mail))[1]["result"] == "recognized"
+    await hass.async_block_till_done()
+    assert not [event for event in events if event.event_type == EVENT_CALL_SERVICE]
+    assert all("Gartenhaus" not in str(event.data) for event in events)
+
+
+async def test_needs_a_login(hass, entry, hass_client_no_auth):
+    client = await hass_client_no_auth()
+    response = await client.post(URL, data=dated_mail(1, _date()))
+    assert response.status == 401
+    assert entry.runtime_data.store.parcels == {}
+
+
+@pytest.mark.parametrize("body", [b"", b" \r\n"])
+async def test_empty_body_is_rejected(hass, entry, hass_client, body):
+    client = await hass_client()
+    assert await _post(client, body) == (400, {"message": "The request body is empty."})
+
+
+async def test_answer_names_the_integration_when_it_is_not_loaded(hass, entry, hass_client):
+    client = await hass_client()
     assert await hass.config_entries.async_unload(entry.entry_id)
-    with pytest.raises(ServiceValidationError) as err:
-        await _call(hass, dated_mail(1, TODAY_MAIL))
-    assert err.value.translation_key == "not_loaded"
+    status, answer = await _post(client, dated_mail(1, _date()))
+    assert (status, answer) == (503, {"message": "Parcel Tracker is not set up or not loaded."})
 
 
 async def test_parcel_folded_into_an_order_is_reported_as_the_order(hass, hass_storage, freezer):
@@ -147,13 +156,15 @@ async def test_mail_that_changes_nothing_leaves_the_sensors_alone(hass, freezer)
         assert (await coord.async_import_raw_mail(mail))["result"] == "recognized"
         assert updated.call_count == 1
         assert (await coord.async_import_raw_mail(mail))["result"] == "duplicate"
-        assert (await coord.async_import_raw_mail(ADVERTISING))["result"] == "ignored"
-        assert (await coord.async_import_raw_mail(NO_NUMBER))["result"] == "unrecognized"
+        answer = await coord.async_import_raw_mail(advertising(TODAY_MAIL))
+        assert answer["result"] == "ignored"
+        answer = await coord.async_import_raw_mail(no_number(TODAY_MAIL))
+        assert answer["result"] == "unrecognized"
     assert updated.call_count == 1
 
 
-async def test_amazon_mails_by_service_raise_no_repair_issue(hass, freezer):
-    """The issue points to the mailbox folder; a mail from a service call lies in none."""
+async def test_amazon_mails_over_the_endpoint_raise_no_repair_issue(hass, freezer):
+    """The issue points to the mailbox folder; a mail from the endpoint lies in none."""
     freezer.move_to("2026-09-30 10:00:00+00:00")
     coord = await _coordinator(hass, None)
     for i in range(6):

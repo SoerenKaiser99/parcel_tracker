@@ -38,7 +38,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Kalender**: `calendar.pakete` zeigt die erwarteten Zustelltermine.
 - **Event**: `parcel_tracker_status_changed` feuert bei jedem Statuswechsel eines Pakets.
 - **Benachrichtigungen** (optional): Bei „in Zustellung“, „zugestellt“, „abholbereit“ oder einem Problem geht eine Benachrichtigung an die gewählten Ziele, ohne eigene Automation; für eigene Texte und Bedingungen gibt es einen Blueprint (siehe [Benachrichtigungen](#benachrichtigungen)).
-- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `refresh`, `track_17track`, `import_mail`.
+- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `refresh`, `track_17track`.
 
 Was (noch) nicht geht: siehe [Roadmap & Status](#roadmap--status). Amazon- und eBay-Bestellungen kennt die Integration nur aus Mails; abgefragt wird dort nur die Sendungsnummer des Carriers, sobald eine Mail sie verrät.
 
@@ -270,24 +270,31 @@ Statt einer Filterregel lassen sich einzelne Mails auch von Hand an das Paket-Po
 
 Fehlt der Block oder ist der ursprüngliche Absender unbekannt, gilt wie bisher: Amazon- und GLS-Mails erkennt der Import am Betreff (mit „WG:" oder „Fwd:"), ohne den Versender einer GLS-Mail als Namen zu übernehmen, und rechnet „heute" und „morgen" ab dem Zeitpunkt der Weiterleitung. Aus allen anderen Mails übernimmt er nur eindeutige Sendungsnummern (DHL `00340…` und `JJD…`, UPS `1Z…`, Hermes `H…`; DPD-Nummern nur, wenn „DPD" in der Mail steht und die Nummer direkt nach „Paketnummer", „Sendungsnummer" o. Ä. folgt, oder die Mail direkt von DPD kommt). Solche Pakete tragen keinen Namen aus dem Absender, sondern heißen „<Carrier> <Nummer>" – umbenennen geht auf der Karte. Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
-### Ohne Postfach: Mail per Dienst übergeben
+### Ohne Postfach: Mail per HTTP übergeben (für Fortgeschrittene)
 
-Der Dienst `parcel_tracker.import_mail` liest eine einzelne Mail wie der E-Mail-Import, aber ohne IMAP-Postfach, z. B. aus n8n oder einer eigenen Automation. Das Feld `raw` enthält die komplette Mail als Quelltext (RFC 822, `.eml`), base64-kodiert und höchstens 10 MB groß. Die Mail zählt wie jede andere nur einmal (Message-ID) und wird nicht gelesen, wenn sie älter als 14 Tage ist.
+Wer Paketmails schon in einem eigenen Werkzeug hat (n8n, Node-RED, ein Skript), kann sie einzeln an Home Assistant übergeben und braucht dafür kein Paket-Postfach. Der Import liest die Mail genau wie eine aus dem Postfach: Sie zählt nur einmal (Message-ID) und wird nicht gelesen, wenn sie älter als 14 Tage ist.
 
-```yaml
-action: parcel_tracker.import_mail
-data:
-  raw: "{{ mail_base64 }}"
-response_variable: ergebnis
+1. In Home Assistant unter **Profil → Sicherheit** ein **langlebiges Zugriffstoken** anlegen.
+2. Die komplette Mail als Quelltext (RFC 822, `.eml`) per `POST` an `/api/parcel_tracker/import_mail` schicken, unverändert als Inhalt der Anfrage und mit dem Token in der Kopfzeile `Authorization`.
+
+```sh
+curl -H "Authorization: Bearer <Token>" --data-binary @mail.eml \
+  http://homeassistant.local:8123/api/parcel_tracker/import_mail
 ```
 
-Die Antwort nennt in `result`, was aus der Mail wurde, und in `parcels` die Pakete, die sie angelegt oder geändert hat (bei einem Paket, das in einer Bestellung aufging, die Bestellung):
+In n8n ist das ein HTTP-Request-Node mit der Methode POST und der Mail als Binärdaten im Body.
+
+Die Antwort ist JSON, z. B. `{"result": "recognized", "parcels": ["00340999999999999911"]}`. `parcels` nennt die Pakete, die die Mail angelegt oder geändert hat (bei einem Paket, das in einer Bestellung aufging, die Bestellung), `result` sagt, was aus der Mail wurde:
 
 - `recognized`: gelesen und angewendet
 - `unrecognized`: keine Sendung erkannt
 - `ignored`: Werbung oder Konto-Mail
 - `stale`: älter als 14 Tage
 - `duplicate`: diese Mail wurde schon gelesen
+
+Ohne gültiges Token antwortet Home Assistant mit 401, auf eine leere Anfrage mit 400, auf eine Mail über 16 MB mit 413 und mit 503, solange Paket Tracker nicht geladen ist.
+
+Einen Dienst gibt es dafür bewusst nicht: Home Assistant gibt jeden Dienstaufruf samt Daten als Ereignis weiter, die Mail stünde dann in der Recorder-Datenbank. Der Inhalt einer HTTP-Anfrage geht dagegen nur an den Import und wird nicht gespeichert.
 
 ### Was mit den Mails passiert
 
