@@ -103,10 +103,10 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     unterwegs", "kommt morgen" (the day after the mail), "kommt heute" / "wird heute
     zugestellt", "wurde … zugestellt", "liegt am gewünschten Ablageort" and, for a Packstation
     or branch, "liegt zur Abholung bereit" / "wurde an Packstation … zugestellt". Any other
-    subject that speaks of a "Sendung" means "on its way" without a day; a question (survey) and a subject without
-    "Sendung" tell no status. A pick-up code is never read. An Amazon shipment keeps its
-    fixed name (and is merged into the open Amazon order when unambiguous); any other shop
-    only names the parcel if it passes the naming gate and the mail was not forwarded. The
+    subject that speaks of a "Sendung" means "on its way" without a day; a question (survey) and
+    a subject without "Sendung" tell no status. A pick-up code is never read. An Amazon shipment
+    keeps its fixed name (and is merged into the open Amazon order when unambiguous); any other
+    shop only names the parcel if it passes the naming gate and the mail was not forwarded. The
     international variant ("in den nächsten 2 Werktagen von der Österreichischen Post
     zugestellt") names no day, so none is set.
     """
