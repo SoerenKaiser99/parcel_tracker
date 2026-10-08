@@ -254,6 +254,16 @@ const canSpend17 = (t17) => t17.on && t17.rest !== 0;
 const canTrack17 = (a, s, t17) => canSpend17(t17) && s !== DONE && !a.track17
   && !(SHOPS.includes(a.carrier) && !a.tracking_ref);
 
+// The shop's page of an order ("AMZ…"/"EBAY…" + the order number's digits; a further
+// shipment of the order ends in "P2", "P3", …). null for every other parcel.
+function orderUrl(number) {
+  const amazon = /^AMZ(\d{3})(\d{7})(\d{7})(?:P\d+)?$/.exec(number || "");
+  if (amazon) return `https://www.amazon.de/gp/your-account/order-details?orderID=${amazon.slice(1).join("-")}`;
+  const ebay = /^EBAY(\d{2})(\d{5})(\d{5})(?:P\d+)?$/.exec(number || "");
+  if (ebay) return `https://order.ebay.de/ord/show?orderId=${ebay.slice(1).join("-")}`;
+  return null;
+}
+
 const track17Question = (rest) => (rest == null
   ? "Verbraucht 1 17track-Nummer. Fortfahren?"
   : `Verbraucht 1 von ${rest} verbleibenden 17track-Nummern. Fortfahren?`);
@@ -436,7 +446,8 @@ class ParcelTrackerCard extends HTMLElement {
         }
         .row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-bottom:8px; }
         input, select { font:inherit; padding:8px; border-radius:6px; border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); min-width:0; }
-        button { font:inherit; padding:8px 12px; border-radius:6px; border:1px solid var(--divider-color); background:none; color:var(--primary-text-color); cursor:pointer; }
+        button, .actions a { font:inherit; padding:8px 12px; border-radius:6px; border:1px solid var(--divider-color); background:none; color:var(--primary-text-color); cursor:pointer; }
+        .actions a { text-decoration:none; }
         .err { color:var(--error-color); font-size:13px; min-height:18px; }
         .err.bare:empty { display:none; }
         .plus { width:36px; height:36px; margin:-6px -4px -6px 0; padding:0; border:none; border-radius:50%; display:grid; place-items:center; flex:none; }
@@ -673,7 +684,10 @@ class ParcelTrackerCard extends HTMLElement {
         <button type="button" class="danger" data-a="remove-confirm" data-number="${n}">Wirklich löschen?</button>
         <button type="button" data-a="remove-cancel" data-number="${n}">Abbrechen</button></div>`;
     }
-    return `<div class="actions"><button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
+    const url = orderUrl(a.number);
+    // A link, not a button: the browser opens the shop, the card has nothing to do.
+    const order = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Bestellung</a>` : "";
+    return `<div class="actions">${order}<button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
   }
 
   _codeHtml(a) {
