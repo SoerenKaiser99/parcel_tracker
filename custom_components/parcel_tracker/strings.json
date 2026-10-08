@@ -174,7 +174,9 @@
     "track17_quota": {"message": "Your 17track quota is used up."},
     "track17_auth": {"message": "17track rejected the API key. Check it in the Parcel Tracker options."},
     "track17_unavailable": {"message": "Couldn't reach 17track. Try again later."},
-    "track17_not_possible": {"message": "This parcel can't be sent to 17track (delivered, or no carrier number yet)."}
+    "track17_not_possible": {"message": "This parcel can't be sent to 17track (delivered, or no carrier number yet)."},
+    "invalid_mail": {"message": "The mail is not valid base64 or is empty."},
+    "not_loaded": {"message": "Parcel Tracker is not set up or not loaded."}
   },
   "entity": {
     "sensor": {
@@ -248,6 +250,13 @@
       "name": "Track via 17track",
       "description": "Send a parcel to 17track to add place, time window and history. Uses 1 of your 17track numbers.",
       "fields": {"number": {"name": "Tracking number", "description": "Parcel from the list."}}
+    },
+    "import_mail": {
+      "name": "Import mail",
+      "description": "Read one shipping mail like the mail import does, without a mailbox (e.g. from n8n). Returns the result and the affected parcels.",
+      "fields": {
+        "raw": {"name": "Raw mail (base64)", "description": "The complete mail as raw RFC 822 source (.eml), base64-encoded."}
+      }
     }
   }
 }

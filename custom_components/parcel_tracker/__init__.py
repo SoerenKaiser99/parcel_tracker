@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import logging
 from pathlib import Path
 
@@ -9,7 +11,7 @@ import voluptuous as vol
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import issue_registry as ir
@@ -67,11 +69,29 @@ type ParcelConfigEntry = ConfigEntry[ParcelCoordinator]
 
 TRACK17_ISSUES = ("track17_auth", "track17_quota_low", "track17_quota_exhausted")
 
+# import_mail: base64 of one raw mail; 10 MB of base64 is ~7.5 MB of mail, far above
+# any shipping notice (attachments of real ones stay well under 1 MB).
+MAX_RAW_MAIL_B64 = 10 * 1024 * 1024
 
-def _coordinator(hass: HomeAssistant) -> ParcelCoordinator:
+
+def decode_raw_mail(data: str) -> bytes:
+    """Base64 (standard or URL-safe, padding optional, line breaks allowed) to bytes."""
+    text = "".join(data.split())
+    text = text.replace("-", "+").replace("_", "/")
+    text += "=" * (-len(text) % 4)
+    try:
+        raw = base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError) as err:
+        raise _err("invalid_mail") from err
+    if not raw.strip():
+        raise _err("invalid_mail")
+    return raw
+
+
+def _coordinator(hass: HomeAssistant, missing: str = "not_tracked") -> ParcelCoordinator:
     entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not entries:
-        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="not_tracked")
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key=missing)
     return entries[0].runtime_data
 
 
@@ -214,6 +234,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except ValueError as err:
             raise _err("track17_not_possible") from err
 
+    async def import_mail(call: ServiceCall) -> ServiceResponse:
+        # Up to 10 MB of base64: not on the event loop.
+        raw = await hass.async_add_executor_job(decode_raw_mail, call.data["raw"])
+        result = await _coordinator(hass, "not_loaded").async_import_raw_mail(raw)
+        return result if call.return_response else None
+
     number = vol.All(cv.string, vol.Length(min=1))
     hass.services.async_register(
         DOMAIN, "add_parcel", add,
@@ -238,6 +264,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(
         DOMAIN, "track_17track", track_17track,
         schema=vol.Schema({vol.Required("number"): number}),
+    )
+    hass.services.async_register(
+        DOMAIN, "import_mail", import_mail,
+        schema=vol.Schema({
+            vol.Required("raw"): vol.All(cv.string, vol.Length(min=1, max=MAX_RAW_MAIL_B64)),
+        }),
+        supports_response=SupportsResponse.OPTIONAL,
     )
     return True
 

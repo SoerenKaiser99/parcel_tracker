@@ -112,6 +112,22 @@ NOTIFY_TIMEOUT = 30
 _NO_CARRIER_ERRORS = frozenset({"missing_key", "not_found", "carrier_not_found"})
 
 
+# What became of one mail; the import service returns it as "result".
+MAIL_RECOGNIZED = "recognized"
+MAIL_UNRECOGNIZED = "unrecognized"
+MAIL_IGNORED = "ignored"  # shop advertising, account mails: nothing about parcels
+MAIL_STALE = "stale"  # older than MAIL_MAX_AGE
+MAIL_DUPLICATE = "duplicate"  # Message-ID already processed
+# IMAP folder per outcome (None = only mark seen).
+_MAIL_FOLDERS: dict[str, str | None] = {
+    MAIL_RECOGNIZED: FOLDER_PROCESSED,
+    MAIL_DUPLICATE: FOLDER_PROCESSED,
+    MAIL_UNRECOGNIZED: FOLDER_UNRECOGNIZED,
+    MAIL_IGNORED: None,
+    MAIL_STALE: None,
+}
+
+
 @dataclass
 class _ParsedMail:
     """Outcome of parsing one raw mail in the executor."""
@@ -465,35 +481,80 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     def _handle_mail(self, item: _ParsedMail, now: datetime) -> str | None:
         """Apply one parsed mail; return its target folder (None = only mark seen)."""
+        return _MAIL_FOLDERS[self._apply_mail(item, now)]
+
+    def _apply_mail(
+        self,
+        item: _ParsedMail,
+        now: datetime,
+        changed: set[str] | None = None,
+        mailbox: bool = True,
+    ) -> str:
+        """Apply one parsed mail; return its outcome (a key of _MAIL_FOLDERS).
+
+        ``changed`` collects the numbers of the parcels the mail created or changed.
+        ``mailbox`` is False for a mail a service call handed in: it lies in no folder,
+        so it does not count towards the Amazon repair issue that points to one.
+        """
         try:
             if item.message_id and not self.store.remember_message(item.message_id):
-                return FOLDER_PROCESSED
+                return MAIL_DUPLICATE
             if item.stale:
-                return None  # too old to say anything about today's parcels
+                return MAIL_STALE  # too old to say anything about today's parcels
             if item.error is not None:
                 raise item.error
             result = item.result
             if result is None or result.ignored:
-                return None
-            if result.amazon:
+                return MAIL_IGNORED
+            if result.amazon and mailbox:
                 self._count_amazon(recognized=bool(result.updates))
             if not result.updates:
                 self._unrecognized(item)
-                return FOLDER_UNRECOGNIZED
+                return MAIL_UNRECOGNIZED
             for update in result.updates:
                 if change := apply_update(self.store.parcels, update, now):
                     self._mail_changed(change)
+                    if changed is not None:
+                        changed.add(change.parcel.number)
         except Exception as err:  # noqa: BLE001 - one odd mail must not stop the import
             # Only the error type: mail contents never go into the log.
             _LOGGER.warning(
-                "Could not read a mail (%s); moved it to %s",
+                "Could not read a mail (%s); counted it as unrecognized",
                 type(err).__name__,
-                FOLDER_UNRECOGNIZED,
             )
             self._unrecognized(item)
-            return FOLDER_UNRECOGNIZED
+            return MAIL_UNRECOGNIZED
         self._mail_recognized += 1
-        return FOLDER_PROCESSED
+        return MAIL_RECOGNIZED
+
+    async def async_import_raw_mail(self, raw: bytes) -> dict[str, Any]:
+        """Apply one raw RFC 822 mail handed in by a service call (no mailbox needed).
+
+        Same parser, dedup (Message-ID) and age limit as the IMAP import; returns the
+        outcome and the numbers of the parcels it created or changed.
+        """
+        now = dt_util.utcnow()
+        [item] = await self.hass.async_add_executor_job(
+            _parse_mails, [raw], self._read_otp, now
+        )
+        changed: set[str] = set()
+        async with self._lock:
+            outcome = self._apply_mail(item, now, changed, mailbox=False)
+            settled = self._settle_orders(now)
+            await self.store.async_save()
+        if changed or settled:
+            # Not for a mail that changed nothing: every call would push the next tick back.
+            self.async_set_updated_data(dict(self.store.parcels))
+        parcels = sorted({stored for number in changed if (stored := self._stored_as(number))})
+        return {"result": outcome, "parcels": parcels}
+
+    def _stored_as(self, number: str) -> str | None:
+        """Number a parcel is stored under: its own, or the order it was folded into."""
+        if number in self.store.parcels:
+            return number
+        return next(
+            (p.number for p in self.store.parcels.values() if p.tracking_ref == number), None
+        )
 
     def _unrecognized(self, item: _ParsedMail) -> None:
         """Count an unrecognised mail; keep only its sender domain class and forwarded flag."""

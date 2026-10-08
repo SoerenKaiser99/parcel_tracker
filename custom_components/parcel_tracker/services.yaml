@@ -38,3 +38,10 @@ track_17track:
       required: true
       selector:
         text:
+import_mail:
+  fields:
+    raw:
+      required: true
+      selector:
+        text:
+          multiline: true
