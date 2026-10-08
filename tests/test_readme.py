@@ -1034,7 +1034,9 @@ def test_readme_passes_on_which_mail_providers_dhl_accepts():
         "gmx.de und web.de",
         "Gmail",
         "hotmail.com und outlook.com",
-        "eine andere Adresse",
+        # two testers were refused with a gmx.de address: no promise for freemail
+        "unter eigener Domain",
+        "eine Garantie gibt es bei Freemail-Adressen nicht",
     ):
         assert text in section, text
     # The older, blanket warning named GMX and web.de among the refused ones.

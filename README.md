@@ -112,7 +112,7 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 
 **Der Key ist optional – nicht darauf versteifen.** DHL prüft jeden Antrag selbst; ohne passende Angaben (siehe unten) wird er manchmal abgelehnt. Wer keinen Key bekommt, verliert wenig: siehe [Kein Key? Dann die DHL-Mails](#kein-key-dann-die-dhl-mails).
 
-1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain, sonst bei gmx.de oder web.de (siehe Hinweise unten).
+1. Auf [developer.dhl.com](https://developer.dhl.com) ein Konto anlegen oder anmelden – am besten mit einer E-Mail-Adresse unter eigener Domain (siehe Hinweise unten).
 2. Zu **Meine Apps** wechseln und eine neue App anlegen.
 3. Das Feld **Firma / Company** ausfüllen – **Pflichtfeld**: Bleibt es leer, lehnt DHL den Key ab. Auch als Privatperson etwas eintragen, das zur E-Mail-Adresse des Kontos passt, z. B. die eigene Domain.
 4. Als API **"Shipment Tracking – Unified"** auswählen (nicht "Parcel DE …").
@@ -122,7 +122,7 @@ Damit daraus mehr wird, helfen anonymisierte Beispielmails der Carrier und Shops
 
 **Wichtig beim Antrag:** Als Zweck angeben, dass du deine eigenen Sendungen verfolgen möchtest – am besten wörtlich **„I want to track my own shipments“**. Laut einem Hinweis aus dem DHL-API-Team bekommt grundsätzlich jeder Zugriff, der seine eigenen Sendungen verfolgen will; dafür ist die Tracking-API gedacht.
 
-**Welche E-Mail-Adresse?** Laut DHL werden die Anträge von Hand geprüft, weil Bots die Schnittstelle missbrauchen. Adressen bei gmx.de und web.de gehen dabei meist durch; Adressen bei Gmail und vor allem bei hotmail.com und outlook.com werden deutlich häufiger abgelehnt. Wer kann, nimmt für das Entwicklerkonto also eine andere Adresse.
+**Welche E-Mail-Adresse?** Laut DHL werden die Anträge von Hand geprüft, weil Bots die Schnittstelle missbrauchen. Am zuverlässigsten klappt es bisher mit einer Adresse unter eigener Domain, die zum angegebenen Firmennamen passt. Adressen bei gmx.de und web.de haben laut DHL bessere Chancen als Gmail, hotmail.com und outlook.com, wurden bei Testern aber ebenfalls abgelehnt – eine Garantie gibt es bei Freemail-Adressen nicht. Klappt es nicht: Der Key ist kein Muss, die DHL-Mails reichen (siehe unten).
 
 Die Schnittstelle kennt alle DHL-Sendungen, nicht nur DHL Paket in Deutschland, sondern auch Express und eCommerce. Mit hinterlegter Postleitzahl des Empfängers liefert sie mehr Details. Passt eine mit „Automatisch“ eingetragene Nummer zu keinem Carrier, fragt die Integration deshalb mit Key einmal bei DHL nach: Kennt DHL die Sendung, wird sie ein DHL-Paket, sonst bleibt der Carrier wie ohne Key unbekannt.
 
