@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date, datetime
 from email.message import EmailMessage
 
 from ..models import ParcelStatus
@@ -107,6 +108,23 @@ def stage_status(text: str) -> ParcelStatus | None:
     return None
 
 
+def _eta(text: str, sent: datetime) -> dict[str, date | datetime | None]:
+    """The delivery day ``text`` names, as the eta fields of a MailUpdate ({} without one)."""
+    if eta := _ETA.search(text):
+        day = relative_day(eta.group("day"), sent)
+        if not eta.group("h1"):
+            return {"eta_date": day}
+        return {
+            "eta_date": day,
+            "eta_from": at(day, int(eta.group("h1")), int(eta.group("m1") or 0)),
+            "eta_to": at(day, int(eta.group("h2")), int(eta.group("m2") or 0)),
+        }
+    for line in _ETA_DATES.finditer(text):
+        if resolved := resolve_dates(line.group("rest"), sent.date()):
+            return {"eta_date": resolved[0], "eta_latest": resolved[1]}
+    return {}
+
+
 def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     """Parse a current-format Amazon mail; one update per order number."""
     subj = subject(msg)
@@ -117,24 +135,20 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     if status is None or not orders:
         return []
 
-    eta_date = eta_from = eta_to = eta_latest = None
-    if eta := _ETA.search(text):
-        eta_date = relative_day(eta.group("day"), sent)
-        if eta.group("h1"):
-            eta_from = at(eta_date, int(eta.group("h1")), int(eta.group("m1") or 0))
-            eta_to = at(eta_date, int(eta.group("h2")), int(eta.group("m2") or 0))
-    else:
-        for line in _ETA_DATES.finditer(text):
-            if resolved := resolve_dates(line.group("rest"), sent.date()):
-                eta_date, eta_latest = resolved
-                break
+    eta = _eta(text, sent)
     code = None
     if read_otp and (otp := _OTP.search(text)):
         code = otp.group(1)
 
     from_subject = subject_title(subj) if len(orders) == 1 else None
     updates = []
+    above = 0
     for index, match in enumerate(orders):
+        if len(orders) > 1:
+            # Each order's day stands above its number; an order without one keeps the day
+            # of the order before it (the first one: the first day of the mail).
+            eta = _eta(text[above : match.start()], sent) or eta
+            above = match.end()
         end = orders[index + 1].start() if index + 1 < len(orders) else len(text)
         item = _ITEM.search(text, match.end(), end)
         listed = item.group("title") or item.group("listed") if item else None
@@ -146,12 +160,9 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 status=status,
                 sent_at=sent,
                 title=title,
-                eta_date=eta_date,
-                eta_latest=eta_latest,
-                eta_from=eta_from,
-                eta_to=eta_to,
                 delivered_at=sent if status is ParcelStatus.DELIVERED else None,
                 delivery_code=code,
+                **eta,
             )
         )
     return updates

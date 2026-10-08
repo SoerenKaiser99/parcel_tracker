@@ -127,6 +127,20 @@ def test_orders_in_amazons_own_text_part_are_named_after_their_first_item():
     assert all(u.status is ParcelStatus.PRE_TRANSIT for u in updates)
 
 
+def test_each_order_of_one_mail_has_its_own_delivery_day():
+    # "Zustellung: 13. Oktober" above the first order number, "… 15. Oktober" above the second.
+    updates = parse_amazon(load_mail("124_bestellbestaetigung_bestellt.eml"), False)
+    assert [u.eta_date for u in updates] == [date(2026, 10, 13), date(2026, 10, 15)]
+    assert all(u.eta_latest is None and u.eta_from is None and u.eta_to is None for u in updates)
+
+
+def test_an_order_without_a_day_keeps_the_day_of_the_order_before_it():
+    msg = load_mail("124_bestellbestaetigung_bestellt.eml")
+    msg.set_content(msg.get_content().replace("Zustellung: 15. Oktober", ""))
+    updates = parse_amazon(msg, False)
+    assert [u.eta_date for u in updates] == [date(2026, 10, 13), date(2026, 10, 13)]
+
+
 def test_shipped_versendet_and_versandt():
     u = _one("074_versandbestaetigung_versendet.eml")
     assert (u.number, u.status, u.eta_date) == (
