@@ -38,7 +38,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Kalender**: `calendar.pakete` zeigt die erwarteten Zustelltermine.
 - **Event**: `parcel_tracker_status_changed` feuert bei jedem Statuswechsel eines Pakets.
 - **Benachrichtigungen** (optional): Bei „in Zustellung“, „zugestellt“, „abholbereit“ oder einem Problem geht eine Benachrichtigung an die gewählten Ziele, ohne eigene Automation; für eigene Texte und Bedingungen gibt es einen Blueprint (siehe [Benachrichtigungen](#benachrichtigungen)).
-- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `refresh`, `track_17track`.
+- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `refresh`, `track_17track`, `import_mail`.
 
 Was (noch) nicht geht: siehe [Roadmap & Status](#roadmap--status). Amazon- und eBay-Bestellungen kennt die Integration nur aus Mails; abgefragt wird dort nur die Sendungsnummer des Carriers, sobald eine Mail sie verrät.
 
@@ -269,6 +269,25 @@ In Gmail, Outlook & Co. heißt das „Filter" bzw. „Regel": Bedingung „Absen
 Statt einer Filterregel lassen sich einzelne Mails auch von Hand an das Paket-Postfach weiterleiten. Eine Weiterleitung erkennt der Import wie die Original-Mail, wenn im weitergeleiteten Block der ursprüngliche Absender steht – also die Kopfzeilen „Von: … / Gesendet: … / An: … / Betreff: …" über dem Mailtext. Alle gängigen Mailprogramme setzen diesen Block von selbst (Outlook, Apple Mail, Gmail, Thunderbird; deutsch und englisch) – lass ihn beim Weiterleiten einfach stehen. Auch „Als Anhang weiterleiten" funktioniert. Kennt der Import den ursprünglichen Absender (dieselben Shops und Paketdienste wie in der Filterliste oben), liest er die Mail genau so, als wäre sie direkt gekommen: mit Status, Zustelltag und Namen. „Heute" und „morgen" rechnet er ab dem Datum der Original-Mail, das im Block steht; lässt sich dieses Datum nicht sicher lesen, zählt der Zeitpunkt der Weiterleitung. Was du selbst über den Block schreibst (ein Gruß, deine Signatur), liest er nie mit, und dein eigener Name wird nie zum Paketnamen. Am zuverlässigsten bleibt trotzdem die automatische Filterregel: Sie leitet die Mail unverändert um.
 
 Fehlt der Block oder ist der ursprüngliche Absender unbekannt, gilt wie bisher: Amazon- und GLS-Mails erkennt der Import am Betreff (mit „WG:" oder „Fwd:"), ohne den Versender einer GLS-Mail als Namen zu übernehmen, und rechnet „heute" und „morgen" ab dem Zeitpunkt der Weiterleitung. Aus allen anderen Mails übernimmt er nur eindeutige Sendungsnummern (DHL `00340…` und `JJD…`, UPS `1Z…`, Hermes `H…`; DPD-Nummern nur, wenn „DPD" in der Mail steht und die Nummer direkt nach „Paketnummer", „Sendungsnummer" o. Ä. folgt, oder die Mail direkt von DPD kommt). Solche Pakete tragen keinen Namen aus dem Absender, sondern heißen „<Carrier> <Nummer>" – umbenennen geht auf der Karte. Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
+
+### Ohne Postfach: Mail per Dienst übergeben
+
+Der Dienst `parcel_tracker.import_mail` liest eine einzelne Mail wie der E-Mail-Import, aber ohne IMAP-Postfach, z. B. aus n8n oder einer eigenen Automation. Das Feld `raw` enthält die komplette Mail als Quelltext (RFC 822, `.eml`), base64-kodiert und höchstens 10 MB groß. Die Mail zählt wie jede andere nur einmal (Message-ID) und wird nicht gelesen, wenn sie älter als 14 Tage ist.
+
+```yaml
+action: parcel_tracker.import_mail
+data:
+  raw: "{{ mail_base64 }}"
+response_variable: ergebnis
+```
+
+Die Antwort nennt in `result`, was aus der Mail wurde, und in `parcels` die Pakete, die sie angelegt oder geändert hat (bei einem Paket, das in einer Bestellung aufging, die Bestellung):
+
+- `recognized`: gelesen und angewendet
+- `unrecognized`: keine Sendung erkannt
+- `ignored`: Werbung oder Konto-Mail
+- `stale`: älter als 14 Tage
+- `duplicate`: diese Mail wurde schon gelesen
 
 ### Was mit den Mails passiert
 
