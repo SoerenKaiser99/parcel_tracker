@@ -50,10 +50,12 @@ _STAGES = {
 # closing quote still follows; otherwise it closes the title.
 _QUOTED = re.compile(
     r"^[^:]+:\s*(?:\d+\s*)?[„\"“](?P<title>(?:[^“\"”]|\"(?=[^“”]*[“”]))+)[“\"”]"
-    r"(?:\s*und\s+(?P<more>\d+)\s+weitere[r]?\s+Artikel)?"
+    r"(?:\s*und\s+(?P<more>\d+)\s+(?:weitere[r]?|mehr)\s+Artikel)?"
 )
 _ORDER = re.compile(r"^Bestellnr\.\s*(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE)
-_ITEM = re.compile(r"^\[(?P<title>[^\]]+)\]<https?://", re.MULTILINE)
+# An item below its order number: "[title]<link>" in a mail whose text was made from the
+# HTML, "* title" in the text part Amazon writes itself.
+_ITEM = re.compile(r"^(?:\[(?P<title>[^\]]+)\]<https?://|\* (?P<listed>\S.*)$)", re.MULTILINE)
 _ETA = re.compile(
     r"^(?:Ankunft|Zustellung)\s+(?P<day>heute|morgen)"
     r"(?:\s+(?P<h1>\d{1,2})(?:[:.](?P<m1>\d{2}))?\s*h?\s*[–-]\s*"
@@ -135,7 +137,8 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     for index, match in enumerate(orders):
         end = orders[index + 1].start() if index + 1 < len(orders) else len(text)
         item = _ITEM.search(text, match.end(), end)
-        title = from_subject or (shorten(item.group("title")) if item else None)
+        listed = item.group("title") or item.group("listed") if item else None
+        title = from_subject or (shorten(listed) if listed else None)
         updates.append(
             MailUpdate(
                 number=order_number(match.group(1)),
