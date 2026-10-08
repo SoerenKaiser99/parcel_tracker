@@ -137,7 +137,7 @@ Ohne DHL-Key läuft die Integration trotzdem: DPD, GLS und Hermes brauchen keine
 So kommen DHL-Pakete ohne Key von selbst in die Übersicht:
 
 1. Im (kostenlosen) DHL-Kundenkonto die E-Mail-Benachrichtigungen zu Sendungen einschalten.
-2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de` und `zustellung@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen (siehe [E-Mail-Import](#e-mail-import)).
+2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de` und `sendungsupdate@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen (siehe [E-Mail-Import](#e-mail-import)).
 3. Fertig: Die Integration legt die Pakete aus den Mails an und führt den Status mit – samt Liefertag, wenn die Mail ihn nennt. Mit Key kämen nur Ort und Verlauf dazu.
 
 Den Status liest der Import nur aus dem Betreff: „ist unterwegs“ setzt „Unterwegs“ (samt Liefertag, wenn die Mail ihn nennt), „kommt morgen“ setzt „Unterwegs“ mit dem Tag nach der Mail, „kommt heute“ bzw. „wird heute zugestellt“ setzt „In Zustellung“ für den Tag der Mail, „wurde zugestellt“ – auch „wurde an den gewünschten Ablageort zugestellt“ – setzt „Zugestellt“. „Liegt zur Abholung bereit“ und „wurde an Packstation … / in die Filiale … zugestellt“ setzen „Abholbereit“. Jede andere DHL-Mail, deren Betreff von einer „Sendung“ spricht (Zustellfoto, gescheiterter Zustellversuch, Neuigkeiten), setzt nur „Unterwegs“ ohne Tag und nie einen Status zurück; eine Umfrage (Betreff mit Fragezeichen) und ein Betreff ohne „Sendung“ legen das Paket nur an. Abholcodes liest der Import nie. Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
@@ -231,6 +231,7 @@ Diese Absender in die Filterregel aufnehmen:
 - `noreply@dhl.de`
 - `paketankuendigung@dhl.de`
 - `zustellung@dhl.de`
+- `sendungsupdate@dhl.de`
 - `noreply@service.dpd.de`
 - `no_reply@dpd.at` (DPD Österreich)
 - `pkginfo@ups.com`
@@ -239,7 +240,7 @@ Diese Absender in die Filterregel aufnehmen:
 - `no-reply@gls-pakete.de`
 - `noreply@gls-group.eu` und `noreply@gls-rtt.com` (GLS Österreich)
 
-DHL schreibt von mehreren Adressen (`noreply@`, `paketankuendigung@` und `zustellung@dhl.de`). Am einfachsten ist dafür eine Regel auf die ganze Domain `dhl.de`, wenn der Mail-Anbieter das kann: Der Import liest jeden Absender unter `dhl.de`.
+DHL schreibt von mehreren Adressen (`noreply@`, `paketankuendigung@`, `zustellung@` und `sendungsupdate@dhl.de`). Am einfachsten ist dafür eine Regel auf die ganze Domain `dhl.de`, wenn der Mail-Anbieter das kann: Der Import liest jeden Absender unter `dhl.de`.
 
 DPD Deutschland (`noreply@service.dpd.de`): Die Ankündigung „Bald ist Ihr DPD Paket da“ liefert neben der Paketnummer den Versender als Namen des Pakets – nur eine Firma mit Rechtsform oder einen bekannten Shop, nie eine Privatperson – und die Lieferschätzung: Aus „Ihre Sendung stellen wir in 1-2 Werktagen zu“ wird eine Lieferspanne, gerechnet ab dem Tag der Mail (Werktage sind Montag bis Samstag; Feiertage kennt der Import nicht). Das Paket steht damit auf „Angekündigt“, bis die DPD-Abfrage den Status liefert; die Schätzung bleibt, bis die DPD-Abfrage selbst einen Tag nennt oder das Paket zugestellt bzw. abholbereit ist. Der Empfänger aus der Mail wird nie gelesen. Alle anderen Mails von DPD Deutschland legen wie bisher nur das Paket an.
 
@@ -251,6 +252,7 @@ if address :is "from" [
   "bestellbestaetigung@amazon.de", "versandbestaetigung@amazon.de",
   "shipment-tracking@amazon.de", "order-update@amazon.de",
   "noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de",
+  "sendungsupdate@dhl.de",
   "noreply@service.dpd.de", "pkginfo@ups.com",
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",

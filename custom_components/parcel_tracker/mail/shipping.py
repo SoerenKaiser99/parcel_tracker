@@ -56,6 +56,11 @@ _DHL_SHOP = re.compile(
 # mail speaks of days and deliveries too.
 # "wurde zugestellt", "wurde an den gewünschten Ablageort zugestellt"
 _DHL_DELIVERED = re.compile(r"\bwurde\b(?:\s+\S+){0,6}?\s+zugestellt\b")
+# "liegt am gewünschten Ablageort", "wurde am vereinbarten Ablageort hinterlegt": delivered
+# too, told without the word.
+_DHL_DROPPED = re.compile(
+    r"\bliegt\b(?:\s+\S+){0,3}?\s+ablageort\b|\bablageort\s+hinterlegt\b"
+)
 # ... but "an Packstation 123 zugestellt" waits for the recipient.
 _DHL_PICKUP_PLACE = re.compile(r"packstation|filiale|paketshop|poststation|postfiliale")
 _DHL_READY = re.compile(r"\bzur\s+abholung\s+bereit\b|\babholbereit\b")
@@ -81,6 +86,8 @@ def _dhl_status(subj: str) -> tuple[ParcelStatus | None, int | None]:
             if _DHL_PICKUP_PLACE.search(done.group(0)):
                 return ParcelStatus.AWAITING_PICKUP, None
             return ParcelStatus.DELIVERED, None
+        if _DHL_DROPPED.search(lower):
+            return ParcelStatus.DELIVERED, None
         if _DHL_TODAY.search(lower):
             return ParcelStatus.OUT_FOR_DELIVERY, 0
         if _DHL_TOMORROW.search(lower):
@@ -94,9 +101,9 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
 
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
     unterwegs", "kommt morgen" (the day after the mail), "kommt heute" / "wird heute
-    zugestellt", "wurde … zugestellt" and, for a Packstation or branch, "liegt zur Abholung
-    bereit" / "wurde an Packstation … zugestellt". Any other subject that speaks of a
-    "Sendung" means "on its way" without a day; a question (survey) and a subject without
+    zugestellt", "wurde … zugestellt", "liegt am gewünschten Ablageort" and, for a Packstation
+    or branch, "liegt zur Abholung bereit" / "wurde an Packstation … zugestellt". Any other
+    subject that speaks of a "Sendung" means "on its way" without a day; a question (survey) and a subject without
     "Sendung" tell no status. A pick-up code is never read. An Amazon shipment keeps its
     fixed name (and is merged into the open Amazon order when unambiguous); any other shop
     only names the parcel if it passes the naming gate and the mail was not forwarded. The

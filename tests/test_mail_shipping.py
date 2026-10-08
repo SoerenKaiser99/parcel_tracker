@@ -296,6 +296,12 @@ DAY_BODY = (
         ("Ihre Sendung wurde an den gewünschten Ablageort zugestellt", ParcelStatus.DELIVERED),
         ("Ihre Beispiel GmbH Sendung wurde heute an einen Nachbarn im Haus zugestellt",
          ParcelStatus.DELIVERED),
+        # v0.3.22: left at the agreed place, told without "zugestellt"
+        ("Ihre Beispiel GmbH Sendung liegt am gewünschten Ablageort", ParcelStatus.DELIVERED),
+        ("Ihre Sendung liegt am vereinbarten Ablageort", ParcelStatus.DELIVERED),
+        ("Ihre Sendung liegt am Ablageort", ParcelStatus.DELIVERED),
+        ("Ihre Sendung wurde am gewünschten Ablageort hinterlegt", ParcelStatus.DELIVERED),
+        ("Ihre Sendung liegt nicht am gewünschten Ablageort", ParcelStatus.IN_TRANSIT),
         # waits for the recipient
         ("Ihre Sendung wurde an Packstation 123 zugestellt", ParcelStatus.AWAITING_PICKUP),
         ("Ihre Sendung wurde in die Filiale Beispielweg 1 zugestellt",

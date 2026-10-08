@@ -904,14 +904,22 @@ def test_readme_says_which_grouped_numbers_the_anonymiser_replaces():
     assert "in Gruppen geschriebene Nummern behalten ihre Gruppen." not in section
 
 
-def test_readme_lists_the_three_dhl_senders_and_the_domain_rule():
+def test_readme_lists_the_dhl_senders_and_the_domain_rule():
     senders = README.split("### Welche Absender")[1].split("\n### ")[0]
-    for address in ("noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de"):
+    for address in (
+        "noreply@dhl.de",
+        "paketankuendigung@dhl.de",
+        "zustellung@dhl.de",
+        "sendungsupdate@dhl.de",  # v0.3.22 (issue 11)
+    ):
         assert f"`{address}`" in senders
         assert f'"{address}"' in senders  # the Sieve example
     assert "Regel auf die ganze Domain `dhl.de`" in senders
     no_key = README.split("### Kein Key? Dann die DHL-Mails")[1].split("\n## ")[0]
-    assert "`noreply@dhl.de`, `paketankuendigung@dhl.de` und `zustellung@dhl.de`" in no_key
+    assert (
+        "`noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de` und"
+        " `sendungsupdate@dhl.de`"
+    ) in no_key
     assert "12 Ziffern" in no_key and "„Ihre Sendungsnummer“" in no_key
 
 
