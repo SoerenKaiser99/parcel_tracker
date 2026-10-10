@@ -1,0 +1,101 @@
+site_name: Paket Tracker
+site_description: >-
+  Anleitung zur Home-Assistant-Integration Paket Tracker: Pakete von DHL, DPD, GLS,
+  Hermes und UPS verfolgen, Pakete aus E-Mails übernehmen, Karte, Benachrichtigungen
+  und Automationsrezepte.
+site_url: https://soerenkaiser99.github.io/parcel_tracker/
+repo_url: https://github.com/SoerenKaiser99/parcel_tracker
+repo_name: SoerenKaiser99/parcel_tracker
+edit_uri: ""
+docs_dir: docs
+site_dir: site
+copyright: >-
+  MIT-Lizenz · Keine Verbindung zu den genannten Paketdiensten und Shops;
+  alle Marken gehören ihren Inhabern.
+
+# docs/demo/ (static demo page) and docs/images/ are copied as they are. The demo loads
+# the card from the repository (../../custom_components/…), a path that does not exist
+# on the published site: the hook puts the card next to the demo and points to it.
+hooks:
+  - scripts/mkdocs_hooks.py
+
+theme:
+  name: material
+  language: de
+  icon:
+    logo: material/package-variant-closed
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Dunkles Design
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Helles Design
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+plugins:
+  - search:
+      lang: de
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - sane_lists
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
+
+nav:
+  - Start: index.md
+  - Einrichten:
+      - Installation: installation.md
+      - Was brauche ich für welchen Dienst?: dienste.md
+      - E-Mail-Import: mail-import.md
+  - Benutzen:
+      - Die Karte: karte.md
+      - Benachrichtigungen: benachrichtigungen.md
+      - Automationen: automationen.md
+      - Rezepte: rezepte.md
+  - Nachschlagen:
+      - Sensoren, Kalender und Dienste: sensoren.md
+      - Datenschutz: datenschutz.md
+      - Hilfe: hilfe.md
+      - Roadmap & Status: stand.md

@@ -5,3 +5,4 @@ __pycache__/
 .superpowers/
 dist/
 .DS_Store
+site/

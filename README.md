@@ -1,6 +1,8 @@
 # Paket Tracker
 
-[![Version](https://img.shields.io/github/v/release/SoerenKaiser99/parcel_tracker?label=Version)](https://github.com/SoerenKaiser99/parcel_tracker/releases/latest) [![Downloads](https://img.shields.io/github/downloads/SoerenKaiser99/parcel_tracker/total?label=Downloads)](https://github.com/SoerenKaiser99/parcel_tracker/releases)
+[![Version](https://img.shields.io/github/v/release/SoerenKaiser99/parcel_tracker?label=Version)](https://github.com/SoerenKaiser99/parcel_tracker/releases/latest) [![Downloads](https://img.shields.io/github/downloads/SoerenKaiser99/parcel_tracker/total?label=Downloads)](https://github.com/SoerenKaiser99/parcel_tracker/releases) [![Doku](https://img.shields.io/badge/Doku-Anleitung-blue)](https://soerenkaiser99.github.io/parcel_tracker/)
+
+**Ausführliche Anleitung mit Rezepten:** [soerenkaiser99.github.io/parcel_tracker](https://soerenkaiser99.github.io/parcel_tracker/)
 
 Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) UPS verfolgt, auf Wunsch über 17track ergänzt oder weitere Carrier verfolgt und Amazon-, eBay-, AliExpress-, GLS-, Hermes- und UPS-Pakete aus E-Mails übernimmt: eigene Sensoren, ein Sammelsensor für "heute", ein Lieferkalender, ein Status-Event, Benachrichtigungen aufs Handy und eine eigene Dashboard-Karte.
 
