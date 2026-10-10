@@ -17,6 +17,7 @@ blueprint:
       default:
         - out_for_delivery
         - delivered
+        - awaiting_pickup
       selector:
         select:
           multiple: true

@@ -738,7 +738,7 @@ async def test_diagnostics_notifications_off_by_default(hass, hass_storage, free
         "targets": 0,
         "entity_targets": 0,
         "service_targets": 0,
-        "events": ["out_for_delivery", "delivered"],
+        "events": ["out_for_delivery", "delivered", "awaiting_pickup"],
     }
 
 

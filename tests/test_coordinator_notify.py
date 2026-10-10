@@ -380,21 +380,23 @@ async def test_setup_while_starting_and_unload_leaves_no_listener(hass, freezer)
         assert events == [] and calls == []
 
 
-async def test_default_events_are_out_for_delivery_and_delivered(hass, freezer):
+async def test_default_events_are_out_for_delivery_delivered_and_ready_for_pickup(hass, freezer):
     freezer.move_to(DAYTIME)
     coord, carrier, _ = await _setup(hass, {CONF_NOTIFY_TARGETS: [PHONE]})
     calls = async_mock_service(hass, "notify", "send_message")
     events = async_capture_events(hass, EVENT_STATUS_CHANGED)
     await _change(hass, coord, carrier, freezer, result(ParcelStatus.EXCEPTION))
-    await _change(hass, coord, carrier, freezer, result(ParcelStatus.AWAITING_PICKUP))
     await _change(hass, coord, carrier, freezer, result(ParcelStatus.AT_DELIVERY_DEPOT))
-    assert len(events) == 3 and calls == []
+    assert len(events) == 2 and calls == []
     await _change(hass, coord, carrier, freezer, result(ParcelStatus.OUT_FOR_DELIVERY))
+    await _change(hass, coord, carrier, freezer, result(ParcelStatus.AWAITING_PICKUP))
     await _change(hass, coord, carrier, freezer, result(ParcelStatus.DELIVERED))
-    assert [m for _, _, m in _sent(calls)] == [
+    assert len(events) == 5
+    assert sorted(m for _, _, m in _sent(calls)) == sorted([
         "✅ Kopfhörer (DHL) wurde zugestellt",
+        "📍 Kopfhörer (DHL) liegt zur Abholung bereit",
         "📦 Kopfhörer (DHL) ist in Zustellung",
-    ]
+    ])
 
 
 async def test_only_the_chosen_events(hass, freezer):

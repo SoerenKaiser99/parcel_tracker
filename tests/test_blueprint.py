@@ -125,11 +125,12 @@ async def test_defaults_send_a_plain_text_without_app_data(hass):
     }
     await _fire(hass, new_status="delivered", old_status="out_for_delivery")
     assert calls[1].data["message"] == "Kopfhörer (DHL) wurde zugestellt"
+    await _fire(hass, new_status="awaiting_pickup")
+    assert calls[2].data["message"] == "Kopfhörer (DHL) liegt zur Abholung bereit"
     # Not ticked by default.
-    for status in ("pre_transit", "in_transit", "at_delivery_depot", "awaiting_pickup",
-                   "exception"):
+    for status in ("pre_transit", "in_transit", "at_delivery_depot", "exception"):
         await _fire(hass, new_status=status)
-    assert len(calls) == 2
+    assert len(calls) == 3
 
 
 async def test_every_status_has_a_default_text(hass):

@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.25"
+VERSION = "0.3.26"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -65,7 +65,8 @@ ANNOUNCE_MAX_WAIT = timedelta(seconds=120)
 # Statuses a push notification can announce (in the order the options show them)
 # and the ones ticked by default.
 NOTIFY_EVENTS = ("out_for_delivery", "delivered", "awaiting_pickup", "exception")
-DEFAULT_NOTIFY_EVENTS = ("out_for_delivery", "delivered")
+# "Ready for pickup" is the one status that asks the recipient to act: on from the start.
+DEFAULT_NOTIFY_EVENTS = ("out_for_delivery", "delivered", "awaiting_pickup")
 # A stored notify target is either the ID of a notify entity ("notify.tablet") or,
 # with this prefix, the name of a classic notify service ("service:pushover" is the
 # service notify.pushover). No entity ID contains a colon, so the two never collide.

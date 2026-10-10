@@ -479,7 +479,7 @@ Home Assistant kennt zwei Arten von Zielen. Beide stehen in derselben Auswahl un
 
 1. **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** öffnen und den Bereich „Benachrichtigungen“ aufklappen.
 2. **Ziele**: ein oder mehrere Ziele aus der Liste wählen – Entitäten zuerst, darunter die klassischen Dienste. Ohne Ziel wird nichts gesendet.
-3. **Ereignisse**: ankreuzen, wobei benachrichtigt wird – in Zustellung, zugestellt, abholbereit, Problem. Voreingestellt sind „in Zustellung“ und „zugestellt“.
+3. **Ereignisse**: ankreuzen, wobei benachrichtigt wird – in Zustellung, zugestellt, abholbereit, Problem. Voreingestellt sind „in Zustellung“, „zugestellt“ und „abholbereit“ (wer die Benachrichtigungen schon eingerichtet hat, behält seine Auswahl).
 
 Der Schalter „Benachrichtigungen aktiv“ schaltet sich mit dem ersten Ziel von selbst ein; wer ihn einschaltet, ohne ein Ziel zu wählen, bekommt einen Hinweis im Formular. Ausschalten (oder alle Ziele entfernen) beendet die Benachrichtigungen.
 
@@ -522,7 +522,7 @@ Für eigene Texte, eigene Bedingungen und die Extras der Home-Assistant-App gibt
 
 Der Knopf importiert [`blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml`](blueprints/automation/parcel_tracker/paket_benachrichtigung.yaml) aus diesem Repository (HACS installiert Blueprints nicht mit). Danach unter **Einstellungen → Automationen & Szenen → Blueprints** eine Automation daraus anlegen:
 
-- **Status**: bei welchen neuen Status benachrichtigt wird (alle Status wählbar, voreingestellt „in Zustellung“ und „zugestellt“).
+- **Status**: bei welchen neuen Status benachrichtigt wird (alle Status wählbar, voreingestellt „in Zustellung“, „zugestellt“ und „abholbereit“).
 - **Benachrichtigungsdienst**: ein klassischer Dienst als Text, z. B. `notify.mobile_app_mein_handy`; Standard `notify.notify`.
 - **Titel** und **Text**: Der Text ist eine Vorlage mit den Variablen `name`, `carrier`, `new_status`, `old_status` und `text` (der fertige Standardsatz), z. B. `{{ name }} kommt mit {{ carrier }}`.
 - **Dashboard-Pfad** (nur Home-Assistant-App): z. B. `/lovelace/pakete`. Beim Antippen öffnet sich dieses Dashboard (`data.url` für iOS, `data.clickAction` für Android).
