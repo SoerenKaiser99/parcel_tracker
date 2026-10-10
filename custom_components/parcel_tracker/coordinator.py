@@ -507,6 +507,39 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_recognized += 1
         return FOLDER_PROCESSED
 
+    async def async_import_raw_mail(self, raw: bytes) -> dict[str, Any] | None:
+        """Apply one raw RFC 822 mail handed in over the endpoint (no mailbox needed).
+
+        Same parser, dedup (Message-ID) and age limit as the IMAP import. Returns what
+        became of the mail and the numbers of the parcels that differ afterwards (the
+        order instead of a parcel folded into it); None if this coordinator was
+        unloaded in the meantime.
+        """
+        now = dt_util.utcnow()
+        [item] = await self.hass.async_add_executor_job(_parse_mails, [raw], self._read_otp, now)
+        async with self._lock:
+            if self._stopped:
+                return None
+            duplicate = item.message_id in self.store.message_ids
+            before = {number: parcel.to_dict() for number, parcel in self.store.parcels.items()}
+            folder = self._handle_mail(item, now)
+            self._settle_orders(now)
+            after = {number: parcel.to_dict() for number, parcel in self.store.parcels.items()}
+            await self.store.async_save()
+        if after != before:
+            # Not for a mail that changed nothing: every call would push the next tick back.
+            self.async_set_updated_data(dict(self.store.parcels))
+        if duplicate:
+            result = "duplicate"
+        elif folder == FOLDER_PROCESSED:
+            result = "recognized"
+        elif folder == FOLDER_UNRECOGNIZED:
+            result = "unrecognized"
+        else:
+            result = "stale" if item.stale else "ignored"
+        parcels = sorted(number for number in after if before.get(number) != after[number])
+        return {"result": result, "parcels": parcels}
+
     def _unrecognized(self, item: _ParsedMail) -> None:
         """Count an unrecognised mail; keep only its sender domain class and forwarded flag."""
         self._mail_unrecognized += 1

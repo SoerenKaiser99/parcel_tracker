@@ -54,6 +54,7 @@ from .const import (
 )
 from .coordinator import ParcelCoordinator
 from .detect import UnsupportedNumber
+from .http import ImportMailView
 from .lovelace_resource import async_ensure_resource
 from .mail.imap import MailboxClient
 from .store import DuplicateParcel, ParcelStore
@@ -135,6 +136,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         await hass.http.async_register_static_paths(
             [StaticPathConfig(CARD_URL, str(BUNDLED_CARD), False)]
         )
+        hass.http.register_view(ImportMailView())
 
     # /local (config/www) is served from the very start of HA, unlike our own
     # static path; clients that hit a not-yet-registered URL cache the failure.
