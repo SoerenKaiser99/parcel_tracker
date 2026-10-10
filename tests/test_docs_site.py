@@ -74,7 +74,7 @@ def test_every_page_of_the_navigation_exists_and_every_page_is_in_it():
     assert config["docs_dir"] == "docs"
     assert config["site_url"] == "https://soerenkaiser99.github.io/parcel_tracker/"
     files = _nav_files(config["nav"])
-    assert len(files) == len(set(files)) == 12
+    assert len(files) == len(set(files)) == 13
     for name in files:
         assert (DOCS / name).is_file(), name
     assert set(files) == set(TEXTS)

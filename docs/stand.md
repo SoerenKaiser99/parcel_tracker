@@ -64,5 +64,7 @@ Was in Österreich und der Schweiz heute geht und was nicht, steht unter [Öster
 
 ## Mithelfen
 
+Was gerade am meisten hilft – welche Funktionen eine Bestätigung brauchen und welche Beispielmails fehlen –, steht auf der Seite [Wie ihr helfen könnt](mithelfen.md).
+
 - **Fehler gefunden?** [Fehler melden](hilfe.md#fehler-melden) – mit der Diagnose-Datei.
 - **Eine Mail wird nicht erkannt?** [Beispielmails einreichen](hilfe.md#beispielmails-einreichen) – nur anonymisiert.

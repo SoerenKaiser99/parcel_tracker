@@ -45,3 +45,7 @@ Danach lohnt sich der [E-Mail-Import](mail-import.md): Mit ihm tauchen Pakete vo
 
 [Zur Installation](installation.md){ .md-button .md-button--primary }
 [Rezepte für Automationen](rezepte.md){ .md-button }
+
+## Beta: Deine Rückmeldung zählt
+
+Paket Tracker ist eine öffentliche Beta. Welche Funktionen noch eine Bestätigung aus dem Alltag brauchen und welche Beispielmails fehlen, steht unter [Wie ihr helfen könnt](mithelfen.md).
