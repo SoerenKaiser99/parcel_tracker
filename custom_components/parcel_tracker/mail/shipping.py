@@ -70,7 +70,11 @@ _DHL_DROPPED = re.compile(
 # ... but "an Packstation 123 zugestellt" waits for the recipient.
 _DHL_PICKUP_PLACE = re.compile(r"packstation|filiale|paketshop|poststation|postfiliale")
 _DHL_READY = re.compile(r"\bzur\s+abholung\s+bereit\b|\babholbereit\b")
-_DHL_TODAY = re.compile(r"\bkommt\s+heute\b|\bwird\s+heute\b.*\bzugestellt\b")
+_DHL_TODAY = re.compile(r"\bkommt\s+heute\b|\bwird\s+(?:heute|gleich)\b.*\bzugestellt\b")
+# "wird gleich zugestellt": the courier is close. Still "in Zustellung", with a line of
+# its own in the history.
+_DHL_SOON = re.compile(r"\bwird\s+gleich\b.*\bzugestellt\b")
+SOON_TEXT = "Wird gleich zugestellt"
 _DHL_TOMORROW = re.compile(r"\bkommt\s+morgen\b|\bwird\s+morgen\b.*\bzugestellt\b")
 _DHL_NOT = re.compile(r"\bnicht\b|\bkonnte\b|zustellversuch")
 _UPS_DELIVERED = re.compile(
@@ -107,9 +111,10 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
 
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
     unterwegs", "kommt morgen" (the day after the mail), "kommt heute" / "wird heute
-    zugestellt", "wurde … zugestellt", "liegt am gewünschten Ablageort" and, for a Packstation
-    or branch, "liegt zur Abholung bereit" / "wurde an Packstation … zugestellt". Any other
-    subject that speaks of a "Sendung" means "on its way" without a day; a question (survey) and
+    zugestellt" / "wird gleich zugestellt" (told in its own words), "wurde … zugestellt",
+    "liegt am gewünschten Ablageort" and, for a Packstation or branch, "liegt zur Abholung
+    bereit" / "wurde an Packstation … zugestellt". Any other subject that speaks of a
+    "Sendung" means "on its way" without a day; a question (survey) and
     a subject without "Sendung" tell no status. A pick-up code is never read. An Amazon shipment
     keeps its fixed name (and is merged into the open Amazon order when unambiguous); any other
     shop only names the parcel if it passes the naming gate and the mail was not forwarded. The
@@ -138,6 +143,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     status, ahead = _dhl_status(subj)
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
+    soon = status is ParcelStatus.OUT_FOR_DELIVERY and _DHL_SOON.search(subj.lower())
     if status is ParcelStatus.OUT_FOR_DELIVERY:
         eta_date = sent.date()
         if window := _DHL_WINDOW.search(text):
@@ -167,6 +173,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             delivered_at=delivered_at,
             shop=shop_name,
             postponed=postponed,
+            status_text=SOON_TEXT if soon else None,
         )
     ]
 

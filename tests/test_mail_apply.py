@@ -870,3 +870,24 @@ def test_an_attempted_delivery_never_reopens_an_order_that_arrived(final):
     parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", TODAY, status=final)}
     assert apply_update(parcels, _attempt(), NOW) is None
     assert parcels[ORDER].status is final
+
+
+# ----- DHL "wird gleich zugestellt": still in delivery, a history line of its own -----
+def test_a_mail_with_its_own_words_adds_a_history_line_without_a_new_status():
+    parcels: dict[str, Parcel] = {}
+    day = date(2026, 10, 7)
+    morning = datetime(2026, 10, 7, 8, 0, tzinfo=BERLIN)
+    apply_update(parcels, _dhl(ParcelStatus.OUT_FOR_DELIVERY, morning, eta_date=day), NOW)
+    noon = datetime(2026, 10, 7, 12, 0, tzinfo=BERLIN)
+    soon = _dhl(ParcelStatus.OUT_FOR_DELIVERY, noon, eta_date=day,
+                status_text="Wird gleich zugestellt")
+    change = apply_update(parcels, soon, NOW)
+    assert change is not None and change.old_status is ParcelStatus.OUT_FOR_DELIVERY
+    result = parcels[_DHL].result
+    assert (result.status, result.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, day)
+    assert [(e.timestamp, e.text) for e in result.events] == [
+        (noon, "Wird gleich zugestellt"),
+        (morning, "In Zustellung"),
+    ]
+    # The same mail once more tells nothing new.
+    assert apply_update(parcels, soon, NOW) is None
