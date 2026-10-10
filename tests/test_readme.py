@@ -1262,3 +1262,26 @@ def test_readme_names_hide_names_where_options_and_features_are_listed():
     for text in ('An option "Namen ausblenden"', "A name typed in by hand", "stays visible",
                  "entity IDs are derived from the number", "never contained names"):
         assert text in english, text
+
+
+# ----- Mail per HTTP übergeben (ohne Postfach) -----
+def test_readme_explains_the_mail_endpoint():
+    section = README.split("\n### Ohne Postfach: Mail per HTTP übergeben (für Fortgeschrittene)\n")
+    section = section[1].split("\n### ")[0]
+    for text in (
+        "**langlebiges Zugriffstoken**",
+        "`/api/parcel_tracker/import_mail`",
+        'curl -H "Authorization: Bearer <Token>" --data-binary @mail.eml',
+        "`recognized`",
+        "`unrecognized`",
+        "`ignored`",
+        "`stale`",
+        "`duplicate`",
+        "mit 401",
+        "mit 400",
+        "mit 415",
+        "mit 413",
+        "mit 503",
+        "Einen Dienst gibt es dafür bewusst nicht",
+    ):
+        assert text in section, text

@@ -516,9 +516,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         unloaded in the meantime.
         """
         now = dt_util.utcnow()
-        [item] = await self.hass.async_add_executor_job(
-            _parse_mails, [raw], self._read_otp, now
-        )
+        [item] = await self.hass.async_add_executor_job(_parse_mails, [raw], self._read_otp, now)
         async with self._lock:
             if self._stopped:
                 return None
