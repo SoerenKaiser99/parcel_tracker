@@ -31,11 +31,16 @@ AMAZON_SENDERS = frozenset(
 )
 # Old "… wurde versandt!" subjects (before ~2021), in two wordings.
 LEGACY_PREFIXES = ("Ihre Amazon.de Bestellung von", "Ihre Amazon.de-Bestellung mit")
+# "Versuchte Zustellung: …": nobody was met. The order is on its way again and no longer
+# comes today; a later mail tells the next attempt or where the parcel waits.
+_ATTEMPT = "versuchte zustellung"
+ATTEMPT_TEXT = "Zustellung versucht"
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
     "versendet": ParcelStatus.IN_TRANSIT,
     "versandt": ParcelStatus.IN_TRANSIT,
+    _ATTEMPT: ParcelStatus.IN_TRANSIT,
     "in zustellung": ParcelStatus.OUT_FOR_DELIVERY,
     "zustellung heute": ParcelStatus.OUT_FOR_DELIVERY,
     "geliefert": ParcelStatus.DELIVERED,
@@ -135,6 +140,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     if status is None or not orders:
         return []
 
+    attempt = subj.strip().lower().startswith(f"{_ATTEMPT}:")
     eta = _eta(text, sent)
     code = None
     if read_otp and (otp := _OTP.search(text)):
@@ -162,6 +168,8 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 title=title,
                 delivered_at=sent if status is ParcelStatus.DELIVERED else None,
                 delivery_code=code,
+                postponed=attempt,
+                status_text=ATTEMPT_TEXT if attempt else None,
                 **eta,
             )
         )

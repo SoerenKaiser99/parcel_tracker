@@ -65,6 +65,7 @@ def test_subject_title(subj, expected):
         ("Zustellung heute: Für deine Amazon-Lieferung …", ParcelStatus.OUT_FOR_DELIVERY),
         ('Geliefert: "x“', ParcelStatus.DELIVERED),
         ("Zugestellt: 4 „x“", ParcelStatus.DELIVERED),
+        ("Versuchte Zustellung: „x“", ParcelStatus.IN_TRANSIT),
         ("Deine Rücksendung", None),
     ],
 )
@@ -152,6 +153,18 @@ def test_shipped_versendet_and_versandt():
     assert u.number == "AMZ99976861735742021"
     assert u.title == "greate 16A CEE Adapter mit… und 1 weiterer Artikel"
     assert u.eta_date == date(2026, 7, 31)  # sent 03:28 Berlin on 31.07., "Ankunft heute"
+    assert u.postponed is False and u.status_text is None
+
+
+def test_an_attempted_delivery_takes_the_order_back_and_names_no_day():
+    u = _one("125_order_update_versuchte_zustellung.eml")
+    assert u.number == "AMZ99949189666932494"
+    assert u.title == "AUPROTEC Wellrohr…"
+    assert u.status is ParcelStatus.IN_TRANSIT
+    assert u.postponed is True
+    assert u.status_text == "Zustellung versucht"
+    # "Versuchte Zustellung heute um 14:51" is no day the parcel comes.
+    assert u.eta_date is None and u.delivered_at is None
 
 
 def test_out_for_delivery_with_hyphen_window():
