@@ -50,6 +50,9 @@ class MailUpdate:
     # The carrier postponed the delivery: this mail may take the parcel back from "in
     # Zustellung" (never from delivered or ready for pickup).
     postponed: bool = False
+    # The mail's own words for the status, shown and written to the history instead of
+    # the usual text of the status ("Zustellung versucht").
+    status_text: str | None = None
 
 
 @dataclass

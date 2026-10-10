@@ -80,14 +80,16 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     ):
         parcel.assumed_delivered = False
         texts = SHOP_TEXT if parcel.carrier in SHOP_CARRIERS else CARRIER_TEXT
-        text = texts.get(update.status, update.status.value)
+        text = update.status_text or texts.get(update.status, update.status.value)
         events = list(old.events) if old else []
-        if old is None or old.status is not update.status or assumed:
+        own_words = update.status_text is not None and old is not None and old.status_text != text
+        if old is None or old.status is not update.status or assumed or own_words:
             events.insert(0, TrackingEvent(update.sent_at, text, None))
         if update.eta_date:
             eta = (update.eta_date, update.eta_from, update.eta_to, update.eta_latest)
-        elif old and update.status not in _DROP_ETA:
-            # (a delivered parcel keeps its day: it is the day shown as delivered)
+        elif old and update.status not in _DROP_ETA and not postponed:
+            # (a delivered parcel keeps its day: it is the day shown as delivered; a
+            # postponed delivery that names no new day has none)
             eta = (old.eta_date, old.eta_from, old.eta_to, old.eta_latest)
         else:
             eta = (None, None, None, None)
@@ -153,8 +155,10 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
         (p for p in siblings if key and p.mail_title and title_key(p.mail_title) == key), None
     )
     if target is None and siblings:
+        # (a postponed delivery is news about a shipment there is, never a further one)
         further_shipment = (
             key is not None
+            and not update.postponed
             and update.status is ParcelStatus.IN_TRANSIT
             and all(_step(p.status) >= _step(ParcelStatus.IN_TRANSIT) for p in siblings)
         )

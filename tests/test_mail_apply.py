@@ -836,3 +836,37 @@ def test_a_postponed_delivery_never_reopens_a_parcel_that_arrived(final):
     update = _dhl(ParcelStatus.IN_TRANSIT, late, eta_date=date(2026, 10, 8), postponed=True)
     assert apply_update(parcels, update, NOW) is None
     assert parcels[_DHL].status is final
+
+
+# ----- Amazon "Versuchte Zustellung": the order is taken back and has no day -----
+def _attempt(title: str = "Beispielmarke Trinkflasche") -> MailUpdate:
+    return MailUpdate(ORDER, "amazon", ParcelStatus.IN_TRANSIT, NOW.astimezone(BERLIN),
+                      title=title, postponed=True, status_text="Zustellung versucht")
+
+
+def test_an_attempted_delivery_takes_the_order_back_and_drops_its_day():
+    out = ParcelStatus.OUT_FOR_DELIVERY
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", TODAY, status=out)}
+    change = apply_update(parcels, _attempt(), NOW)
+    assert change is not None and change.old_status is out
+    result = parcels[ORDER].result
+    assert (result.status, result.status_text) == (ParcelStatus.IN_TRANSIT, "Zustellung versucht")
+    assert result.eta_date is None
+    assert [e.text for e in result.events] == ["Zustellung versucht"]
+
+
+def test_an_attempted_delivery_is_never_a_further_shipment():
+    # (an order that is "Versendet" already: the same status, yet the history tells it)
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", TODAY)}
+    change = apply_update(parcels, _attempt(title="Ein ganz anderer Artikel"), NOW)
+    assert list(parcels) == [ORDER] and change.created is False
+    result = parcels[ORDER].result
+    assert result.status_text == "Zustellung versucht" and result.eta_date is None
+    assert [e.text for e in result.events] == ["Zustellung versucht"]
+
+
+@pytest.mark.parametrize("final", [ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP])
+def test_an_attempted_delivery_never_reopens_an_order_that_arrived(final):
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", TODAY, status=final)}
+    assert apply_update(parcels, _attempt(), NOW) is None
+    assert parcels[ORDER].status is final
