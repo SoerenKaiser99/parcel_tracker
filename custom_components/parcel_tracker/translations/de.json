@@ -178,6 +178,15 @@
     "track17_unavailable": {"message": "17track ist gerade nicht erreichbar. Versuch es später noch einmal."},
     "track17_not_possible": {"message": "Dieses Paket lässt sich nicht an 17track schicken (zugestellt oder noch keine Sendungsnummer)."}
   },
+  "device_automation": {
+    "trigger_type": {
+      "out_for_delivery": "Paket ist in Zustellung",
+      "delivered": "Paket wurde zugestellt",
+      "awaiting_pickup": "Paket liegt zur Abholung bereit",
+      "exception": "Problem bei einem Paket",
+      "status_changed": "Paketstatus hat sich geändert"
+    }
+  },
   "entity": {
     "sensor": {
       "parcel": {

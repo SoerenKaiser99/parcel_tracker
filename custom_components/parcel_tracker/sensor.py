@@ -16,6 +16,7 @@ from . import ParcelConfigEntry
 from .carriers.track17 import ENRICH_LOCATION
 from .const import CARRIER_OTHER, TRACK17_SOURCE, VERSION
 from .coordinator import ParcelCoordinator
+from .links import tracking_url
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .models import carrier_name as _carrier_name
 from .schedule import ParcelSummary, days_until, summarize
@@ -159,6 +160,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "events": [e.to_dict() for e in r.events] if r else [],
             "tracking_ref": p.tracking_ref,
             "tracking_carrier": p.tracking_carrier,
+            # The carrier's public tracking page (None: shop order without a carrier
+            # number, 17track only, carrier unknown); the card links to it.
+            "tracking_url": tracking_url(p),
             "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
             "track17": p.track17,

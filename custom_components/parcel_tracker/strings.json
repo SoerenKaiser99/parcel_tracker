@@ -178,6 +178,15 @@
     "track17_unavailable": {"message": "Couldn't reach 17track. Try again later."},
     "track17_not_possible": {"message": "This parcel can't be sent to 17track (delivered, or no carrier number yet)."}
   },
+  "device_automation": {
+    "trigger_type": {
+      "out_for_delivery": "Parcel is out for delivery",
+      "delivered": "Parcel was delivered",
+      "awaiting_pickup": "Parcel is ready for pickup",
+      "exception": "Problem with a parcel",
+      "status_changed": "Parcel status changed"
+    }
+  },
   "entity": {
     "sensor": {
       "parcel": {

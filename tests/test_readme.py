@@ -1,3 +1,4 @@
+import json
 import re
 import struct
 from pathlib import Path
@@ -1346,3 +1347,51 @@ def test_readme_matches_the_aliexpress_code():
     assert f"„{PARCEL_NAME}“" in README and f"„{CONFIRMED_TEXT}“" in README
     assert (const.ORDER_OVERDUE_DAYS, const.ORDER_NO_ETA_DAYS) == (3, 14)
 
+
+
+def test_readme_explains_the_tracking_link():
+    card = _section("Karte hinzufügen")
+    assert "„Sendung verfolgen“ öffnet die Sendungsverfolgung des Paketdienstes" in card
+    assert "auch mit Land Österreich oder Schweiz" in card
+    assert "`tracking_url`" in card
+    assert "`tracking_url`" in README.split("## Installation")[0]
+    assert "`tracking_url`" in _section("Namen ausblenden")
+    english = README.split("## English summary")[1]
+    assert 'a link "Sendung verfolgen" to the carrier\'s public tracking page' in english
+    assert "`tracking_url`" in english
+
+
+def test_readme_explains_automations_without_yaml():
+    titles = [line[3:] for line in README.splitlines() if line.startswith("## ")]
+    at = titles.index("Automationen ohne YAML")
+    assert titles[at - 1 : at + 2] == [
+        "Benachrichtigungen", "Automationen ohne YAML", "Beispiel-Automation"
+    ]
+    section = _section("Automationen ohne YAML")
+    for text in (
+        "Auslöser hinzufügen → „Gerät“ → als Gerät „Paket Tracker“ wählen",
+        "**Paket ist in Zustellung**",
+        "**Paket wurde zugestellt**",
+        "**Paket liegt zur Abholung bereit**",
+        "**Problem bei einem Paket**",
+        "**Paketstatus hat sich geändert**",
+        "`{{ trigger.event.data.name }}`",
+        "feuert „Paket wurde zugestellt“ **nicht**",
+        "ihre Namen und Entitäts-IDs sind unverändert",
+    ):
+        assert text in section, text
+    # The event is still documented, with its new field.
+    assert "`entry_id`" in _section("Beispiel-Automation")
+    assert "event_type: parcel_tracker_status_changed" in _section("Beispiel-Automation")
+    english = README.split("## English summary")[1]
+    assert "Device triggers allow automations without YAML" in english
+    assert 'does not fire "delivered"' in english
+
+
+def test_readme_trigger_names_match_the_german_translation():
+    de = json.loads(
+        (ROOT / "custom_components/parcel_tracker/translations/de.json").read_text("utf-8")
+    )
+    section = _section("Automationen ohne YAML")
+    for name in de["device_automation"]["trigger_type"].values():
+        assert f"**{name}**" in section, name

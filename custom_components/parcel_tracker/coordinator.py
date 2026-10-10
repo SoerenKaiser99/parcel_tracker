@@ -923,6 +923,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self.hass.bus.async_fire(
             EVENT_STATUS_CHANGED,
             {
+                # Whose parcel it is: the device triggers filter by it (see device_trigger).
+                "entry_id": self.entry.entry_id,
                 "number": parcel.number,
                 "name": self.display_name(parcel),
                 "carrier": parcel.carrier,

@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.26"
+VERSION = "0.3.27"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"

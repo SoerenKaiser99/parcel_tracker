@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 from custom_components.parcel_tracker import const
+from custom_components.parcel_tracker.device_trigger import TRIGGER_TYPES
 
 BASE = Path(const.__file__).parent
 
@@ -275,3 +276,15 @@ def test_amazon_repair_text_is_true_without_a_mailbox_too():
         text = _load(name)["issues"]["amazon_unrecognized"]["description"]
         assert "mails from the mailbox are in the folder Paket-Tracker-Nicht-erkannt." in text
 
+
+
+def test_device_trigger_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        assert set(_load(name)["device_automation"]["trigger_type"]) == set(TRIGGER_TYPES)
+    assert _load("translations/de.json")["device_automation"]["trigger_type"] == {
+        "out_for_delivery": "Paket ist in Zustellung",
+        "delivered": "Paket wurde zugestellt",
+        "awaiting_pickup": "Paket liegt zur Abholung bereit",
+        "exception": "Problem bei einem Paket",
+        "status_changed": "Paketstatus hat sich geändert",
+    }
