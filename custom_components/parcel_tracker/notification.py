@@ -2,8 +2,9 @@
 nothing else).
 
 One German line per change. It names the parcel by its name (or the last four
-digits of its number), the carrier and, where known, today's time window or the
-pickup branch. Never part of it: the delivery code, the whole tracking number,
+digits of its number; with the option "Namen ausblenden" by its carrier and those
+digits, unless the user typed the name in), the carrier and, where known, today's
+time window or the pickup branch. Never part of it: the delivery code, the whole tracking number,
 addresses, a drop-off place, or any status or event text of the carrier.
 """
 
@@ -19,7 +20,7 @@ from .const import (
     NOTIFY_SERVICE_PREFIX,
     NOTIFY_SERVICES_HIDDEN,
 )
-from .models import Parcel, ParcelStatus, carrier_name
+from .models import Parcel, ParcelStatus, carrier_name, display_name, short_number
 
 __all__ = [
     "DEFAULT_NOTIFY_EVENTS",
@@ -65,9 +66,22 @@ def _short(text: str | None) -> str:
     return value if len(value) <= MAX_NAME else value[: MAX_NAME - 1].rstrip() + "…"
 
 
-def _label(parcel: Parcel) -> str:
-    """'<name> (<carrier>)'; without a name 'Paket …<last four digits>'."""
-    name = _short(parcel.name) or _short(parcel.mail_title) or f"Paket …{parcel.number[-4:]}"
+def _label(parcel: Parcel, hide_names: bool = False) -> str:
+    """'<name> (<carrier>)'; without a name 'Paket …<last four digits>'.
+
+    With ``hide_names`` only a name the user typed in is named; every other parcel is
+    its neutral name, which tells the carrier already ('DHL-Paket …2557').
+    """
+    if hide_names:
+        if not (parcel.name and parcel.name_manual):
+            return display_name(parcel, True)
+        name = _short(parcel.name)
+    else:
+        name = (
+            _short(parcel.name)
+            or _short(parcel.mail_title)
+            or f"Paket {short_number(parcel.number)}"
+        )
     carrier = carrier_name(parcel)
     return f"{name} ({carrier})" if carrier else name
 
@@ -101,18 +115,19 @@ def _pickup(parcel: Parcel) -> str:
 
 
 def build_notification(
-    parcel: Parcel, old_status: ParcelStatus | None, now: datetime
+    parcel: Parcel, old_status: ParcelStatus | None, now: datetime, hide_names: bool = False
 ) -> tuple[str, str] | None:
     """(title, message) for the parcel's new status, or None if it is not announced.
 
     ``now`` is the local time; it decides whether a time window is "today".
+    ``hide_names`` is the option "Namen ausblenden" (see ``_label``).
     """
     result = parcel.result
     if result is None or result.status is old_status:
         return None
     if parcel.assumed_delivered:
         return None  # closed without a delivery mail: nothing arrived just now
-    label = _label(parcel)
+    label = _label(parcel, hide_names)
     match result.status:
         case ParcelStatus.OUT_FOR_DELIVERY:
             message = f"📦 {label} ist in Zustellung{_window_today(parcel, now)}"

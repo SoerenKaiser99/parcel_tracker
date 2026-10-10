@@ -32,6 +32,7 @@ from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
+    CONF_HIDE_NAMES,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
@@ -53,6 +54,7 @@ from .const import (
     CONF_UPS_ENABLED,
     CONF_UPS_SECTION,
     COUNTRIES,
+    DEFAULT_HIDE_NAMES,
     DEFAULT_IMAP_HOST,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
@@ -297,6 +299,7 @@ def _schema(
     track17: bool = False,
     notify: Mapping[str, Any] | None = None,
     notify_available: Sequence[SelectOptionDict] = (),
+    hide_names: bool = False,
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
@@ -320,6 +323,14 @@ def _schema(
             default=defaults.get(CONF_KEEP_DELIVERED_DAYS, DEFAULT_KEEP_DELIVERED_DAYS),
         )
     ] = _DAYS
+    if hide_names:
+        # Prefilled through ``default``: an untouched form sends back what is stored.
+        fields[
+            vol.Optional(
+                CONF_HIDE_NAMES,
+                default=defaults.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True,
+            )
+        ] = bool
     # No ``default`` on the section markers: with one, the frontend starts from
     # that (empty) dict and never prefills the fields inside the section.
     if mail is not None:
@@ -453,8 +464,8 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(OptionsFlow):
-    """Change keys, country, postcode, keep days, the mail import, the UPS API, the 17track key
-    and the push notifications.
+    """Change keys, country, postcode, keep days, "Namen ausblenden", the mail import, the
+    UPS API, the 17track key and the push notifications.
 
     Secrets (DHL key, 17track key, IMAP password, UPS client ID and secret) are stored in the
     config entry's ``data`` (the same place reauth writes the key) so flows never
@@ -472,6 +483,10 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     that no longer fits a changed country is a form error and never dropped silently.
     An entry without a stored country behaves as Germany and shows Germany; the
     country is only written to the options once it is stored there or was changed.
+
+    "Namen ausblenden" (``hide_names``) is a plain switch. Missing from the submitted
+    form, it keeps its stored value; like the country it is only written to the options
+    once it is stored there or was switched on.
 
     Notifications are on while targets are stored. A submitted empty list of
     targets switches them off, as does ``notify_enabled`` submitted as False; a
@@ -542,6 +557,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
             country = known_country(user_input.get(CONF_COUNTRY) or stored_country)
+            stored_hide = options.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True
+            hide = user_input.get(CONF_HIDE_NAMES, stored_hide) is True
             if postcode and (err := _postcode_error(postcode, country)):
                 errors[CONF_POSTCODE] = err
             elif notify_no_target:
@@ -596,6 +613,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 }
                 if CONF_COUNTRY in options or country != stored_country:
                     new_options[CONF_COUNTRY] = country
+                if CONF_HIDE_NAMES in options or hide:
+                    new_options[CONF_HIDE_NAMES] = hide
                 data = dict(self.config_entry.data)
                 if key_value:
                     data[CONF_DHL_API_KEY] = key_value
@@ -634,6 +653,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 track17=True,
                 notify=notify_shown,
                 notify_available=_available_targets(self.hass),
+                hide_names=True,
             ),
             errors=errors,
         )

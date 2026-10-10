@@ -2,6 +2,7 @@
 
 import json
 from datetime import date, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from homeassistant.components.diagnostics import REDACTED
@@ -16,6 +17,7 @@ from custom_components.parcel_tracker.carriers.track17 import Quota
 from custom_components.parcel_tracker.const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
+    CONF_HIDE_NAMES,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
@@ -110,6 +112,7 @@ TOP_LEVEL = [
     "integration_version",
     "home_assistant_version",
     "country",
+    "hide_names",
     "entry",
     "carriers",
     "ups_budget",
@@ -411,6 +414,7 @@ async def test_diagnostics_parcels(hass, hass_storage, freezer):
         "last_poll_at": now.isoformat(),
         "next_poll_at": later,
         "has_name": True,
+        "name_manual": False,
         "has_mail_title": False,
         "has_eta": True,
         "has_window": True,
@@ -815,3 +819,41 @@ async def test_diagnostics_show_only_a_known_country(hass, hass_storage, freezer
     result = await async_get_config_entry_diagnostics(hass, entry)
     assert result["country"] == "de"
     assert "Musterstra" not in _dump(result)
+
+
+# ----- v0.3.24: "Namen ausblenden" -----
+
+
+@pytest.mark.parametrize(
+    ("stored", "shown"),
+    [(None, False), (False, False), (True, True), ("Klemmbaustein", False)],
+    ids=["never-set", "off", "on", "odd"],
+)
+async def test_diagnostics_tell_whether_names_are_hidden(
+    hass, hass_storage, freezer, stored, shown
+):
+    """Only as a boolean, at the top and in the options; names are in neither case part."""
+    entry = await _setup(hass, hass_storage, freezer)
+    if stored is not None:
+        with patch.object(hass.config_entries, "async_reload"):
+            hass.config_entries.async_update_entry(
+                entry, options={**OPTIONS, CONF_HIDE_NAMES: stored}
+            )
+            await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["hide_names"] is shown
+    assert result["entry"]["options"].get(CONF_HIDE_NAMES, False) is shown
+    text = _dump(result)
+    for plain in PLAIN:
+        assert plain not in text
+    assert "Klemmbaustein" not in text
+
+
+async def test_diagnostics_tell_only_whether_a_name_was_typed_in(hass, hass_storage, freezer):
+    entry = await _setup(hass, hass_storage, freezer)
+    parcel = entry.runtime_data.store.parcels[JJD]
+    parcel.name_manual = True
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    by_number = {p["number"]: p for p in result["parcels"]}
+    assert by_number[MASKED[JJD]]["name_manual"] is True
+    assert parcel.name not in _dump(result)

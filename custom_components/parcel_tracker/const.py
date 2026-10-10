@@ -5,12 +5,13 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.23"
+VERSION = "0.3.24"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
 CONF_POSTCODE = "postcode"
 CONF_KEEP_DELIVERED_DAYS = "keep_delivered_days"
+CONF_HIDE_NAMES = "hide_names"
 CONF_MAIL_SECTION = "mail"
 CONF_MAIL_ENABLED = "mail_enabled"
 CONF_IMAP_HOST = "imap_host"
@@ -39,6 +40,7 @@ DEFAULT_COUNTRY = "de"
 POSTCODE_DIGITS = {"de": 5, "at": 4, "ch": 4}
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
+DEFAULT_HIDE_NAMES = False
 MIN_KEEP_DELIVERED_DAYS = 1
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30

@@ -21,6 +21,7 @@ from homeassistant.core import HomeAssistant
 from .const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
+    CONF_HIDE_NAMES,
     CONF_IMAP_HOST,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
@@ -51,6 +52,7 @@ SAFE_KEYS = frozenset(
     {
         CONF_COUNTRY,
         CONF_KEEP_DELIVERED_DAYS,
+        CONF_HIDE_NAMES,
         CONF_IMAP_HOST,
         CONF_MOVE_PROCESSED,
         CONF_READ_OTP,
@@ -141,6 +143,8 @@ def _redact(data: Mapping[str, Any]) -> dict[str, Any]:
         shown[CONF_IMAP_HOST] = public_imap_host(shown[CONF_IMAP_HOST])
     if CONF_COUNTRY in shown:
         shown[CONF_COUNTRY] = known_country(shown[CONF_COUNTRY])
+    if CONF_HIDE_NAMES in shown:
+        shown[CONF_HIDE_NAMES] = shown[CONF_HIDE_NAMES] is True
     return shown
 
 
@@ -167,6 +171,7 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
         "last_poll_at": _iso(parcel.last_poll_at),
         "next_poll_at": _iso(parcel.next_poll_at),
         "has_name": bool(parcel.name),
+        "name_manual": parcel.name_manual,
         "has_mail_title": bool(parcel.mail_title),
         "has_eta": bool(result and result.eta_date),
         "has_window": bool(result and (result.eta_from or result.eta_to)),
@@ -209,6 +214,8 @@ async def async_get_config_entry_diagnostics(
         "integration_version": VERSION,
         "home_assistant_version": HA_VERSION,
         "country": entry_country(entry),
+        # Whether "Namen ausblenden" is on; names themselves are never part of this file.
+        "hide_names": coordinator.hide_names,
         "entry": {"data": _redact(entry.data), "options": _redact(entry.options)},
         "carriers": {
             "active": list(coordinator.carriers),

@@ -44,12 +44,14 @@
           "track17_api_key": "17track-API-Key (optional)",
           "country": "Land",
           "postcode": "PLZ (optional)",
-          "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)"
+          "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)",
+          "hide_names": "Namen ausblenden"
         },
         "data_description": {
           "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
           "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010).",
-          "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key."
+          "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key.",
+          "hide_names": "Pakete heißen nur nach dem Paketdienst (z. B. „DHL-Paket“, „Amazon-Bestellung“) – auf der Karte, im Kalender, in den Sensoren und in den Benachrichtigungen. Für Geschenke auf einem gemeinsamen Dashboard. Ein selbst eingetippter Name bleibt sichtbar; die gespeicherten Namen werden nicht verändert."
         },
         "sections": {
           "mail": {

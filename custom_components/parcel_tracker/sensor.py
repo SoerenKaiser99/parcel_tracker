@@ -117,8 +117,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     @property
     def name(self) -> str:
         p = self._parcel
-        if p and p.name:
-            return p.name
+        if p and (shown := self.coordinator.display_name(p)):
+            return shown
         return f"{(_carrier_name(p) if p else None) or 'Paket'} {self.number}"
 
     @property
@@ -137,7 +137,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "carrier": p.carrier,
             "carrier_name": _carrier_name(p),
             "number": p.number,
-            "name": p.name,
+            # The name the parcel is shown by: neutral with "Namen ausblenden".
+            "name": self.coordinator.display_name(p),
             "eta_date": _iso(r.eta_date) if r else None,
             "eta_latest": _iso(r.eta_latest) if r else None,
             "eta_from": _iso(r.eta_from) if r else None,
@@ -165,12 +166,12 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         }
 
 
-def _items(parcels: list[Parcel]) -> list[dict[str, Any]]:
-    """The parcels of a summary sensor's list attribute."""
+def _items(coordinator: ParcelCoordinator, parcels: list[Parcel]) -> list[dict[str, Any]]:
+    """The parcels of a summary sensor's list attribute, by the name they are shown by."""
     return [
         {
             "number": p.number,
-            "name": p.name,
+            "name": coordinator.display_name(p),
             "carrier": p.carrier,
             "eta_from": _iso(p.result.eta_from) if p.result else None,
             "eta_to": _iso(p.result.eta_to) if p.result else None,
@@ -218,12 +219,12 @@ class TodaySensor(_SummarySensor):
     def extra_state_attributes(self) -> dict[str, Any]:
         summary = self._summary()
         return {
-            "parcels": _items(summary.sure),
-            "possible": _items(summary.possible),
+            "parcels": _items(self.coordinator, summary.sure),
+            "possible": _items(self.coordinator, summary.possible),
             "possible_count": len(summary.possible),
-            "delivered_today": _items(summary.delivered_today),
+            "delivered_today": _items(self.coordinator, summary.delivered_today),
             "delivered_today_count": len(summary.delivered_today),
-            "awaiting_pickup": _items(summary.awaiting_pickup),
+            "awaiting_pickup": _items(self.coordinator, summary.awaiting_pickup),
             "awaiting_pickup_count": len(summary.awaiting_pickup),
             # The card compares this with its own version: a browser that still runs the
             # card from before an update shows a hint to reload the page.
@@ -274,7 +275,7 @@ class GroupCountSensor(_SummarySensor):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {"parcels": _items(self._parcels())}
+        return {"parcels": _items(self.coordinator, self._parcels())}
 
 
 class Track17QuotaSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
