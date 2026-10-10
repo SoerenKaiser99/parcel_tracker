@@ -26,6 +26,7 @@ class ParcelStatus(StrEnum):
     AWAITING_PICKUP = "awaiting_pickup"
     DELIVERED = "delivered"
     EXCEPTION = "exception"
+    CANCELLED = "cancelled"  # a shop order the shop cancelled (see mail.apply._cancel_order)
     UNKNOWN = "unknown"
 
 
@@ -38,13 +39,21 @@ PROGRESS_STEP: dict[ParcelStatus, int] = {
     ParcelStatus.AWAITING_PICKUP: 4,
     ParcelStatus.DELIVERED: 5,
     ParcelStatus.EXCEPTION: 0,
+    ParcelStatus.CANCELLED: 0,
     ParcelStatus.UNKNOWN: 0,
 }
 
 # A day named earlier (by a mail or a lookup) is not carried over into these statuses.
 NO_ETA_STATUSES = frozenset(
-    {ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP, ParcelStatus.EXCEPTION}
+    {
+        ParcelStatus.DELIVERED,
+        ParcelStatus.AWAITING_PICKUP,
+        ParcelStatus.EXCEPTION,
+        ParcelStatus.CANCELLED,
+    }
 )
+# Nothing more comes: not on the way, in no list of today, tidied up after the days set.
+CLOSED_STATUSES = frozenset({ParcelStatus.DELIVERED, ParcelStatus.CANCELLED})
 
 
 def _dt(value: str | None) -> datetime | None:

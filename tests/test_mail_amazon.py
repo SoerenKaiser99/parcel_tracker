@@ -66,6 +66,10 @@ def test_subject_title(subj, expected):
         ('Geliefert: "x“', ParcelStatus.DELIVERED),
         ("Zugestellt: 4 „x“", ParcelStatus.DELIVERED),
         ("Versuchte Zustellung: „x“", ParcelStatus.IN_TRANSIT),
+        ("Artikel erfolgreich storniert: 10 „x“", ParcelStatus.CANCELLED),
+        ("Ihre Bestellung wurde storniert.", ParcelStatus.CANCELLED),
+        ("Erfolgreiche Stornierung von Artikeln aus Ihrer Amazon.de -Bestellung Nr. (1)",
+         ParcelStatus.CANCELLED),
         ("Deine Rücksendung", None),
     ],
 )

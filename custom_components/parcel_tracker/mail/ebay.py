@@ -24,6 +24,7 @@ from .base import (
 EBAY_SENDER = "ebay@ebay.com"
 
 _DELIVERED = re.compile(r"BESTELLUNG ZUGESTELLT:\s*(?P<title>.+)$")
+_CANCELLED = re.compile(r"Kauf (?P<order>\d{2}-\d{5}-\d{5}) wurde abgebrochen")
 _ITEM = re.compile(r"^(?P<title>[^\n]+)\nArtikelnr\.:[ \t]*\n?[ \t]*\d{6,}", re.M)
 _ORDER = re.compile(r"Bestellnummer:\s*(\d{2}-\d{5}-\d{5})\b")
 _ETA = re.compile(r"Lieferung ca\.:[ \t]*\n?[ \t]*(?P<rest>[^\n]+)")
@@ -79,8 +80,12 @@ def _hint(text: str) -> str | None:
 
 
 def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
-    """'beim Versanddienstleister' (in transit) or 'BESTELLUNG ZUGESTELLT' (delivered)."""
+    """'beim Versanddienstleister' (in transit), 'BESTELLUNG ZUGESTELLT' (delivered) or
+    'Kauf … wurde abgebrochen' (cancelled)."""
     subj = subject(msg)
+    if cancelled := _CANCELLED.search(subj):
+        number = order_number(cancelled.group("order"))
+        return [MailUpdate(number, "ebay", ParcelStatus.CANCELLED, sent_at(msg))]
     status = _status(subj)
     if status is None:
         return []
