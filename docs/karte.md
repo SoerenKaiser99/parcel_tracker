@@ -34,7 +34,7 @@ Oben rechts stehen bis zu drei Schilder, gelesen aus `sensor.pakete_heute`:
 | Schild | Bedeutung | Sichtbar |
 |---|---|---|
 | „1 heute“ | Kommt heute sicher: in Zustellung oder fester Liefertag heute | immer, auch als „0 heute“ |
-| „1 möglich“ | Die Lieferspanne schließt heute ein. In der Liste bleibt die Spanne stehen (z. B. „Bis 5. Okt.“) | nur, wenn es solche Pakete gibt |
+| „1 möglich“ | Lieferzeitraum schließt heute ein. In der Liste bleibt der Zeitraum stehen (z. B. „Bis 5. Okt.“) | nur, wenn es solche Pakete gibt |
 | „1 zugestellt“ | Heute zugestellt | nur, wenn heute etwas zugestellt wurde |
 
 - Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“. Die Karte zeigt dann z. B. „0 heute“ und „1 zugestellt“.

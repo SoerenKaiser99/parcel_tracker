@@ -72,7 +72,7 @@ def test_bug_form_asks_for_versions_carrier_and_diagnostics():
     assert fields["logs"]["attributes"]["render"] == "text"
     assert "render" not in fields["diagnostics"]["attributes"]  # files can be dropped in
     assert fields["carrier"]["attributes"]["options"] == [
-        "DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "17track", "anderer",
+        "DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "AliExpress", "17track", "anderer",
     ]
     hint = fields["diagnostics"]["attributes"]["description"]
     assert (

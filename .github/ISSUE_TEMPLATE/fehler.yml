@@ -37,6 +37,7 @@ body:
         - UPS
         - Amazon
         - eBay
+        - AliExpress
         - 17track
         - anderer
     validations:

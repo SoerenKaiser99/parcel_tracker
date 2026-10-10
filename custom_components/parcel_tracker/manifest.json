@@ -12,10 +12,10 @@
   "dependencies": [
     "http"
   ],
-  "documentation": "https://github.com/SoerenKaiser99/parcel_tracker",
+  "documentation": "https://soerenkaiser99.github.io/parcel_tracker/",
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/SoerenKaiser99/parcel_tracker/issues",
   "requirements": [],
-  "version": "0.3.27"
+  "version": "0.3.28"
 }

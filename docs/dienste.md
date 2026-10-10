@@ -165,7 +165,7 @@ Auf der Karte das Paket aufklappen und „Details über 17track holen“ antippe
 
 Für Automationen gibt es den Dienst `parcel_tracker.track_17track` mit dem Feld `number`.
 
-Nicht möglich ist das bei zugestellten Paketen und bei Amazon- und eBay-Bestellungen, solange keine Sendungsnummer des Paketdienstes bekannt ist. Angemeldet wird die Sendungsnummer des Paketdienstes samt Carrier-Code. Ist der Paketdienst unbekannt, erkennt 17track ihn selbst.
+Nicht möglich ist das bei zugestellten Paketen und bei Amazon-, eBay- und AliExpress-Bestellungen, solange keine Sendungsnummer des Paketdienstes bekannt ist. Angemeldet wird die Sendungsnummer des Paketdienstes samt Carrier-Code. Ist der Paketdienst unbekannt, erkennt 17track ihn selbst.
 
 ### Andere (über 17track)
 

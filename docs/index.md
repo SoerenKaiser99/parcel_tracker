@@ -25,7 +25,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 ## Was es kann
 
 - **Pakete erscheinen von selbst.** Die Integration liest die Versandmails aus einem eigenen Paket-Postfach und legt die Pakete an. Das gilt auch für Amazons eigene Lieferungen, für die es keine öffentliche Sendungsverfolgung gibt.
-- **Live-Status vom Paketdienst.** DPD, GLS und Hermes brauchen dafür nichts. DHL braucht einen kostenlosen API-Key, UPS einen eigenen Entwicklerzugang. Beides ist optional.
+- **Live-Status vom Paketdienst.** DPD, GLS und Hermes brauchen dafür nichts. Für DHL gibt es ihn mit einem kostenlosen API-Key, für UPS mit einem eigenen Entwicklerzugang. Beides ist optional: Ohne kommen DHL- und UPS-Pakete aus den Mails.
 - **Eine Karte für alles.** Pakete hinzufügen, umbenennen, entfernen. Status, Liefertag, Zeitfenster und Verlauf stehen in einer Liste.
 - **Benachrichtigung aufs Handy.** Sobald ein Paket in Zustellung geht, zugestellt ist oder zur Abholung bereitliegt. Eine Automation brauchst du dafür nicht.
 - **Für Automationen gemacht.** Fertige Auslöser im Automations-Editor, ein Status-Event, ein Kalender mit den Lieferterminen und Sensoren wie „Pakete heute“.

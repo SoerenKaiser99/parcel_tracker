@@ -3,6 +3,8 @@ import re
 import struct
 from pathlib import Path
 
+from custom_components.parcel_tracker.links import _PAGES
+
 ROOT = Path(__file__).parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 DEMO = ROOT / "docs" / "demo"
@@ -17,6 +19,7 @@ SENDERS = [
     "noreply@dhl.de",
     "paketankuendigung@dhl.de",
     "zustellung@dhl.de",
+    "sendungsupdate@dhl.de",
     "noreply@service.dpd.de",
     "no_reply@dpd.at",
     "noreply@gls-group.eu",
@@ -253,7 +256,9 @@ def test_demo_page_loads_the_real_card():
 
 def test_demo_page_shows_one_parcel_per_carrier_and_the_fixed_sensors():
     js = (DEMO / "demo.js").read_text(encoding="utf-8")
-    for carrier in ("dhl", "dpd", "gls", "hermes", "ups", "amazon", "ebay", "other"):
+    for carrier in (
+        "dhl", "dpd", "gls", "hermes", "ups", "amazon", "ebay", "aliexpress", "other"
+    ):
         assert re.search(rf'parcel\("[a-z_]+", "{carrier}", ', js), carrier
     for text in (
         '"sensor.pakete_heute"',
@@ -265,9 +270,17 @@ def test_demo_page_shows_one_parcel_per_carrier_and_the_fixed_sensors():
         'last_error: "unavailable"',
         'last_error: "missing_key"',
         "nicht ausgeführt",
+        'parcel("awaiting_pickup", ',
+        "pickup_point:",
+        'tracking_ref: "00340999999999999914", tracking_carrier: "dhl"',
+        '"Abflugregion verlassen"',
+        '"Zollabfertigung beendet"',
     ):
         assert text in js, text
-    assert not re.search(r"https?://", js)
+    # The only addresses are the carriers' tracking pages, exactly as links.py builds them.
+    pages = {carrier: page.format("") for carrier, page in _PAGES.items()}
+    assert dict(re.findall(r'^    (\w+): "(https?://[^"]*)",$', js, re.M)) == pages
+    assert sorted(re.findall(r'https?://[^"]*', js)) == sorted(pages.values())
     # Dates are computed from today: no fixed calendar date in the file.
     assert not re.search(r"\b20\d\d-\d\d-\d\d\b", js)
 

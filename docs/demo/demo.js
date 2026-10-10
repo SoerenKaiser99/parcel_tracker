@@ -73,7 +73,18 @@
   const STEP = { pre_transit: 1, in_transit: 2, at_delivery_depot: 3, out_for_delivery: 4,
     awaiting_pickup: 4, delivered: 5, exception: 0, unknown: 0 };
   const CARRIER_NAME = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", ups: "UPS",
-    amazon: "Amazon", ebay: "eBay", other: "17track" };
+    amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", other: "17track" };
+  // The carrier's tracking page, as links.py builds the attribute tracking_url: by the
+  // number of the parcel, for a shop order by the carrier number it took over.
+  const TRACKING_PAGE = {
+    dhl: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=",
+    dpd: "https://tracking.dpd.de/status/de_DE/parcel/",
+    gls: "https://www.gls-pakete.de/sendungsverfolgung?match=",
+    hermes: "https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#",
+    ups: "https://www.ups.com/track?loc=de_DE&tracknum=",
+  };
+  const trackingUrl = (carrier, number) => (
+    TRACKING_PAGE[carrier] ? TRACKING_PAGE[carrier] + encodeURIComponent(number) : null);
 
   // The attributes of sensor.paket_<nummer> (see sensor.py), with defaults.
   function parcel(state, carrier, number, name, extra = {}) {
@@ -91,7 +102,11 @@
       friendly_name: name,
     };
     delete extra.eta_days;
-    return { state, attributes: Object.assign(attrs, extra) };
+    Object.assign(attrs, extra);
+    attrs.tracking_url = attrs.tracking_ref
+      ? trackingUrl(attrs.tracking_carrier, attrs.tracking_ref)
+      : trackingUrl(carrier, number);
+    return { state, attributes: attrs };
   }
 
   const ALL_PARCELS = [
@@ -122,23 +137,44 @@
       eta_days: 2, eta_latest: day(4),
       events: [event(0, 8, 10, "Die Sendung wurde Hermes elektronisch angekündigt.")],
     }),
-    parcel("in_transit", "ups", "1Z9999999999999904", "Schreibtischlampe", {
-      eta_days: 3, location: "Umschlagzentrum Musterdorf",
-      events: [event(-1, 22, 30, "Abfahrt vom Standort", "Musterdorf")],
+    // Waits at a pickup point: the row says "Abholbereit" instead of a day.
+    parcel("awaiting_pickup", "ups", "1Z9999999999999904", "Schreibtischlampe", {
+      pickup_point: "Paketshop Musterdorf", pickup_until: stamp(6, 18, 0),
+      events: [
+        event(0, 7, 50, "Zur Abholung bereit", "Musterdorf"),
+        event(-1, 22, 30, "Abfahrt vom Standort", "Beispielhausen"),
+      ],
     }),
+    // A shop order that took over the carrier's number: it links to the carrier's page
+    // ("Sendung verfolgen") and to the order at the shop ("Bestellung").
     parcel("in_transit", "amazon", "AMZ99999999999999905", "Wasserfilter, 3er-Pack", {
       eta_days: 1, delivery_code: "990099",
-      events: [event(0, 4, 55, "Versandt")],
+      tracking_ref: "00340999999999999914", tracking_carrier: "dhl",
+      events: [
+        event(0, 4, 55, "Im Start-Paketzentrum bearbeitet", "Beispielstadt"),
+        event(-1, 17, 40, "Versendet"),
+      ],
     }),
     // Possible today: the delivery window ("Bis …") starts today, no fixed day yet.
     parcel("in_transit", "ebay", "EBAY999999999906", "Fahrradklingel", {
       eta_days: 0, eta_latest: day(2), shipping_carrier_hint: "hermes",
-      events: [event(-1, 15, 20, "Versandt")],
+      events: [event(-1, 15, 20, "Versendet")],
     }),
     parcel("in_transit", "other", "999999999907", "Ersatzteil Kaffeemaschine", {
       eta_days: 5, location: "Sortierzentrum Beispielhausen", location_source: "17track",
       track17: true,
       events: [event(-1, 13, 45, "Im Sortierzentrum angekommen", "Beispielhausen")],
+    }),
+    // An AliExpress order without a carrier number: only mails tell its way, the history
+    // carries AliExpress's own words. It links to the order, not to a carrier.
+    parcel("in_transit", "aliexpress", "ALI9999999999999913", "USB-C-Kabel 2 m", {
+      eta_days: 6, status_text: "Zollabfertigung beendet",
+      events: [
+        event(-1, 10, 15, "Zollabfertigung beendet"),
+        event(-4, 3, 40, "Abflugregion verlassen"),
+        event(-6, 12, 5, "Versendet"),
+        event(-8, 19, 30, "Bestellt"),
+      ],
     }),
     parcel("in_transit", "dpd", "09999999999908", "Gartenschlauch", {
       eta_days: 2, stale: true, last_error: "unavailable",
@@ -156,10 +192,6 @@
         event(0, 9, 5, "Das Paket wurde zugestellt.", "Musterstadt"),
         event(0, 6, 20, "Das Paket ist in der Zustellung.", "Musterstadt"),
       ],
-    }),
-    parcel("delivered", "dhl", "00340999999999999909", "Kinderbuch", {
-      delivered_at: stamp(-1, 11, 24),
-      events: [event(-1, 11, 24, "Die Sendung wurde zugestellt.", "Musterstadt")],
     }),
   ];
   const PARCELS = params.has("empty") ? [] : ALL_PARCELS;
@@ -204,16 +236,19 @@
       eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to });
   const items = (group) => PARCELS.filter((p) => todayGroup(p) === group).map(item);
   const delivered = PARCELS.filter(deliveredToday).map(item);
+  const pickup = PARCELS.filter((p) => p.state === "awaiting_pickup").map(item);
   add("sensor.pakete_heute", String(items("sure").length), {
     friendly_name: "Pakete heute",
     parcels: items("sure"), possible: items("possible"),
     possible_count: items("possible").length,
     delivered_today: delivered,
     delivered_today_count: delivered.length,
+    awaiting_pickup: pickup,
+    awaiting_pickup_count: pickup.length,
     // CARD_VERSION is the card's own constant: equal means "no reload needed".
     integration_version: params.has("hint") ? `${CARD_VERSION}-neu` : CARD_VERSION,
   });
-  // The three count sensors (v0.3.11): not delivered yet, possible today, delivered today.
+  // The count sensors: not delivered yet, possible today, delivered today, ready for pickup.
   const active = PARCELS.filter((p) => p.state !== "delivered").map(item);
   add("sensor.pakete_unterwegs", String(active.length), {
     friendly_name: "Pakete unterwegs", parcels: active });
@@ -221,6 +256,8 @@
     friendly_name: "Pakete möglich", parcels: items("possible") });
   add("sensor.pakete_zugestellt_heute", String(delivered.length), {
     friendly_name: "Pakete zugestellt heute", parcels: delivered });
+  add("sensor.pakete_abholbereit", String(pickup.length), {
+    friendly_name: "Pakete abholbereit", parcels: pickup });
   add("sensor.paket_tracker_17track_kontingent", "187", {
     friendly_name: "Paket Tracker 17track-Kontingent", total: 200, used: 13 });
 

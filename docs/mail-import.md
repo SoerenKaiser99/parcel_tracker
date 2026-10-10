@@ -245,7 +245,7 @@ Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdiens
     Die Marke ist der Firmenname ohne Rechtsform: ein Wort ab 5 Buchstaben oder mehrere Wörter. Allerweltswörter allein („Neu GmbH“, „Smart Home GmbH“) und bekannte Shops (IKEA, Otto, Zalando …) zählen nicht. Passt etwas davon nicht, entsteht ein eigenes Paket.
 
 ??? note "Das Carrier-Paket gibt es schon als eigenes Paket"
-    Kam die Shop-Mail erst später, bleiben es zunächst zwei Einträge. Wird ein Carrier-Paket zugestellt, das aus einer Mail entstanden ist, prüft die Integration noch einmal nach denselben Regeln, ob es zu genau einem offenen Amazon- oder eBay-Paket ohne Sendungsnummer gehört.
+    Kam die Shop-Mail erst später, bleiben es zunächst zwei Einträge. Wird ein Carrier-Paket zugestellt, das aus einer Mail entstanden ist, prüft die Integration noch einmal nach denselben Regeln, ob es zu genau einem offenen Amazon-, eBay- oder AliExpress-Paket ohne Sendungsnummer gehört.
 
     - Passt es eindeutig, übernimmt das Shop-Paket Sendungsnummer, Verlauf und Zustellzeitpunkt und gilt als zugestellt. Das eigene Carrier-Paket samt Sensor verschwindet.
     - Gemeldet wird die Zustellung nur einmal.
