@@ -482,6 +482,7 @@ class ParcelTrackerCard extends HTMLElement {
         .pickup { font-size:12px; padding:2px 8px; border-radius:6px; background:var(--warning-color); color:var(--text-primary-color); }
         .done { opacity:.55; }
         .detail { margin-top:10px; font-size:12px; color:var(--secondary-text-color); line-height:1.6; }
+        .ev { padding-inline-start:1em; text-indent:-1em; }
         .note { margin-top:4px; }
         .actions { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
         .actions input { flex:1 1 140px; }
@@ -860,7 +861,8 @@ class ParcelTrackerCard extends HTMLElement {
       const open = this._open.has(a.number);
       const noteMsg = open ? keyNote(a, s) : null;
       const note = noteMsg ? `<div class="detail note">${esc(noteMsg)}</div>` : "";
-      const events = (a.events || []).map((e) => `${fmtDateTime(e.timestamp)} · ${esc(e.text)}${e.location ? " · " + esc(e.location) : ""}`).join("<br>");
+      // One block per event: a long text wraps indented, so each event's start stands out.
+      const events = (a.events || []).map((e) => `<div class="ev">${fmtDateTime(e.timestamp)} · ${esc(e.text)}${e.location ? " · " + esc(e.location) : ""}</div>`).join("");
       item.innerHTML = `
         <button type="button" class="row-toggle" aria-expanded="${open ? "true" : "false"}" data-number="${esc(a.number)}" data-a="toggle">
           <span class="top"><span class="name">${this._icon(a.carrier)}<span>${esc(a.name || a.number)}</span></span>${right}<span class="chev" aria-hidden="true"></span></span>
