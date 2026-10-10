@@ -47,6 +47,8 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "wurde versandt": (_ON_WAY, None),
     "teilweise versandt": (_ON_WAY, "Teilweise versandt"),
     "paket im transit": (_ON_WAY, "Paket im Transit"),
+    # (the step of a parcel mail, told for the order instead of the parcel)
+    "vom kurier abgeholt": (_ON_WAY, "Vom Kurier abgeholt"),
     "in ihrem land / ihrer region angekommen": (_ON_WAY, "Im Zielland angekommen"),
     # (the body only says that there is news)
     "neuer lieferstatus": (_ON_WAY, None),
@@ -63,11 +65,14 @@ _NO_NEWS = frozenset({"auf bestätigung wird gewartet", "wie war ihr einkaufserl
 _SURVEY = "wie ist es gelaufen?"
 _CONFIRMED = re.compile(r"Wir haben die Lieferung Ihrer Bestellung\s+\d+\s+bestätigt")
 CONFIRMED_TEXT = "Lieferung bestätigt"
-# The step of a parcel mail, all on the way: AliExpress's words for the history.
-_PARCEL_STEPS = {
+# The step of a parcel mail, all on the way: AliExpress's words for the history (None
+# for a mail that tells no step of its own).
+_PARCEL_STEPS: dict[str, str | None] = {
     "hat die abflugregion verlassen": "Abflugregion verlassen",
     "vom kurier abgeholt": "Vom Kurier abgeholt",
     "in ihrem land / ihrer region": "Im Zielland angekommen",
+    # (the body only says that there is news from the country of departure)
+    "hat eine aktualisierung": None,
 }
 CUSTOMS_TEXT = "Zollabfertigung beendet"
 
@@ -289,7 +294,7 @@ def _link_orders(msg: EmailMessage) -> list[str]:
     return orders
 
 
-def _parcel_mail(msg: EmailMessage, number: str, words: str) -> MailResult:
+def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResult:
     """A mail about the parcel at the carrier ("Packstück …", "Zollabfertigung für …").
 
     Its orders (the links name them) get the status and, if the number is one of a
@@ -349,8 +354,10 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     if found := _CUSTOMS_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), CUSTOMS_TEXT)
     if found := _PARCEL_SUBJECT.match(subj):
-        words = _PARCEL_STEPS.get(" ".join(found.group("step").lower().split()))
-        return _parcel_mail(msg, found.group("number"), words) if words else MailResult()
+        step = " ".join(found.group("step").lower().split())
+        if step not in _PARCEL_STEPS:
+            return MailResult()
+        return _parcel_mail(msg, found.group("number"), _PARCEL_STEPS[step])
     if found := _ORDERS_SUBJECT.match(subj):
         return _order_mail(msg, found.group("order"), "Bestellauftrag bestätigt")
     if found := _ORDER_SUBJECT.match(subj):

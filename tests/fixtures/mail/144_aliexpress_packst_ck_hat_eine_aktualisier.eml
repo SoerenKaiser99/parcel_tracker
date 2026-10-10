@@ -1,0 +1,32 @@
+X-Fixture: synthetic - written by hand after the wording of a real mail; name, numbers, items and address invented
+From: AliExpress <transaction@notice.aliexpress.com>
+To: max@example.org
+Subject: =?utf-8?q?Packst=C3=BCck?= LR999999990NL hat eine Aktualisierung
+Date: Wed, 19 Aug 2026 02:39:10 +0000
+Message-ID: <synthetic-144@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Aktueller Status aus dem Abflugsland</p>
+<p>Aktualisierung aus dem Abflugsland</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihr Packstück LR999999990NL hat eine Lieferaktualisierung aus dem Abflugsland bzw. der Abflugsregion. Den aktuellen Status können Sie hier überprüfen.</p>
+<p><a href="https://www.aliexpress.com/ssr/300002636/beispiel?disableNav=YES&amp;pha_manifest=ssr&amp;businessCode=ug&amp;o_ids=9999999999990023">Pakete verfolgen</a></p>
+<p>.</p>
+<p>Paketinfos</p>
+<p>.</p>
+<p>Beispiel-Stativplatte mit Schnellwechs...</p>
+<p>Variante A</p>
+<p>x1</p>
+<p>.</p>
+<p>Beispiel-Stativplatte mit Schnellwechs...</p>
+<p>Variante B</p>
+<p>x1</p>
+<p>.</p>
+<p>Versand nach</p>
+<p>Musterstraße, 1</p>
+<p>Musterstadt, Bayern</p>
+<p>Max Mustermann (+49) 0000000000</p>
+</body></html>
