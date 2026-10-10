@@ -44,12 +44,14 @@
           "track17_api_key": "17track API key (optional)",
           "country": "Country",
           "postcode": "Postcode (optional)",
-          "keep_delivered_days": "Hide delivered parcels after (days)"
+          "keep_delivered_days": "Hide delivered parcels after (days)",
+          "hide_names": "Hide names"
         },
         "data_description": {
           "country": "Decides how many digits the postcode has and which GLS lookup is asked.",
           "postcode": "Germany: 5 digits (e.g. 10115). Austria and Switzerland: 4 digits (e.g. 1010).",
-          "track17_api_key": "Free key from api.17track.net (200 numbers once). Only used when you ask for it on the card. Leave empty to keep the saved key."
+          "track17_api_key": "Free key from api.17track.net (200 numbers once). Only used when you ask for it on the card. Leave empty to keep the saved key.",
+          "hide_names": "Parcels are only named after the carrier (e.g. “DHL-Paket”, “Amazon-Bestellung”) – on the card, in the calendar, in the sensors and in the notifications. For gifts on a shared dashboard. A name you typed in yourself stays visible; the stored names are not changed."
         },
         "sections": {
           "mail": {

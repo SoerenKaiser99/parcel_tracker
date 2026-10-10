@@ -23,13 +23,14 @@ async def async_setup_entry(
     async_add_entities([ParcelCalendar(entry.runtime_data)])
 
 
-def _event(p: Parcel) -> CalendarEvent | None:
+def _event(p: Parcel, name: str | None) -> CalendarEvent | None:
+    """The delivery of a parcel; ``name`` is the name it is shown by, if it has one."""
     r = p.result
     if not r or not r.eta_date or r.status is ParcelStatus.DELIVERED:
         return None
     if r.eta_date < dt_util.now().date():
         return None
-    summary = f"Paket: {p.name or p.number}"
+    summary = f"Paket: {name or p.number}"
     if r.eta_from and r.eta_to:
         return CalendarEvent(start=r.eta_from, end=r.eta_to, summary=summary, location=r.location)
     return CalendarEvent(
@@ -53,7 +54,10 @@ class ParcelCalendar(CoordinatorEntity[ParcelCoordinator], CalendarEntity):
         return True
 
     def _events(self) -> list[CalendarEvent]:
-        events = [e for p in self.coordinator.store.parcels.values() if (e := _event(p))]
+        shown = self.coordinator.display_name
+        events = [
+            e for p in self.coordinator.store.parcels.values() if (e := _event(p, shown(p)))
+        ]
         return sorted(events, key=lambda e: e.start_datetime_local)
 
     @property

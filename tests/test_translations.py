@@ -247,3 +247,20 @@ def test_pickup_sensor_is_named_in_every_language():
     }
     for name, text in names.items():
         assert _load(name)["entity"]["sensor"]["awaiting_pickup"] == {"name": text}, name
+
+
+def test_hide_names_translations_present():
+    """v0.3.24: the switch "Namen ausblenden" has a label and a description that says
+    where it applies and that a typed-in name stays."""
+    for name, label in (("strings.json", "Hide names"), ("translations/de.json",
+                                                         "Namen ausblenden")):
+        init = _load(name)["options"]["step"]["init"]
+        assert init["data"]["hide_names"] == label
+        assert init["data_description"]["hide_names"]
+        assert "hide_names" not in _load(name)["config"]["step"]["user"]["data"]
+    text = _load("translations/de.json")["options"]["step"]["init"]["data_description"][
+        "hide_names"
+    ]
+    for word in ("DHL-Paket", "Amazon-Bestellung", "Karte", "Kalender", "Sensoren",
+                 "Benachrichtigungen", "eingetippter Name"):
+        assert word in text

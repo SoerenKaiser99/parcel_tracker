@@ -7,7 +7,13 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Any
 
-from .const import CARRIER_NAMES, CARRIER_OTHER, MAIL_CARRIERS, TRACK17_CARRIER_NAMES
+from .const import (
+    CARRIER_NAMES,
+    CARRIER_OTHER,
+    MAIL_CARRIERS,
+    SHOP_CARRIERS,
+    TRACK17_CARRIER_NAMES,
+)
 
 
 class ParcelStatus(StrEnum):
@@ -178,6 +184,11 @@ class Parcel:
     # GLS_PROBE_TRIES); an answer sets it to that limit at once. Persisted, so GLS is
     # never asked again for this parcel, also not after a restart.
     gls_probes: int = 0
+    # The user typed the name in ("Umbenennen", or the name given when adding the
+    # parcel); a name a mail gave is never marked. Only such a name is shown while
+    # "Namen ausblenden" is on (see ``display_name``). Persisted; a parcel stored by an
+    # older version has no mark, as nobody knows who set its name.
+    name_manual: bool = False
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -234,6 +245,7 @@ class Parcel:
             "assumed_delivered": self.assumed_delivered,
             "order_checked": self.order_checked,
             "gls_probes": self.gls_probes,
+            "name_manual": self.name_manual,
         }
 
     @classmethod
@@ -267,6 +279,7 @@ class Parcel:
             assumed_delivered=data.get("assumed_delivered") is True,
             order_checked=data.get("order_checked") is True,
             gls_probes=_count(data.get("gls_probes")),
+            name_manual=data.get("name_manual") is True,
         )
 
 
@@ -277,3 +290,39 @@ def carrier_name(parcel: Parcel) -> str | None:
     if parcel.carrier:
         return CARRIER_NAMES.get(parcel.carrier, parcel.carrier)
     return None
+
+
+def short_number(number: str) -> str:
+    """'…2557': how a parcel is told apart where its whole number is not named."""
+    return f"…{number[-4:]}"
+
+
+def neutral_name(parcel: Parcel) -> str:
+    """A name that tells neither what a parcel is nor who sent it.
+
+    'DHL-Paket …2557' for a carrier's parcel, 'Amazon-Bestellung …4321' for a shop
+    order, 'Paket …2557' while no carrier is known (also 17track without one it knows).
+    """
+    if parcel.carrier in SHOP_CARRIERS:
+        kind = f"{CARRIER_NAMES[parcel.carrier]}-Bestellung"
+    else:
+        if parcel.carrier == CARRIER_OTHER:
+            carrier = TRACK17_CARRIER_NAMES.get(parcel.track17_carrier)
+        else:
+            carrier = carrier_name(parcel)
+        kind = f"{carrier}-Paket" if carrier else "Paket"
+    return f"{kind} {short_number(parcel.number)}"
+
+
+def display_name(parcel: Parcel, hide_names: bool) -> str | None:
+    """The name a parcel is shown by, None if it has none.
+
+    With "Namen ausblenden" (``hide_names``) only a name the user typed in is shown;
+    every other parcel gets its neutral name, whatever a mail called it. The stored
+    name and mail title are never changed by this.
+    """
+    if not hide_names:
+        return parcel.name
+    if parcel.name and parcel.name_manual:
+        return parcel.name
+    return neutral_name(parcel)

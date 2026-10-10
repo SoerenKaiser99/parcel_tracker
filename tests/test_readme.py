@@ -1213,3 +1213,52 @@ def test_readme_privacy_says_twelve_digits_may_go_to_gls_once():
         "never sent to GLS this way",
     ):
         assert text in english, text
+
+
+# ----- v0.3.24: "Namen ausblenden" -----
+def test_readme_explains_hide_names():
+    section = README.split("\n## Namen ausblenden\n")[1].split("\n## ")[0]
+    for text in (
+        "Schalter **Namen ausblenden** (Standard: aus)",
+        "`DHL-Paket …2557`",
+        "`Amazon-Bestellung …4321`",
+        "`eBay-Bestellung …0001`",
+        "`Paket …2557`",
+        "- **Karte**",
+        "- **Sensoren**",
+        "`parcels`, `possible`, `delivered_today` und `awaiting_pickup`",
+        "- **Kalender**",
+        "- **Event**: das Feld `name` von `parcel_tracker_status_changed`",
+        "Blueprint",
+        "- **Benachrichtigungen**: z. B. `✅ DHL-Paket …2557 wurde zugestellt`",
+        "**Selbst eingetippte Namen bleiben sichtbar:**",
+        "`parcel_tracker.rename_parcel`",
+        "vor v0.3.24 vergeben",
+        "**Die gespeicherten Daten bleiben, wie sie sind:**",
+        "[Zusammenführen](#zusammenführen)",
+        "sofort zurück",
+        "ein Neustart von Home Assistant ist nicht nötig",
+        "Die Entitäts-IDs (`sensor.paket_<nummer>`) entstehen aus der Nummer",
+        "Der Diagnose-Download enthielt noch nie Namen",
+        "**Grenzen:** Der Verlauf von Home Assistant",
+    ):
+        assert text in section, text
+    assert "bitte" not in section.lower() and "erfolgreich" not in section.lower()
+
+
+def test_readme_names_hide_names_where_options_and_features_are_listed():
+    features = README.split("\n## Was es kann\n")[1].split("\n## ")[0]
+    assert "- **Namen ausblenden** (optional)" in features
+    assert "(siehe [Namen ausblenden](#namen-ausblenden))" in features
+    fields = README.split("\n### Einrichtungsfelder\n")[1].split("\n### ")[0]
+    assert "den Schalter [Namen ausblenden](#namen-ausblenden)" in fields
+    notify = README.split("\n### Wann und was\n")[1].split("\n### ")[0]
+    assert "Mit [Namen ausblenden](#namen-ausblenden) steht dort" in notify
+    diagnostics = next(
+        line for line in README.splitlines() if line.startswith("**Die Diagnose enthält:**")
+    )
+    assert "ob „Namen ausblenden“ eingeschaltet ist" in diagnostics
+    english = README.split("\n## English summary\n")[1]
+    for text in ('An option "Namen ausblenden"', "A name typed in by hand", "stays visible",
+                 "entity IDs are derived from the number", "never contained names"):
+        assert text in english, text

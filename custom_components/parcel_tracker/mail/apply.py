@@ -405,6 +405,7 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
     unnamed = target.name is None or is_carrier_display(target.name)
     if unnamed and name and target.carrier not in SHOP_CARRIERS:
         target.name = name  # e.g. the shop a Hermes mail names
+        target.name_manual = False  # the mail's name, whoever typed in the replaced one
         named = True
     target_carrier = target.poll_target[0] if target.poll_target else None
     if target.poll_target is not None and target_carrier not in OPTIONAL_API_CARRIERS:

@@ -18,6 +18,7 @@ from custom_components.parcel_tracker.carriers.track17 import Quota
 from custom_components.parcel_tracker.const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
+    CONF_HIDE_NAMES,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
@@ -353,3 +354,72 @@ async def test_untouched_form_with_a_stored_country_changes_nothing(
             assert entry.options == options
         else:  # the postcode has no ``default``: left out, it is removed (as before)
             assert entry.options == {**options, CONF_POSTCODE: ""}
+
+
+# ----- v0.3.24: "Namen ausblenden" -----
+
+
+async def test_untouched_form_of_an_entry_from_before_hide_names(hass):
+    """An entry saved before v0.3.24 has no such setting: the form shows the switch
+    off, and open and save does not add it (see ``test_untouched_form_changes_nothing``)."""
+    entry = _entry(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    fields = _fields(result)
+    names = [field["name"] for field in fields]
+    # A plain switch right below the keep days, in front of the sections.
+    assert names.index(CONF_HIDE_NAMES) == names.index(CONF_KEEP_DELIVERED_DAYS) + 1
+    assert _frontend_initial(fields)[CONF_HIDE_NAMES] is False
+    result, checks = await _save(hass, entry, _frontend_initial)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.data == DATA
+    assert entry.options == OPTIONS
+    assert CONF_HIDE_NAMES not in entry.options
+
+
+@pytest.mark.parametrize("stored", [True, False], ids=["on", "off"])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        _frontend_initial,
+        _defaults_only,
+        # The switch is missing from what the frontend sent: it keeps its stored value.
+        lambda fields: {CONF_KEEP_DELIVERED_DAYS: 7, CONF_POSTCODE: "20095"},
+    ],
+    ids=["untouched", "defaults-only", "missing"],
+)
+async def test_untouched_form_keeps_hide_names(hass, stored, payload):
+    options = {**OPTIONS, CONF_HIDE_NAMES: stored}
+    entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert _frontend_initial(_fields(result))[CONF_HIDE_NAMES] is stored
+    result, checks = await _save(hass, entry, payload)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.data == DATA
+    assert {**entry.options, CONF_POSTCODE: "20095"} == options
+
+
+async def test_hide_names_is_switched_on_and_off_and_nothing_else_changes(hass):
+    entry = _entry(hass)
+
+    def switched(value):
+        return lambda fields: {**_frontend_initial(fields), CONF_HIDE_NAMES: value}
+
+    result, checks = await _save(hass, entry, switched(True))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.options == {**OPTIONS, CONF_HIDE_NAMES: True}
+    result, _ = await _save(hass, entry, switched(False))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {**OPTIONS, CONF_HIDE_NAMES: False}
+    assert entry.data == DATA
+
+
+async def test_setup_form_does_not_ask_for_hide_names(hass):
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert CONF_HIDE_NAMES not in [field["name"] for field in _fields(result)]

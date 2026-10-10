@@ -49,6 +49,7 @@ from .const import (
     CARRIER_AUTO,
     CARRIER_BROKEN_AFTER,
     CARRIER_OTHER,
+    CONF_HIDE_NAMES,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
@@ -56,6 +57,7 @@ from .const import (
     CONF_NOTIFY_TARGETS,
     CONF_POSTCODE,
     CONF_READ_OTP,
+    DEFAULT_HIDE_NAMES,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
@@ -96,6 +98,7 @@ from .models import (
     ParcelStatus,
     TrackingResult,
     carrier_name,
+    display_name,
 )
 from .notification import build_notification, notification_tag, service_name
 from .schedule import GLS_MIN_INTERVAL, backoff, order_overdue, poll_interval, should_remove
@@ -210,6 +213,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     @property
     def _postcode(self) -> str | None:
         return self.entry.options.get(CONF_POSTCODE, self.entry.data.get(CONF_POSTCODE))
+
+    @property
+    def hide_names(self) -> bool:
+        """The option "Namen ausblenden": parcels are shown by their carrier only."""
+        return self.entry.options.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True
+
+    def display_name(self, parcel: Parcel) -> str | None:
+        """The name a parcel is shown by (sensors, calendar, event, notification)."""
+        return display_name(parcel, self.hide_names)
 
     @property
     def _keep_days(self) -> int:
@@ -879,7 +891,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             EVENT_STATUS_CHANGED,
             {
                 "number": parcel.number,
-                "name": parcel.name,
+                "name": self.display_name(parcel),
                 "carrier": parcel.carrier,
                 "carrier_name": carrier_name(parcel),
                 "old_status": old.value,
@@ -908,7 +920,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             targets = self._notify_targets
             if not targets or parcel.result.status.value not in self._notify_events:
                 return
-            built = build_notification(parcel, old, dt_util.now())
+            built = build_notification(parcel, old, dt_util.now(), self.hide_names)
             tag = notification_tag(parcel.number)
         except Exception as err:  # noqa: BLE001 - a notification must never break a refresh
             # Only the error type: no parcel data in the log.
@@ -1180,11 +1192,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 raise DuplicateParcel(number)  # before registering: nothing spent
             code = await self._register17(number, None)
             now = dt_util.utcnow()
+            given = (name or "").strip() or None
             parcel = Parcel(
                 number=number,
                 carrier=CARRIER_OTHER,
                 carrier_mode="manual",
-                name=(name or "").strip() or None,
+                name=given,
+                name_manual=given is not None,
                 added_at=now,
                 last_change_at=now,
                 track17=True,
@@ -1255,11 +1269,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         ):
             raise ValueError("unknown_carrier")
         now = dt_util.utcnow()
+        given = (name or "").strip() or None
         parcel = Parcel(
             number=norm,
             carrier=None if carrier == CARRIER_AUTO else carrier,
             carrier_mode=mode,
-            name=(name or "").strip() or None,
+            name=given,
+            name_manual=given is not None,  # typed in: shown with "Namen ausblenden" too
             added_at=now,
             last_change_at=now,
         )
@@ -1322,8 +1338,19 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self.async_set_updated_data(dict(self.store.parcels))
 
     async def async_rename(self, number: str, name: str | None) -> None:
+        """Give a parcel the name the user typed in; an empty one takes its name away.
+
+        The card prefills the field with the name it shows. Saved as it is, nothing
+        changes: a name a mail gave does not become a typed-in one (it would be shown
+        with "Namen ausblenden"), and the neutral name shown while that option is on
+        does not replace the stored name.
+        """
         parcel = self.store.parcels[normalize(number)]
-        parcel.name = (name or "").strip() or None
+        given = (name or "").strip() or None
+        if given is not None and given in (parcel.name, self.display_name(parcel)):
+            return
+        parcel.name = given
+        parcel.name_manual = given is not None
         await self.store.async_save()
         self.async_set_updated_data(dict(self.store.parcels))
 
