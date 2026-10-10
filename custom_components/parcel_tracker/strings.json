@@ -138,7 +138,7 @@
     },
     "amazon_unrecognized": {
       "title": "Amazon mails not recognised",
-      "description": "Parcel Tracker couldn't read the last 5 Amazon mails. Amazon may have changed its mail layout. Check for an update of Parcel Tracker; the mails are in the folder Paket-Tracker-Nicht-erkannt."
+      "description": "Parcel Tracker couldn't read the last 5 Amazon mails. Amazon may have changed its mail layout. Check for an update of Parcel Tracker; mails from the mailbox are in the folder Paket-Tracker-Nicht-erkannt."
     },
     "ups_auth": {
       "title": "UPS credentials rejected",

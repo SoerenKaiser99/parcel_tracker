@@ -87,7 +87,7 @@ _HOST = re.compile(r"[a-z0-9.-]+")
 
 # Prefixes that tell the kind of number and stay readable: our own shop-order marks,
 # DHL's JJD, Hermes' H (each in front of digits) and UPS' 1Z.
-_PREFIX = re.compile(r"(?:EBAY|AMZ|JJD|H)(?=\d)|1Z(?=[0-9A-Z])", re.IGNORECASE)
+_PREFIX = re.compile(r"(?:EBAY|AMZ|ALI|JJD|H)(?=\d)|1Z(?=[0-9A-Z])", re.IGNORECASE)
 # Carrier keys, modes and error codes are short identifiers; free text is not passed on.
 _CODE = re.compile(r"[a-z0-9_]{1,40}")
 _HIDDEN = "other"

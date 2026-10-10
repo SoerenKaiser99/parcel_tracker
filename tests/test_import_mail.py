@@ -98,6 +98,35 @@ async def test_mails_without_a_parcel(hass, entry, hass_client):
     assert entry.runtime_data.store.parcels == {}
 
 
+def aliexpress(subject: str, date: str) -> bytes:
+    return (
+        "From: AliExpress <transaction@notice.aliexpress.com>\r\n"
+        f"Message-ID: <{abs(hash(subject))}@example.org>\r\n"
+        f"Subject: {subject}\r\nDate: {date}\r\n\r\nHallo Max Mustermann,\r\n"
+    ).encode()
+
+
+async def test_aliexpress_order_comes_in_also_through_apples_relay(hass, entry, hass_client):
+    client = await hass_client()
+    order = "ALI9999999999990901"
+    relay = "transaction_at_notice_aliexpress_com_0a1b2c3d4e_0a1b2c3d@privaterelay.appleid.com"
+    confirmed = aliexpress("Bestellung 9999999999990901: Versandbereit", _date())
+    confirmed = confirmed.replace(b"transaction@notice.aliexpress.com", relay.encode())
+    assert await _post(client, confirmed) == (200, {"result": "recognized", "parcels": [order]})
+    parcel = entry.runtime_data.store.get(order)
+    assert (parcel.carrier, parcel.status) == ("aliexpress", ParcelStatus.PRE_TRANSIT)
+    shipped = aliexpress("Bestellung 9999999999990901: Bestellung versandt", _date())
+    assert await _post(client, shipped) == (200, {"result": "recognized", "parcels": [order]})
+    assert parcel.status is ParcelStatus.IN_TRANSIT
+    state = hass.states.get("sensor.paket_ali9999999999990901")
+    assert state.state == "in_transit" and state.attributes["carrier_name"] == "AliExpress"
+    # A request for a rating tells nothing; a subject nobody knows is not recognised.
+    rating = aliexpress("Bestellung 9999999999990901: Wie war Ihr Einkaufserlebnis?", _date())
+    assert await _post(client, rating) == (200, {"result": "ignored", "parcels": []})
+    odd = aliexpress("Bestellung 9999999999990901: etwas Neues", _date())
+    assert await _post(client, odd) == (200, {"result": "unrecognized", "parcels": []})
+
+
 async def test_mail_stays_off_the_event_bus(hass, entry, hass_client):
     """Why this is no service: a service call would carry the whole mail as an event."""
     client = await hass_client()

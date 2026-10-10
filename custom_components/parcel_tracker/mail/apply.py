@@ -8,7 +8,7 @@ from datetime import datetime
 
 from ..carriers.gls import gls_number
 from ..carriers.track17 import strip_enrichment, with_track17
-from ..const import MAX_EVENTS, OPTIONAL_API_CARRIERS, SHOP_CARRIERS
+from ..const import MAX_EVENTS, OPTIONAL_API_CARRIERS, SHOP_CARRIERS, SINGLE_PARCEL_SHOPS
 from ..models import (
     NO_ETA_STATUSES,
     PROGRESS_STEP,
@@ -74,13 +74,28 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     assumed = parcel.assumed_delivered
     # A postponed delivery is a step back the carrier itself tells; what has arrived stays.
     postponed = update.postponed and parcel.status not in _ARRIVED
+    # A delivery the shop confirms days later is no news for what was delivered for real.
+    known = update.confirmation and parcel.status is ParcelStatus.DELIVERED and not assumed
     # "Backwards" is measured against what is shown, also if that is 17track's status.
-    if update.status is not None and (
-        assumed or postponed or _step(update.status) >= _step(parcel.status)
+    if (
+        update.status is not None
+        and not known
+        and (assumed or postponed or _step(update.status) >= _step(parcel.status))
     ):
         parcel.assumed_delivered = False
         texts = SHOP_TEXT if parcel.carrier in SHOP_CARRIERS else CARRIER_TEXT
         text = update.status_text or texts.get(update.status, update.status.value)
+        if (
+            update.status_text is None
+            and parcel.carrier in SHOP_CARRIERS
+            and old is not None
+            and old.status is update.status
+            and old.status_text
+            and not assumed
+        ):
+            # A shop mail that only repeats the status ("Neuer Lieferstatus") keeps the
+            # words an earlier mail or the carrier gave it ("Im Zielland angekommen").
+            text = old.status_text
         events = list(old.events) if old else []
         own_words = update.status_text is not None and old is not None and old.status_text != text
         if old is None or old.status is not update.status or assumed or own_words:
@@ -148,7 +163,8 @@ def _take_shop_facts(parcel: Parcel, update: MailUpdate) -> bool:
 
 
 def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
-    """A shop order ("AMZ…"/"EBAY…"): one parcel per order, suffix for further shipments."""
+    """A shop order ("AMZ…"/"EBAY…"/"ALI…"): one parcel per order, suffix for further
+    shipments (never for AliExpress: its mails name an order's items in turn)."""
     siblings = _order_parcels(parcels, update.carrier, update.number)
     key = title_key(update.title) if update.title else None
     target = next(
@@ -158,6 +174,7 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
         # (a postponed delivery is news about a shipment there is, never a further one)
         further_shipment = (
             key is not None
+            and update.carrier not in SINGLE_PARCEL_SHOPS
             and not update.postponed
             and update.status is ParcelStatus.IN_TRANSIT
             and all(_step(p.status) >= _step(ParcelStatus.IN_TRANSIT) for p in siblings)
@@ -273,6 +290,19 @@ def _merge_candidate(parcels: dict[str, Parcel], update: MailUpdate) -> Parcel |
     if not matches and update.shop is None:
         return _brand_candidate(orders, update)
     return None
+
+
+def _apply_orderless(
+    parcels: dict[str, Parcel], update: MailUpdate, now: datetime
+) -> Change | None:
+    """A shop's status mail that names no order (AliExpress "Packstück" with a number no
+    carrier of ours has): the status goes to the one open order that fits
+    (``_merge_candidate``), else nowhere. Never creates a parcel."""
+    target = _merge_candidate(parcels, update)
+    if target is None:
+        return None
+    old = target.status
+    return Change(target, old, False) if _forward(target, update, now) else None
 
 
 def fold_delivered(
@@ -422,5 +452,7 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
 def apply_update(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
     """Create or advance the matching parcel in ``parcels`` (mutated in place)."""
     if update.carrier in SHOP_CARRIERS:
+        if not update.number:
+            return _apply_orderless(parcels, update, now)
         return _apply_order(parcels, update, now)
     return _apply_tracking(parcels, update, now)

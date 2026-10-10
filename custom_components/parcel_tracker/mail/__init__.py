@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from email.message import EmailMessage
 
+from .aliexpress import (
+    ALIEXPRESS_DOMAIN,
+    ALIEXPRESS_MARKETING_DOMAIN,
+    ALIEXPRESS_SENDER,
+    parse_aliexpress,
+)
 from .amazon import (
     AMAZON_SENDERS,
     LEGACY_PREFIXES,
@@ -11,7 +17,17 @@ from .amazon import (
     parse_amazon_legacy,
     subject_status,
 )
-from .base import DPD_DOMAINS, MailResult, body_text, domain_of, is_forwarded, sender, subject
+from .base import (
+    DPD_DOMAINS,
+    MailResult,
+    body_text,
+    domain_of,
+    is_forwarded,
+    register_relay_senders,
+    sender,
+    subject,
+    unrelay,
+)
 from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_de_mail, parse_dpd_mail
 from .ebay import EBAY_SENDER, parse_ebay
 from .forward import original_message
@@ -40,35 +56,40 @@ IGNORED_SENDERS = frozenset(
 # Domains of the shops and carriers whose mails the parsers know. Only these may be
 # named in the diagnostics; every other sender (a private person, an unknown shop)
 # is just "other".
+_KNOWN_SENDERS = (
+    *AMAZON_SENDERS,
+    EBAY_SENDER,
+    GLS_SENDER,
+    *GLS_GROUP_SENDERS,
+    DPD_AT_SENDER,
+    HERMES_SENDER,
+    DHL_SENDER,
+    UPS_SENDER,
+    ALIEXPRESS_SENDER,
+)
 KNOWN_MAIL_DOMAINS = frozenset(
     {
         *KNOWN_SENDER_DOMAINS,
         *DPD_DOMAINS,
-        *(
-            domain_of(address)
-            for address in (
-                *AMAZON_SENDERS,
-                EBAY_SENDER,
-                GLS_SENDER,
-                *GLS_GROUP_SENDERS,
-                DPD_AT_SENDER,
-                HERMES_SENDER,
-                DHL_SENDER,
-                UPS_SENDER,
-            )
-        ),
+        # (every sender at aliexpress.com is booked under that one domain)
+        ALIEXPRESS_DOMAIN,
+        *(domain_of(address) for address in _KNOWN_SENDERS if address != ALIEXPRESS_SENDER),
     }
 )
 OTHER_DOMAIN = "other"
+# What Apple's relay ("E-Mail-Adresse verbergen") may pass on as one of these senders:
+# everybody a parser knows and everybody on the ignore list.
+register_relay_senders((*_KNOWN_SENDERS, *IGNORED_SENDERS), KNOWN_MAIL_DOMAINS)
 
 
 def known_sender_domain(address: str) -> str:
     """The known shop/carrier domain an address belongs to, else "other".
 
     A sub-domain counts as its known parent ("x@mail.dhl.de" -> "dhl.de"), so
-    nothing but an entry of KNOWN_MAIL_DOMAINS is ever returned.
+    nothing but an entry of KNOWN_MAIL_DOMAINS is ever returned. An address of Apple's
+    relay counts as the sender it passes on.
     """
-    domain = domain_of(address.strip().lower())
+    domain = domain_of(unrelay(address.strip().lower()))
     while domain:
         if domain in KNOWN_MAIL_DOMAINS:
             return domain
@@ -78,8 +99,11 @@ def known_sender_domain(address: str) -> str:
 
 def is_ignored(address: str) -> bool:
     """Senders whose mails are skipped without counting as unrecognised."""
-    return address in IGNORED_SENDERS or (
-        address.startswith("promotion") and address.endswith("@amazon.de")
+    address = unrelay(address)
+    return (
+        address in IGNORED_SENDERS
+        or (address.startswith("promotion") and address.endswith("@amazon.de"))
+        or domain_of(address) == ALIEXPRESS_MARKETING_DOMAIN
     )
 
 
@@ -122,6 +146,11 @@ def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
         # eBay mails never go to the generic parser: their item numbers look like
         # tracking numbers. Unknown subjects are simply unrecognised.
         return MailResult(updates=parse_ebay(msg))
+    domain = domain_of(address)
+    if domain == ALIEXPRESS_DOMAIN or domain.endswith(f".{ALIEXPRESS_DOMAIN}"):
+        # Never to the generic parser either: a mail about an order's parcel names the
+        # carrier's number, and the order would get a second parcel.
+        return parse_aliexpress(msg)
     subj = subject(msg)
     # Only mails Amazon sent itself count towards the "Amazon unrecognised" issue;
     # a hand-forwarded mail that doesn't parse is just an ordinary unknown mail.
@@ -135,7 +164,6 @@ def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
         if updates or real_amazon:
             return MailResult(updates=updates, amazon=real_amazon)
         return MailResult(updates=parse_generic(msg))
-    domain = domain_of(address)
     if (domain == DHL_DOMAIN or domain.endswith(f".{DHL_DOMAIN}")) and (
         updates := parse_dhl_mail(msg)
     ):

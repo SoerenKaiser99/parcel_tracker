@@ -24,6 +24,7 @@ SENDERS = [
     "noreply@paketankuendigung.myhermes.de",
     "ebay@ebay.com",
     "no-reply@gls-pakete.de",
+    "transaction@notice.aliexpress.com",
 ]
 
 
@@ -432,7 +433,16 @@ def test_hacs_is_not_told_about_the_blueprints_folder():
     import json
 
     hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
-    assert set(hacs) == {"name", "homeassistant", "render_readme", "zip_release", "filename"}
+    assert set(hacs) == {
+        "name",
+        "homeassistant",
+        "render_readme",
+        "zip_release",
+        "filename",
+        "country",
+    }
+    # Built for these countries (carriers, mails and the card are German).
+    assert hacs["country"] == ["DE", "AT", "CH"]
 
 
 def test_hacs_installs_from_the_release_zip():
@@ -750,7 +760,9 @@ def test_readme_table_says_what_each_service_needs():
     ]
     assert rows[0] == ["Dienst", "Live-Status direkt", "aus Mails (Mail-Import)", "Voraussetzung"]
     table = {row[0]: row[1:] for row in rows[2:]}
-    assert list(table) == ["DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "andere Carrier"]
+    assert list(table) == [
+        "DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "AliExpress", "andere Carrier"
+    ]
     assert all(len(cells) == 3 for cells in table.values())
     expected = {
         "DHL": ("nur mit DHL-API-Key", "DHL-Mails", "kostenloser [DHL-API-Key]"),
@@ -760,6 +772,7 @@ def test_readme_table_says_what_each_service_needs():
         "UPS": ("nur mit eigenem UPS-Entwicklerzugang", "UPS-Mails", "Client-ID und Secret"),
         "Amazon": ("nein", "nur aus Mails", "E-Mail-Import"),
         "eBay": ("nein", "nur aus Mails", "E-Mail-Import"),
+        "AliExpress": ("nein", "nur aus Mails", "E-Mail-Import"),
         "andere Carrier": ("17track", "nein", "200 Nummern einmalig"),
     }
     for service, texts in expected.items():
@@ -775,7 +788,7 @@ def test_readme_table_matches_what_the_integration_does():
     from custom_components.parcel_tracker.mail.base import DPD_DOMAINS
 
     assert const.OPTIONAL_API_CARRIERS == frozenset({"ups"})  # UPS: live only with credentials
-    assert set(const.MAIL_CARRIERS) == {"amazon", "ebay"}  # shops: mails only
+    assert set(const.MAIL_CARRIERS) == {"amazon", "ebay", "aliexpress"}  # shops: mails only
     assert "service.dpd.de" in DPD_DOMAINS  # DPD mails are read (for the number)
     assert "200 Nummern" in _section("17track (optional)")
 
@@ -1285,3 +1298,51 @@ def test_readme_explains_the_mail_endpoint():
         "Einen Dienst gibt es dafür bewusst nicht",
     ):
         assert text in section, text
+
+
+def test_readme_explains_aliexpress_and_apples_relay():
+    section = README.split("\n### AliExpress-Pakete\n")[1].split("\n### ")[0]
+    for text in (
+        "`ALI` + Bestellnummer",
+        "den Namen des Händlers übernimmt die Integration nie",
+        "„Im Zielland angekommen“",
+        "es zählt deshalb nicht als heute",
+        "„Voraussichtliche Zustellzeit“",
+        "Ist es eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie",
+        "es entsteht kein zweites Paket",
+        "(z. B. `AP…`) lässt sich bei keinem Carrier abfragen",
+        "sie werden gelesen, nie aufgerufen",
+        "„Lieferung bestätigt“",
+        "„Your order … is closed“",
+        "3 Tage nach dem letzten Liefertag, ohne Liefertag nach 14 Tagen",
+    ):
+        assert text in section, text
+    senders = README.split("\n### Welche Absender\n")[1].split("\n### ")[0]
+    assert "**Apple „E-Mail-Adresse verbergen“**" in senders
+    assert "@privaterelay.appleid.com" in senders
+    assert "`…@deals.aliexpress.com`" in _section("E-Mail-Import")
+    roadmap = _section("Roadmap & Status")
+    assert "- AliExpress-Mails (" in roadmap and "„E-Mail-Adresse verbergen“" in roadmap
+    english = _section("English summary")
+    assert "`ALI` + order number" in english and '"Hide My Email"' in english
+    intro = README.split("## Installation")[0]
+    assert "AliExpress-" in intro
+
+
+def test_readme_matches_the_aliexpress_code():
+    from custom_components.parcel_tracker import const
+    from custom_components.parcel_tracker.mail.aliexpress import (
+        ALIEXPRESS_MARKETING_DOMAIN,
+        ALIEXPRESS_SENDER,
+        CONFIRMED_TEXT,
+        PARCEL_NAME,
+        order_number,
+    )
+    from custom_components.parcel_tracker.mail.base import RELAY_DOMAIN
+
+    assert ALIEXPRESS_SENDER in SENDERS
+    assert f"…@{ALIEXPRESS_MARKETING_DOMAIN}" in README and f"@{RELAY_DOMAIN}" in README
+    assert f"sensor.paket_{order_number('9999999999990001').lower()}" in README
+    assert f"„{PARCEL_NAME}“" in README and f"„{CONFIRMED_TEXT}“" in README
+    assert (const.ORDER_OVERDUE_DAYS, const.ORDER_NO_ETA_DAYS) == (3, 14)
+

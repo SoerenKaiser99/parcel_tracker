@@ -67,7 +67,7 @@ _ORDER_FINAL = frozenset(
 def order_overdue(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
     """Tell whether a shop order waits in vain for its "delivered" mail.
 
-    Only an order nobody can ask about (Amazon, eBay, no carrier number) that is not
+    Only an order nobody can ask about (Amazon, eBay, AliExpress; no carrier number) that is not
     delivered, ready for pickup or in trouble. Its last delivery day must lie more than
     ORDER_OVERDUE_DAYS full days before ``today`` (a day in ``tz``); a mail that changed
     the order after that day counts from the day it came. Without any delivery day:

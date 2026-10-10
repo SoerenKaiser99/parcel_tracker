@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.24"
+VERSION = "0.3.25"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -88,10 +88,13 @@ CARRIER_AUTO = "auto"
 MAX_EVENTS = 5
 GLS_MAX_EVENTS = 20  # GLS history entries kept per parcel
 
-# Shops whose orders become parcels ("AMZ…", "EBAY…"); only mails or a merged
+# Shops whose orders become parcels ("AMZ…", "EBAY…", "ALI…"); only mails or a merged
 # carrier number (tracking_ref) tell their status, the order itself is never polled.
-SHOP_CARRIERS = frozenset({"amazon", "ebay"})
+SHOP_CARRIERS = frozenset({"amazon", "ebay", "aliexpress"})
 MAIL_CARRIERS = SHOP_CARRIERS
+# Their mails name the items of an order in turn: a mail with another item is never a
+# further shipment, the order stays one parcel.
+SINGLE_PARCEL_SHOPS = frozenset({"aliexpress"})
 # A shop order without a carrier number is known only from mails, and a marketplace
 # seller's parcel often gets no "delivered" mail. Such an order is closed on its own
 # ("Abgeschlossen ohne Zustellbestätigung") once its last delivery day lies more than
@@ -127,6 +130,7 @@ CARRIER_NAMES = {
     "ups": "UPS",
     "amazon": "Amazon",
     "ebay": "eBay",
+    "aliexpress": "AliExpress",
     "other": "17track",
 }
 

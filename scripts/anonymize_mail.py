@@ -18,7 +18,9 @@ nothing is asked, only the generic scrubbing runs and a warning says that names 
 remain. Replaced are the given values in every spelling (case, ae/oe/ue, name parts, street
 with any or no house number), every mail address but the sender's (the sender of a forwarded
 or answered mail is a person and is replaced too, as is a sender address that carries another
-address in its local part; of a forwarded mail with a quoted header block "Von: … / Gesendet:
+address in its local part; a sender address of Apple's relay "E-Mail-Adresse verbergen",
+"<sender>_at_<domain>_<id>_<id>@privaterelay.appleid.com", keeps its shape and gets invented
+ids; of a forwarded mail with a quoted header block "Von: … / Gesendet:
 … / An: … / Betreff: …" only that block and the mail below it are taken, the lines above it
 are dropped, the quoted sender address stays and the quoted recipients are replaced), phone
 numbers, links (cut to the host), tracking, order and other
@@ -27,7 +29,8 @@ replacement in every mail of a run, a number of ten digits or more written in gr
 spaces, tabs, dots or dashes keeps its groups, as does an international number, and a
 tracking number that stands only in a link or in the text of an image is kept as a marked
 line "[Nummer nur im Link oder Bildtext: ...]"), drop-off places and permissions, salutations, recipient
-address blocks ("PLZ Ort", "Ort, PLZ", "ORT BUNDESLAND PLZ"), addresses without a label
+address blocks ("PLZ Ort", "Ort, PLZ", "ORT BUNDESLAND PLZ"), AliExpress's block below
+"Versand nach" (it has no postcode), addresses without a label
 (street line above a postcode and city, lines with postcode and city), Amazon's "first name –
 place" line above the order number, the names of neighbours and of the person that took the
 parcel, and senders or sellers that are no company (in the text, in the From display name and
@@ -54,9 +57,20 @@ GLS mails (no-reply@gls-pakete.de): the recipient blocks ("*Zustelladresse*", "*
 whole, whatever they contain; phone numbers, parcel numbers (99999999901, 99999999902, ... in
 order of appearance), references and the drop-off place ("Ablageort: Garage") are replaced in
 the text and in the subject (and so in the file name), and the legal footer is cut. Recipient
-and company names learnt from these blocks are replaced in every mail. Mails of other senders
-(shops) are never taken: a shop mail needed as a fixture is written by hand with invented
-content and marked with an "X-Fixture: synthetic" header.
+and company names learnt from these blocks are replaced in every mail.
+
+AliExpress mails (transaction@notice.aliexpress.com and every other sender at aliexpress.com,
+also passed on by Apple's relay): nothing of the buyer or the purchase stays. The text ends
+in front of the offers and the footer; the greeting, the block below "Versand nach", the day
+of the order, the shop's name, item names (invented ones, cut where the real one was cut),
+variants, quantities and prices are replaced; order numbers and the carrier's number become
+99…0001, 99…0002, … in order of appearance (a prefix of letters and DHL's 00340 stay, so the
+carrier is still told). The links of a mail about a parcel name its orders: each is kept as
+one invented link with the replaced number, all other links are cut to the host. The ids in a
+relay address are replaced by invented ones of the same length.
+
+Mails of other senders (shops) are never taken: a shop mail needed as a fixture is written by
+hand with invented content and marked with an "X-Fixture: synthetic" header.
 """
 import email
 import glob
@@ -113,6 +127,39 @@ def as_html(text):
 def load(path):
     with open(path, "rb") as handle:
         return email.message_from_binary_file(handle, policy=policy.default)
+
+
+# Apple's relay "E-Mail-Adresse verbergen": "<local>_at_<domain>_<id>_<id>@privaterelay…".
+# The two ids belong to the recipient.
+RELAY_HOST = "privaterelay.appleid.com"
+_RELAY_IDS = re.compile(r"_([0-9a-z]+)_([0-9a-z]+)$")
+_RELAY_FILL = "0a1b2c3d4e5f6g7h8i9j"
+
+
+def relay_address(address):
+    """An address of Apple's relay with invented ids of the same length; any other as it is."""
+    local, _, host = address.rpartition("@")
+    if host.lower() != RELAY_HOST or "_at_" not in local:
+        return address
+
+    def invent(match):
+        return "".join(
+            "_" + (_RELAY_FILL * (len(part) // len(_RELAY_FILL) + 1))[:len(part)]
+            for part in match.groups()
+        )
+
+    return f"{_RELAY_IDS.sub(invent, local.lower())}@{host.lower()}"
+
+
+def relay_original(address):
+    """The address a relay address stands for, "" if it has not that shape. Dots of the
+    original are underscores there, so the result is only good for comparing."""
+    local, _, host = address.lower().rpartition("@")
+    found = _RELAY_IDS.search(local)
+    if host != RELAY_HOST or "_at_" not in local or not found:
+        return ""
+    name, _, domain = local[:found.start()].rpartition("_at_")
+    return f"{name}@{domain.replace('_', '.')}" if name and domain else ""
 
 
 # ----- tester mode: anonymise own mails before they are attached to a GitHub issue -----
@@ -273,6 +320,13 @@ _T_ADDRESS_BLOCK = re.compile(
 )
 _T_ADDRESS_LINE = re.compile(
     rf"(?im)^([*_ \t]*{_T_RECIPIENT}[*_ \t]*:[ \t]*)(\S[^\n]*\b\d{{5}}\b[^\n]*)$"
+)
+# AliExpress: "Versand nach", then place and street without a postcode; in most layouts the
+# name with the phone number "(+49) …" ends the block, in one it is a single line.
+_T_ALI_SHIP_TO = re.compile(
+    r"(?im)^(Versand nach[ \t]*\n)"
+    r"(?:(?P<lines>(?:(?![^\n]*\(\+\d+\))[^\n]*\n){0,3})(?P<name>[^\n(]*)\(\+\d+\)[^\n]*"
+    r"|(?P<single>[^\n]+))"
 )
 # GLS delivery mail: "*an NAME*" and the address lines up to the next rule or empty line.
 _T_DELIVERED_TO = re.compile(
@@ -770,6 +824,15 @@ class _TScrubber:
         self._recipient(*_t_address_parts(match.group(2).replace(",", "\n")))
         return match.group(1) + "Max Mustermann, Musterstraße 1, 12345 Musterstadt"
 
+    def _ali_ship_to(self, match):
+        if match.group("single") is not None:
+            self._note(match.group("single"), "Musterstraße 1, Musterstadt")
+            return match.group(1) + "Musterstraße 1, Musterstadt"
+        self._person(match.group("name").strip())
+        for line in match.group("lines").splitlines():
+            self._note(line, "Musterstraße 1, Musterstadt")
+        return match.group(1) + f"Musterstraße 1, Musterstadt\nMax Mustermann {_T_PHONE}"
+
     def _delivered(self, match):
         self._recipient(*_t_address_parts(match.group(2) + "\n" + match.group(4)))
         return match.group(1) + "Max Mustermann" + match.group(3) + (
@@ -918,6 +981,7 @@ class _TScrubber:
         visible, noted = _T_LINKS.sub(" ", text), set()
         text = _T_LINKS.sub(lambda m: self._link(m, keep, visible, noted), text)
         text = _T_ADDRESS_BLOCK.sub(self._block, text)
+        text = _T_ALI_SHIP_TO.sub(self._ali_ship_to, text)
         text = _T_ADDRESS_LINE.sub(self._line, text)
         text = _T_DELIVERED_TO.sub(self._delivered, text)
         text = _T_HELLO.sub(self._hello, text)
@@ -1148,6 +1212,9 @@ def _t_build(msg, number, scrubber):
     if not private and re.search(r"[=%]", local):
         # The local part carries another address (bounce+user=gmx.de@shop.example).
         address, keep = f"absender@{host}", ()
+    elif not private and host == RELAY_HOST:
+        # Apple's relay: the ids in the local part are the recipient's.
+        address, keep = relay_address(address), ()
     out = EmailMessage()
     if private:
         _t_set(out, "From", f"Max Mustermann <{_T_MAIL}>")
@@ -1367,6 +1434,7 @@ KEEP = {
     "shipment-tracking@amazon.de", "order-update@amazon.de", "noreply@dhl.de",
     "pkginfo@ups.com", "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
 }
+ALI_DOMAIN = "aliexpress.com"
 
 
 def body(msg):
@@ -1384,6 +1452,12 @@ def body(msg):
 
 def sender(msg):
     return (re.findall(r"<([^>]+)>", str(msg["From"])) or [str(msg["From"])])[0].lower()
+
+
+def is_aliexpress(address):
+    """A sender at aliexpress.com, also passed on by Apple's relay."""
+    host = (relay_original(address) or address).rpartition("@")[2]
+    return host == ALI_DOMAIN or host.endswith("." + ALI_DOMAIN)
 
 
 FIRST_RE = re.escape(FIRST).replace("ö", "(?:ö|oe)").replace("ä", "(?:ä|ae)").replace(
@@ -1503,6 +1577,168 @@ def scrub_gls(t):
     return scrub_gls_values(t)
 
 
+# ----- AliExpress -----
+_ALI_ITEMS = (
+    "Beispiel-Kabel USB-C auf USB-A geflochten 2 m schwarz",
+    "Beispiel-Sensor für Temperatur und Luftfeuchte weiß",
+    "Beispiel-Schalter kabellos mit Batterie zum Kleben",
+    "Beispiel-Lampe LED flach mit Bewegungsmelder warmweiß",
+    "Beispiel-Handtuch aus Baumwolle 70 x 140 cm grau",
+    "Beispiel-Spielzeug Kreisel aus Metall für Kinder bunt",
+    "Beispiel-Ersatzteil Getriebe Set für Modellauto 1:14",
+    "Beispiel-Netzteil 12 V 2 A mit Hohlstecker schwarz",
+    "Beispiel-Halterung für die Wand aus Aluminium silber",
+    "Beispiel-Trikot Größe L mit Rückennummer blau",
+)
+_ALI_URL = re.compile(r"https?://[^\s<>\]\)\"]+")
+_ALI_LINK_ORDERS = re.compile(r"(?i)[?&](?:tradeOrderId|o_ids|orderId)=(\d+(?:(?:,|%2C)\d+)*)")
+_ALI_PARCEL_SUBJECT = re.compile(r"(?:Packstück|Zollabfertigung für) ")
+# A carrier's number or an order number: letters in front stay, the digits are counted.
+_ALI_NUMBER = re.compile(r"(?<![0-9A-Za-z])([A-Z]{0,4})(\d{12,22})(?![0-9A-Za-z])")
+_ALI_GREETING = re.compile(r"(?m)^(Hallo|Hi)\b[^\n,]*(?:\n[^\n,]*)?,")
+# The name of an account nobody named: "ae<digits>" and a word of the buyer behind it.
+_ALI_ALIAS = re.compile(r"\bae\d{5,}(?:[ .][^\W\d_]+)?")
+_ALI_SHIP_TO = "versand nach"
+_ALI_PHONE = re.compile(r"\(\+\d+\)")
+_ALI_PAYMENT = "zahlungsmethode"
+_ALI_BLANK = re.compile(r"[\s.\u00ad\u034f\u200b-\u200f\u2060\ufeff]*")
+_ALI_NO_LINK = re.compile(r"<\s*>|\[\s*\]|\(\s*\)")
+# The text ends here: offers and the footer with the buyer's address.
+_ALI_END = re.compile(
+    r"(?i)(?:Das|Dies) könnte Ihnen auch gefallen|Weitere Artikel anzeigen"
+    r"|Jetzt herunterladen|Die in dieser E-Mail angezeigten Preise|Diese E-Mail wurde gesendet"
+    r"|This email was sent|Beliebte Kategorien|Gesendet mit Liebe|Sent with"
+)
+_ALI_PLACED = re.compile(r"Aufgegeben am\b.*")
+_ALI_QUANTITY = re.compile(r"(€ ?)?(?:[\d.,]+)?( ?)x\d+")
+_ALI_VARIANT_QUANTITY = re.compile(r"\S.* x\d+")
+_ALI_PRICE = re.compile(r"€ ?\d[\d.]*,\d\d|\d[\d.]*,\d\d ?€")
+_ALI_ORDER_LINE = re.compile(r"Bestellung \d{13,22}")
+_ALI_ABOVE_ITEMS = {
+    "paketinfos", "bestellung verfolgen", "sendungsverfolgung", "lieferung verfolgen",
+    "empfang bestätigen", "bewertung schreiben", "bestellung prüfen", "bestelldetails",
+    "bestelldetails anzeigen", "details anzeigen", "aktualisierung anzeigen", "bestätigt",
+    "verpackt", "versandt", "im transit", "zugestellt",
+}
+ali_numbers, ali_items = {}, {}
+
+
+def _ali_number(match):
+    letters, digits = match.groups()
+    real = letters + digits
+    if real in ali_numbers.values():
+        return real  # an invented number met again
+    if real not in ali_numbers:
+        keep = "00340" if digits.startswith("00340") and len(digits) == 20 else ""
+        count = f"{len(ali_numbers) + 1:04d}"
+        ali_numbers[real] = letters + keep + "9" * (len(digits) - len(keep) - 4) + count
+    return ali_numbers[real]
+
+
+def _ali_item(real):
+    """An invented item name for a real one, cut where AliExpress cut the real one."""
+    core = real.rstrip(" .…")
+    if not core:
+        return real  # only dots: the mail shows no name
+    key = re.sub(r"\W+", "", core.lower())[:12]
+    if key not in ali_items:
+        ali_items[key] = _ALI_ITEMS[len(ali_items) % len(_ALI_ITEMS)]
+    invented = ali_items[key]
+    if core == real.strip():
+        return invented[:len(core)].rstrip()
+    return invented[:len(core)].rstrip() + real.strip()[len(core):]
+
+
+def _ali_above_items(lines, index):
+    line = lines[index]
+    return bool(
+        _ALI_QUANTITY.fullmatch(line) or _ALI_VARIANT_QUANTITY.fullmatch(line)
+        or line.lower() in _ALI_ABOVE_ITEMS or _ALI_ORDER_LINE.fullmatch(line)
+        or (index > 0 and lines[index - 1].startswith("Aufgegeben am"))
+    )
+
+
+def ali_link_orders(msg):
+    """The order numbers the links of a mail name (they stand nowhere in its text)."""
+    orders = []
+    for part in msg.walk():
+        if part.get_content_type() in ("text/plain", "text/html"):
+            try:
+                content = part.get_content()
+            except Exception:
+                content = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
+            for listed in _ALI_LINK_ORDERS.findall(html.unescape(content)):
+                for order in re.findall(r"(?<!\d)\d{12,20}(?!\d)", listed):
+                    if order not in orders:
+                        orders.append(order)
+    return orders
+
+
+def scrub_aliexpress(t, order_digits=0):
+    """AliExpress mails only, the text: runs before scrub(). ``order_digits``: the length
+    of the order number in the subject (a list of orders counts them in front of it)."""
+    lines = []
+    for line in t.replace("\r\n", "\n").split("\n"):
+        line = _ALI_NO_LINK.sub("", _ALI_URL.sub("", line))
+        line = re.sub(r"[ \t\xa0]+", " ", line).strip(" [<>]")
+        if _ALI_END.match(line):
+            break
+        if not _ALI_BLANK.fullmatch(line):
+            lines.append(line)
+    out, skip = [], 0
+    for index, line in enumerate(lines):
+        if skip:
+            skip -= 1
+            continue
+        if line.lower() == _ALI_SHIP_TO:
+            # The block ends with the name and phone line; without one it is one line.
+            rest = lines[index + 1:index + 5]
+            phone = next((i for i, row in enumerate(rest) if _ALI_PHONE.search(row)), None)
+            skip = 1 if phone is None else phone + 1
+            out.append(line)
+            out.append("Musterstraße 1, Musterstadt")
+            if phone is not None:
+                out.append("Max Mustermann (+49) 0000000000")
+            continue
+        if _ALI_PLACED.fullmatch(line):
+            out += ["Aufgegeben am Jan 01,2026, 12:00", "Beispiel Store"]
+            skip = 1  # the shop's name
+            continue
+        if line.lower() == _ALI_PAYMENT:
+            skip = 1  # how the order was paid
+            continue
+        out.append(line)
+    # Items: name, mostly a variant, then the quantity; found from the quantity upwards.
+    for index, line in enumerate(out):
+        variant = None
+        if found := _ALI_QUANTITY.fullmatch(line):
+            out[index] = f"{'€ 1,99' if found.group(1) else ''}{found.group(2)}x1"
+            rows = (index - 2, index - 1)
+        elif _ALI_VARIANT_QUANTITY.fullmatch(line):
+            out[index], rows = "Variante A x1", (index - 1,)
+        else:
+            continue
+        if rows[0] < 0 or _ali_above_items(out, rows[-1]):
+            continue
+        if len(rows) == 2 and not _ali_above_items(out, rows[0]):
+            variant = rows[1]
+        name = rows[0] if variant is not None or len(rows) == 1 else rows[-1]
+        out[name] = _ali_item(out[name])
+        if variant is not None:
+            out[variant] = "Variante A"
+    for index, line in enumerate(out):
+        if order_digits and _ALI_ORDER_LINE.fullmatch(line):
+            # "Bestellung " + running number + order number
+            digits = line.split()[-1]
+            count, order = digits[:-order_digits], digits[-order_digits:]
+            out[index] = f"Bestellung {count}\x00{_ALI_NUMBER.sub(_ali_number, order)}"
+    t = "\n".join(out) + "\n"
+    t = _ALI_GREETING.sub("\\1 Max Mustermann,", t)
+    t = _ALI_ALIAS.sub("Max Mustermann", t)
+    t = _ALI_PRICE.sub(lambda m: "€ 1,99" if m.group(0).startswith("€") else "1,99€", t)
+    return _ALI_NUMBER.sub(_ali_number, t).replace("\x00", "")
+
+
 def fake(kind, real):
     h = int(hashlib.sha256(real.encode()).hexdigest(), 16)
     digits = str(h)
@@ -1578,7 +1814,8 @@ written = 0
 for path in sorted(glob.glob(SRC + "/*.eml")):
     m = load(path)
     a = sender(m)
-    if a not in KEEP:
+    ali = is_aliexpress(a)
+    if a not in KEEP and not ali:
         continue
     mid = "<" + hashlib.sha256(str(m["Message-ID"]).encode()).hexdigest()[:24] + "@example.org>"
     if mid in seen:
@@ -1590,20 +1827,39 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
         # The text first: parcel numbers are counted in the order of the mail texts.
         text = scrub_gls(text)
         subject = scrub_gls_values(subject)
+    links = []
+    if ali:
+        in_subject = re.search(r"(?<!\d)\d{12,20}(?!\d)", subject)
+        text = scrub_aliexpress(text, len(in_subject.group(0)) if in_subject else 0)
+        subject = _ALI_NUMBER.sub(_ali_number, _ALI_ALIAS.sub("Max Mustermann", subject))
+        if _ALI_PARCEL_SUBJECT.match(subject):
+            links = [_ALI_NUMBER.sub(_ali_number, order) for order in ali_link_orders(m)]
     out = EmailMessage()
-    out["From"] = str(m["From"])
+    # (of an AliExpress mail only the address stays, with invented ids in a relay address)
+    out["From"] = f"AliExpress <{relay_address(a)}>" if ali else str(m["From"])
     out["To"] = "max@example.org"
     subject = scrub(subject)
     out["Subject"] = subject
     out["Date"] = str(m["Date"])
     out["Message-ID"] = mid
+    text = scrub(text)
+    # The orders of an AliExpress parcel: one invented link each, as the mail has them.
+    link = "https://www.aliexpress.com/p/tracking/index.html?tradeOrderId="
     if was_html:
-        out.set_content(as_html(scrub(text)), subtype="html")
+        markup = as_html(text)
+        anchors = "".join(f'<p><a href="{link}{order}">Lieferung verfolgen</a></p>\n'
+                          for order in links)
+        out.set_content(markup.replace("</body>", anchors + "</body>"), subtype="html")
     else:
-        out.set_content(scrub(text))
+        out.set_content(text + "".join(f"Lieferung verfolgen <{link}{order}>\n"
+                                       for order in links))
     # File name from the scrubbed subject, without item titles (after ':' or a quote).
     subj = re.sub(r"[„“\":].*", "", subject)
     name = re.sub(r"[^a-z0-9]+", "_", (a.split("@")[0] + "_" + subj).lower()).strip("_")[:40]
+    if ali:
+        # The status instead: the local part of a relay address and the number say nothing.
+        words = re.sub(r"[0-9A-Z]*\d{6,}", "", subject)
+        name = re.sub(r"[^a-z0-9]+", "_", ("aliexpress_" + words).lower()).strip("_")[:40]
     n += 1
     written += 1
     with open(f"{DST}/{n:03d}_{name}.eml", "wb") as handle:

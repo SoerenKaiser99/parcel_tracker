@@ -138,7 +138,7 @@
     },
     "amazon_unrecognized": {
       "title": "Amazon-Mails nicht erkannt",
-      "description": "Paket Tracker konnte die letzten 5 Amazon-Mails nicht lesen. Vermutlich hat Amazon das Mail-Format geändert. Prüf, ob es ein Update für Paket Tracker gibt; die Mails liegen im Ordner Paket-Tracker-Nicht-erkannt."
+      "description": "Paket Tracker konnte die letzten 5 Amazon-Mails nicht lesen. Vermutlich hat Amazon das Mail-Format geändert. Prüf, ob es ein Update für Paket Tracker gibt; Mails aus dem Postfach liegen im Ordner Paket-Tracker-Nicht-erkannt."
     },
     "ups_auth": {
       "title": "UPS-Zugangsdaten abgelehnt",

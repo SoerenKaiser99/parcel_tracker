@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from email.message import EmailMessage
@@ -32,8 +33,10 @@ _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
 class MailUpdate:
     """One parcel fact taken from a mail."""
 
-    number: str  # "AMZ"/"EBAY" + order digits for shop orders, else the tracking number
-    carrier: str  # "amazon" | "ebay" | "dhl" | "dpd" | "gls" | "hermes" | "ups"
+    # "AMZ"/"EBAY"/"ALI" + order digits for shop orders, else the tracking number; "" for a
+    # shop's status mail that names no order (see ``apply._apply_orderless``)
+    number: str
+    carrier: str  # "amazon" | "ebay" | "aliexpress" | "dhl" | "dpd" | "gls" | "hermes" | "ups"
     status: ParcelStatus | None
     sent_at: datetime  # Date header in Europe/Berlin
     title: str | None = None
@@ -43,7 +46,8 @@ class MailUpdate:
     eta_to: datetime | None = None
     delivered_at: datetime | None = None
     delivery_code: str | None = None
-    shop: str | None = None  # "amazon" | "ebay": carrier mail names the shop (for merging)
+    # "amazon" | "ebay" | "aliexpress": carrier mail names the shop (for merging)
+    shop: str | None = None
     shipping_carrier_hint: str | None = None  # shop mail names the carrier (display, merging)
     tracking_ref: str | None = None  # shop mail carries the carrier's number
     tracking_carrier: str | None = None
@@ -53,6 +57,9 @@ class MailUpdate:
     # The mail's own words for the status, shown and written to the history instead of
     # the usual text of the status ("Zustellung versucht").
     status_text: str | None = None
+    # The shop confirms the delivery days afterwards (AliExpress "Lieferung bestätigt"): an
+    # order that is delivered for real keeps its time of delivery and its history.
+    confirmation: bool = False
 
 
 @dataclass
@@ -189,12 +196,14 @@ def carrier_key(text: str) -> str | None:
 
 
 def shop_of(text: str) -> str | None:
-    """'amazon' / 'ebay' when a shop we track orders for is named in ``text``."""
+    """'amazon' / 'ebay' / 'aliexpress' when a shop we track orders for is named in ``text``."""
     lower = text.lower()
     if "amazon" in lower:
         return "amazon"
     if "ebay" in lower:
         return "ebay"
+    if "aliexpress" in lower:
+        return "aliexpress"
     return None
 
 
@@ -398,13 +407,79 @@ def domain_of(address: str) -> str:
     return address.rpartition("@")[2] if "@" in address else ""
 
 
+# Apple "Hide My Email" ("E-Mail-Adresse verbergen") passes a sender's mails on from
+# "<local>_at_<domain, dots as underscores>_<id>_<id>@privaterelay.appleid.com".
+RELAY_DOMAIN = "privaterelay.appleid.com"
+_RELAY_AT = "_at_"
+_RELAY_LABEL = re.compile(r"[a-z0-9-]+")
+_RELAY_ID = re.compile(r"[a-z0-9]+")
+# The senders ``unrelay`` gives back: only the package knows every parser's addresses and
+# domains and names them here (see ``register_relay_senders``).
+_relay_addresses: set[str] = set()
+_relay_domains: set[str] = set()
+
+
+def register_relay_senders(addresses: Iterable[str], domains: Iterable[str]) -> None:
+    """Name the sender addresses and domains a relayed address may be mapped back to."""
+    _relay_addresses.update(address.lower() for address in addresses)
+    _relay_domains.update(domain.lower() for domain in domains)
+    _relay_domains.update(domain_of(address) for address in _relay_addresses)
+
+
+def _relay_domain(domain: str) -> bool:
+    """A domain a relayed address may name: a registered one or a sub-domain of it."""
+    while domain:
+        if domain in _relay_domains:
+            return True
+        domain = domain.partition(".")[2]
+    return False
+
+
+def unrelay(address: str) -> str:
+    """The original sender of an address of Apple's mail relay, else the address as it is.
+
+    "noreply_at_dhl_de_<id>_<id>@privaterelay.appleid.com" -> "noreply@dhl.de". Strict: only
+    that relay domain, only the "_at_" shape with two id tokens behind the domain, and the
+    domain must be one of the senders the parsers know (or a sub-domain of one). An
+    underscore may be a dot of the original or part of its local part, so nothing is
+    replaced blindly: the domain is checked against the known ones, and a local part is
+    spelled the way the known address of that domain spells it ("no_reply" -> "no.reply").
+    """
+    local, _, domain = address.strip().lower().rpartition("@")
+    if domain != RELAY_DOMAIN:
+        return address
+    # ("_at_" may stand in the local part too: the last one that fits is the "@")
+    for cut in reversed([found.start() for found in re.finditer(_RELAY_AT, local)]):
+        name, tokens = local[:cut], local[cut + len(_RELAY_AT) :].split("_")
+        if not name or len(tokens) < 4:
+            continue
+        *labels, first_id, second_id = tokens
+        if not (_RELAY_ID.fullmatch(first_id) and _RELAY_ID.fullmatch(second_id)):
+            continue
+        if not all(_RELAY_LABEL.fullmatch(label) for label in labels):
+            continue
+        original = ".".join(labels)
+        if not _relay_domain(original):
+            continue
+        for known in _relay_addresses:
+            known_name, _, known_domain = known.rpartition("@")
+            if known_domain == original and known_name.replace(".", "_") == name:
+                return known
+        return f"{name}@{original}"
+    return address
+
+
 def sender(msg: EmailMessage) -> tuple[str, str]:
-    """(lower-case address, display name) of the From header."""
+    """(lower-case address, display name) of the From header.
+
+    A mail Apple's relay passed on ("E-Mail-Adresse verbergen") counts as its original
+    sender's (see ``unrelay``).
+    """
     header = msg.get("From")
     addresses = getattr(header, "addresses", None)
     if not addresses:
         return "", ""
-    return addresses[0].addr_spec.lower(), addresses[0].display_name
+    return unrelay(addresses[0].addr_spec.lower()), addresses[0].display_name
 
 
 def sent_at(msg: EmailMessage) -> datetime:

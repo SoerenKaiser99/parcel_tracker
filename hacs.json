@@ -3,5 +3,10 @@
   "homeassistant": "2025.10.0",
   "render_readme": true,
   "zip_release": true,
-  "filename": "parcel_tracker.zip"
+  "filename": "parcel_tracker.zip",
+  "country": [
+    "DE",
+    "AT",
+    "CH"
+  ]
 }

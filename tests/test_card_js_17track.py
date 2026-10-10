@@ -50,6 +50,9 @@ out.can = {
   registered: sandbox.__can({ carrier: "dpd", track17: true }, "in_transit", on),
   amazon: sandbox.__can({ carrier: "amazon" }, "pre_transit", on),
   ebay: sandbox.__can({ carrier: "ebay" }, "in_transit", on),
+  aliexpress: sandbox.__can({ carrier: "aliexpress" }, "in_transit", on),
+  aliexpressRef: sandbox.__can(
+    { carrier: "aliexpress", tracking_ref: "H9999999999999999901" }, "in_transit", on),
   amazonRef: sandbox.__can({ carrier: "amazon", tracking_ref: "H9999999999999999901" },
     "in_transit", on),
   otherLost: sandbox.__can({ carrier: "other", track17: false }, "in_transit", on),
@@ -231,7 +234,8 @@ def test_key_presence_and_remaining_numbers_come_from_the_quota_sensor(card):
 def test_button_only_where_registering_makes_sense(card):
     assert card["can"] == {
         "dpd": True, "noKey": False, "delivered": False, "registered": False,
-        "amazon": False, "ebay": False, "amazonRef": True, "otherLost": True,
+        "amazon": False, "ebay": False, "aliexpress": False, "aliexpressRef": True,
+        "amazonRef": True, "otherLost": True,
     }
 
 

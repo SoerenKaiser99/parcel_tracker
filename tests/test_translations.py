@@ -264,3 +264,14 @@ def test_hide_names_translations_present():
     for word in ("DHL-Paket", "Amazon-Bestellung", "Karte", "Kalender", "Sensoren",
                  "Benachrichtigungen", "eingetippter Name"):
         assert word in text
+
+
+def test_amazon_repair_text_is_true_without_a_mailbox_too():
+    """Mails handed in over the HTTP endpoint lie in no folder."""
+    text = _load("translations/de.json")["issues"]["amazon_unrecognized"]["description"]
+    assert "Mails aus dem Postfach liegen im Ordner Paket-Tracker-Nicht-erkannt." in text
+    assert "die Mails liegen im Ordner" not in text
+    for name in ("strings.json", "translations/en.json"):
+        text = _load(name)["issues"]["amazon_unrecognized"]["description"]
+        assert "mails from the mailbox are in the folder Paket-Tracker-Nicht-erkannt." in text
+
