@@ -15,6 +15,7 @@ from .base import (
     company_name,
     domain_of,
     find_numbers,
+    html_body_text,
     html_text,
     is_forwarded,
     sender,
@@ -50,6 +51,13 @@ _DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}DE)(?![A-Za-z0-9])")
 # look like that): read only in DHL's own mails and only right behind its label, which may
 # stand in the table cell or on the line before the number.
 _DHL_SHORT = re.compile(r"\bSendungsnummer\s*:?\s*(\d{12})(?!\d)")
+# The text part of some mails is empty, or names the number only in a link (the text of the
+# link is a placeholder nobody filled in). The HTML part shows the number on a line of its
+# own below the button, in whatever form the sending post office gave it: 12 digits, a UPU
+# S10 number of any country ("LR…NL"), "JJATA…" from Austria.
+_DHL_SHOWN = re.compile(
+    r"^Sendungs(?:status|verlauf) einsehen\n((?=[A-Z0-9]*\d{8})[A-Z0-9]{12,30})$", re.MULTILINE
+)
 # DHL's newer layout leaves HTML table markup in its text/plain part.
 _MARKUP = re.compile(r"<(?:table|tr|td|p|div|br|span)\b", re.IGNORECASE)
 # "Ihre <Shop> Sendung ist unterwegs" / "… kommt heute …" / "… wurde zugestellt" / "… wird
@@ -107,6 +115,11 @@ def _dhl_status(subj: str) -> tuple[ParcelStatus | None, int | None]:
     return (ParcelStatus.IN_TRANSIT if "sendung" in lower else None), None
 
 
+def _dhl_numbers(text: str) -> list[str]:
+    numbers = [n for carrier, n in find_numbers(text) if carrier == "dhl"]
+    return numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
+
+
 def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     """DHL notification: number, status, day or today's window, the shop the subject names.
 
@@ -128,8 +141,11 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     if _MARKUP.search(text):
         text = html_text(text)
     sent = sent_at(msg)
-    numbers = [n for carrier, n in find_numbers(text) if carrier == "dhl"]
-    numbers = numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
+    numbers = _dhl_numbers(text)
+    if not numbers:
+        # Nothing in the text part: the HTML part is read instead, for the day as well.
+        text = html_body_text(msg)
+        numbers = _dhl_numbers(text) or _DHL_SHOWN.findall(text)
     if not numbers:
         return []
     amazon = "amazon sendung" in f"{subj}\n{text}".lower()

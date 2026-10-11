@@ -603,6 +603,45 @@ def test_dhl_letter_box_mail_is_a_delivery():
     assert (u.status, u.delivered_at) == (ParcelStatus.DELIVERED, sent_at(mail))
 
 
+# ----- the number stands only in the HTML part -----
+def _html_only_number(page: str) -> EmailMessage:
+    msg = _msg("Ihre Beispiel GmbH Sendung ist unterwegs", "[{PACKAGE_IDENTIFIER}]\n",
+               "DHL Paket <noreply@dhl.de>")
+    msg.add_alternative(f"<html><body>{page}</body></html>", subtype="html")
+    return msg
+
+
+def test_dhl_number_only_in_the_html_part_is_read():
+    # The text part names the number only in a link: 12 digits, without their label.
+    [u] = parse_mail(load_mail("159_dhl_sendung_ist_unterwegs_nummer_im_html.eml")).updates
+    assert (u.number, u.carrier, u.title) == ("999999990159", "dhl", "Beispiel GmbH")
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2026, 1, 22))
+
+
+def test_dhl_mail_with_an_empty_text_part_is_read_from_its_html_part():
+    [u] = parse_mail(load_mail("160_dhl_sendung_ist_unterwegs_leerer_textteil.eml")).updates
+    assert (u.number, u.carrier) == ("00340999999999990160", "dhl")
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2024, 10, 16))
+
+
+def test_dhl_html_part_shows_a_number_from_abroad_below_the_button():
+    page = "<p>Sendungsstatus einsehen</p><p>LR999999159NL</p>"
+    [u] = parse_mail(_html_only_number(page)).updates
+    assert u.number == "LR999999159NL"
+    page = "<p>Sendungsverlauf einsehen</p><p>999999990159</p>"
+    assert parse_mail(_html_only_number(page)).updates[0].number == "999999990159"
+    page = "<p>Sendungsstatus einsehen</p><p>JJATA9999999999990159</p>"  # from Austria
+    assert parse_mail(_html_only_number(page)).updates[0].number == "JJATA9999999999990159"
+    # ... but the next button is no number
+    page = "<p>Sendungsstatus einsehen</p><p>E-Mail-Einstellungen verwalten</p>"
+    assert parse_mail(_html_only_number(page)).updates == []
+
+
+def test_dhl_html_part_twelve_digits_elsewhere_are_no_number():
+    page = "<p>Sendungsstatus einsehen</p><p>Artikelnummer</p><p>999999990159</p>"
+    assert parse_mail(_html_only_number(page)).updates == []
+
+
 # ----- "wird gleich zugestellt": in delivery, told in the mail's own words -----
 def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
     soon = load_mail("145_dhl_zustellung_wird_gleich_zugestellt.eml")

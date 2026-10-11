@@ -82,7 +82,7 @@ Den Status liest der Import nur aus dem Betreff der DHL-Mail:
 | jede andere Mail, deren Betreff von einer „Sendung“ spricht (Zustellfoto, gescheiterter Zustellversuch, Neuigkeiten) | nur „Unterwegs“ ohne Tag; nie einen Status zurück |
 | Umfrage (Betreff mit Fragezeichen) oder Betreff ohne „Sendung“ | legt das Paket nur an |
 
-Abholcodes liest der Import nie.
+Abholcodes liest der Import nie. Steht im Textteil der Mail keine Sendungsnummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil.
 
 Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key „Kein Live-Status“ statt eines Termins. Die Integration kann eine solche Nummer nicht prüfen: Ob sie stimmt, vertippt oder längst zugestellt ist, erfährt sie ohne Key nicht.
 

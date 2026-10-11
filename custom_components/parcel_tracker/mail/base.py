@@ -173,6 +173,11 @@ def body_text(msg: EmailMessage) -> str:
     part = msg.get_body(preferencelist=("plain",))
     if part is not None:
         return clean(_content(part))
+    return html_body_text(msg)
+
+
+def html_body_text(msg: EmailMessage) -> str:
+    """The text of the HTML body ('' if there is none)."""
     part = msg.get_body(preferencelist=("html",))
     return html_text(_content(part)) if part is not None else ""
 
