@@ -260,6 +260,8 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
     - „Information zur Zustellung an den gebuchten WunschAblageort“ setzt „Angekündigt“.
     - „Ihre Hermes Sendung ist auf dem Weg“ setzt „Unterwegs“ samt Liefertag und Zeitfenster.
+    - „Deine Sendung kommt heute.“ setzt „In Zustellung“ mit dem Zeitfenster, „… Haustürzustellung“ setzt „Zugestellt“.
+    - Nennt eine Mail einen neuen Tag („Neuer Zustelltermin am …“, „Neuer Zustellversuch am …“), steht das Paket wieder auf „Unterwegs“ mit diesem Tag und, wenn genannt, dem Zeitfenster.
     - „… wurde an deinen WunschAblageort zugestellt“ setzt „Zugestellt“.
     - Mails über einen gescheiterten Zustellversuch setzen keinen Status. Den liefert dann die Hermes-Abfrage.
     - Der Shop aus der Mail wird nur dann zum Namen, wenn es ein bekannter Shop ist (z. B. Amazon, eBay, Otto, Zalando) und das Paket noch keinen Namen hat.
