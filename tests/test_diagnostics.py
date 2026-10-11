@@ -514,6 +514,7 @@ async def test_diagnostics_without_any_credentials(hass, hass_storage, freezer):
     }
     assert result["mail_import"] == {
         "configured": False,
+        "custom_folder": False,
         "interval_minutes": 5,
         "last_run": None,
         "next_run": None,
@@ -857,3 +858,18 @@ async def test_diagnostics_tell_only_whether_a_name_was_typed_in(hass, hass_stor
     by_number = {p["number"]: p for p in result["parcels"]}
     assert by_number[MASKED[JJD]]["name_manual"] is True
     assert parcel.name not in _dump(result)
+
+
+async def test_diagnostics_tell_a_custom_mail_folder_only_as_yes_or_no(hass, hass_storage, freezer):
+    """A folder name can be a person's name or a shop: only "another one than INBOX"."""
+    entry = await _setup(hass, hass_storage, freezer)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["mail_import"]["custom_folder"] is False
+    hass.config_entries.async_update_entry(
+        entry, options={**OPTIONS, "imap_folder": "Bestellungen Mustermann"}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["mail_import"]["custom_folder"] is True
+    assert result["entry"]["options"]["imap_folder"] == REDACTED
+    assert "Mustermann" not in _dump(result)

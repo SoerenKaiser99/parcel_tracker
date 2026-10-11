@@ -6,8 +6,13 @@ import pytest
 from custom_components.parcel_tracker.const import FOLDER_PROCESSED, FOLDER_UNRECOGNIZED
 from custom_components.parcel_tracker.mail.imap import (
     ImapAuthError,
+    ImapFolderNotFound,
     ImapUnavailable,
     MailboxClient,
+    clean_folder,
+    encode_mailbox,
+    is_reserved_folder,
+    quote_mailbox,
 )
 
 from .conftest import FIXTURES
@@ -103,13 +108,16 @@ class FakeImap:
         return "BYE", [b""]
 
 
-def _client(**fake_kwargs):
+def _client(folder=None, **fake_kwargs):
     FakeImap.instances = []
 
     def factory(host, port, ssl_context=None, timeout=None):
         return FakeImap(host, port, ssl_context, timeout, **fake_kwargs)
 
-    return MailboxClient("imap.mailbox.org", "pakete@example.org", "secret", factory=factory)
+    extra = {} if folder is None else {"folder": folder}
+    return MailboxClient(
+        "imap.mailbox.org", "pakete@example.org", "secret", factory=factory, **extra
+    )
 
 
 def _failing_login(message):
@@ -306,3 +314,168 @@ def test_unexpected_error_after_connect_closes_the_connection():
     with pytest.raises(Boom):
         client.check_login()
     assert FakeImap.instances[0].calls[-1] == ("logout",)
+
+
+# ----- v0.3.29: the folder to read can be chosen -----
+
+
+@pytest.mark.parametrize(
+    ("name", "encoded"),
+    [
+        ("INBOX", "INBOX"),
+        ("Pakete/DHL", "Pakete/DHL"),
+        ("INBOX.Pakete", "INBOX.Pakete"),
+        ("Bestellungen & Pakete", "Bestellungen &- Pakete"),
+        ("Müll", "M&APw-ll"),
+        ("Entwürfe", "Entw&APw-rfe"),
+        ("Pakete/Große Größen", "Pakete/Gro&AN8-e Gr&APYA3w-en"),
+        ("~peter/mail/台北/日本語", "~peter/mail/&U,BTFw-/&ZeVnLIqe-"),  # RFC 3501, 5.1.3
+        ("📦", "&2D3c5g-"),  # outside the BMP: a surrogate pair
+        ("", ""),
+    ],
+)
+def test_encode_mailbox_is_modified_utf7(name, encoded):
+    assert encode_mailbox(name) == encoded
+    assert encoded.isascii()
+
+
+@pytest.mark.parametrize(
+    ("name", "quoted"),
+    [
+        ("Pakete", '"Pakete"'),
+        ("Bestellungen & Pakete", '"Bestellungen &- Pakete"'),
+        ("Müll", '"M&APw-ll"'),
+        ("Pakete/DHL", '"Pakete/DHL"'),
+        ('Pakete "neu"', '"Pakete \\"neu\\""'),
+        ("Pakete\\Alt", '"Pakete\\\\Alt"'),
+    ],
+)
+def test_quote_mailbox(name, quoted):
+    assert quote_mailbox(name) == quoted
+
+
+@pytest.mark.parametrize(
+    "name", ["", "Pakete\r\nA1 DELETE INBOX", "Pakete\x00", "Pak\tete", "A\x7f"]
+)
+def test_quote_mailbox_refuses_what_cannot_be_a_name(name):
+    with pytest.raises(ValueError):
+        quote_mailbox(name)
+
+
+@pytest.mark.parametrize(
+    ("value", "folder"),
+    [
+        (None, "INBOX"), ("", "INBOX"), ("   ", "INBOX"), (7, "INBOX"),
+        ("inbox", "INBOX"), (" Inbox ", "INBOX"),
+        (" Pakete ", "Pakete"), ("INBOX.Pakete", "INBOX.Pakete"), ("Inbox/Pakete", "Inbox/Pakete"),
+    ],
+)
+def test_clean_folder(value, folder):
+    assert clean_folder(value) == folder
+
+
+@pytest.mark.parametrize(
+    ("name", "reserved"),
+    [
+        (FOLDER_PROCESSED, True),
+        (FOLDER_UNRECOGNIZED, True),
+        (FOLDER_PROCESSED.upper(), True),
+        (f"INBOX.{FOLDER_PROCESSED}", True),
+        (f"INBOX/{FOLDER_UNRECOGNIZED}", True),
+        ("INBOX", False),
+        ("Pakete", False),
+        (f"{FOLDER_PROCESSED}-Archiv", False),
+    ],
+)
+def test_is_reserved_folder(name, reserved):
+    assert is_reserved_folder(name) is reserved
+
+
+def test_default_folder_is_inbox_exactly_as_before():
+    client = _client(mails={"7": RAW})
+    assert client.folder == "INBOX" and client.custom_folder is False
+    client.fetch_unseen()
+    client.finish([("7", None)], move=False)
+    for fake in FakeImap.instances:
+        assert [c for c in fake.calls if c[0] == "select"] == [("select", "INBOX")]
+
+
+@pytest.mark.parametrize("folder", ["inbox", " INBOX ", "", None])
+def test_inbox_in_any_spelling_is_the_default(folder):
+    FakeImap.instances = []
+    client = MailboxClient(
+        "imap.mailbox.org", "u", "p", folder=folder,
+        factory=lambda host, port, ssl_context=None, timeout=None: FakeImap(host, port),
+    )
+    client.check_login()
+    assert ("select", "INBOX") in FakeImap.instances[0].calls
+    assert client.custom_folder is False
+
+
+@pytest.mark.parametrize(
+    ("folder", "wire"),
+    [
+        ("Pakete", '"Pakete"'),
+        ("Bestellungen & Pakete", '"Bestellungen &- Pakete"'),
+        ("Müll", '"M&APw-ll"'),
+        ("Pakete/DHL", '"Pakete/DHL"'),
+        ("INBOX.Pakete", '"INBOX.Pakete"'),
+    ],
+)
+def test_custom_folder_is_selected_for_reading_and_filing(folder, wire):
+    client = _client(folder=folder, mails={"7": RAW}, login_caps=("IMAP4REV1", "MOVE"))
+    assert client.custom_folder is True
+    client.check_login()
+    assert client.fetch_unseen() == [("7", RAW)]
+    client.finish([("7", FOLDER_PROCESSED)], move=True)
+    assert len(FakeImap.instances) == 3
+    for fake in FakeImap.instances:
+        assert [c for c in fake.calls if c[0] == "select"] == [("select", wire)]
+    calls = FakeImap.instances[1].calls
+    # Everything else as for INBOX: unseen only, peeked, filed top-level.
+    assert ("uid", "SEARCH", None, "UNSEEN") in calls
+    assert ("uid", "FETCH", "7", "(BODY.PEEK[])") in calls
+    calls = FakeImap.instances[2].calls
+    assert ("uid", "STORE", "7", "+FLAGS", "(\\Seen)") in calls
+    assert ("create", FOLDER_PROCESSED) in calls
+    assert ("uid", "MOVE", "7", FOLDER_PROCESSED) in calls
+
+
+def test_missing_custom_folder_is_told_apart_and_never_created():
+    client = _client(folder="Pakete", results={"SELECT": "NO"})
+    for call in (client.check_login, client.fetch_unseen, lambda: client.finish([], True)):
+        with pytest.raises(ImapFolderNotFound):
+            call()
+    for fake in FakeImap.instances:
+        assert not any(c[0] in ("create", "subscribe") for c in fake.calls)
+        assert not any(c[0] == "uid" for c in fake.calls)
+        assert fake.calls[-1] == ("logout",)
+    # Callers that only know "unavailable" keep working.
+    assert issubclass(ImapFolderNotFound, ImapUnavailable)
+
+
+def test_failed_select_of_inbox_stays_plain_unavailable():
+    client = _client(results={"SELECT": "NO"})
+    with pytest.raises(ImapUnavailable) as err:
+        client.check_login()
+    assert not isinstance(err.value, ImapFolderNotFound)
+
+
+@pytest.mark.parametrize(
+    "folder", [FOLDER_PROCESSED, FOLDER_UNRECOGNIZED, f"INBOX.{FOLDER_PROCESSED}", "Pak\r\nete"]
+)
+def test_our_own_folders_and_broken_names_are_never_opened(folder):
+    client = _client(folder=folder, mails={"7": RAW})
+    for call in (client.check_login, client.fetch_unseen, lambda: client.finish([], True)):
+        with pytest.raises(ImapFolderNotFound):
+            call()
+    assert FakeImap.instances == []  # not even a connection
+
+
+def test_folder_name_is_not_part_of_the_error_or_the_log(caplog):
+    caplog.set_level("DEBUG")
+    client = _client(folder="Geheimer Ordner", results={"SELECT": "NO"})
+    with pytest.raises(ImapFolderNotFound) as err:
+        client.fetch_unseen()
+    assert "Geheim" not in str(err.value)
+    assert "Geheim" not in caplog.text

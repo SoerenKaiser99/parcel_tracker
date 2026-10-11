@@ -90,7 +90,7 @@ from .detect import candidates, normalize
 from .mail import OTHER_DOMAIN, forwarded_original, known_sender_domain, parse_mail
 from .mail.apply import Change, apply_update, close_unconfirmed, fold_delivered
 from .mail.base import MailResult, is_forwarded, sender, sent_at
-from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
+from .mail.imap import ImapAuthError, ImapFolderNotFound, ImapUnavailable, MailboxClient
 from .models import (
     NO_ETA_STATUSES,
     PROGRESS_STEP,
@@ -194,7 +194,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_next: datetime | None = None
         self._mail_streak = 0
         self._mail_last: datetime | None = None  # start of the last import run
-        self._mail_error: str | None = None  # "auth" | "unavailable" | "error"
+        self._mail_error: str | None = None  # "auth" | "folder" | "unavailable" | "error"
         self._mail_recognized = 0
         self._mail_unrecognized = 0
         # Sender domain (known shop/carrier or "other") and forwarded flag of the last
@@ -436,6 +436,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                     severity=ir.IssueSeverity.ERROR,
                     translation_key="imap_auth",
                 )
+            except ImapFolderNotFound:
+                # Once per outage, without the folder name; no repair: the options
+                # form is where the folder is set and checked.
+                if self._mail_error != "folder":
+                    _LOGGER.warning(
+                        "The mail folder set in the options cannot be opened (renamed or "
+                        "deleted?); the mail import pauses until it is back or changed"
+                    )
+                self._mail_failed(now, "folder")
             except ImapUnavailable as err:
                 _LOGGER.debug("Parcel mailbox not reachable: %s", err)
                 self._mail_failed(now, "unavailable")
@@ -1274,6 +1283,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             },
             "mail_import": {
                 "configured": self.mailbox is not None,
+                # Only whether another folder than INBOX is read, never its name.
+                "custom_folder": getattr(self.mailbox, "custom_folder", False) is True,
                 "interval_minutes": int(self._mail_interval.total_seconds() // 60),
                 "last_run": self._mail_last.isoformat() if self._mail_last else None,
                 # After an error this is the end of the backoff (see error_streak).

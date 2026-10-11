@@ -109,11 +109,17 @@ DHL berechnet Liefertag und Zeitfenster laufend neu. Ein Zeitfenster kann im Lau
 
 Viele Anbieter verlangen für IMAP ein eigenes App-Passwort oder eine Freigabe: siehe [App-Passwörter](mail-import.md#app-passworter).
 
+### „Diesen Ordner gibt es im Postfach nicht.“
+
+Das Feld **Ordner** braucht den Namen so, wie der Mailserver ihn führt. Ein Unterordner heißt je nach Anbieter `Pakete/DHL` oder `INBOX.Pakete`; viele Mailprogramme zeigen den vollen Namen in den Eigenschaften des Ordners. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Siehe [Eigener Ordner](mail-import.md#eigener-ordner).
+
+Kommen seit einer Weile keine Pakete mehr aus Mails und steht im Protokoll von Home Assistant eine Warnung zum Ordner des Mail-Imports? Dann wurde der Ordner umbenannt oder gelöscht: Trag unter **Konfigurieren** den richtigen ein.
+
 ### Eine Mail wird nicht erkannt
 
 Das prüfst du der Reihe nach:
 
-1. **Ist die Mail im Paket-Postfach angekommen?** Wenn nicht, greift die Filterregel im Hauptpostfach nicht. Steht der Absender in der [Liste der Absender](mail-import.md#filterregel-anlegen)?
+1. **Ist die Mail im Paket-Postfach angekommen, und zwar im Ordner, den der Import liest (Standard: Posteingang)?** Wenn nicht, greift die Filterregel im Hauptpostfach nicht. Steht der Absender in der [Liste der Absender](mail-import.md#filterregel-anlegen)?
 2. **In welchem Ordner liegt sie?** Erkannte Mails landen in `Paket-Tracker-Verarbeitet`, nicht erkannte in `Paket-Tracker-Nicht-erkannt`.
 3. **Ist es eine deutsche Mail von einem der unterstützten Absender?** Der Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS-, eBay- und AliExpress-Mails).
 4. **Ist die Mail älter als 14 Tage?** Dann wird sie nur als gelesen markiert.

@@ -63,6 +63,7 @@
               "imap_host": "IMAP-Server",
               "imap_user": "Benutzername",
               "imap_password": "Passwort",
+              "imap_folder": "Ordner",
               "move_processed": "Verarbeitete Mails in Ordner verschieben",
               "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen",
               "mail_interval": "Postfach abfragen alle (Minuten)"
@@ -71,6 +72,7 @@
               "mail_enabled": "Ausschalten entfernt den gespeicherten Benutzernamen und das Passwort.",
               "imap_user": "Leer lassen behält den gespeicherten Benutzernamen.",
               "imap_password": "Leer lassen behält das gespeicherte Passwort.",
+              "imap_folder": "Welcher Ordner des Postfachs gelesen wird – nur dieser eine. Lass „INBOX“ für das eigene Paket-Postfach stehen. Ein Ordner deines Hauptpostfachs geht auch, dann kennt Home Assistant aber das Passwort des ganzen Postfachs. Leer lassen behält den gespeicherten Ordner.",
               "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
               "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf."
             }
@@ -116,6 +118,8 @@
       "imap_auth": "Der Mailserver hat Benutzername oder Passwort abgelehnt.",
       "imap_cannot_connect": "Der Mailserver ist nicht erreichbar. Prüf den Servernamen.",
       "imap_password_missing": "Gib das Passwort des Postfachs ein.",
+      "folder_not_found": "Diesen Ordner gibt es im Postfach nicht.",
+      "folder_reserved": "In diesen Ordner legt Paket Tracker die Mails ab. Wähl einen anderen Ordner zum Lesen.",
       "ups_auth": "UPS hat Client-ID oder Secret abgelehnt.",
       "ups_cannot_connect": "UPS ist gerade nicht erreichbar. Versuch es später noch einmal.",
       "ups_secret_missing": "Gib das UPS-Client-Secret ein.",

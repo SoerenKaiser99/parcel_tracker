@@ -524,3 +524,52 @@ async def test_12_digit_dhl_number_from_a_mail_is_polled_and_can_be_added_by_han
     assert automatic.carrier_mode == "auto"
     await coord.async_refresh()
     assert set(asked) == {"999999999901", "999999999902", "999999999903"}
+
+
+# ----- v0.3.29: the folder to read is missing -----
+
+
+async def test_missing_folder_is_logged_once_without_a_repair_and_backs_off(
+    hass, freezer, caplog
+):
+    from custom_components.parcel_tracker.mail.imap import ImapFolderNotFound
+
+    mailbox = FakeMailbox(error=ImapFolderNotFound("select rejected"))
+    mailbox.folder = "Geheimer Ordner"
+    coord = await _coordinator(hass, mailbox)
+    waits = []
+    with caplog.at_level("DEBUG"):
+        for _ in range(3):
+            start = dt_util.utcnow()
+            await coord.async_import_mail()
+            waits.append((coord._mail_next - start).total_seconds() / 60)
+            freezer.tick(coord._mail_next - start)
+    assert waits == [5, 10, 20]
+    assert mailbox.finished == []
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == ("folder", 3)
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1 and "folder" in warnings[0].getMessage()
+    assert "Geheim" not in caplog.text
+    assert not ir.async_get(hass).issues
+    # The folder is back: the import runs and may warn again the next time.
+    mailbox.error = None
+    await coord.async_import_mail()
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == (None, 0)
+    mailbox.error = ImapFolderNotFound("select rejected")
+    freezer.tick(coord._mail_next - dt_util.utcnow())
+    with caplog.at_level("WARNING"):
+        await coord.async_import_mail()
+    assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 2
+
+
+async def test_diagnostics_tell_only_whether_a_custom_folder_is_read(hass):
+    mailbox = FakeMailbox()
+    coord = await _coordinator(hass, mailbox)
+    assert coord.diagnostics()["mail_import"]["custom_folder"] is False
+    mailbox.folder, mailbox.custom_folder = "Geheimer Ordner", True
+    state = coord.diagnostics()["mail_import"]
+    assert state["custom_folder"] is True
+    assert "Geheim" not in str(state)
+    assert (await _coordinator(hass, None)).diagnostics()["mail_import"]["custom_folder"] is False

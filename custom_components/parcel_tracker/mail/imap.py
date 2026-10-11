@@ -1,15 +1,23 @@
 """Blocking IMAP access for the parcel mailbox (no Home Assistant imports).
 
 All methods block; the coordinator runs them in the executor.
+
+One folder is read: INBOX unless another one is set. Its name goes over the wire in
+modified UTF-7 (RFC 3501, 5.1.3) as a quoted string; imaplib does neither by itself.
+The two folders mails are filed into stay top-level and are never the folder read.
 """
 
 from __future__ import annotations
 
+import base64
 import imaplib
 import logging
+import re
 import ssl
 from collections.abc import Callable
 from typing import Any
+
+from ..const import DEFAULT_IMAP_FOLDER, FOLDER_PROCESSED, FOLDER_UNRECOGNIZED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,13 +41,80 @@ class ImapUnavailable(ImapError):
     """Server unreachable, timeout or protocol error."""
 
 
+class ImapFolderNotFound(ImapUnavailable):
+    """The folder to read cannot be selected (missing, renamed, or no valid name).
+
+    A kind of "unavailable", so callers that do not care keep backing off as before.
+    Its text never carries the folder name.
+    """
+
+
+_RESERVED = frozenset({FOLDER_PROCESSED.casefold(), FOLDER_UNRECOGNIZED.casefold()})
+# What servers use between the levels of a folder path.
+_DELIMITER = re.compile(r"[/.]")
+
+
+def clean_folder(value: Any) -> str:
+    """The folder to read as stored or typed in: stripped, INBOX if there is none.
+
+    INBOX is case-insensitive in IMAP and is always spelled the one way, so that an
+    entry without a folder and one with "inbox" behave the same.
+    """
+    name = value.strip() if isinstance(value, str) else ""
+    if not name or name.upper() == DEFAULT_IMAP_FOLDER:
+        return DEFAULT_IMAP_FOLDER
+    return name
+
+
+def is_reserved_folder(name: str) -> bool:
+    """True for the two folders mails are filed into (also below a prefix like INBOX.)."""
+    return _DELIMITER.split(name.strip().casefold())[-1] in _RESERVED
+
+
+def encode_mailbox(name: str) -> str:
+    """A folder name in modified UTF-7 (RFC 3501, 5.1.3): pure ASCII for the wire.
+
+    Printable ASCII stays as it is, "&" becomes "&-"; every other run of characters
+    is UTF-16BE in base64 with "," for "/" and without padding, between "&" and "-".
+    """
+    parts: list[str] = []
+    run: list[str] = []
+
+    def flush() -> None:
+        if run:
+            packed = base64.b64encode("".join(run).encode("utf-16-be")).decode("ascii")
+            parts.append("&" + packed.rstrip("=").replace("/", ",") + "-")
+            run.clear()
+
+    for char in name:
+        if " " <= char <= "~":
+            flush()
+            parts.append("&-" if char == "&" else char)
+        else:
+            run.append(char)
+    flush()
+    return "".join(parts)
+
+
+def quote_mailbox(name: str) -> str:
+    """The name as an IMAP quoted string in modified UTF-7.
+
+    ValueError for an empty name and for control characters: a quoted string cannot
+    carry them, and a line break would start a command of its own.
+    """
+    if not name or any(char < " " or char == "\x7f" for char in name):
+        raise ValueError("not a folder name")
+    escaped = encode_mailbox(name).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def _is_auth_error(err: Exception) -> bool:
     text = str(err).lower()
     return any(marker in text for marker in _AUTH_MARKERS)
 
 
 class MailboxClient:
-    """Reads unseen mails from INBOX and files them away afterwards."""
+    """Reads unseen mails from one folder (INBOX by default) and files them away."""
 
     def __init__(
         self,
@@ -48,9 +123,11 @@ class MailboxClient:
         password: str,
         factory: Callable[..., Any] = imaplib.IMAP4_SSL,
         ssl_context: ssl.SSLContext | None = None,
+        folder: str | None = None,
     ) -> None:
         self.host = host
         self.user = user
+        self.folder = clean_folder(folder)
         self._password = password
         self._factory = factory
         # Home Assistant hands in its shared verifying context; without one a default
@@ -63,7 +140,24 @@ class MailboxClient:
             self._ssl_context = ssl.create_default_context()
         return self._ssl_context
 
+    @property
+    def custom_folder(self) -> bool:
+        """True when another folder than INBOX is read."""
+        return self.folder != DEFAULT_IMAP_FOLDER
+
+    def _mailbox(self) -> str:
+        """The folder as SELECT takes it; INBOX exactly as it always went out."""
+        if not self.custom_folder:
+            return DEFAULT_IMAP_FOLDER
+        if is_reserved_folder(self.folder):
+            raise ImapFolderNotFound("reserved folder")
+        try:
+            return quote_mailbox(self.folder)
+        except ValueError as err:
+            raise ImapFolderNotFound("invalid folder name") from err
+
     def _connect(self) -> Any:
+        mailbox = self._mailbox()  # before any connection: a refused folder costs none
         try:
             conn = self._factory(
                 self.host, IMAP_PORT, ssl_context=self._context(), timeout=IMAP_TIMEOUT
@@ -73,10 +167,13 @@ class MailboxClient:
         try:
             self._login(conn)
             try:
-                status, _ = conn.select("INBOX")
+                status, _ = conn.select(mailbox)
             except (OSError, imaplib.IMAP4.error) as err:
                 raise ImapUnavailable(type(err).__name__) from err
             if status != "OK":
+                if self.custom_folder:
+                    # The server said NO to this folder; it is never created here.
+                    raise ImapFolderNotFound("select rejected")
                 raise ImapUnavailable("select failed")
         except BaseException:
             self._logout(conn)
@@ -132,11 +229,14 @@ class MailboxClient:
         return True
 
     def check_login(self) -> None:
-        """Log in and select INBOX; raises ImapAuthError or ImapUnavailable."""
+        """Log in and select the folder to read.
+
+        Raises ImapAuthError, ImapFolderNotFound or (any other) ImapUnavailable.
+        """
         self._logout(self._connect())
 
     def fetch_unseen(self) -> list[tuple[str, bytes]]:
-        """(uid, raw message) of unseen INBOX mails, oldest first, without marking them."""
+        """(uid, raw message) of the folder's unseen mails, oldest first, not marked."""
         conn = self._connect()
         try:
             status, data = conn.uid("SEARCH", None, "UNSEEN")
@@ -159,7 +259,7 @@ class MailboxClient:
         """Mark mails seen and, if ``move``, file them into their target folder.
 
         ``dispositions`` holds (uid, folder); folder None means "only mark seen".
-        A failed CREATE/COPY/MOVE leaves the mail in INBOX (marked seen).
+        A failed CREATE/COPY/MOVE leaves the mail where it is (marked seen).
         """
         conn = self._connect()
         try:

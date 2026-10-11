@@ -33,6 +33,7 @@ from .const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
     CONF_HIDE_NAMES,
+    CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
@@ -55,6 +56,7 @@ from .const import (
     CONF_UPS_SECTION,
     COUNTRIES,
     DEFAULT_HIDE_NAMES,
+    DEFAULT_IMAP_FOLDER,
     DEFAULT_IMAP_HOST,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
@@ -76,7 +78,14 @@ from .const import (
     entry_country,
     known_country,
 )
-from .mail.imap import ImapAuthError, ImapUnavailable, MailboxClient
+from .mail.imap import (
+    ImapAuthError,
+    ImapFolderNotFound,
+    ImapUnavailable,
+    MailboxClient,
+    clean_folder,
+    is_reserved_folder,
+)
 from .notification import service_name, service_target
 
 _COUNTRY = SelectSelector(
@@ -254,12 +263,18 @@ def _ups_section(current: Mapping[str, Any]) -> section:
     )
 
 
+def _shown_folder(value: object) -> str:
+    """The folder for the form: what is stored or was typed, INBOX if that is nothing."""
+    return value.strip() if isinstance(value, str) and value.strip() else DEFAULT_IMAP_FOLDER
+
+
 def _mail_section(current: Mapping[str, Any]) -> section:
     """Collapsible 'mail import' block of the options form.
 
     The user is prefilled through ``default`` (never ``suggested_value``): a field
     the frontend leaves out or sends empty then comes back as the stored user.
-    Switching the import off is the explicit ``mail_enabled`` switch.
+    Switching the import off is the explicit ``mail_enabled`` switch. The folder is
+    prefilled the same way, with INBOX while none is stored.
     """
     user = current.get(CONF_IMAP_USER) or ""
     return section(
@@ -273,6 +288,9 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                 ): str,
                 vol.Optional(CONF_IMAP_USER, default=user or vol.UNDEFINED): str,
                 vol.Optional(CONF_IMAP_PASSWORD): _KEY,
+                vol.Optional(
+                    CONF_IMAP_FOLDER, default=_shown_folder(current.get(CONF_IMAP_FOLDER))
+                ): str,
                 vol.Optional(
                     CONF_MOVE_PROCESSED,
                     default=current.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED),
@@ -370,13 +388,19 @@ async def _check_key(hass, key: str | None) -> str | None:
     return None if ok else "invalid_key"
 
 
-async def _check_mailbox(hass, host: str, user: str, password: str) -> str | None:
-    """Log in and select INBOX; return an error code or None."""
+async def _check_mailbox(
+    hass, host: str, user: str, password: str, folder: str = DEFAULT_IMAP_FOLDER
+) -> str | None:
+    """Log in and select the folder to read; return an error code or None."""
     try:
-        client = MailboxClient(host, user, password, ssl_context=client_context())
+        client = MailboxClient(
+            host, user, password, ssl_context=client_context(), folder=folder
+        )
         await hass.async_add_executor_job(client.check_login)
     except ImapAuthError:
         return "imap_auth"
+    except ImapFolderNotFound:  # a kind of "unavailable": asked for first
+        return "folder_not_found"
     except ImapUnavailable:
         return "imap_cannot_connect"
     return None
@@ -478,6 +502,12 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     (``mail_enabled``/``ups_enabled`` submitted as False). The postcode is the one
     exception: it is not a secret and emptying it is how it is removed.
 
+    The folder of the mailbox that is read (``imap_folder``) is INBOX while none is
+    stored; it is only written to the options once it is stored there or differs from
+    INBOX. A changed folder is selected once on the mail server before it is stored
+    (``folder_not_found``; never created), together with the login check when that is
+    due anyway. The two folders mails are filed into are refused (``folder_reserved``).
+
     The country (``de``, ``at``, ``ch``) decides how many digits the postcode has; the
     postcode is checked against the country submitted with it, so a stored postcode
     that no longer fits a changed country is a form error and never dropped silently.
@@ -522,6 +552,10 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 or user != stored_user
                 or (bool(new_password) and new_password != stored_password)
             )
+            # Missing or emptied: the stored folder (INBOX if there is none).
+            stored_folder = clean_folder(options.get(CONF_IMAP_FOLDER))
+            folder = clean_folder((mail.get(CONF_IMAP_FOLDER) or "").strip() or stored_folder)
+            folder_changed = folder != stored_folder
             ups = user_input.get(CONF_UPS_SECTION) or {}
             stored_id = self.config_entry.data.get(CONF_UPS_CLIENT_ID) or ""
             ups_off = ups.get(CONF_UPS_ENABLED) is False and bool(stored_id)
@@ -567,12 +601,14 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 errors[CONF_DHL_API_KEY] = err
             elif track17_key and (err := await _check_track17(self.hass, track17_key)):
                 errors[CONF_TRACK17_API_KEY] = err
+            elif folder_changed and is_reserved_folder(folder):
+                errors["base"] = "folder_reserved"
             elif user and not password:
                 errors["base"] = "imap_password_missing"
             elif (
                 user
-                and login_changed
-                and (err := await _check_mailbox(self.hass, host, user, password))
+                and (login_changed or folder_changed)
+                and (err := await _check_mailbox(self.hass, host, user, password, folder))
             ):
                 errors["base"] = err
             elif ups_id and not ups_secret:
@@ -615,6 +651,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     new_options[CONF_COUNTRY] = country
                 if CONF_HIDE_NAMES in options or hide:
                     new_options[CONF_HIDE_NAMES] = hide
+                if CONF_IMAP_FOLDER in options or folder != DEFAULT_IMAP_FOLDER:
+                    # An untouched form writes back exactly what is stored.
+                    new_options[CONF_IMAP_FOLDER] = (
+                        folder if folder_changed else options.get(CONF_IMAP_FOLDER, folder)
+                    )
                 data = dict(self.config_entry.data)
                 if key_value:
                     data[CONF_DHL_API_KEY] = key_value

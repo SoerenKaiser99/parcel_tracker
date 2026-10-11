@@ -119,3 +119,14 @@ async def test_refresh_service_forces_mail_import(hass):
         assert len(calls) == 1
         await hass.services.async_call(DOMAIN, "refresh", {}, blocking=True)
         assert len(calls) == 2
+
+
+def test_mailbox_reads_inbox_unless_a_folder_is_stored():
+    data = {CONF_IMAP_PASSWORD: "p"}
+    before = MockConfigEntry(domain=DOMAIN, data=data, options={CONF_IMAP_USER: "u"})
+    assert (_mailbox(before).folder, _mailbox(before).custom_folder) == ("INBOX", False)
+    for stored, folder in (("", "INBOX"), ("inbox", "INBOX"), ("Pakete/DHL", "Pakete/DHL")):
+        entry = MockConfigEntry(
+            domain=DOMAIN, data=data, options={CONF_IMAP_USER: "u", "imap_folder": stored}
+        )
+        assert _mailbox(entry).folder == folder

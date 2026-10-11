@@ -19,6 +19,7 @@ from custom_components.parcel_tracker.const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
     CONF_HIDE_NAMES,
+    CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
@@ -39,7 +40,10 @@ from custom_components.parcel_tracker.const import (
     CONF_UPS_SECTION,
     DEFAULT_NOTIFY_EVENTS,
     DOMAIN,
+    FOLDER_PROCESSED,
+    FOLDER_UNRECOGNIZED,
 )
+from custom_components.parcel_tracker.mail.imap import ImapFolderNotFound, ImapUnavailable
 
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 FLOW = "custom_components.parcel_tracker.config_flow."
@@ -423,3 +427,185 @@ async def test_hide_names_is_switched_on_and_off_and_nothing_else_changes(hass):
 async def test_setup_form_does_not_ask_for_hide_names(hass):
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     assert CONF_HIDE_NAMES not in [field["name"] for field in _fields(result)]
+
+
+# ----- v0.3.29: the folder of the mailbox that is read -----
+
+FOLDER = "Bestellungen & Pakete"
+
+
+async def test_untouched_form_of_an_entry_from_before_the_folder(hass):
+    """An entry saved before v0.3.29 has no folder: the form shows INBOX, and open and
+    save neither stores a folder nor asks the mail server."""
+    entry = _entry(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    fields = _fields(result)
+    mail = next(f for f in fields if f["name"] == CONF_MAIL_SECTION)
+    names = [f["name"] for f in mail["schema"]]
+    # Right below the login, in front of the switches.
+    assert names.index(CONF_IMAP_FOLDER) == names.index(CONF_IMAP_PASSWORD) + 1
+    assert _frontend_initial(fields)[CONF_MAIL_SECTION][CONF_IMAP_FOLDER] == "INBOX"
+    for payload in (_frontend_initial, _defaults_only):
+        result, checks = await _save(hass, entry, payload)
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        for check in checks:
+            check.assert_not_called()
+        assert entry.data == DATA
+        assert CONF_IMAP_FOLDER not in entry.options
+    assert {**entry.options, CONF_POSTCODE: "20095"} == OPTIONS
+
+
+def _with_folder(value):
+    def payload(fields):
+        data = _frontend_initial(fields)
+        data[CONF_MAIL_SECTION] = {**data[CONF_MAIL_SECTION], CONF_IMAP_FOLDER: value}
+        return data
+
+    return payload
+
+
+def _without_folder(fields):
+    data = _frontend_initial(fields)
+    data[CONF_MAIL_SECTION] = {
+        k: v for k, v in data[CONF_MAIL_SECTION].items() if k != CONF_IMAP_FOLDER
+    }
+    return data
+
+
+@pytest.mark.parametrize("stored", [None, "INBOX", FOLDER, "Pakete/DHL"])
+@pytest.mark.parametrize(
+    "payload",
+    [_frontend_initial, _defaults_only, _without_folder, _with_folder(""), _with_folder("  ")],
+    ids=["untouched", "defaults-only", "missing", "empty", "blank"],
+)
+async def test_untouched_missing_or_emptied_folder_keeps_the_stored_one(hass, stored, payload):
+    options = dict(OPTIONS) if stored is None else {**OPTIONS, CONF_IMAP_FOLDER: stored}
+    entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION][CONF_IMAP_FOLDER]
+    assert shown == (stored or "INBOX")
+    result, checks = await _save(hass, entry, payload)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.data == DATA
+    assert {**entry.options, CONF_POSTCODE: "20095"} == options
+
+
+@pytest.mark.parametrize("typed", ["INBOX", "inbox", " Inbox "])
+async def test_inbox_typed_into_an_entry_without_a_folder_changes_nothing(hass, typed):
+    entry = _entry(hass)
+    result, checks = await _save(hass, entry, _with_folder(typed))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.options == OPTIONS
+
+
+async def _save_folder(hass, entry, payload, check=None):
+    """Submit the form; returns the result and the folders the login check selected."""
+    seen: list[str] = []
+
+    def check_login(client):
+        seen.append(client.folder)
+        if check is not None:
+            raise check
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with (
+        patch(CHECKS["imap"], autospec=True, side_effect=check_login),
+        patch(CHECKS["ups"], side_effect=AssertionError),
+        patch(SETUP, return_value=True),
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], payload(_fields(result))
+        )
+        await hass.async_block_till_done()
+    return result, seen
+
+
+@pytest.mark.parametrize("folder", [FOLDER, "Müll", "Pakete/DHL", "INBOX.Pakete"])
+async def test_changed_folder_is_selected_once_and_stored(hass, folder):
+    entry = _entry(hass)
+    result, seen = await _save_folder(hass, entry, _with_folder(f" {folder} "))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert seen == [folder]
+    assert entry.options == {**OPTIONS, CONF_IMAP_FOLDER: folder}
+    assert entry.data == DATA
+
+
+async def test_back_to_inbox_is_checked_and_stored(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=dict(DATA), options={**OPTIONS, CONF_IMAP_FOLDER: FOLDER}
+    )
+    entry.add_to_hass(hass)
+    result, seen = await _save_folder(hass, entry, _with_folder("inbox"))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert seen == ["INBOX"]
+    assert entry.options == {**OPTIONS, CONF_IMAP_FOLDER: "INBOX"}
+
+
+async def test_missing_folder_rejects_the_form_and_stores_nothing(hass):
+    entry = _entry(hass)
+    result, seen = await _save_folder(
+        hass, entry, _with_folder("Gibt es nicht"), ImapFolderNotFound("select rejected")
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "folder_not_found"}
+    assert seen == ["Gibt es nicht"]
+    assert entry.options == OPTIONS
+    # The form comes back with what was typed.
+    shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION][CONF_IMAP_FOLDER]
+    assert shown == "Gibt es nicht"
+
+
+@pytest.mark.parametrize(
+    "folder",
+    [FOLDER_PROCESSED, FOLDER_UNRECOGNIZED, FOLDER_PROCESSED.lower(), f"INBOX.{FOLDER_PROCESSED}"],
+)
+async def test_our_own_folders_cannot_be_the_folder_read(hass, folder):
+    entry = _entry(hass)
+    result, seen = await _save_folder(hass, entry, _with_folder(folder))
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": "folder_reserved"}
+    assert seen == []  # refused without asking the mail server
+    assert entry.options == OPTIONS
+
+
+async def test_changed_folder_with_the_mail_server_down_is_not_saved(hass):
+    """As for a changed host or user: what cannot be checked is not stored."""
+    entry = _entry(hass)
+    result, _ = await _save_folder(hass, entry, _with_folder(FOLDER), ImapUnavailable("down"))
+    assert result["errors"] == {"base": "imap_cannot_connect"}
+    assert entry.options == OPTIONS
+
+
+async def test_changed_login_is_checked_against_the_stored_folder(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data=dict(DATA), options={**OPTIONS, CONF_IMAP_FOLDER: FOLDER}
+    )
+    entry.add_to_hass(hass)
+
+    def payload(fields):
+        data = _frontend_initial(fields)
+        data[CONF_MAIL_SECTION] = {**data[CONF_MAIL_SECTION], CONF_IMAP_PASSWORD: "neues-pw"}
+        return data
+
+    result, seen = await _save_folder(hass, entry, payload)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert seen == [FOLDER]
+    assert entry.options == {**OPTIONS, CONF_IMAP_FOLDER: FOLDER}
+
+
+async def test_folder_without_a_mail_import_is_stored_unchecked(hass):
+    """No mailbox set up: there is nothing to select the folder in."""
+    options = {k: v for k, v in OPTIONS.items() if k != CONF_IMAP_USER}
+    data = {k: v for k, v in DATA.items() if k != CONF_IMAP_PASSWORD}
+    entry = MockConfigEntry(domain=DOMAIN, data=data, options=options)
+    entry.add_to_hass(hass)
+    result, seen = await _save_folder(hass, entry, _with_folder("Pakete"))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert seen == []
+    assert entry.options[CONF_IMAP_FOLDER] == "Pakete"
+    assert entry.options[CONF_IMAP_USER] == ""

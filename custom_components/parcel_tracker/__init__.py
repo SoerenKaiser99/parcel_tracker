@@ -39,6 +39,7 @@ from .const import (
     CARRIER_AUTO,
     CARRIER_OTHER,
     CONF_DHL_API_KEY,
+    CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
@@ -110,6 +111,8 @@ def _mailbox(entry: ConfigEntry) -> MailboxClient | None:
         user,
         password,
         ssl_context=client_context(),
+        # No folder stored (every entry from before v0.3.29): INBOX, as always.
+        folder=entry.options.get(CONF_IMAP_FOLDER),
     )
 
 

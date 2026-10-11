@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.28"
+VERSION = "0.3.29"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -17,6 +17,7 @@ CONF_MAIL_ENABLED = "mail_enabled"
 CONF_IMAP_HOST = "imap_host"
 CONF_IMAP_USER = "imap_user"
 CONF_IMAP_PASSWORD = "imap_password"
+CONF_IMAP_FOLDER = "imap_folder"
 CONF_MOVE_PROCESSED = "move_processed"
 CONF_READ_OTP = "read_otp"
 CONF_MAIL_INTERVAL = "mail_interval"
@@ -142,6 +143,8 @@ MAIL_MAX_BACKOFF = timedelta(minutes=60)
 MAIL_MAX_AGE = timedelta(days=14)
 MAIL_DEDUP_KEEP = 500
 AMAZON_UNRECOGNIZED_LIMIT = 5
+# The folder read when none is set; entries from before v0.3.29 store none.
+DEFAULT_IMAP_FOLDER = "INBOX"
 FOLDER_PROCESSED = "Paket-Tracker-Verarbeitet"
 FOLDER_UNRECOGNIZED = "Paket-Tracker-Nicht-erkannt"
 

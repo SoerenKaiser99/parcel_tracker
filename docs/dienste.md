@@ -75,6 +75,7 @@ Den Status liest der Import nur aus dem Betreff der DHL-Mail:
 | „ist unterwegs“ | „Unterwegs“, samt Liefertag, wenn die Mail ihn nennt |
 | „kommt morgen“ | „Unterwegs“ mit dem Tag nach der Mail |
 | „kommt heute“, „wird heute zugestellt“ | „In Zustellung“ für den Tag der Mail |
+| „wird gleich zugestellt“ | „In Zustellung“ für den Tag der Mail, mit der eigenen Zeile „Wird gleich zugestellt“ im Verlauf |
 | „wurde zugestellt“, auch „wurde an den gewünschten Ablageort zugestellt“ | „Zugestellt“ |
 | „Liegt zur Abholung bereit“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“ |
 | jede andere Mail, deren Betreff von einer „Sendung“ spricht (Zustellfoto, gescheiterter Zustellversuch, Neuigkeiten) | nur „Unterwegs“ ohne Tag; nie einen Status zurück |

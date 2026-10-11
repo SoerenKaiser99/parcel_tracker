@@ -4,11 +4,16 @@ Response shape and status codes follow ha-parcel-integrations/ha-hermes (MIT):
 a JSON array whose first element is the parcel, ``parcelProgress`` newest first,
 the stable English ``parcelStatus`` per event and the localised ``historyText``.
 The endpoint exposes no delivery day, so the ETA stays with what mails told.
+
+A parcel handed to a PaketShop waits there for its recipient: "awaiting pickup",
+never "delivered" (as GLS' DELIVEREDPS and DHL's Packstation). The code Hermes sends
+for that step is not known for sure, so the German text of the step is read as well.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from datetime import UTC, datetime
 from typing import Any
 
@@ -48,9 +53,9 @@ _STATUS = {
     ),
     **dict.fromkeys(
         (
-            "DELIVERED_HOMEDELIVERY", "DELIVERED_NEIGHBOUR", "DELIVERED_PARCELSHOP",
-            "DELIVERED_PARCELBOX", "DELIVERED_MAILBOX", "DELIVERED_DROPOFF", "DELIVERED",
-            "PICKED_UP_BY_RECIPIENT", "COLLECTED",
+            "DELIVERED_HOMEDELIVERY", "DELIVERED_NEIGHBOUR", "DELIVERED_PARCELBOX",
+            "DELIVERED_MAILBOX", "DELIVERED_DROPOFF", "DELIVERED", "PICKED_UP_BY_RECIPIENT",
+            "COLLECTED",
         ),
         ParcelStatus.DELIVERED,
     ),
@@ -62,6 +67,25 @@ _STATUS = {
         ParcelStatus.EXCEPTION,
     ),
 }
+# Delivered to a PaketShop, not to the recipient: the parcel waits there. The collection
+# has its own later event (PICKED_UP_BY_RECIPIENT, COLLECTED); should Hermes report it
+# under this code as well, its text tells ("… erfolgreich abgeholt").
+_SHOP_DELIVERED = frozenset({"DELIVERED_PARCELSHOP"})
+# Texts of the waiting step ("… liegt im Hermes PaketShop … zur Abholung bereit"). The
+# word PaketShop alone says nothing ("wird … an den PaketShop zugestellt").
+_WAITING_TEXT = re.compile(r"zur\s+abholung\s+bereit|\babholbereit\b", re.IGNORECASE)
+# "liegt … zur Abholung" in this order is the present tense, whatever else follows.
+_LIES_THERE_TEXT = re.compile(
+    r"\bliegt\b.*(?:\babholung\b|\babholbereit\b)", re.IGNORECASE | re.DOTALL
+)
+_CAN_BE_COLLECTED_TEXT = re.compile(r"\bkann\b.*\babgeholt\s+werden\b", re.IGNORECASE | re.DOTALL)
+# An announcement of the step ("sobald …", "wird … bereit liegen") is not the step.
+_ANNOUNCED_TEXT = re.compile(r"\b(?:sobald|demnächst)\b", re.IGNORECASE)
+_FUTURE_TEXT = re.compile(r"\bwird\b", re.IGNORECASE)
+_NOT_COLLECTED_TEXT = re.compile(r"\bnicht\b[^.]*\babgeholt\b", re.IGNORECASE)
+_COLLECTED_TEXT = re.compile(r"\bwurde\b.*\babgeholt\b", re.IGNORECASE | re.DOTALL)
+# Narrower for a code nobody knows: drivers collect parcels as well.
+_COLLECTED_FOR_SURE_TEXT = re.compile(r"\berfolgreich\s+abgeholt\b", re.IGNORECASE)
 # Booking a drop-off place is no movement (it can come before the pickup): skipped.
 _IGNORED = frozenset({"EDL_BOOKED_DROPOFF"})
 _WARNED: set[str] = set()
@@ -102,6 +126,40 @@ def _map(code: str) -> ParcelStatus:
     return ParcelStatus.UNKNOWN
 
 
+def _waits(text: str) -> bool:
+    """True when the text says the parcel lies ready for collection right now."""
+    if _ANNOUNCED_TEXT.search(text):
+        return False
+    if _CAN_BE_COLLECTED_TEXT.search(text) or _LIES_THERE_TEXT.search(text):
+        return True
+    return bool(_WAITING_TEXT.search(text)) and not _FUTURE_TEXT.search(text)
+
+
+def _status(event: dict[str, Any]) -> ParcelStatus:
+    """Status of the current event: its code, for the PaketShop steps also its text.
+
+    The text is only compared, never stored anywhere else and never logged: it names
+    the shop and its address.
+    """
+    code = event["parcelStatus"]
+    raw = event.get("historyText")
+    text = raw if isinstance(raw, str) else ""
+    if code in _SHOP_DELIVERED:
+        collected = (
+            _COLLECTED_TEXT.search(text) is not None
+            and _NOT_COLLECTED_TEXT.search(text) is None
+            and not _waits(text)
+        )
+        return ParcelStatus.DELIVERED if collected else ParcelStatus.AWAITING_PICKUP
+    status = _map(code)  # an unknown code is warned about, whatever its text tells
+    if status is ParcelStatus.UNKNOWN:
+        if _waits(text):
+            return ParcelStatus.AWAITING_PICKUP
+        if _COLLECTED_FOR_SURE_TEXT.search(text) and not _NOT_COLLECTED_TEXT.search(text):
+            return ParcelStatus.DELIVERED
+    return status
+
+
 def parse_hermes(data: Any) -> TrackingResult:
     """Normalise the search answer (a JSON array, element 0 is the parcel)."""
     if not isinstance(data, list):
@@ -116,11 +174,13 @@ def parse_hermes(data: Any) -> TrackingResult:
         (e for e in progress if e.get("parcelStatus") and e["parcelStatus"] not in _IGNORED),
         None,
     )
-    status = _map(current["parcelStatus"]) if current else ParcelStatus.UNKNOWN
+    status = _status(current) if current else ParcelStatus.UNKNOWN
     delivered_at = _ts(current.get("timestamp")) if status is ParcelStatus.DELIVERED else None
     attributes = parcel.get("parcelAttributes")
     if isinstance(attributes, dict) and attributes.get("delivered"):
-        if status is not ParcelStatus.DELIVERED:
+        # Not for a parcel waiting in a PaketShop: whatever the flag means there, the
+        # recipient does not have it yet. The collection is an event of its own.
+        if status not in (ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP):
             status = ParcelStatus.DELIVERED
             delivered_at = _ts(attributes.get("deliveredTimestamp"))
     events = [

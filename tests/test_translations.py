@@ -45,13 +45,19 @@ def test_mail_translations_present():
     strings = _load("strings.json")
     section = strings["options"]["step"]["init"]["sections"]["mail"]
     assert set(section["data"]) == {
-        "mail_enabled", "imap_host", "imap_user", "imap_password", "move_processed",
-        "read_otp", "mail_interval",
+        "mail_enabled", "imap_host", "imap_user", "imap_password", "imap_folder",
+        "move_processed", "read_otp", "mail_interval",
     }
-    assert {"imap_auth", "imap_cannot_connect", "imap_password_missing"} <= set(
-        strings["options"]["error"]
-    )
+    assert {
+        "imap_auth", "imap_cannot_connect", "imap_password_missing", "folder_not_found",
+        "folder_reserved",
+    } <= set(strings["options"]["error"])
     assert {"imap_auth", "amazon_unrecognized"} <= set(strings["issues"])
+    german = _load("translations/de.json")["options"]
+    mail = german["step"]["init"]["sections"]["mail"]
+    assert mail["data"]["imap_folder"] == "Ordner"
+    assert "INBOX" in mail["data_description"]["imap_folder"]
+    assert german["error"]["folder_not_found"] == "Diesen Ordner gibt es im Postfach nicht."
 
 
 def test_ups_translations_present():

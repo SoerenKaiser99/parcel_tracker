@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 11. Oktober 2026, Version 0.3.28. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 11. Oktober 2026, Version 0.3.29. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -17,7 +17,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 |---|---|---|
 | **UPS mit eigenem Entwicklerzugang** | Kommt der Live-Status? Stimmt das Monatsbudget? Bisher hatte niemand echte Zugangsdaten. | [Fehler melden](hilfe.md#fehler-melden) oder im Forum |
 | **DHL mit API-Key: Zeitfenster** | Zeigt die Karte „Heute 14:00–16:00 Uhr“, wenn DHL ein Zeitfenster nennt? | im Forum |
-| **Hermes: Umleitung in den PaketShop** | Steht das Paket im PaketShop auf „Abholbereit“ oder schon auf „Zugestellt“? Was ist der oberste Eintrag im Verlauf? | [Issue #18](https://github.com/SoerenKaiser99/parcel_tracker/issues/18) |
+| **Hermes: Paket im PaketShop** | Wechselt das Paket auf „Abholbereit“, sobald es im PaketShop liegt, und kommt die Benachrichtigung? Springt es nach dem Abholen auf „Zugestellt“? Neu seit v0.3.29, ohne echtes Paket gebaut. | [Issue #18](https://github.com/SoerenKaiser99/parcel_tracker/issues/18) |
 | **GLS in Österreich** | Liefert die Abfrage mit Land „Österreich“ Status und Verlauf? | [Issue #3](https://github.com/SoerenKaiser99/parcel_tracker/issues/3) |
 | **GLS: 12-stellige Nummer mit „Automatisch“** | Wird die Nummer aus der GLS-Mail erkannt, ohne dass du „GLS“ auswählst? | im Forum |
 | **17track bei DPD und GLS** | Füllt „Details über 17track holen“ Ort und Verlauf nach? Bisher nur bei DHL gesehen. | im Forum |
@@ -27,9 +27,11 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 
 | Was | Was wir wissen wollen | Wohin |
 |---|---|---|
-| **AliExpress** | Erscheint die Bestellung mit Artikelname und Zustelltag? Wird nach der „Packstück“-Mail live beim Paketdienst abgefragt? Landet eine Mail bei den nicht erkannten? | [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) |
+| **AliExpress** | Erscheint die Bestellung mit Artikelname und Zustelltag? Wird nach der „Packstück“-Mail live beim Paketdienst abgefragt? Werden die Mails „Vom Kurier abgeholt“ und „Packstück … hat eine Aktualisierung“ erkannt? Landet eine Mail bei den nicht erkannten? |
+| **Eigener Ordner im Postfach** | Wird genau der eingetragene Ordner gelesen und kein anderer? Klappt es mit Umlauten, Leerzeichen und Unterordnern im Namen (z. B. `Bestellungen & Pakete`, `Pakete/DHL`)? Neu seit v0.3.29, ohne echten Mailserver gebaut. | im Forum | [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) |
 | **Apple „E-Mail-Adresse verbergen“** | Werden so weitergereichte Mails von Amazon, DHL, DPD, GLS, Hermes, UPS oder eBay erkannt? Mit echten Mails geprüft ist bisher nur AliExpress. | im Forum |
 | **DHL: „liegt am gewünschten Ablageort“** | Springt das Paket mit dieser Mail auf „Zugestellt“? | [Issue #9](https://github.com/SoerenKaiser99/parcel_tracker/issues/9) |
+| **DHL: „wird gleich zugestellt“** | Zählt das Paket mit dieser Mail als heute, und steht „Wird gleich zugestellt“ als eigene Zeile im Verlauf? | im Forum |
 | **DHL: „Sendungs-Update“ nach einer Verzögerung** | Übernimmt das Paket den neuen Zustelltag? | [Issue #11](https://github.com/SoerenKaiser99/parcel_tracker/issues/11) |
 | **DPD: „Bald ist Ihr DPD Paket da“** | Stimmen Name und Liefertage? | [Issue #6](https://github.com/SoerenKaiser99/parcel_tracker/issues/6) |
 | **Amazon: „Versuchte Zustellung“** | Verschwindet die Bestellung danach aus „heute“? | im Forum |

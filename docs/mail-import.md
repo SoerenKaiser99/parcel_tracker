@@ -11,9 +11,9 @@ Für Amazon ist das der einzige Weg: Amazon liefert viele Pakete selbst aus und 
 
 1. Paketmails kommen wie immer in deinem Hauptpostfach an.
 2. Eine Filterregel im Hauptpostfach schickt eine Kopie an das Paket-Postfach.
-3. Die Integration liest nur das Paket-Postfach.
+3. Die Integration liest nur das Paket-Postfach, und darin nur einen Ordner: den Posteingang oder den [Ordner, den du einträgst](#eigener-ordner).
 
-Dein Hauptpostfach sieht die Integration nie.
+Dein Hauptpostfach sieht die Integration so nie.
 
 ## Einrichten
 
@@ -26,13 +26,26 @@ Dein Hauptpostfach sieht die Integration nie.
     | **E-Mail-Import aktiv** | Schaltet den Import ein. |
     | **IMAP-Server** | Standard `imap.mailbox.org`, Port 993 mit SSL. |
     | **Benutzername** und **Passwort** | Die des Paket-Postfachs. Leere Felder behalten die gespeicherten Werte. |
+    | **Ordner** | Standard `INBOX` (der Posteingang). Der eine Ordner, den der Import liest. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Ein leeres Feld behält den gespeicherten Ordner. Siehe [Eigener Ordner](#eigener-ordner). |
     | **Verarbeitete Mails in Ordner verschieben** | Standard: an. |
     | **Zustell-Codes (Einmalpasswörter) mitlesen** | Standard: aus. Siehe [Zustell-Code](datenschutz.md#zustell-codes). |
     | **Postfach abfragen alle (Minuten)** | 1–60, Standard: 5. |
 
-4. Speichern. Die Anmeldung wird sofort geprüft.
+4. Speichern. Die Anmeldung wird sofort geprüft, ein geänderter Ordner dabei einmal geöffnet.
 
 Ausschalten geht nur über den Schalter **E-Mail-Import aktiv**: Ausgeschaltet gespeichert, entfernt er Benutzername und Passwort.
+
+### Eigener Ordner
+
+Gelesen wird genau ein Ordner des Postfachs, von Haus aus der Posteingang (`INBOX`). Mit dem Feld **Ordner** liest der Import stattdessen einen anderen.
+
+- Schreib den Ordner so, wie der Mailserver ihn führt: `Pakete`, `Bestellungen & Pakete`, einen Unterordner als `Pakete/DHL`, bei manchen Anbietern als `INBOX.Pakete`. Umlaute und Leerzeichen sind erlaubt.
+- Alle anderen Ordner fasst der Import nicht an.
+- Gibt es den Ordner nicht, meldet das Formular „Diesen Ordner gibt es im Postfach nicht.“ und speichert nichts. Angelegt wird der Ordner nie.
+- Die beiden Ablage-Ordner `Paket-Tracker-Verarbeitet` und `Paket-Tracker-Nicht-erkannt` lassen sich nicht als Ordner zum Lesen eintragen.
+
+!!! warning "Ordner im Hauptpostfach"
+    Es geht auch mit einem Ordner deines Hauptpostfachs, in den eine Filterregel die Paketmails verschiebt. Dann kennt Home Assistant aber das Passwort des ganzen Postfachs. Sicherer bleibt das eigene Paket-Postfach.
 
 ### App-Passwörter
 
@@ -44,10 +57,11 @@ Lehnt der Mailserver die Anmeldung ab? Viele Anbieter verlangen für IMAP nicht 
 
 ### Wie oft wird das Postfach gelesen?
 
-- Im eingestellten Intervall (1–60 Minuten, Standard 5) schaut der Import nach ungelesenen Mails im Posteingang.
+- Im eingestellten Intervall (1–60 Minuten, Standard 5) schaut der Import nach ungelesenen Mails im eingestellten Ordner (Standard: Posteingang).
 - Der Dienst `parcel_tracker.refresh` fragt zusätzlich das Postfach sofort ab.
 - Ist das Postfach nicht erreichbar, wartet der Import unabhängig vom Intervall länger (5 → 10 → 20 → 40 → 60 Minuten).
 - Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
+- Gibt es den eingestellten Ordner später nicht mehr (umbenannt oder gelöscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant, ohne den Namen des Ordners. Trag dann unter **Konfigurieren** den richtigen Ordner ein.
 
 ## Filterregel anlegen
 
@@ -131,7 +145,8 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 ## Was mit den Mails im Postfach passiert
 
 - Erkannte Mails landen im Ordner `Paket-Tracker-Verarbeitet`, nicht erkannte im Ordner `Paket-Tracker-Nicht-erkannt`. Beide Ordner legt der Import bei Bedarf an.
-- Mit ausgeschalteter Option „Verarbeitete Mails in Ordner verschieben“ bleiben die Mails im Posteingang und werden nur als gelesen markiert.
+- Mit ausgeschalteter Option „Verarbeitete Mails in Ordner verschieben“ bleiben die Mails im gelesenen Ordner und werden nur als gelesen markiert.
+- Die beiden Ordner liegen immer auf der obersten Ebene des Postfachs, auch wenn ein eigener Ordner gelesen wird.
 - Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`).
 - Jede Mail zählt nur einmal (erkannt an ihrer Message-ID).
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
