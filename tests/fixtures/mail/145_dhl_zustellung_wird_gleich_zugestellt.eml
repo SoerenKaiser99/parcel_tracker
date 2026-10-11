@@ -1,0 +1,59 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number and the company name are invented; the language menu, the
+ buttons and the footer are cut
+From: "DHL Zustell-Update" <zustellung@dhl.de>
+To: max@example.org
+Subject: Ihre Beispiel GmbH & Co. KG Sendung wird gleich zugestellt
+Date: Fri, 09 Oct 2026 14:47:59 +0200
+Message-ID: <fixture-145@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============8940552264127163260=="
+
+--===============8940552264127163260==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Hallo Max Mustermann,
+Ihre **Beispiel GmbH & Co. KG** Sendung wird voraussichtlich
+
+**— innerhalb der nächsten 15 Minuten —**
+
+zugestellt.
+
+<span>Wie gewünscht versuchen wir, Ihre Sendung nebenan zuzustellen, sollten wir Sie nicht antreffen.</span>
+
+<table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
+  <tbody>
+    <tr>
+      <td align="center" style="font-family:'Delivery',Calibri,Arial,sans-serif;font-size:16px;font-weight:700;color:#629236;line-height:1.3;padding:0 0 4px;">
+        Ihre Sendungsnummer
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="font-family:'Delivery',Calibri,Arial,sans-serif;font-size:14px;color:#1a1a1a;line-height:1.3;padding:0 0 8px;">
+        00340584515630525112
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+Viele Grüße
+
+--===============8940552264127163260==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Hallo Max Mustermann,</p>
+<p>Ihre Beispiel GmbH &amp; Co. KG Sendung wird voraussichtlich</p>
+<p>— innerhalb der nächsten 15 Minuten —</p>
+<p>zugestellt.</p>
+<p>Wie gewünscht versuchen wir, Ihre Sendung nebenan zuzustellen, sollten wir Sie nicht antreffen.</p>
+<p>Ihre Sendungsnummer</p>
+<p>00340584515630525112</p>
+<p>Viele Grüße</p>
+</body></html>
+
+--===============8940552264127163260==--

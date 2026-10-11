@@ -312,6 +312,8 @@ DAY_BODY = (
         ("Ihre Sendung wird heute zugestellt", ParcelStatus.OUT_FOR_DELIVERY),
         ("Ihre Beispiel GmbH Sendung wird heute zwischen 13:10 - 14:40 Uhr zugestellt",
          ParcelStatus.OUT_FOR_DELIVERY),
+        ("Ihre Sendung wird gleich zugestellt", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Ihre  Beispiel GmbH Sendung wird gleich zugestellt", ParcelStatus.OUT_FOR_DELIVERY),
         ("Ihre Sendung kommt morgen", ParcelStatus.IN_TRANSIT),
         ("Ihre Sendung wird morgen zugestellt", ParcelStatus.IN_TRANSIT),
         # no delivery, but a mail about a parcel: it is on its way (as before v0.3.15)
@@ -587,3 +589,17 @@ def test_dhl_mail_without_a_new_day_is_not_postponed():
     msg = _msg("❗ DHL Sendungs-Update", body, "DHL <sendungsupdate@dhl.de>")
     [u] = parse_dhl_mail(msg)
     assert u.postponed is False and u.eta_date is None
+
+
+# ----- "wird gleich zugestellt": in delivery, told in the mail's own words -----
+def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
+    soon = load_mail("145_dhl_zustellung_wird_gleich_zugestellt.eml")
+    [u] = parse_mail(soon).updates
+    assert (u.number, u.carrier, u.title) == (
+        "00340584515630525112", "dhl", "Beispiel GmbH & Co. KG"
+    )
+    assert (u.status, u.status_text) == (ParcelStatus.OUT_FOR_DELIVERY, "Wird gleich zugestellt")
+    # "innerhalb der nächsten 15 Minuten" is today, and no window.
+    assert (u.eta_date, u.eta_from, u.eta_to) == (sent_at(soon).date(), None, None)
+    today = _msg("Ihre Sendung wird heute zugestellt", WINDOW_BODY, "DHL Paket <noreply@dhl.de>")
+    assert parse_mail(today).updates[0].status_text is None
