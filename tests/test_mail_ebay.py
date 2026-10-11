@@ -82,6 +82,60 @@ def test_other_subjects_are_unrecognised_and_never_generic(subject):
     assert result.updates == [] and not result.amazon and not result.ignored
 
 
+# ----- "Update zur Bestellung": shipped, with the carrier's number -----
+UPDATE = "167_ebay_update_zur_bestellung.eml"
+
+
+def _update(tracking: str, item: str = "Beispiel-Artikel\n") -> EmailMessage:
+    return _msg(
+        "🚚 Update zur Bestellung: Beispiel-Artikel",
+        f"Sendungsnummer:{tracking}\nEinzelheiten zu Ihrem Kauf\n{item}"
+        "Artikelnr.:\n999999999901\nBestellnummer:\n99-00000-00001\n",
+    )
+
+
+def test_update_mail_is_shipped_and_brings_the_dhl_number():
+    [u] = parse_mail(load_mail(UPDATE)).updates
+    assert (u.number, u.carrier, u.status) == ("EBAY990000000167", "ebay", ParcelStatus.IN_TRANSIT)
+    # The price lines between title and item number are no title.
+    assert u.title == "Beispiel Akku-LED-Baustrahler blau IP55"
+    assert (u.eta_date, u.eta_latest) == (date(2025, 7, 1), date(2025, 7, 9))
+    assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990167", "dhl")
+    assert u.delivered_at is None
+
+
+@pytest.mark.parametrize(
+    ("tracking", "ref", "carrier"),
+    [
+        (" 00340999999999990901", "00340999999999990901", "dhl"),
+        ("\n00340999999999990901", "00340999999999990901", "dhl"),  # on the line below
+        (" H1000999999999990901", "H1000999999999990901", "hermes"),
+        # 12 or 14 digits may be DHL, GLS, DPD or Hermes: the number is left alone
+        (" 999999999902", None, None),
+        (" 09999999999903", None, None),
+    ],
+)
+def test_update_mail_takes_only_a_number_that_tells_its_carrier(tracking, ref, carrier):
+    [u] = parse_mail(_update(tracking)).updates
+    assert (u.number, u.status) == ("EBAY990000000001", ParcelStatus.IN_TRANSIT)
+    assert (u.tracking_ref, u.tracking_carrier) == (ref, carrier)
+    assert u.title == "Beispiel-Artikel"
+
+
+def test_update_mail_title_falls_back_to_the_subject():
+    msg = _msg("🚚 Update zur Bestellung: Beispiel-Artikel mit langem Na...",
+               "Bestellnummer:\n99-00000-00001\n")
+    [u] = parse_mail(msg).updates
+    assert (u.title, u.tracking_ref) == ("Beispiel-Artikel mit langem Na", None)
+
+
+def test_the_number_of_another_ebay_mail_is_never_taken():
+    msg = _msg("Ihre Sendung ist jetzt beim Versanddienstleister!",
+               "Sendungsnummer: 00340999999999990901\nBestellnummer:\n99-00000-00001\n")
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.tracking_ref) == (ParcelStatus.IN_TRANSIT, None)
+
+
 def test_item_numbers_never_become_tracking_numbers():
     for name in (SHIPPED, DELIVERED):
         assert all(u.number.startswith("EBAY") for u in parse_mail(load_mail(name)).updates)
