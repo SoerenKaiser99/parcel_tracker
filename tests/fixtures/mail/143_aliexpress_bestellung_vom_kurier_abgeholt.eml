@@ -1,0 +1,33 @@
+X-Fixture: synthetic - written by hand after the wording of a real mail; name, numbers, items and address invented
+From: AliExpress <transaction@notice.aliexpress.com>
+To: max@example.org
+Subject: Bestellung 9999999999990023: Vom Kurier abgeholt
+Date: Wed, 19 Aug 2026 01:49:28 +0000
+Message-ID: <synthetic-143@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Infos zur Sendungsverfolgung in der Nachricht</p>
+<p>Packstück im Transit</p>
+<p>Hallo Max Mustermann,</p>
+<p>Das Packstück mit Ihrer Bestellung 9999999999990023 wurde von unserem Versandpartner abgeholt. Zur Sendungsverfolgung klicken Sie einfach unten an.</p>
+<p><a href="https://www.aliexpress.com/ssr/300002636/beispiel?disableNav=YES&amp;pha_manifest=ssr&amp;businessCode=ug&amp;o_ids=9999999999990023">Lieferung verfolgen</a></p>
+<p>.</p>
+<p>Paketinfos</p>
+<p>.</p>
+<p>Beispiel-Stativplatte mit Schnellwechs...</p>
+<p>Variante A</p>
+<p>x1</p>
+<p>.</p>
+<p>Beispiel-Stativplatte mit Schnellwechs...</p>
+<p>Variante B</p>
+<p>x1</p>
+<p>.</p>
+<p>Versand nach</p>
+<p>Musterstraße, 1</p>
+<p>Musterstadt, Bayern</p>
+<p>Max Mustermann (+49) 0000000000</p>
+<p>In Abhängigkeit Ihrer Käufe können Artikel aus einer oder mehreren Bestellungen zusammen versandt werden.</p>
+</body></html>

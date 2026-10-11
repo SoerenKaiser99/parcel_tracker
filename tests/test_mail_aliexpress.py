@@ -61,6 +61,8 @@ DELIVERY_CONFIRMED = "139_aliexpress_bestellung_wie_ist_es_gelaufe.eml"
 REMINDER = "140_aliexpress_bestellung_auf_best_tigung_wi.eml"
 OFFERS = "141_aliexpress_ihre_bestellung_hat_einen_lok.eml"
 CLOSED = "142_aliexpress_your_order_is_closed.eml"
+PICKED_UP_ORDER = "143_aliexpress_bestellung_vom_kurier_abgeholt.eml"
+PARCEL_UPDATE = "144_aliexpress_packst_ck_hat_eine_aktualisier.eml"
 
 NOW = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
 ORDER = "ALI9999999999990901"
@@ -206,6 +208,26 @@ def test_parcel_number_in_an_unknown_format_is_dropped():
         assert (u.tracking_ref, u.tracking_carrier) == (None, None)
 
 
+def test_picked_up_is_also_told_for_the_order_instead_of_the_parcel():
+    u = _one(PICKED_UP_ORDER)
+    assert (u.number, u.carrier) == ("ALI9999999999990023", "aliexpress")
+    assert (u.status, u.status_text) == (ParcelStatus.IN_TRANSIT, "Vom Kurier abgeholt")
+    assert u.title == "Beispiel-Stativplatte mit Schnellwechs…"  # one item, two variants
+    assert (u.tracking_ref, u.eta_date) == (None, None)
+
+
+def test_parcel_update_without_a_step_moves_its_order_and_tells_no_words():
+    u = _one(PARCEL_UPDATE)
+    # ("hat eine Aktualisierung": the body only says that there is news)
+    assert (u.number, u.status, u.status_text) == (
+        "ALI9999999999990023",
+        ParcelStatus.IN_TRANSIT,
+        None,
+    )
+    assert u.title == "Beispiel-Stativplatte mit Schnellwechs…"
+    assert (u.tracking_ref, u.tracking_carrier) == (None, None)  # "LR…NL": no carrier of ours
+
+
 def test_confirmed_delivery_closes_the_order():
     u = _one(DELIVERY_CONFIRMED)
     assert (u.number, u.status) == ("ALI9999999999990021", ParcelStatus.DELIVERED)
@@ -236,6 +258,7 @@ def test_offers_are_ignored_by_their_sender():
         ("Versandbereit", ParcelStatus.PRE_TRANSIT, "Versandbereit"),
         ("Bestellung versandt", ParcelStatus.IN_TRANSIT, None),
         ("teilweise versandt", ParcelStatus.IN_TRANSIT, "Teilweise versandt"),
+        ("Vom Kurier abgeholt", ParcelStatus.IN_TRANSIT, "Vom Kurier abgeholt"),
         ("Neuer Lieferstatus", ParcelStatus.IN_TRANSIT, None),
     ],
 )
@@ -396,6 +419,19 @@ def test_mail_that_only_repeats_the_status_keeps_the_words_of_the_step():
     # A step with words of its own is news again.
     [change] = _apply(parcels, _msg("Bestellung 9999999999990007: Paket im Transit"))
     assert change is not None and parcel.result.status_text == "Paket im Transit"
+
+
+def test_parcel_update_without_a_step_keeps_the_words_of_the_pickup():
+    parcels: dict = {}
+    [created] = _apply(parcels, PICKED_UP_ORDER)
+    parcel = parcels["ALI9999999999990023"]
+    assert created.created and parcel.result.status_text == "Vom Kurier abgeholt"
+    # The parcel mail that follows names the same order in its link and no step.
+    assert _apply(parcels, PARCEL_UPDATE) == [None]
+    assert list(parcels) == ["ALI9999999999990023"]
+    assert parcel.result.status_text == "Vom Kurier abgeholt"
+    assert [event.text for event in parcel.result.events] == ["Vom Kurier abgeholt"]
+    assert parcel.tracking_ref is None
 
 
 def test_mail_with_another_item_is_never_a_further_shipment():
