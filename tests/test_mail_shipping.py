@@ -302,6 +302,10 @@ DAY_BODY = (
         ("Ihre Sendung liegt am Ablageort", ParcelStatus.DELIVERED),
         ("Ihre Sendung wurde am gewünschten Ablageort hinterlegt", ParcelStatus.DELIVERED),
         ("Ihre Sendung liegt nicht am gewünschten Ablageort", ParcelStatus.IN_TRANSIT),
+        # in the letter box or with a neighbour: delivered as well
+        ("Ihre Beispiel GmbH Sendung liegt im Briefkasten", ParcelStatus.DELIVERED),
+        ("Ihre Beispiel GmbH Sendung liegt nebenan", ParcelStatus.DELIVERED),
+        ("Ihre Sendung liegt nicht im Briefkasten", ParcelStatus.IN_TRANSIT),
         # waits for the recipient
         ("Ihre Sendung wurde an Packstation 123 zugestellt", ParcelStatus.AWAITING_PICKUP),
         ("Ihre Sendung wurde in die Filiale Beispielweg 1 zugestellt",
@@ -589,6 +593,14 @@ def test_dhl_mail_without_a_new_day_is_not_postponed():
     msg = _msg("❗ DHL Sendungs-Update", body, "DHL <sendungsupdate@dhl.de>")
     [u] = parse_dhl_mail(msg)
     assert u.postponed is False and u.eta_date is None
+
+
+# ----- "liegt im Briefkasten": delivered, the number stands only in a link -----
+def test_dhl_letter_box_mail_is_a_delivery():
+    mail = load_mail("158_dhl_zustellung_liegt_im_briefkasten.eml")
+    [u] = parse_mail(mail).updates
+    assert (u.number, u.carrier, u.title) == ("00340999999999990158", "dhl", "Beispiel GmbH")
+    assert (u.status, u.delivered_at) == (ParcelStatus.DELIVERED, sent_at(mail))
 
 
 # ----- "wird gleich zugestellt": in delivery, told in the mail's own words -----

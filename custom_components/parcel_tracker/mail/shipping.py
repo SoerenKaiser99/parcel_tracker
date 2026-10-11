@@ -62,10 +62,11 @@ _DHL_SHOP = re.compile(
 # mail speaks of days and deliveries too.
 # "wurde zugestellt", "wurde an den gewünschten Ablageort zugestellt"
 _DHL_DELIVERED = re.compile(r"\bwurde\b(?:\s+\S+){0,6}?\s+zugestellt\b")
-# "liegt am gewünschten Ablageort", "wurde am vereinbarten Ablageort hinterlegt": delivered
-# too, told without the word.
+# "liegt am gewünschten Ablageort", "wurde am vereinbarten Ablageort hinterlegt", "liegt im
+# Briefkasten", "liegt nebenan" (handed to a neighbour): delivered too, told without the word.
 _DHL_DROPPED = re.compile(
     r"\bliegt\b(?:\s+\S+){0,3}?\s+ablageort\b|\bablageort\s+hinterlegt\b"
+    r"|\bliegt\s+im\s+briefkasten\b|\bliegt\s+nebenan\b"
 )
 # ... but "an Packstation 123 zugestellt" waits for the recipient.
 _DHL_PICKUP_PLACE = re.compile(r"packstation|filiale|paketshop|poststation|postfiliale")
@@ -112,7 +113,8 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
     unterwegs", "kommt morgen" (the day after the mail), "kommt heute" / "wird heute
     zugestellt" / "wird gleich zugestellt" (told in its own words), "wurde … zugestellt",
-    "liegt am gewünschten Ablageort" and, for a Packstation or branch, "liegt zur Abholung
+    "liegt am gewünschten Ablageort" / "liegt im Briefkasten" / "liegt nebenan" and, for a
+    Packstation or branch, "liegt zur Abholung
     bereit" / "wurde an Packstation … zugestellt". Any other subject that speaks of a
     "Sendung" means "on its way" without a day; a question (survey) and
     a subject without "Sendung" tell no status. A pick-up code is never read. An Amazon shipment
