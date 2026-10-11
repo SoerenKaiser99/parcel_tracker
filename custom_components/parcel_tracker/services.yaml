@@ -27,6 +27,12 @@ rename_parcel:
     name:
       selector:
         text:
+mark_delivered:
+  fields:
+    number:
+      required: true
+      selector:
+        text:
 refresh:
   fields:
     number:

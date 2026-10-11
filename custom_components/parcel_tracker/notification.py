@@ -127,6 +127,8 @@ def build_notification(
         return None
     if parcel.assumed_delivered:
         return None  # closed without a delivery mail: nothing arrived just now
+    if parcel.manual_delivered:
+        return None  # marked as received by hand: the user knows
     label = _label(parcel, hide_names)
     match result.status:
         case ParcelStatus.OUT_FOR_DELIVERY:

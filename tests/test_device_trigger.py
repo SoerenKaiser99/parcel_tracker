@@ -89,7 +89,7 @@ async def _automations(hass, device_id, types=TYPES):
     return calls
 
 
-def _event(entry_id, new, old="in_transit", assumed=False):
+def _event(entry_id, new, old="in_transit", assumed=False, manual=False):
     """The status event as the coordinator fires it."""
     return {
         "entry_id": entry_id,
@@ -104,6 +104,7 @@ def _event(entry_id, new, old="in_transit", assumed=False):
         "eta_to": None,
         "location": "Bonn",
         "assumed": assumed,
+        "manual": manual,
     }
 
 
@@ -181,6 +182,17 @@ async def test_assumed_delivery_does_not_fire_delivered(hass, hass_storage):
 
     assumed = _event(entry.entry_id, "delivered", assumed=True)
     assert await _fire(hass, calls, assumed) == ["status_changed"]
+    assert await _fire(hass, calls, _event(entry.entry_id, "delivered")) == [
+        "delivered", "status_changed"
+    ]
+
+
+async def test_a_parcel_marked_by_hand_does_not_fire_delivered(hass, hass_storage):
+    entry, device = await _setup(hass, hass_storage)
+    calls = await _automations(hass, device.id)
+
+    manual = _event(entry.entry_id, "delivered", manual=True)
+    assert await _fire(hass, calls, manual) == ["status_changed"]
     assert await _fire(hass, calls, _event(entry.entry_id, "delivered")) == [
         "delivered", "status_changed"
     ]

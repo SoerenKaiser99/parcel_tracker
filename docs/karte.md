@@ -71,7 +71,10 @@ Aufgeklappt siehst du:
 :   Öffnet die Sendungsverfolgung des Paketdienstes (DHL, DPD, GLS, Hermes, UPS) mit der Sendungsnummer in einem neuen Tab. Den Link gibt es auch bei einer Bestellung, sobald sie die Sendungsnummer des Paketdienstes kennt. Ohne Sendungsnummer eines dieser Paketdienste (Bestellung nur aus Mails, Paket nur über 17track, Paketdienst noch nicht erkannt) gibt es den Link nicht. Es sind die deutschen Seiten der Paketdienste, auch mit Land Österreich oder Schweiz. Die Adresse steht auch im Attribut `tracking_url` des Paket-Sensors.
 
 **Bestellung**
-:   Bei einer Amazon-, eBay- oder AliExpress-Bestellung: öffnet die Bestellseite des Shops in einem neuen Tab.
+:   Bei einer Amazon-, eBay- oder AliExpress-Bestellung: öffnet die Bestellseite des Shops in einem neuen Tab. Bei Eventim gibt es den Link nicht.
+
+**Erhalten**
+:   Markiert das Paket von Hand als erhalten, mit Rückfrage „Wirklich erhalten?“. Steht bei jedem Paket, das noch nicht zugestellt ist. Siehe [Erhalten](#erhalten).
 
 **Details über 17track holen**
 :   Nur mit 17track-Key. Meldet das Paket nach einer Rückfrage bei 17track an und ergänzt Ort, Zeitfenster und Verlauf. Verbraucht eine 17track-Nummer, siehe [17track](dienste.md#17track-optional).
@@ -84,6 +87,36 @@ Aufgeklappt siehst du:
 
 **Löschen**
 :   Entfernt das Paket, mit Rückfrage „Wirklich löschen?“.
+
+Die Reihenfolge in der Zeile: erst die Links „Sendung verfolgen“ und „Bestellung“, dann „Erhalten“, „Umbenennen“ und „Löschen“. Auf schmalen Karten bricht die Zeile um.
+
+### Erhalten
+
+Manche Pakete bekommen ihr „Zugestellt“ nie:
+
+- eine Bestellung ohne Zustellmail (Amazon-Marketplace, AliExpress, Eventim),
+- ein DHL-Paket ohne API-Key, dessen Zustellmail fehlt,
+- ein Paket, das auf „Abholbereit“ stehen bleibt,
+- ein Paket eines Paketdienstes, der sich nicht abfragen lässt.
+
+Bisher blieb dafür nur „Löschen“. Mit „Erhalten“ sagst du der Integration selbst, dass das Paket da ist.
+
+1. Paket aufklappen und **Erhalten** antippen.
+2. Die Rückfrage **Wirklich erhalten?** bestätigen – oder **Abbrechen**.
+
+Was dann gilt:
+
+- Das Paket ist zugestellt, mit dem Zeitpunkt des Tipps. Im Verlauf steht „Erhalten (von Hand markiert)“, in der Zeile „Erhalten“.
+- Es zählt beim Schild „zugestellt“ und bei `sensor.pakete_zugestellt_heute` mit und verschwindet wie jedes zugestellte Paket nach der eingestellten Zahl von Tagen.
+- **Die Markierung gilt.** Der Paketdienst wird nicht mehr abgefragt, und keine spätere Mail und keine Antwort von 17track ändert Status, Zeitpunkt oder Text.
+- Eine Benachrichtigung gibt es nicht – du hast es ja gerade selbst angetippt. Das Event feuert mit dem Feld `manual`, siehe [Automationen](automationen.md#von-hand-erhalten-manual).
+
+!!! warning "Zurücknehmen geht nicht"
+    Ein Paket, das als erhalten markiert ist, bleibt es. Deshalb die Rückfrage. Hast du dich vertippt, lösch das Paket und trag es neu ein.
+
+Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen: Sie zählt dann als heute zugestellt. Bei einem zugestellten Paket fehlt der Knopf.
+
+Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
 
 ## Optionen der Karte
 

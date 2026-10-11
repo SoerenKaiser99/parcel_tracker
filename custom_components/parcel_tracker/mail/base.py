@@ -33,10 +33,11 @@ _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
 class MailUpdate:
     """One parcel fact taken from a mail."""
 
-    # "AMZ"/"EBAY"/"ALI" + order digits for shop orders, else the tracking number; "" for a
-    # shop's status mail that names no order (see ``apply._apply_orderless``)
+    # "AMZ"/"EBAY"/"ALI"/"EVT" + order digits for shop orders, else the tracking number; ""
+    # for a shop's status mail that names no order (see ``apply._apply_orderless``)
     number: str
-    carrier: str  # "amazon" | "ebay" | "aliexpress" | "dhl" | "dpd" | "gls" | "hermes" | "ups"
+    # "amazon" | "ebay" | "aliexpress" | "eventim" | "dhl" | "dpd" | "gls" | "hermes" | "ups"
+    carrier: str
     status: ParcelStatus | None
     sent_at: datetime  # Date header in Europe/Berlin
     title: str | None = None

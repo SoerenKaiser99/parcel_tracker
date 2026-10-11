@@ -30,7 +30,7 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Mails von GLS Österreich und DPD Österreich, internationale DHL-Nummern (`CQ…DE`) | umgesetzt nach anonymisierten Beispielmails von Testern |
 | Benachrichtigungen (Optionen und Blueprint) | umgesetzt, an Benachrichtigungs-Entitäten und klassische Dienste (z. B. Pushover) |
 | Land (Deutschland, Österreich, Schweiz) | umgesetzt für PLZ-Länge und GLS-Abfrage |
-| Bestellungen ohne Zustellmail (Amazon, eBay, AliExpress) | umgesetzt: Ein zugestelltes Carrier-Paket schließt die passende Bestellung, überfällige Bestellungen ohne Sendungsnummer werden „Abgeschlossen ohne Zustellbestätigung“ |
+| Bestellungen ohne Zustellmail (Amazon, eBay, AliExpress, Eventim) | umgesetzt: Ein zugestelltes Carrier-Paket schließt die passende Bestellung, überfällige Bestellungen ohne Sendungsnummer werden „Abgeschlossen ohne Zustellbestätigung“ |
 
 ## Umgesetzt, aber noch nicht bestätigt
 
@@ -41,6 +41,8 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 |---|---|
 | UPS Live-Status (offizielle API) | noch nicht mit echten Zugangsdaten getestet (UPS-Freischaltung ausstehend) |
 | AliExpress-Mails (Bestellungen, Sendungsnummer des Paketdienstes aus den „Packstück“-Mails) und Mails über Apples „E-Mail-Adresse verbergen“ | umgesetzt nach Beispielmails ([Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15)); im Alltag noch nicht bestätigt |
+| Eventim-Tickets mit Postversand (Bestellbestätigung und Versandbenachrichtigung von `bestellstatus@eventim.de`) | umgesetzt nach Beispielmails (v0.3.30); gesehen wurde bisher nur „Standardversand (Deutschland)“, andere Liefermethoden wie Einschreiben oder Express sind ohne Beispiel gebaut |
+| Knopf „Erhalten“ und Dienst `parcel_tracker.mark_delivered` (ein Paket von Hand als erhalten markieren) | umgesetzt (v0.3.30); im Alltag noch nicht bestätigt |
 | 17track: Anreicherung bei DPD und GLS | noch ohne Live-Fall (bei einem DHL-Paket live gesehen) |
 | Land Österreich: GLS-Abfrage | mit echten Paketen noch nicht getestet |
 

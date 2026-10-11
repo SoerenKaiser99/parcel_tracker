@@ -132,6 +132,10 @@ conditions:
   # Zustellbestätigung"): nothing arrived just now, so nothing is announced.
   - condition: template
     value_template: "{{ not trigger.event.data.get('assumed', false) }}"
+  # A parcel marked as received by hand ("Erhalten" on the card): whoever tapped it
+  # knows, so nothing is announced.
+  - condition: template
+    value_template: "{{ not trigger.event.data.get('manual', false) }}"
   - condition: and
     conditions: !input extra_conditions
 

@@ -204,6 +204,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except KeyError as err:
             raise _err("not_tracked") from err
 
+    async def mark_delivered(call: ServiceCall) -> None:
+        try:
+            await _coordinator(hass).async_mark_delivered(call.data["number"])
+        except KeyError as err:
+            raise _err("not_tracked") from err
+        except ValueError as err:
+            raise _err("already_delivered") from err
+
     async def refresh(call: ServiceCall) -> None:
         try:
             await _coordinator(hass).async_refresh_parcels(call.data.get("number"))
@@ -237,6 +245,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(
         DOMAIN, "rename_parcel", rename,
         schema=vol.Schema({vol.Required("number"): number, vol.Optional("name"): cv.string}),
+    )
+    hass.services.async_register(
+        DOMAIN, "mark_delivered", mark_delivered,
+        schema=vol.Schema({vol.Required("number"): number}),
     )
     hass.services.async_register(
         DOMAIN, "refresh", refresh, schema=vol.Schema({vol.Optional("number"): number})

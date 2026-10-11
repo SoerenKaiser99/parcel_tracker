@@ -176,6 +176,7 @@
     "empty": {"message": "Gib eine Sendungsnummer ein."},
     "unknown_carrier": {"message": "Unbekannter Carrier."},
     "not_tracked": {"message": "Dieses Paket ist nicht in der Liste."},
+    "already_delivered": {"message": "Dieses Paket ist schon zugestellt."},
     "track17_off": {"message": "Kein 17track-API-Key eingetragen. Trag ihn in den Optionen von Paket Tracker ein."},
     "track17_carrier": {"message": "17track hat den Carrier dieser Nummer nicht erkannt."},
     "track17_quota": {"message": "Das 17track-Kontingent ist erschöpft."},
@@ -254,6 +255,11 @@
         "number": {"name": "Sendungsnummer", "description": "Umzubenennendes Paket."},
         "name": {"name": "Name", "description": "Neue Bezeichnung, leer zum Entfernen."}
       }
+    },
+    "mark_delivered": {
+      "name": "Als erhalten markieren",
+      "description": "Ein Paket von Hand als erhalten markieren: Es gilt ab jetzt als zugestellt und bleibt es. Für Bestellungen ohne Zustell-Mail und Pakete, deren „Zugestellt“ nie kommt.",
+      "fields": {"number": {"name": "Sendungsnummer", "description": "Paket, das angekommen ist."}}
     },
     "refresh": {
       "name": "Aktualisieren",

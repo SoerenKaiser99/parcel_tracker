@@ -48,6 +48,9 @@ const out = {
   carrier: card._actionsHtml({ number: "00340999999999999911" }),
   aliexpressOrder: card._actionsHtml({ number: "ALI9999999999990001" }),
   aliexpressIcon: card._icon("aliexpress"),
+  eventimUrl: [sandbox.__url("EVT999999901"), sandbox.__url("EVT9999999901")],
+  eventimOrder: card._actionsHtml({ number: "EVT999999901", carrier: "eventim" }),
+  eventimIcon: card._icon("eventim"),
 };
 card._renaming.set(order.number, "Neu");
 out.renaming = card._actionsHtml(order);
@@ -79,6 +82,14 @@ def test_aliexpress_order_links_to_its_page_and_has_its_own_dot(card):
     assert f'<a href="{ALIEXPRESS}" target="_blank"' in card["aliexpressOrder"]
     assert 'aria-label="aliexpress"' in card["aliexpressIcon"]
     assert 'fill="#E43225"' in card["aliexpressIcon"] and ">A</text>" in card["aliexpressIcon"]
+
+
+def test_eventim_order_has_no_link_and_its_own_dot(card):
+    # Its mails name no page of the order that works without signing in.
+    assert card["eventimUrl"] == [None, None]
+    assert "<a " not in card["eventimOrder"]
+    assert 'aria-label="eventim"' in card["eventimIcon"]
+    assert 'fill="#002B55"' in card["eventimIcon"] and ">E</text>" in card["eventimIcon"]
 
 
 def test_other_parcels_have_no_order_link(card):

@@ -245,3 +245,19 @@ async def test_an_assumed_delivery_is_not_announced(hass):
     # An event of an older version of the integration carries no such field.
     await _fire(hass, new_status="delivered")
     assert len(calls) == 2
+
+
+async def test_a_parcel_marked_as_received_by_hand_is_not_announced(hass):
+    """v0.3.30: "Erhalten" fires the event with ``manual: true``; whoever tapped it
+    knows, so the blueprint stays quiet."""
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass)
+    await _fire(hass, new_status="delivered", manual=True)
+    assert calls == []
+    await _fire(hass, new_status="delivered", manual=False)
+    assert len(calls) == 1
+    # An event of an older version of the integration carries no such field.
+    await _fire(hass, new_status="delivered")
+    assert len(calls) == 2
+    conditions = [c.get("value_template") for c in _load()["conditions"]]
+    assert "{{ not trigger.event.data.get('manual', false) }}" in conditions

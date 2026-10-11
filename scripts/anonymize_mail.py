@@ -69,10 +69,24 @@ carrier is still told). The links of a mail about a parcel name its orders: each
 one invented link with the replaced number, all other links are cut to the host. The ids in a
 relay address are replaced by invented ones of the same length.
 
+Eventim mails (every sender at eventim.de and eventimpresents.com, also passed on by Apple's
+relay): nothing of the buyer, the purchase or the event stays. Of the order sender's mails
+(bestellstatus@eventim.de: order confirmation and shipping notice) only lines the script knows
+are written, every other line is dropped: headings, Eventim's own sentences, the labels of
+the order ("Bestellnummer:", "Liefermethode:" with its value, ...). Replaced in them: the
+greeting, the address blocks, every date (also the Date header: invented days, one after the
+other from Mon, 5 Jan 2026), the payment method, prices, the event (name, day, venue,
+organiser: invented ones, the same name for the same event) and its tickets; order numbers
+become 99…01, 99…02, … in order of appearance. The text ends with the heading "HINWEISE":
+hints, legal texts and the imprint are cut. Of every other Eventim mail (newsletter, ticket
+alarm, customer service, a club's ticket shop) only the sender address is kept, with the
+club's name in "kundenservice-<club>@" replaced; subject and text are one fixed line each.
+
 Mails of other senders (shops) are never taken: a shop mail needed as a fixture is written by
 hand with invented content and marked with an "X-Fixture: synthetic" header.
 """
 import email
+import email.utils
 import glob
 import hashlib
 import html
@@ -1435,6 +1449,8 @@ KEEP = {
     "pkginfo@ups.com", "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
 }
 ALI_DOMAIN = "aliexpress.com"
+EVT_DOMAINS = ("eventim.de", "eventimpresents.com")
+EVT_ORDER_SENDER = "bestellstatus@eventim.de"
 
 
 def body(msg):
@@ -1458,6 +1474,12 @@ def is_aliexpress(address):
     """A sender at aliexpress.com, also passed on by Apple's relay."""
     host = (relay_original(address) or address).rpartition("@")[2]
     return host == ALI_DOMAIN or host.endswith("." + ALI_DOMAIN)
+
+
+def is_eventim(address):
+    """A sender at eventim.de or eventimpresents.com, also passed on by Apple's relay."""
+    host = (relay_original(address) or address).rpartition("@")[2]
+    return any(host == domain or host.endswith("." + domain) for domain in EVT_DOMAINS)
 
 
 FIRST_RE = re.escape(FIRST).replace("ö", "(?:ö|oe)").replace("ä", "(?:ä|ae)").replace(
@@ -1739,6 +1761,173 @@ def scrub_aliexpress(t, order_digits=0):
     return _ALI_NUMBER.sub(_ali_number, t).replace("\x00", "")
 
 
+# ----- Eventim -----
+_EVT_EVENTS = (
+    "Beispielband – Tour 2026",
+    "Musterfestival 2026 – Wochenendticket",
+    "Beispielorchester – Neujahrskonzert",
+    "Musterensemble – Das Beispielstück",
+    "Beispielkünstlerin – Live 2026",
+)
+_EVT_VENUE = "Ort: Musterhalle, Musterstraße 1, 12345 Musterstadt"
+_EVT_ORGANISER = (
+    "Veranstalter: Beispiel Konzert GmbH, Musterstraße 2, 12345 Musterstadt, Deutschland"
+)
+_EVT_DAY = "Datum: Sa., 05.12.2026, 20:00"
+_EVT_TICKET = "Stehplatz, Normalpreis: € 1,99"
+_EVT_ADDRESS = ("Max Mustermann", "Musterstraße 1", "12345 Musterstadt", "Deutschland")
+_EVT_OTHER_SUBJECT = "Neuigkeiten von EVENTIM"
+_EVT_OTHER_TEXT = "[Inhalt entfernt: keine Bestellung mit Postversand]\n"
+_EVT_END = "HINWEISE"
+_EVT_HEADINGS = {
+    "BESTELLBESTÄTIGUNG", "VERSANDBENACHRICHTIGUNG", "DEINE BESTELLUNG",
+    "EINZELHEITEN DEINER BESTELLUNG", "GESAMT",
+}
+# Eventim's own sentences, told by how they begin; dates and numbers in them are replaced.
+_EVT_SENTENCES = re.compile(
+    r"Vielen Dank für deine Bestellung|vielen Dank für deinen Einkauf vom"
+    r"|Vielen Dank für deinen Einkauf bei EVENTIM|Klicke auf einen der folgenden Punkte"
+    r"|Lieferadresse: https?://|Lieferzeiten:|Versandstatus:|Für weitere Themen"
+    r"|Diese E-Mail ist deine Buchungsbestätigung|wir haben heute deine Bestellung Nr\."
+    r"|Wir wünschen dir viel Spaß|Dein EVENTIM-Kundenservice"
+    r"|Dies ist eine automatisch generierte|Die Lieferanschrift für diese Bestellung"
+    r"|Die Zustellung erfolgt spätestens innerhalb|Der Versand der Tickets erfolgt zwischen"
+    r"|Das ticketdirect kann|Voraussichtliche Ankunft:"
+)
+_EVT_ADDRESS_LABELS = ("Lieferadresse:", "Rechnungsadresse:")
+# Labels of the order: (label, value written instead; None keeps the value, with its
+# numbers and dates replaced like everywhere).
+_EVT_LABELS = (
+    ("Bestellnummer:", None), ("Bestelldatum:", None), ("Gesamtwert:", None),
+    ("Rechnung als PDF herunterladen:", None), ("Liefermethode:", None),
+    ("Zahlungsart:", "Rechnung"), ("Zwischensumme:", None), ("Versandkosten:", None),
+    ("Gesamtsumme inkl. MwSt.:", None),
+)
+_EVT_GREETING = re.compile(r"(Hallo|Hi|Liebe[rs]?|Guten Tag)\b[^\n]*,")
+_EVT_SEPARATOR = re.compile(r"[-=]{5,}")
+_EVT_PRICED = re.compile(r"[^:\n]{1,80}:\s*(?:\d+ x )?€ ?\d")
+_EVT_PRICE = re.compile(r"€ ?\d[\d.]*,\d\d")
+_EVT_DATE = re.compile(r"(?<!\d)\d{1,2}\.\d{1,2}\.\d{4}(?!\d)")
+_EVT_SHIP_WINDOW = re.compile(r"zwischen dem .{1,40}? und .{1,40}? \d{4}\.")
+_EVT_NUMBER = re.compile(r"(?<!\d)\d{6,12}(?!\d)")
+_EVT_URL = re.compile(r"https?://[^\s<>\]\)\"]+")
+_EVT_ORDER_SUBJECT = re.compile(
+    r"(?i)(Deine EVENTIM-Bestellung:\s*)(.*?)((?:\s+und\s+\d+\s+mehr)?\s+-\s+Bestellnummer\s+)(\d+)"
+)
+_EVT_SHIPPED_SUBJECT = re.compile(
+    r"(?i)(.*Versandbenachrichtigung\s+-\s+Deine Bestellung Nr\.?\s*)(\d+)"
+)
+_EVT_CLUB = re.compile(r"^((?:noreply_)?kundenservice)-[^@_]+")
+evt_numbers, evt_events = {}, {}
+
+
+def _evt_number(match):
+    real = match.group(0)
+    if real in evt_numbers.values():
+        return real  # an invented number met again
+    if real not in evt_numbers:
+        evt_numbers[real] = "9" * (len(real) - 2) + f"{len(evt_numbers) + 1:02d}"
+    return evt_numbers[real]
+
+
+def _evt_event(real):
+    """An invented event name for a real one (the same for the same event)."""
+    key = re.sub(r"\W+", "", real.lower())[:12]
+    if key not in evt_events:
+        evt_events[key] = _EVT_EVENTS[len(evt_events) % len(_EVT_EVENTS)]
+    return evt_events[key]
+
+
+def _evt_values(line):
+    """Dates, prices, links and order numbers of a line that is kept."""
+    line = _EVT_URL.sub(lambda m: re.match(r"https?://[^/\s]+", m.group(0)).group(0) + "/…", line)
+    line = _EVT_SHIP_WINDOW.sub("zwischen dem 1. Juni und 5. Juni 2026.", line)
+    line = _EVT_DATE.sub("05.01.2026", line)
+    line = _EVT_PRICE.sub("€ 1,99", line)
+    return _EVT_NUMBER.sub(_evt_number, line)
+
+
+def evt_address(address):
+    """The sender address of an Eventim mail without a club's name in it."""
+    return _EVT_CLUB.sub("\\1-musterverein", relay_address(address))
+
+
+def evt_date(count):
+    """The invented Date header of the ``count``-th Eventim mail of a run (1, 2, …)."""
+    day = email.utils.parsedate_to_datetime("Mon, 05 Jan 2026 10:00:00 +0100")
+    return email.utils.format_datetime(day.replace(day=day.day + (count - 1) % 20))
+
+
+def scrub_eventim_subject(subject):
+    """The subject of a mail of Eventim's order sender; an unknown one is not kept."""
+    subject = " ".join(subject.split())
+    if found := _EVT_ORDER_SUBJECT.fullmatch(subject):
+        head, event, tail, number = found.groups()
+        return head + _evt_event(event) + tail + _EVT_NUMBER.sub(_evt_number, number)
+    if found := _EVT_SHIPPED_SUBJECT.fullmatch(subject):
+        return found.group(1) + _EVT_NUMBER.sub(_evt_number, found.group(2))
+    return _EVT_OTHER_SUBJECT
+
+
+def scrub_eventim(t):
+    """A mail of Eventim's order sender, the text: only lines the script knows are kept
+    (see the module docstring); runs before scrub()."""
+    lines = [re.sub(r"[ \t\xa0]+", " ", line).strip() for line in t.replace("\r\n", "\n").split("\n")]
+    lines = [line for line in lines if line]
+    out, index = [], 0
+    while index < len(lines):
+        line = lines[index]
+        below = lines[index + 1] if index + 1 < len(lines) else ""
+        index += 1
+        if line == _EVT_END:
+            out.append(line)
+            break
+        if line in _EVT_HEADINGS or _EVT_SEPARATOR.fullmatch(line):
+            out.append(line)
+        elif _EVT_GREETING.fullmatch(line):
+            out.append("Hallo Max,")
+        elif line in _EVT_ADDRESS_LABELS:
+            # name, street, postcode and place, country: up to the next line the script
+            # knows (never more than six lines)
+            block = 0
+            while index < len(lines) and block < 6 and not _evt_known(lines[index]):
+                index += 1
+                block += 1
+            out += [line, *_EVT_ADDRESS]
+        elif _EVT_SENTENCES.match(line):
+            out.append(_evt_values(line))
+        elif label := next((item for item in _EVT_LABELS if line.startswith(item[0])), None):
+            name, fixed = label
+            value = line[len(name):].strip()
+            if not value and below and not _evt_known(below):
+                # (older mails: the value stands on the next line)
+                index += 1
+                out += [name, fixed or _evt_values(below)]
+            else:
+                out.append(f"{name} {fixed or _evt_values(value)}".rstrip())
+        elif line.startswith("Datum:"):
+            out.append(_EVT_DAY)
+        elif line.startswith("Ort:"):
+            out.append(_EVT_VENUE)
+        elif line.startswith("Veranstalter:"):
+            out.append(_EVT_ORGANISER)
+        elif below.startswith("Datum:"):
+            out.append(_evt_event(line))
+        elif _EVT_PRICED.match(line):
+            out.append(_EVT_TICKET)
+        # (every other line is dropped: seats, notes, whatever a new layout brings)
+    return "\n".join(out) + "\n"
+
+
+def _evt_known(line):
+    """A line of an Eventim mail that is none of an address block."""
+    return bool(
+        line == _EVT_END or line in _EVT_HEADINGS or line in _EVT_ADDRESS_LABELS
+        or _EVT_SEPARATOR.fullmatch(line) or _EVT_SENTENCES.match(line)
+        or any(line.startswith(name) for name, _ in _EVT_LABELS)
+    )
+
+
 def fake(kind, real):
     h = int(hashlib.sha256(real.encode()).hexdigest(), 16)
     digits = str(h)
@@ -1810,12 +1999,13 @@ seen = set()
 for f in os.listdir(DST):
     if f.endswith(".eml"):
         seen.add(str(load(os.path.join(DST, f))["Message-ID"]))
-written = 0
+written = evt_count = 0
 for path in sorted(glob.glob(SRC + "/*.eml")):
     m = load(path)
     a = sender(m)
     ali = is_aliexpress(a)
-    if a not in KEEP and not ali:
+    evt = is_eventim(a)
+    if a not in KEEP and not ali and not evt:
         continue
     mid = "<" + hashlib.sha256(str(m["Message-ID"]).encode()).hexdigest()[:24] + "@example.org>"
     if mid in seen:
@@ -1834,13 +2024,24 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
         subject = _ALI_NUMBER.sub(_ali_number, _ALI_ALIAS.sub("Max Mustermann", subject))
         if _ALI_PARCEL_SUBJECT.match(subject):
             links = [_ALI_NUMBER.sub(_ali_number, order) for order in ali_link_orders(m)]
+    if evt:
+        evt_count += 1
+        if (relay_original(a) or a) == EVT_ORDER_SENDER:
+            text, subject = scrub_eventim(text), scrub_eventim_subject(subject)
+        else:
+            text, subject = _EVT_OTHER_TEXT, _EVT_OTHER_SUBJECT
+        a, was_html = evt_address(a), False
     out = EmailMessage()
-    # (of an AliExpress mail only the address stays, with invented ids in a relay address)
-    out["From"] = f"AliExpress <{relay_address(a)}>" if ali else str(m["From"])
+    # (of an AliExpress or Eventim mail only the address stays, with invented ids in a
+    # relay address)
+    if ali:
+        out["From"] = f"AliExpress <{relay_address(a)}>"
+    else:
+        out["From"] = f"EVENTIM <{a}>" if evt else str(m["From"])
     out["To"] = "max@example.org"
     subject = scrub(subject)
     out["Subject"] = subject
-    out["Date"] = str(m["Date"])
+    out["Date"] = evt_date(evt_count) if evt else str(m["Date"])
     out["Message-ID"] = mid
     text = scrub(text)
     # The orders of an AliExpress parcel: one invented link each, as the mail has them.
@@ -1860,6 +2061,12 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
         # The status instead: the local part of a relay address and the number say nothing.
         words = re.sub(r"[0-9A-Z]*\d{6,}", "", subject)
         name = re.sub(r"[^a-z0-9]+", "_", ("aliexpress_" + words).lower()).strip("_")[:40]
+    if evt:
+        # The kind of mail: the event's name (behind the colon) and the number say nothing.
+        words = re.sub(r"\d{6,}", "", re.sub(r"(?i)eventim(?:\.de)?", "", subj))
+        local = relay_original(a) or a
+        words = words if local == EVT_ORDER_SENDER else local.split("@")[0]
+        name = re.sub(r"[^a-z0-9]+", "_", ("eventim_" + words).lower()).strip("_")[:40]
     n += 1
     written += 1
     with open(f"{DST}/{n:03d}_{name}.eml", "wb") as handle:

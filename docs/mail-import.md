@@ -83,6 +83,7 @@ Nimm diese Absender in die Filterregel auf:
 | `noreply@paketankuendigung.myhermes.de` | Hermes |
 | `ebay@ebay.com` | eBay |
 | `transaction@notice.aliexpress.com` | AliExpress |
+| `bestellstatus@eventim.de` | Eventim (Bestellbestätigung und Versandbenachrichtigung; nur Tickets mit Postversand) |
 | `no-reply@gls-pakete.de` | GLS |
 | `noreply@gls-group.eu` und `noreply@gls-rtt.com` | GLS Österreich |
 
@@ -104,6 +105,7 @@ if address :is "from" [
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",
   "transaction@notice.aliexpress.com",
+  "bestellstatus@eventim.de",
   "no-reply@gls-pakete.de"
 ] {
   redirect :copy "pakete@example.org";
@@ -130,7 +132,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
@@ -174,7 +176,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 - Erkannte Mails landen im Ordner `Paket-Tracker-Verarbeitet`, nicht erkannte im Ordner `Paket-Tracker-Nicht-erkannt`. Beide Ordner legt der Import bei Bedarf an.
 - Mit ausgeschalteter Option „Verarbeitete Mails in Ordner verschieben“ bleiben die Mails im gelesenen Ordner und werden nur als gelesen markiert.
 - Die beiden Ordner liegen immer auf der obersten Ebene des Postfachs, auch wenn ein eigener Ordner gelesen wird.
-- Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`).
+- Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`) und alle Mails von Eventim, die keine Bestellung mit Postversand sind (Newsletter, Ticketalarm, Kundenservice, die Ticketshops der Vereine).
 - Jede Mail zählt nur einmal (erkannt an ihrer Message-ID).
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
 
@@ -206,6 +208,22 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Nur als gelesen markiert werden die Aufforderung zur Bewertung, die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“.
 
     Die AliExpress-Mails sind nach Beispielmails umgesetzt und im Alltag noch nicht bestätigt, siehe [Roadmap & Status](stand.md).
+
+=== "Eventim"
+
+    Eventim-Tickets, die per Post kommen, tauchen wie ein Paket in der Liste auf.
+
+    - Gelesen werden nur die beiden Mails von `bestellstatus@eventim.de`: die Bestellbestätigung („Deine EVENTIM-Bestellung: … - Bestellnummer …“) und die Versandbenachrichtigung („eventim.de - Versandbenachrichtigung - Deine Bestellung Nr. …“).
+    - Pro Bestellung entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Bei mehreren Veranstaltungen in einer Bestellung steht „… und 1 mehr“ dahinter. Eine Bestellung bleibt ein Eintrag, auch wenn die Tickets in zwei Briefen kommen.
+    - **Nur Postversand.** Eine Bestellung entsteht nur, wenn hinter „Liefermethode:“ ein Versand per Post steht (z. B. „Standardversand (Deutschland)“, Einschreiben, Express). Tickets zum Selbstausdrucken oder fürs Handy (ticketdirect, print@home, Mobile Ticket) landen nie im Briefkasten: Solche Bestellmails markiert der Import nur als gelesen.
+    - Die Bestellbestätigung setzt „Bestellt“, ohne Liefertag. Eventim verschickt Tickets oft erst Wochen oder Monate nach der Bestellung.
+    - Die Versandbenachrichtigung setzt „Versendet“ und rechnet den Lieferzeitraum aus „innerhalb von 2 bis 4 Werktagen“ ab dem Tag der Mail. Werktage sind Montag bis Samstag; Feiertage kennt der Import nicht.
+    - **Keine Sendungsverfolgung.** Eventim nennt weder Paketdienst noch Sendungsnummer. Es gibt keine Abfrage, kein „Sendung verfolgen“ und keinen Knopf „Bestellung“.
+    - **So endet die Bestellung:** Eine „Zugestellt“-Mail gibt es nie. Tipp auf der Karte auf [„Erhalten“](karte.md#erhalten), wenn die Tickets da sind. Sonst schließt die Integration die Bestellung von selbst, 3 Tage nach dem letzten Tag des Lieferzeitraums (siehe [Bestellungen ohne Zustellmail](#bestellungen-ohne-zustellmail)).
+    - Solange nur „Bestellt“ dasteht, schließt die Integration die Bestellung nie von selbst. Ändert sich 30 Tage lang nichts, verschwindet sie wie jedes Paket aus der Liste; die Versandbenachrichtigung legt sie dann wieder an.
+    - Käufer, Adresse, Veranstaltungsort, Plätze und Preise liest der Import nicht.
+
+    Die Eventim-Mails sind nach Beispielmails umgesetzt und im Alltag noch nicht bestätigt, siehe [Roadmap & Status](stand.md). Gesehen wurde bisher nur „Standardversand (Deutschland)“.
 
 === "DHL"
 
@@ -264,7 +282,9 @@ Verschickt ein Marketplace-Händler selbst, kommt vom Shop oft keine „Zugestel
 
 **Kommt später doch eine Mail,** gilt die Mail: Eine „Zugestellt“-Mail trägt den echten Zeitpunkt nach (ohne nachträgliche Benachrichtigung). Eine Mail mit einem anderen Status – etwa einem neuen Liefertag – öffnet die Bestellung wieder.
 
-Das gilt für Amazon, eBay und AliExpress.
+Das gilt für Amazon, eBay, AliExpress und Eventim. Eine Eventim-Bestellung, die nur „Bestellt“ ist, schließt sich nie von selbst: Ihre Tickets werden oft erst viel später verschickt.
+
+Weißt du selbst, dass das Paket da ist? Dann tipp auf der Karte auf [„Erhalten“](karte.md#erhalten). Das Paket zählt dann als heute zugestellt, und die Bestellung wartet nicht mehr.
 
 ## Zusammenführen: Carrier-Mail und Bestellung
 

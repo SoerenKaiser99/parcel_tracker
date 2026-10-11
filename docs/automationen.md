@@ -31,7 +31,7 @@ Dieser Dienst ist seit v0.3.27 da. Sensoren und Kalender hängen bewusst nicht a
 | Auslöser | Feuert, wenn |
 |---|---|
 | **Paket ist in Zustellung** | der neue Status „In Zustellung“ ist |
-| **Paket wurde zugestellt** | der neue Status „Zugestellt“ ist und die Zustellung bestätigt ist |
+| **Paket wurde zugestellt** | der neue Status „Zugestellt“ ist und der Paketdienst oder eine Mail die Zustellung gemeldet hat |
 | **Paket liegt zur Abholung bereit** | das Paket in Packstation, Filiale oder PaketShop liegt |
 | **Problem bei einem Paket** | der Paketdienst ein Problem meldet |
 | **Paketstatus hat sich geändert** | bei jedem Statuswechsel, auch denen ohne eigenen Auslöser (z. B. „Unterwegs“) |
@@ -61,6 +61,14 @@ Schließt die Integration eine Bestellung, für die keine „Zugestellt“-Mail 
 - **„Paket wurde zugestellt“ feuert dann nicht.** Niemand weiß, ob und wann das Paket ankam.
 - **„Paketstatus hat sich geändert“ feuert auch dann.** `{{ trigger.event.data.assumed }}` sagt, ob es so ein Fall ist.
 
+### Von Hand erhalten (`manual`)
+
+Markierst du ein Paket von Hand als erhalten – mit dem Knopf [„Erhalten“](karte.md#erhalten) oder dem Dienst [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered) –, ist das Feld `manual` auf `true`.
+
+- **„Paket wurde zugestellt“ feuert dann nicht.** Niemand hat geliefert, du hast es selbst gesagt.
+- **„Paketstatus hat sich geändert“ feuert auch dann.** `{{ trigger.event.data.manual }}` sagt, ob es so ein Fall ist.
+- Eine Benachrichtigung schickt die Integration dafür nicht, auch der Blueprint nicht.
+
 ## Das Event `parcel_tracker_status_changed`
 
 Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt.
@@ -84,8 +92,9 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | `location` | Ort, wenn bekannt | |
 | `entry_id` | ID des Paket-Tracker-Eintrags (ab v0.3.27) | |
 | `assumed` | `true`, wenn eine Bestellung ohne Zustellmail abgeschlossen wurde. Der neue Status ist dann `delivered`, zugestellt ist aber nur angenommen | `false` |
+| `manual` | `true`, wenn das Paket von Hand als erhalten markiert wurde (ab v0.3.30). Der neue Status ist dann `delivered` | `false` |
 
-Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `other` (über 17track).
+Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` (über 17track).
 
 ### Die Status
 

@@ -4,8 +4,9 @@ from custom_components.parcel_tracker import const
 
 
 def test_carrier_groups():
-    assert const.SHOP_CARRIERS == frozenset({"amazon", "ebay", "aliexpress"})
-    assert const.SINGLE_PARCEL_SHOPS == frozenset({"aliexpress"})
+    assert const.SHOP_CARRIERS == frozenset({"amazon", "ebay", "aliexpress", "eventim"})
+    assert const.SINGLE_PARCEL_SHOPS == frozenset({"aliexpress", "eventim"})
+    assert const.SHIP_LATER_SHOPS == frozenset({"eventim"})
     assert const.MAIL_CARRIERS == const.SHOP_CARRIERS
     assert const.OPTIONAL_API_CARRIERS == frozenset({"ups"})
     assert const.SELECTABLE_CARRIERS == ("dhl", "dpd", "gls", "hermes", "ups")
@@ -20,6 +21,7 @@ def test_carrier_groups():
         "amazon": "Amazon",
         "ebay": "eBay",
         "aliexpress": "AliExpress",
+        "eventim": "Eventim",
         "other": "17track",
     }
 

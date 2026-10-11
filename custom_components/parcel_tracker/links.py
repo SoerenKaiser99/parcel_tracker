@@ -25,7 +25,7 @@ _PAGE_NUMBER: dict[str, Callable[[str], str]] = {"gls": gls_number}
 def tracking_url(parcel: Parcel) -> str | None:
     """The page of the carrier that shows this parcel, None if there is none.
 
-    A shop order (Amazon, eBay, AliExpress) links with the carrier number it took over
+    A shop order (Amazon, eBay, AliExpress, Eventim) links with the carrier number it took over
     (``tracking_ref`` at ``tracking_carrier``); without one it has no page. Neither has a
     parcel that only 17track knows, one whose carrier "Automatisch" has not found yet,
     or one of a carrier without a page here.

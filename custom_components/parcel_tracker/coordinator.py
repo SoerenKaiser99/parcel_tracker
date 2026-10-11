@@ -88,7 +88,13 @@ from .const import (
 )
 from .detect import candidates, normalize
 from .mail import OTHER_DOMAIN, forwarded_original, known_sender_domain, parse_mail
-from .mail.apply import Change, apply_update, close_unconfirmed, fold_delivered
+from .mail.apply import (
+    Change,
+    apply_update,
+    close_unconfirmed,
+    fold_delivered,
+    mark_received,
+)
 from .mail.base import MailResult, is_forwarded, sender, sent_at
 from .mail.imap import ImapAuthError, ImapFolderNotFound, ImapUnavailable, MailboxClient
 from .models import (
@@ -830,6 +836,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         ir.async_delete_issue(self.hass, DOMAIN, f"carrier_broken_{key}")
         if key in ("dhl", "ups"):
             ir.async_delete_issue(self.hass, DOMAIN, f"{key}_auth")
+        if parcel.manual_delivered:
+            # Marked as received by hand: the answer changes nothing (see
+            # async_mark_delivered), and the carrier is not asked again.
+            parcel.next_poll_at = None
+            return
         known = strip_enrichment(parcel.result)  # the carrier's or a mail's own values
         if (
             key in MAIL_ETA_CARRIERS
@@ -947,6 +958,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # True for a shop order closed without a delivery mail ("delivered" is
                 # only assumed); such a change is never pushed.
                 "assumed": parcel.assumed_delivered,
+                # True when the user marked the parcel as received ("Erhalten"); such a
+                # change is never pushed either.
+                "manual": parcel.manual_delivered,
             },
         )
         self._notify(parcel, old)
@@ -1152,6 +1166,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def _apply_track17(
         self, parcel: Parcel, info: Track17Info | CarrierError | None, now: datetime
     ) -> None:
+        if parcel.manual_delivered:
+            # Marked as received by hand: 17track changes nothing and is not asked again.
+            parcel.track17_next_at = None
+            return
         if isinstance(info, NotRegistered):
             # Gone at 17track: never register again on our own; the card offers it anew.
             parcel.track17 = False
@@ -1399,6 +1417,32 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel.name_manual = given is not None
         await self.store.async_save()
         self.async_set_updated_data(dict(self.store.parcels))
+
+    async def async_mark_delivered(self, number: str) -> None:
+        """Mark a parcel as received by hand ("Erhalten", see ``mark_received``).
+
+        KeyError for a number that is not tracked, ValueError for a parcel that is
+        delivered already (an order closed without a delivery mail is not: marking it
+        confirms the delivery). The hand mark wins from now on: the parcel is asked
+        about nowhere (delivered parcels never are), and an answer or a mail that comes
+        anyway changes nothing (``_success``, ``_apply_track17``, ``mail.apply._forward``).
+        The status event fires with ``manual``; nothing is pushed. A parcel a carrier
+        mail created then closes the one order it belongs to, like any delivered one.
+        """
+        async with self._lock:  # not while a refresh or a mail works on the parcels
+            parcel = self.store.parcels[normalize(number)]
+            old = parcel.status
+            if old is ParcelStatus.DELIVERED and not parcel.assumed_delivered:
+                raise ValueError("already_delivered")
+            now = dt_util.utcnow()
+            mark_received(parcel, now)
+            self._announced.pop(parcel.number, None)
+            if old is not ParcelStatus.DELIVERED:
+                # (a parcel nobody told anything about yet had no status: "unknown")
+                self._fire(parcel, old or ParcelStatus.UNKNOWN)
+            self._settle_orders(now)
+            await self.store.async_save()
+            self.async_set_updated_data(dict(self.store.parcels))
 
     async def async_refresh_parcels(self, number: str | None) -> None:
         targets = [self.store.parcels[normalize(number)]] if number else self.store.parcels.values()

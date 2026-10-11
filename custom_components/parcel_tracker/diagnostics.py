@@ -161,6 +161,7 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
         "shipping_carrier_hint": _code(parcel.shipping_carrier_hint),
         "status": result.status.value if result else None,
         "assumed_delivered": parcel.assumed_delivered,
+        "manual_delivered": parcel.manual_delivered,
         "order_checked": parcel.order_checked,
         "gls_probes": parcel.gls_probes,
         "last_error": _code(parcel.last_error),

@@ -121,7 +121,7 @@ Das prüfst du der Reihe nach:
 
 1. **Ist die Mail im Paket-Postfach angekommen, und zwar im Ordner, den der Import liest (Standard: Posteingang)?** Wenn nicht, greift die Filterregel im Hauptpostfach nicht. Steht der Absender in der [Liste der Absender](mail-import.md#filterregel-anlegen)?
 2. **In welchem Ordner liegt sie?** Erkannte Mails landen in `Paket-Tracker-Verarbeitet`, nicht erkannte in `Paket-Tracker-Nicht-erkannt`.
-3. **Ist es eine deutsche Mail von einem der unterstützten Absender?** Der Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS-, eBay- und AliExpress-Mails).
+3. **Ist es eine deutsche Mail von einem der unterstützten Absender?** Der Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS-, eBay-, AliExpress- und Eventim-Mails).
 4. **Ist die Mail älter als 14 Tage?** Dann wird sie nur als gelesen markiert.
 5. **Von Hand weitergeleitet?** Der Kopfzeilen-Block der Original-Mail („Von: … / Gesendet: … / An: … / Betreff: …“) muss stehen bleiben. Siehe [Von Hand weiterleiten](mail-import.md#von-hand-weiterleiten).
 6. **Apple „E-Mail-Adresse verbergen“?** Die Filterregel braucht die Relay-Adresse, so wie sie in der Mail steht.

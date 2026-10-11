@@ -30,6 +30,12 @@ from .base import (
 )
 from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_de_mail, parse_dpd_mail
 from .ebay import EBAY_SENDER, parse_ebay
+from .eventim import (
+    EVENTIM_DOMAIN,
+    EVENTIM_PRESENTS_DOMAIN,
+    EVENTIM_SENDER,
+    parse_eventim,
+)
 from .forward import original_message
 from .gls import GLS_GROUP_SENDERS, GLS_SENDER, parse_gls_group_mail, parse_gls_mail
 from .hermes import HERMES_SENDER, parse_hermes_mail
@@ -66,6 +72,8 @@ _KNOWN_SENDERS = (
     DHL_SENDER,
     UPS_SENDER,
     ALIEXPRESS_SENDER,
+    # (every sender at eventim.de is booked under that domain, a sub-domain as its parent)
+    EVENTIM_SENDER,
 )
 KNOWN_MAIL_DOMAINS = frozenset(
     {
@@ -103,7 +111,7 @@ def is_ignored(address: str) -> bool:
     return (
         address in IGNORED_SENDERS
         or (address.startswith("promotion") and address.endswith("@amazon.de"))
-        or domain_of(address) == ALIEXPRESS_MARKETING_DOMAIN
+        or domain_of(address) in (ALIEXPRESS_MARKETING_DOMAIN, EVENTIM_PRESENTS_DOMAIN)
     )
 
 
@@ -151,6 +159,10 @@ def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
         # Never to the generic parser either: a mail about an order's parcel names the
         # carrier's number, and the order would get a second parcel.
         return parse_aliexpress(msg)
+    if domain == EVENTIM_DOMAIN or domain.endswith(f".{EVENTIM_DOMAIN}"):
+        # Never to the generic parser either: only the order sender's two mails about
+        # tickets sent by post are read, every other mail of Eventim is ignored.
+        return parse_eventim(msg)
     subj = subject(msg)
     # Only mails Amazon sent itself count towards the "Amazon unrecognised" issue;
     # a hand-forwarded mail that doesn't parse is just an ordinary unknown mail.

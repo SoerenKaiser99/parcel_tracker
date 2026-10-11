@@ -1,6 +1,6 @@
 # Paket Tracker
 
-Paket Tracker ist eine Integration für Home Assistant. Sie verfolgt Pakete von DHL, DPD, GLS, Hermes und (optional) UPS, übernimmt Pakete aus E-Mails von Amazon, eBay, AliExpress und den Paketdiensten und zeigt alles auf einer eigenen Dashboard-Karte.
+Paket Tracker ist eine Integration für Home Assistant. Sie verfolgt Pakete von DHL, DPD, GLS, Hermes und (optional) UPS, übernimmt Pakete aus E-Mails von Amazon, eBay, AliExpress und den Paketdiensten, dazu Eventim-Tickets mit Postversand, und zeigt alles auf einer eigenen Dashboard-Karte.
 
 Du siehst an einer Stelle: Kommt heute ein Paket, und wann?
 

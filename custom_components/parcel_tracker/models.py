@@ -189,6 +189,10 @@ class Parcel:
     # "Namen ausblenden" is on (see ``display_name``). Persisted; a parcel stored by an
     # older version has no mark, as nobody knows who set its name.
     name_manual: bool = False
+    # The user marked the parcel as received ("Erhalten", see ``mail.apply.mark_received``):
+    # it is delivered and stays exactly as marked, whatever a carrier, 17track or a mail
+    # says afterwards. Persisted; a parcel stored by an older version has no mark.
+    manual_delivered: bool = False
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -246,6 +250,7 @@ class Parcel:
             "order_checked": self.order_checked,
             "gls_probes": self.gls_probes,
             "name_manual": self.name_manual,
+            "manual_delivered": self.manual_delivered,
         }
 
     @classmethod
@@ -280,6 +285,7 @@ class Parcel:
             order_checked=data.get("order_checked") is True,
             gls_probes=_count(data.get("gls_probes")),
             name_manual=data.get("name_manual") is True,
+            manual_delivered=data.get("manual_delivered") is True,
         )
 
 

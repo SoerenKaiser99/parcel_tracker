@@ -7,7 +7,13 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, tzinfo
 
 from .carriers.base import BERLIN
-from .const import ORDER_NO_ETA_DAYS, ORDER_OVERDUE_DAYS, SHOP_CARRIERS, STALE_REMOVE_DAYS
+from .const import (
+    ORDER_NO_ETA_DAYS,
+    ORDER_OVERDUE_DAYS,
+    SHIP_LATER_SHOPS,
+    SHOP_CARRIERS,
+    STALE_REMOVE_DAYS,
+)
 from .models import Parcel, ParcelStatus
 
 _INTERVALS = {
@@ -67,16 +73,21 @@ _ORDER_FINAL = frozenset(
 def order_overdue(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
     """Tell whether a shop order waits in vain for its "delivered" mail.
 
-    Only an order nobody can ask about (Amazon, eBay, AliExpress; no carrier number) that is not
-    delivered, ready for pickup or in trouble. Its last delivery day must lie more than
-    ORDER_OVERDUE_DAYS full days before ``today`` (a day in ``tz``); a mail that changed
-    the order after that day counts from the day it came. Without any delivery day:
-    ORDER_NO_ETA_DAYS days after the last change.
+    Only an order nobody can ask about (Amazon, eBay, AliExpress, Eventim; no carrier
+    number) that is not delivered, ready for pickup or in trouble. Its last delivery day
+    must lie more than ORDER_OVERDUE_DAYS full days before ``today`` (a day in ``tz``); a
+    mail that changed the order after that day counts from the day it came. Without any
+    delivery day: ORDER_NO_ETA_DAYS days after the last change. Never an Eventim order
+    that is only "Bestellt": its tickets may be sent months later (SHIP_LATER_SHOPS).
     """
     if parcel.carrier not in SHOP_CARRIERS or parcel.tracking_ref is not None:
         return False
     result = parcel.result
     if result is not None and result.status in _ORDER_FINAL:
+        return False
+    if parcel.carrier in SHIP_LATER_SHOPS and (
+        result is None or result.status is ParcelStatus.PRE_TRANSIT
+    ):
         return False
     changed = parcel.last_change_at.astimezone(tz).date()
     last = (result.eta_latest or result.eta_date) if result else None

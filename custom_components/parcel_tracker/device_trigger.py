@@ -62,14 +62,16 @@ def _event_data(entry_id: str, trigger_type: str) -> dict[str, Any]:
     """The fields of the status event a trigger asks for.
 
     Always the config entry: the device of another entry never fires for these parcels.
-    "delivered" asks for a confirmed delivery; a shop order closed without a delivery
-    mail (``assumed``) only fires the generic trigger.
+    "delivered" asks for a delivery somebody reported; a shop order closed without a
+    delivery mail (``assumed``) and a parcel the user marked as received (``manual``)
+    only fire the generic trigger.
     """
     data: dict[str, Any] = {"entry_id": entry_id}
     if trigger_type != TRIGGER_STATUS_CHANGED:
         data["new_status"] = trigger_type
     if trigger_type == "delivered":
         data["assumed"] = False
+        data["manual"] = False
     return data
 
 

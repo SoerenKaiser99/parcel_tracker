@@ -176,6 +176,7 @@
     "empty": {"message": "Enter a tracking number."},
     "unknown_carrier": {"message": "Unknown carrier."},
     "not_tracked": {"message": "This parcel isn't in the list."},
+    "already_delivered": {"message": "This parcel is already delivered."},
     "track17_off": {"message": "No 17track API key set. Add one in the Parcel Tracker options."},
     "track17_carrier": {"message": "17track couldn't recognise the carrier of this number."},
     "track17_quota": {"message": "Your 17track quota is used up."},
@@ -254,6 +255,11 @@
         "number": {"name": "Tracking number", "description": "Parcel to rename."},
         "name": {"name": "Name", "description": "New label, empty to clear."}
       }
+    },
+    "mark_delivered": {
+      "name": "Mark as received",
+      "description": "Mark a parcel as received by hand: it counts as delivered from now on and stays so. For orders without a delivery mail and parcels whose \"delivered\" never arrives.",
+      "fields": {"number": {"name": "Tracking number", "description": "Parcel that has arrived."}}
     },
     "refresh": {
       "name": "Refresh",

@@ -40,7 +40,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 
 | Attribut | Inhalt |
 |---|---|
-| `carrier` | Kürzel des Paketdienstes oder Shops: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `other` |
+| `carrier` | Kürzel des Paketdienstes oder Shops: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` |
 | `carrier_name` | Anzeigename, z. B. `DHL` |
 | `number` | Nummer des Pakets |
 | `name` | Name, wie er angezeigt wird (mit „Namen ausblenden“ der neutrale Name) |
@@ -59,6 +59,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `progress` | Schritt des Fortschrittsbalkens (0 = nicht gezeigt) |
 | `delivered_at` | Zustellzeitpunkt |
 | `assumed_delivered` | `true` bei einer Bestellung, die ohne Zustellmail abgeschlossen wurde, sonst `false` |
+| `manual_delivered` | `true`, wenn das Paket von Hand als erhalten markiert wurde (Knopf „Erhalten“ oder Dienst `parcel_tracker.mark_delivered`), sonst `false` |
 | `events` | Verlauf: Liste aus `timestamp`, `text` und `location` |
 | `tracking_ref` | Sendungsnummer des Paketdienstes, die eine Shop-Bestellung übernommen hat |
 | `tracking_carrier` | Paketdienst zu `tracking_ref` |
@@ -177,6 +178,27 @@ Bezeichnung eines Pakets ändern.
 |---|---|---|
 | `number` | ja | Nummer des Pakets |
 | `name` | nein | neue Bezeichnung; leer entfernt sie |
+
+### `parcel_tracker.mark_delivered`
+
+Ein Paket von Hand als erhalten markieren – dasselbe wie der Knopf [„Erhalten“](karte.md#erhalten) auf der Karte.
+
+| Feld | Pflicht | Inhalt |
+|---|---|---|
+| `number` | ja | Nummer des Pakets |
+
+```yaml
+action: parcel_tracker.mark_delivered
+data:
+  number: "00340999999999999901"
+```
+
+Die Nummer im Beispiel ist erfunden.
+
+- Das Paket ist ab jetzt zugestellt: `delivered_at` ist der Zeitpunkt des Aufrufs, `status_text` „Erhalten (von Hand markiert)“, `manual_delivered` ist `true`.
+- Die Markierung gilt: Der Paketdienst wird nicht mehr abgefragt, und keine spätere Mail und keine Antwort von 17track ändert Status, Zeitpunkt oder Text. Zurücknehmen lässt sie sich nicht.
+- Das Event feuert mit `manual: true`, eine Benachrichtigung gibt es nicht.
+- Fehler: „Dieses Paket ist nicht in der Liste.“ bei einer unbekannten Nummer, „Dieses Paket ist schon zugestellt.“ bei einem zugestellten Paket. Eine Bestellung, die nur „Abgeschlossen ohne Zustellbestätigung“ ist, lässt sich markieren.
 
 ### `parcel_tracker.refresh`
 

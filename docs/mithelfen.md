@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 11. Oktober 2026, Version 0.3.29. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 11. Oktober 2026, Version 0.3.30. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -28,6 +28,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | Was | Was wir wissen wollen | Wohin |
 |---|---|---|
 | **AliExpress** | Erscheint die Bestellung mit Artikelname und Zustelltag? Wird nach der „Packstück“-Mail live beim Paketdienst abgefragt? Werden die Mails „Vom Kurier abgeholt“ und „Packstück … hat eine Aktualisierung“ erkannt? Landet eine Mail bei den nicht erkannten? |
+| **Eventim** | Erscheint eine Ticketbestellung mit Postversand als „Bestellt“ mit dem Namen der Veranstaltung? Setzt die Versandbenachrichtigung „Versendet“ und den Lieferzeitraum? Bleiben Bestellungen mit print@home, ticketdirect oder Mobile Ticket draußen? Neu seit v0.3.30. | im Forum |
 | **Eigener Ordner im Postfach** | Wird genau der eingetragene Ordner gelesen und kein anderer? Klappt es mit Umlauten, Leerzeichen und Unterordnern im Namen (z. B. `Bestellungen & Pakete`, `Pakete/DHL`)? Neu seit v0.3.29, ohne echten Mailserver gebaut. | im Forum | [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) |
 | **Apple „E-Mail-Adresse verbergen“** | Werden so weitergereichte Mails von Amazon, DHL, DPD, GLS, Hermes, UPS oder eBay erkannt? Mit echten Mails geprüft ist bisher nur AliExpress. | im Forum |
 | **DHL: „liegt am gewünschten Ablageort“** | Springt das Paket mit dieser Mail auf „Zugestellt“? | [Issue #9](https://github.com/SoerenKaiser99/parcel_tracker/issues/9) |
@@ -42,6 +43,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 
 | Was | Was wir wissen wollen | Wohin |
 |---|---|---|
+| **Knopf „Erhalten“** | Steht er im aufgeklappten Paket, kommt die Rückfrage „Wirklich erhalten?“, und zählt das Paket danach als heute zugestellt? Bleibt es dabei, auch wenn später noch eine Mail oder eine Antwort des Paketdienstes kommt? Neu seit v0.3.30. | im Forum |
 | **„Namen ausblenden“** | Taucht irgendwo doch noch ein echter Name auf – Karte, Kalender, Benachrichtigung, Sprachassistent? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Benachrichtigung „Abholbereit“** | Kommt die Meldung, wenn ein Paket in Packstation, Filiale oder PaketShop liegt? | im Forum |
 | **Auslöser im Automations-Editor** | Findest du die fünf Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |
@@ -63,6 +65,7 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 | **Amazon** | Lieferung verspätet; Bestellung storniert; Mails von Amazon in Österreich |
 | **eBay** | Versandmail mit Sendungsnummer; Artikel zugestellt |
 | **AliExpress** | englische Mails; Mails, die bei dir unter „Nicht erkannt“ landen |
+| **Eventim** | Versandbenachrichtigungen und Bestellbestätigungen mit einer anderen Liefermethode als „Standardversand (Deutschland)“, z. B. Einschreiben oder Express; Mails von `bestellstatus@eventim.de`, die bei dir unter „Nicht erkannt“ landen |
 | **Österreichische Post, Schweizer Post** | Ankündigung, in Zustellung, zugestellt – damit diese Dienste überhaupt dazukommen können |
 
 !!! danger "Nie eine rohe Mail hochladen"

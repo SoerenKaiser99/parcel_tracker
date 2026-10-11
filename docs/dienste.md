@@ -1,6 +1,6 @@
 # Was brauche ich für welchen Dienst?
 
-Die kurze Antwort: DPD, GLS und Hermes funktionieren sofort. DHL und UPS brauchen für den Live-Status eigene Zugangsdaten, kommen aber auch ohne sie aus Mails. Amazon, eBay und AliExpress kommen nur aus Mails.
+Die kurze Antwort: DPD, GLS und Hermes funktionieren sofort. DHL und UPS brauchen für den Live-Status eigene Zugangsdaten, kommen aber auch ohne sie aus Mails. Amazon, eBay, AliExpress und Eventim-Tickets kommen nur aus Mails.
 
 | Dienst | Live-Status direkt | Aus Mails (Mail-Import) | Voraussetzung |
 |---|---|---|---|
@@ -12,6 +12,7 @@ Die kurze Antwort: DPD, GLS und Hermes funktionieren sofort. DHL und UPS brauche
 | Amazon | nein (keine Anmeldung bei Amazon) | ja, nur aus Mails | [E-Mail-Import](mail-import.md) |
 | eBay | nein | ja, nur aus Mails | [E-Mail-Import](mail-import.md) |
 | AliExpress | nein (über die Sendungsnummer des Paketdienstes, sobald eine Mail sie nennt) | ja, nur aus Mails | [E-Mail-Import](mail-import.md) |
+| Eventim | nein (die Tickets kommen als Brief, ohne Sendungsnummer) | ja, nur aus Mails; nur Bestellungen mit Postversand | [E-Mail-Import](mail-import.md) |
 | andere Paketdienste | über „Andere (über 17track)“ | nein | eigener [17track-Key](#17track-optional), 200 Nummern einmalig |
 
 „Aus Mails“ setzt den [E-Mail-Import](mail-import.md) mit einem eigenen Paket-Postfach voraus.
@@ -190,13 +191,15 @@ Liefert der Paketdienst gar nichts (z. B. DHL ohne API-Key, UPS ohne API-Zugang)
 - Ist 17track nicht erreichbar, wartet die Integration länger und meldet nie neu an.
 - Lehnt 17track den Key ab, fragt die Integration bis zum Neuladen nicht mehr ab und zeigt einen Reparatur-Hinweis.
 
-## Amazon, eBay und AliExpress
+## Amazon, eBay, AliExpress und Eventim
 
-Diese drei kennt die Integration **nur aus Mails**. Eine Anmeldung beim Shop gibt es nicht. Abgefragt wird nur die Sendungsnummer des Paketdienstes, sobald eine Mail sie verrät.
+Diese vier kennt die Integration **nur aus Mails**. Eine Anmeldung beim Shop gibt es nicht. Abgefragt wird nur die Sendungsnummer des Paketdienstes, sobald eine Mail sie verrät.
 
 - **Amazon:** Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Amazon-Nummern (`TBA…`) lassen sich nicht direkt verfolgen.
 - **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer. eBay-Mails enthalten keine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
 - **AliExpress:** Pro Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer. Nennt eine „Packstück“-Mail eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live beim Paketdienst abgefragt (DHL mit API-Key).
+
+- **Eventim:** Pro Ticketbestellung mit Postversand entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Die Versandbenachrichtigung setzt „Versendet“ und den Lieferzeitraum. Eventim nennt keine Sendungsnummer und schickt keine „Zugestellt“-Mail: Die Bestellung endet mit [„Erhalten“](karte.md#erhalten) auf der Karte oder von selbst nach dem Lieferzeitraum. Tickets zum Selbstausdrucken oder fürs Handy werden nicht angelegt.
 
 Die Einzelheiten stehen unter [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird).
 

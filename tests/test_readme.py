@@ -29,6 +29,7 @@ SENDERS = [
     "ebay@ebay.com",
     "no-reply@gls-pakete.de",
     "transaction@notice.aliexpress.com",
+    "bestellstatus@eventim.de",
 ]
 
 
@@ -775,7 +776,8 @@ def test_readme_table_says_what_each_service_needs():
     assert rows[0] == ["Dienst", "Live-Status direkt", "aus Mails (Mail-Import)", "Voraussetzung"]
     table = {row[0]: row[1:] for row in rows[2:]}
     assert list(table) == [
-        "DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "AliExpress", "andere Carrier"
+        "DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "AliExpress", "Eventim",
+        "andere Carrier",
     ]
     assert all(len(cells) == 3 for cells in table.values())
     expected = {
@@ -787,6 +789,7 @@ def test_readme_table_says_what_each_service_needs():
         "Amazon": ("nein", "nur aus Mails", "E-Mail-Import"),
         "eBay": ("nein", "nur aus Mails", "E-Mail-Import"),
         "AliExpress": ("nein", "nur aus Mails", "E-Mail-Import"),
+        "Eventim": ("nein", "nur Bestellungen mit Postversand", "E-Mail-Import"),
         "andere Carrier": ("17track", "nein", "200 Nummern einmalig"),
     }
     for service, texts in expected.items():
@@ -802,7 +805,8 @@ def test_readme_table_matches_what_the_integration_does():
     from custom_components.parcel_tracker.mail.base import DPD_DOMAINS
 
     assert const.OPTIONAL_API_CARRIERS == frozenset({"ups"})  # UPS: live only with credentials
-    assert set(const.MAIL_CARRIERS) == {"amazon", "ebay", "aliexpress"}  # shops: mails only
+    # shops: mails only
+    assert set(const.MAIL_CARRIERS) == {"amazon", "ebay", "aliexpress", "eventim"}
     assert "service.dpd.de" in DPD_DOMAINS  # DPD mails are read (for the number)
     assert "200 Nummern" in _section("17track (optional)")
 

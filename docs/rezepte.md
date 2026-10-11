@@ -132,6 +132,35 @@ mode: single
 
 **So funktioniert es:** Die Variable `in_zustellung` sammelt alle Paket-Sensoren der Integration mit dem Zustand `out_for_delivery`. Die Meldung ist eine Vermutung: Ob wirklich dieses Paket in der Box liegt, weiß die Integration nicht. „Zugestellt“ meldet der Paketdienst oft erst später.
 
+**Variante – das Paket gleich als erhalten markieren:** Ist genau ein Paket „In Zustellung“, wenn die Klappe aufgeht, markiert diese Automation es mit dem Dienst `parcel_tracker.mark_delivered` als erhalten. Die Nummer kommt aus dem Attribut `number` des Paket-Sensors.
+
+```yaml
+alias: "Paketbox: Paket als erhalten markieren"
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.paketbox_klappe
+    from: "off"
+    to: "on"
+variables:
+  in_zustellung: >-
+    {{ integration_entities('parcel_tracker')
+       | select('is_state', 'out_for_delivery') | list }}
+conditions:
+  - condition: template
+    value_template: "{{ in_zustellung | count == 1 }}"
+actions:
+  - action: parcel_tracker.mark_delivered
+    data:
+      number: "{{ state_attr(in_zustellung[0], 'number') }}"
+mode: single
+```
+
+Das Paket steht danach als „Erhalten“ in der Liste und zählt bei `sensor.pakete_zugestellt_heute` mit. Drei Dinge solltest du wissen:
+
+- **Die Markierung lässt sich nicht zurücknehmen**, und der Paketdienst wird danach nicht mehr abgefragt. Geht die Klappe auch für Briefe oder für dich selbst auf, markiert die Automation womöglich ein Paket, das noch unterwegs ist. Nimm die Variante nur, wenn die Klappe wirklich nur für Pakete aufgeht.
+- Bei mehreren Paketen „In Zustellung“ passiert nichts: Welches in der Box liegt, weiß niemand.
+- Die Integration schickt für eine Markierung von Hand keine Benachrichtigung, und der Auslöser „Paket wurde zugestellt“ feuert nicht. Willst du eine Meldung, häng die Aktion `notify.mobile_app_dein_handy` aus dem Rezept oben an.
+
 ## 3. Abends an die Abholung erinnern
 
 **Wofür:** Liegt abends noch etwas in der Packstation, der Filiale oder im PaketShop, bekommst du eine Erinnerung.

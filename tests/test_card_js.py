@@ -63,6 +63,8 @@ out.icon = { dhl: card._icon("dhl"), dpd: card._icon("dpd"), hermes: card._icon(
 out.ebayLabel = sandbox.__label({ state: "pre_transit", attributes: { carrier: "ebay" } });
 out.aliexpressLabel = sandbox.__label(
   { state: "pre_transit", attributes: { carrier: "aliexpress" } });
+out.eventimLabel = sandbox.__label(
+  { state: "pre_transit", attributes: { carrier: "eventim" } });
 out.labels = sandbox.__labels;
 out.sub = {
   hint: sandbox.__sub("Unterwegs", { carrier: "ebay", shipping_carrier_hint: "hermes" },
@@ -229,10 +231,12 @@ def test_hermes_has_a_coloured_dot_instead_of_a_logo(card):
 def test_labels_and_ebay_order_state(card):
     assert card["labels"] == {
         "dhl": "DHL", "dpd": "DPD", "gls": "GLS", "hermes": "Hermes", "ups": "UPS",
-        "amazon": "Amazon", "ebay": "eBay", "aliexpress": "AliExpress", "other": "17track",
+        "amazon": "Amazon", "ebay": "eBay", "aliexpress": "AliExpress", "eventim": "Eventim",
+        "other": "17track",
     }
     assert card["ebayLabel"] == "Bestellt"
     assert card["aliexpressLabel"] == "Bestellt"
+    assert card["eventimLabel"] == "Bestellt"
 
 
 def test_subline_shows_the_shipping_carrier_hint(card):

@@ -40,6 +40,8 @@ SHOP_TEXT = {
 }
 # Status text of a shop order closed because no delivery mail came (see order_overdue).
 ASSUMED_TEXT = "Abgeschlossen ohne Zustellbestätigung"
+# Status text of a parcel the user marked as received (see mark_received).
+MANUAL_TEXT = "Erhalten (von Hand markiert)"
 CARRIER_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Angekündigt",
     ParcelStatus.IN_TRANSIT: "Unterwegs",
@@ -63,7 +65,12 @@ def _step(status: ParcelStatus | None) -> int:
 
 
 def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
-    """Take status/ETA/code from the mail unless it would move the parcel backwards."""
+    """Take status/ETA/code from the mail unless it would move the parcel backwards.
+
+    Nothing at all for a parcel the user marked as received: the hand mark wins.
+    """
+    if parcel.manual_delivered:
+        return False
     changed = False
     shown = parcel.result
     # Build on what the carrier and earlier mails said; what 17track filled in is put
@@ -148,7 +155,12 @@ def _order_parcels(parcels: dict[str, Parcel], carrier: str, number: str) -> lis
 
 
 def _take_shop_facts(parcel: Parcel, update: MailUpdate) -> bool:
-    """Carrier hint and carrier number a shop mail names; True if something changed."""
+    """Carrier hint and carrier number a shop mail names; True if something changed.
+
+    Nothing for an order the user marked as received: nobody is asked about it any more.
+    """
+    if parcel.manual_delivered:
+        return False
     changed = False
     hint = update.shipping_carrier_hint
     if hint and parcel.shipping_carrier_hint != hint:
@@ -163,8 +175,8 @@ def _take_shop_facts(parcel: Parcel, update: MailUpdate) -> bool:
 
 
 def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
-    """A shop order ("AMZ…"/"EBAY…"/"ALI…"): one parcel per order, suffix for further
-    shipments (never for AliExpress: its mails name an order's items in turn)."""
+    """A shop order ("AMZ…"/"EBAY…"/"ALI…"/"EVT…"): one parcel per order, suffix for further
+    shipments (never for AliExpress and Eventim: their mails name an order's items in turn)."""
     siblings = _order_parcels(parcels, update.carrier, update.number)
     key = title_key(update.title) if update.title else None
     target = next(
@@ -349,6 +361,8 @@ def fold_delivered(
     order.tracking_ref = parcel.number
     order.tracking_carrier = parcel.carrier
     order.result = parcel.result
+    # (marked as received by hand: the order is, and stays, as the parcel was marked)
+    order.manual_delivered = parcel.manual_delivered
     order.last_change_at = parcel.last_change_at
     order.last_poll_at = parcel.last_poll_at
     order.next_poll_at = None
@@ -390,6 +404,43 @@ def close_unconfirmed(parcel: Parcel, now: datetime) -> None:
     parcel.assumed_delivered = True
     parcel.last_change_at = now
     parcel.delivery_code = parcel.delivery_code_day = None
+
+
+def mark_received(parcel: Parcel, now: datetime) -> None:
+    """Mark a parcel as received by hand ("Erhalten"): delivered now, for good.
+
+    For what never gets its "delivered": an order without a delivery mail, a parcel whose
+    delivery mail is missing or that is stuck on "Abholbereit", a carrier nobody can ask.
+    The time of delivery is ``now``; the history stays and gets a line of its own. What
+    told the way there is dropped (day, window, pickup point, an error, the delivery
+    code), and so is the mark of an order closed without a delivery mail: now somebody
+    confirmed it. Nobody is asked about the parcel any more, and nothing changes it
+    again (``Parcel.manual_delivered``; see ``_forward`` and the coordinator).
+    """
+    old = parcel.result
+    events = [TrackingEvent(now, MANUAL_TEXT, None), *(old.events if old else [])]
+    parcel.result = TrackingResult(
+        status=ParcelStatus.DELIVERED,
+        status_text=MANUAL_TEXT,
+        eta_date=None,
+        eta_from=None,
+        eta_to=None,
+        location=None,
+        pickup_point=None,
+        pickup_until=None,
+        delivered_at=now,
+        # (a long history, GLS or 17track, loses its oldest line, never the newest)
+        events=events[: max(MAX_EVENTS, len(events) - 1)],
+    )
+    parcel.manual_delivered = True
+    parcel.assumed_delivered = False
+    parcel.last_change_at = now
+    parcel.delivery_code = parcel.delivery_code_day = None
+    parcel.last_error = None
+    parcel.error_streak = 0
+    parcel.first_error_at = None
+    parcel.next_poll_at = None
+    parcel.track17_next_at = None
 
 
 def _mail_name(update: MailUpdate) -> str | None:

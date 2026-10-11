@@ -13,7 +13,7 @@ Paket Tracker läuft lokal in deinem Home Assistant. Es gibt kein Cloud-Konto un
 
 An 17track gehen keine PLZ und kein Name. Adressen aus der 17track-Antwort verwirft die Integration, ohne sie zu speichern oder zu loggen.
 
-Amazon-, eBay- und AliExpress-Bestellungen fragt die Integration nirgends ab. Es gibt keine Anmeldung beim Shop.
+Amazon-, eBay-, AliExpress- und Eventim-Bestellungen fragt die Integration nirgends ab. Es gibt keine Anmeldung beim Shop.
 
 ### Die eine Ausnahme: 12 Ziffern mit „Automatisch“
 
@@ -56,7 +56,7 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 - Referenzen und Preise,
 - Mail-Inhalte.
 
-Links in AliExpress-Mails (sie sagen, zu welcher Bestellung ein Packstück gehört) werden gelesen, nie aufgerufen.
+Links in AliExpress-Mails (sie sagen, zu welcher Bestellung ein Packstück gehört) werden gelesen, nie aufgerufen. Aus Eventim-Mails nimmt der Import nur die Bestellnummer, den Namen der Veranstaltung, die Liefermethode und den Lieferzeitraum; Käufer, Adresse, Veranstaltungsort, Plätze und Preise liest er nicht.
 
 Eine Mail, die du [per HTTP übergibst](mail-import.md#ohne-postfach-mail-per-http-ubergeben), geht nur an den Import und wird nicht gespeichert. Deshalb gibt es dafür bewusst keinen Dienst: Ein Dienstaufruf stünde samt Mail in der Recorder-Datenbank.
 
@@ -86,6 +86,7 @@ Eingeschaltet heißt jedes Paket nur noch nach dem Paketdienst und den letzten v
 - `Amazon-Bestellung …4321`
 - `eBay-Bestellung …0001`
 - `AliExpress-Bestellung …0001`
+- `Eventim-Bestellung …9901`
 - `Paket …2557`, wenn kein Paketdienst bekannt ist
 
 Was im Paket ist und von wem es kommt, nennt die Integration dann nirgends mehr.
@@ -149,4 +150,4 @@ Der Diagnose-Download enthält keine Geheimnisse und keine Namen. Sendungs- und 
 
 ## Markenhinweis
 
-DHL, DPD, Hermes, UPS, GLS, 17track, Amazon, eBay und AliExpress sind Marken ihrer Inhaber. Die Logos dienen nur zur Kennzeichnung des Paketdienstes. Dieses Projekt ist nicht mit den Unternehmen verbunden.
+DHL, DPD, Hermes, UPS, GLS, 17track, Amazon, eBay, AliExpress und Eventim sind Marken ihrer Inhaber. Die Logos dienen nur zur Kennzeichnung des Paketdienstes. Dieses Projekt ist nicht mit den Unternehmen verbunden.
