@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import html
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 
 from ..models import ParcelStatus
@@ -52,6 +52,12 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "in ihrem land / ihrer region angekommen": (_ON_WAY, "Im Zielland angekommen"),
     # (the body only says that there is news)
     "neuer lieferstatus": (_ON_WAY, None),
+    # (the steps of the mails of autumn 2024)
+    "verzollt": (_ON_WAY, "Verzollt"),
+    "im lieferzentrum": (_ON_WAY, "Im Lieferzentrum"),
+    # ("wird in Kürze ausgeliefert": soon, no day)
+    "zur auslieferung bereit": (_ON_WAY, "Zur Auslieferung bereit"),
+    "zugestellt": (ParcelStatus.DELIVERED, None),
 }
 # "Wird zugestellt" comes hours after the shipping mail and its body says "dem
 # Versandunternehmen übergeben": handed to the carrier, not on the last mile.
@@ -71,15 +77,37 @@ _PARCEL_STEPS: dict[str, str | None] = {
     "hat die abflugregion verlassen": "Abflugregion verlassen",
     "vom kurier abgeholt": "Vom Kurier abgeholt",
     "in ihrem land / ihrer region": "Im Zielland angekommen",
+    "im zielland / in der zielregion": "Im Zielland angekommen",
+    "mit lokalem kurier": "Dem lokalen Kurier übergeben",
     # (the body only says that there is news from the country of departure)
     "hat eine aktualisierung": None,
 }
 CUSTOMS_TEXT = "Zollabfertigung beendet"
+# "Paket <number> ist versandbereit" / "… wird zugestellt" (on the last mile, the delivery
+# follows within hours) / "… wurde zugestellt": (status, own words).
+_PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
+    "ist versandbereit": (_PRE, "Versandbereit"),
+    "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),
+    "wurde zugestellt": (ParcelStatus.DELIVERED, None),
+}
+# "Lieferprobleme für Packstück <number>": it could not be delivered; what follows is told
+# by the next mail.
+PROBLEM_TEXT = "Lieferprobleme"
+# Mails that tell nothing about a parcel on its way: a note that there is news (the links
+# name the parcels), a coupon for a late delivery, returns and refunds.
+_NO_NEWS_SUBJECT = re.compile(
+    r"\d+ Packstück\(e\) haben Lieferneuigkeiten|Ihr Verspätete-Lieferung-Coupon-Code"
+    r"|Your delayed delivery coupon code|Warte auf Ihr Feedback"
+    r"|Order \d+: Waiting for your return|Überprüfen Sie den Rückerstattungsantragsprozess",
+    re.IGNORECASE,
+)
 
 _ORDER_SUBJECT = re.compile(r"Bestellung (?P<order>\d{12,20})\s*:?\s*(?P<step>\S.*)")
 _ORDERS_SUBJECT = re.compile(r"\d+ Bestellungen wurden bestätigt: (?P<order>\d{12,20})\b")
 _PARCEL_SUBJECT = re.compile(r"Packstück (?P<number>[0-9A-Z]{8,30})\s*:?\s*(?P<step>\S.*)")
 _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) wurde beendet")
+_PACKAGE_SUBJECT = re.compile(r"Paket (?P<number>[0-9A-Z]{8,30})\s+(?P<step>\S.*)")
+_PROBLEM_SUBJECT = re.compile(r"Lieferprobleme für Packstück (?P<number>[0-9A-Z]{8,30})\b")
 # English, whatever the language of the account; its body tells no reason (cancelled,
 # refunded or done), so nothing is taken from it.
 _CLOSED_SUBJECT = re.compile(r"Your order \d+ is closed")
@@ -294,8 +322,10 @@ def _link_orders(msg: EmailMessage) -> list[str]:
     return orders
 
 
-def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResult:
-    """A mail about the parcel at the carrier ("Packstück …", "Zollabfertigung für …").
+def _parcel_mail(
+    msg: EmailMessage, number: str, words: str | None, status: ParcelStatus = _ON_WAY
+) -> MailResult:
+    """A mail about the parcel at the carrier ("Packstück …", "Paket …", "Zollabfertigung …").
 
     Its orders (the links name them) get the status and, if the number is one of a
     carrier we know, that number: the order is followed at the carrier then. A number in
@@ -303,8 +333,14 @@ def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResul
     carrier nobody can ask. Without an order in the links the mail is a carrier's mail
     about an AliExpress shipment: merged into the one order that fits, else a parcel of
     its own; with an unknown number only the status is left, for the one order that fits.
+    "In delivery" is the day of the mail, "delivered" the time it was sent.
     """
     sent = sent_at(msg)
+    when: dict[str, date | datetime] = {}
+    if status is ParcelStatus.OUT_FOR_DELIVERY:
+        when = {"eta_date": sent.date()}
+    elif status is ParcelStatus.DELIVERED:
+        when = {"delivered_at": sent}
     carrier = carrier_for(number)
     orders = _link_orders(msg)
     names = _item_names(_lines(body_text(msg)))
@@ -314,7 +350,8 @@ def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResul
                 MailUpdate(
                     number=number if carrier else "",
                     carrier=carrier or "aliexpress",
-                    status=_ON_WAY,
+                    status=status,
+                    **when,
                     sent_at=sent,
                     title=PARCEL_NAME if carrier else None,
                     shop="aliexpress",
@@ -327,7 +364,8 @@ def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResul
             MailUpdate(
                 number=order_number(order),
                 carrier="aliexpress",
-                status=_ON_WAY,
+                status=status,
+                **when,
                 sent_at=sent,
                 # (which item belongs to which order is not told)
                 title=_title(names) if len(orders) == 1 else None,
@@ -344,15 +382,26 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     """Any mail of AliExpress: updates, ignored, or (no updates) unrecognised.
 
     Order mails: confirmed and ready to ship ("Bestellt"), shipped and on its way
-    ("Versendet", with AliExpress's words for the step), delivery confirmed. Parcel mails:
-    see ``_parcel_mail``. Ignored: reminders, requests for a rating and "Your order … is
-    closed". A subject nobody knows yet is unrecognised, so it gets noticed.
+    ("Versendet", with AliExpress's words for the step), delivered, delivery confirmed.
+    Parcel mails: see ``_parcel_mail``. Ignored: reminders, requests for a rating, "Your
+    order … is closed" and the mails that tell nothing about a parcel on its way (news
+    without a number, a coupon, returns and refunds). A subject nobody knows yet is
+    unrecognised, so it gets noticed.
     """
     subj = subject(msg)
     if _CLOSED_SUBJECT.match(subj):
         return MailResult(ignored=True)
+    if _NO_NEWS_SUBJECT.match(subj):
+        return MailResult(ignored=True)
     if found := _CUSTOMS_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), CUSTOMS_TEXT)
+    if found := _PROBLEM_SUBJECT.match(subj):
+        return _parcel_mail(msg, found.group("number"), PROBLEM_TEXT)
+    if found := _PACKAGE_SUBJECT.match(subj):
+        step = _PACKAGE_STEPS.get(" ".join(found.group("step").lower().split()))
+        if step is None:
+            return MailResult()
+        return _parcel_mail(msg, found.group("number"), step[1], step[0])
     if found := _PARCEL_SUBJECT.match(subj):
         step = " ".join(found.group("step").lower().split())
         if step not in _PARCEL_STEPS:

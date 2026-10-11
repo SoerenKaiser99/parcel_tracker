@@ -1,0 +1,26 @@
+X-Fixture: synthetic - written by hand after the wording of a real mail; name, numbers, items and address invented
+From: AliExpress <transaction@notice.aliexpress.com>
+To: max@example.org
+Subject: Paket 00340999999999990171 wurde zugestellt
+Date: Mon, 03 Nov 2025 11:35:34 -0800
+Message-ID: <synthetic-171@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Wir wünschen Ihnen viel Freude mit Ihrem Kauf</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihr Paket 00340999999999990171 wurde erfolgreich zugestellt! Bestätigen Sie uns den Empfang Ihrer Bestellung, indem Sie unten anklicken.</p>
+<p><a href="https://www.aliexpress.com/p/tracking/index.html?_login=yes&amp;tradeOrderId=9999999999990171">Details prüfen</a></p>
+<p>.</p>
+<p>Paketinfos</p>
+<p>.</p>
+<p>Beispiel-Sensor für Temperatur und L...</p>
+<p>Variante A</p>
+<p>x1</p>
+<p>.</p>
+<p>Versand nach</p>
+<p>Musterstraße 1, Musterstadt</p>
+<p>Max Mustermann (+49) 0000000000</p>
+</body></html>
