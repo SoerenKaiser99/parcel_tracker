@@ -1,5 +1,6 @@
-X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
- the parcel number is invented; the language menu and the footer are cut
+X-Fixture: derived from an original mail; the name, the parcel number, the
+ Packstation, the place and the token in the link are replaced; the language
+ menu and the footer are cut
 From: "DHL Paket" <noreply@dhl.de>
 To: max@example.org
 Subject: Einlieferungsbeleg: Ihr Versand an der Packstation
@@ -24,11 +25,11 @@ Eine DHL Zustellkraft wird sie schnellstmöglich abholen und auf den Versandweg 
 
 Sendungsnummer:
 
-[{DELIVERY_0_PARCEL_IDENTCODE}](https://custcomm.dhl.de/… [Nummer nur im Link oder Bildtext: 999999990164])
+[{DELIVERY_0_PARCEL_IDENTCODE}](https://custcomm.dhl.de/go/10/XXXX-XXXXXXXX-XXXXXXXX-XXXXXX.html?piececode=999999990164)
 
 Abgabezeitpunkt
 
-**06.07.2026, ****            15:14
+**06.07.2026, **** 15:14
 Uhr **
 
 Abgabestelle
@@ -49,6 +50,7 @@ Content-Transfer-Encoding: 8bit
 <p>999999990164</p>
 <p>Abgabezeitpunkt</p>
 <p>06.07.2026, 15:14</p>
+<p>Uhr</p>
 <p>Abgabestelle</p>
 <p>Packstation 100, 12345 Musterstadt</p>
 </body></html>

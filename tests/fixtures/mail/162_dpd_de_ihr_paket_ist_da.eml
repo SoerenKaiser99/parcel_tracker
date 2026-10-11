@@ -1,5 +1,5 @@
 X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
- the parcel number and the shipper are invented; the legal notice of the
+ the parcel number is invented; the legal notice of the
  carrier is cut
 From: DPD <noreply@service.dpd.de>
 To: max@example.org
@@ -15,7 +15,7 @@ Content-Transfer-Encoding: 8bit
 <p>Ihr Paket ist da!</p>
 <p>Wir haben Ihr Paket erfolgreich zugestellt.</p>
 <p>Versender &amp; Paketnummer:</p>
-<p>Beispiel Autoteile GmbH</p>
+<p>Amazon EU Sarl</p>
 <p>09999999999961</p>
 <p>Empfänger:</p>
 <p>Max Mustermann</p>

@@ -283,15 +283,16 @@ def _parcel(subject: str) -> EmailMessage:
                               "Lieferung verfolgen</a></p>")
 
 
-def test_delivered_parcel_closes_its_order_and_brings_the_number():
+def test_delivered_parcel_closes_its_orders_and_brings_the_number():
+    # The links of the mail name two orders: one parcel for both.
     msg = load_mail(PARCEL_DELIVERED)
-    [u] = parse_mail(msg).updates
-    assert (u.number, u.carrier, u.status) == (
-        "ALI9999999999990171", "aliexpress", ParcelStatus.DELIVERED,
-    )
-    assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990171", "dhl")
-    assert (u.delivered_at, u.eta_date) == (sent_at(msg), None)
-    assert u.title == "Beispiel-Sensor für Temperatur und L…"
+    first, second = parse_mail(msg).updates
+    assert (first.number, second.number) == ("ALI9999999999990171", "ALI9999999999990172")
+    for u in (first, second):
+        assert (u.carrier, u.status) == ("aliexpress", ParcelStatus.DELIVERED)
+        assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990171", "dhl")
+        assert (u.delivered_at, u.eta_date) == (sent_at(msg), None)
+        assert u.title is None  # (which item belongs to which order is not told)
 
 
 @pytest.mark.parametrize(

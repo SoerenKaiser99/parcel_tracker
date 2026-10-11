@@ -387,7 +387,7 @@ def test_window_mail_is_in_delivery_today_with_its_window():
     msg = load_mail(WINDOW)
     [u] = parse_mail(msg).updates
     day = sent_at(msg).date()
-    assert (u.number, u.carrier, u.title) == ("09999999999961", "dpd", SHIPPER)
+    assert (u.number, u.carrier, u.title, u.shop) == ("09999999999961", "dpd", "Amazon", "amazon")
     assert (u.status, u.eta_date, u.eta_latest) == (ParcelStatus.OUT_FOR_DELIVERY, day, None)
     assert (u.eta_from, u.eta_to) == (
         datetime(2025, 10, 10, 14, 6, tzinfo=BERLIN), datetime(2025, 10, 10, 15, 6, tzinfo=BERLIN),
@@ -397,7 +397,7 @@ def test_window_mail_is_in_delivery_today_with_its_window():
 def test_delivery_mail_is_delivered_when_it_was_sent():
     msg = load_mail(DELIVERED)
     [u] = parse_mail(msg).updates
-    assert (u.number, u.status, u.title) == ("09999999999961", ParcelStatus.DELIVERED, SHIPPER)
+    assert (u.number, u.status, u.title) == ("09999999999961", ParcelStatus.DELIVERED, "Amazon")
     assert (u.delivered_at, u.eta_date, u.eta_from) == (sent_at(msg), None, None)
 
 
@@ -406,7 +406,7 @@ def test_parcel_waiting_in_the_pickup_shop_is_ready_for_pickup():
     assert (u.number, u.status) == ("09999999999963", ParcelStatus.AWAITING_PICKUP)
     assert (u.delivered_at, u.eta_date) == (None, None)
     # The shop and its address are never read.
-    assert "Kiosk" not in repr(asdict(u)) and "Beispielweg" not in repr(asdict(u))
+    assert "Mustermann" not in repr(asdict(u)) and "Musterstraße" not in repr(asdict(u))
 
 
 @pytest.mark.parametrize(

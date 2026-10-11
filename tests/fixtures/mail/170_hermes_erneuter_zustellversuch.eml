@@ -1,10 +1,9 @@
 X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
- the parcel number and the shipper are invented; the buttons and the footer
- are cut
+ the parcel number is invented; the buttons and the footer are cut
 From: =?utf-8?q?Hermes_Paketank=C3=BCndigung?= <noreply@paketankuendigung.myhermes.de>
 To: max@example.org
-Subject: Erneuter Zustellversuch deiner Hermes Sendung von Beispiel Handels
- GmbH. Wo =?utf-8?q?m=C3=B6chtest?= du sie empfangen?
+Subject: Erneuter Zustellversuch deiner Hermes Sendung von Beispielversender.
+ Wo =?utf-8?q?m=C3=B6chtest?= du sie empfangen?
 Date: Wed, 27 Aug 2025 11:56:50 +0200
 Message-ID: <fixture-170@example.org>
 MIME-Version: 1.0
@@ -12,9 +11,9 @@ Content-Type: text/html; charset="utf-8"
 Content-Transfer-Encoding: 8bit
 
 <html><body>
-<p>Ein neuer Zustellversuch für deine Sendung von Beispiel Handels GmbH findet am Donnerstag statt.</p>
+<p>Ein neuer Zustellversuch für deine Sendungvon Cainiao findet am Donnerstag statt.</p>
 <p>Hallo,</p>
-<p>deine Sendung von Beispiel Handels GmbH konnte leider nicht zugestellt werden.</p>
+<p>deine Sendung von Beispielversender konnte leider nicht zugestellt werden.</p>
 <p>In Kürze unternehmen wir einen weiteren Zustellversuch.</p>
 <p>Neuer Zustellversuch am</p>
 <p>Donnerstag, 28.08.2025</p>

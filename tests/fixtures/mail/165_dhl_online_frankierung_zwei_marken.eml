@@ -1,10 +1,11 @@
-X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
- the parcel numbers, the recipients and the codes are invented; the footer is cut
+X-Fixture: derived from an original mail; the parcel numbers, the recipients,
+ the cart number and the label codes are replaced; the link to the cart, the
+ place to hand in, the legal notice, the images and the label (PDF) are cut
 From: noreply@dhl.com
 To: max@example.org
 Subject: =?utf-8?q?Auftragsbest=C3=A4tigung?= Ihrer Online Frankierung
  99XX99XX99XX
-Date: Sun, 07 Apr 2024 11:49:21 +0200
+Date: Sun, 07 Apr 2024 11:04:03 +0200
 Message-ID: <fixture-165@example.org>
 MIME-Version: 1.0
 Content-Type: multipart/alternative; boundary="fixture-165"
@@ -13,15 +14,22 @@ Content-Type: multipart/alternative; boundary="fixture-165"
 Content-Type: text/plain; charset="utf-8"
 Content-Transfer-Encoding: 8bit
 
-Warenkorb-Nr.:  99XX99XX99XX
-Datum:  07.04.2024
-
 Guten Tag,
 
-vielen Dank für die Nutzung der DHL Online Frankierung. Hiermit bestätigen
-wir Ihnen den untenstehenden Auftrag.
+danke, dass Sie die DHL Online Frankierung nutzen. Hiermit bestätigen wir Ihnen den folgenden Auftrag:
 
-Mit freundlichen Grüßen!
+1. 2 kg - Paket / 5,49 €
+2. 2 kg - Paket / 5,49 €
+
+Rechnungsbetrag (inkl. 0,00 € MwSt.): 10,98 €
+
+Warenkorb-Nr.: 99XX99XX99XX
+
+Über den Zugangslink oben können Sie auf Ihren Warenkorb zugreifen und die Rechnung herunterladen.
+
+Bewahren Sie bitte diese E-Mail auf, bis Sie Ihre Paketmarke erfolgreich ausgedruckt haben.
+
+Mit freundlichen Grüßen,
 Ihr DHL Team
 
 --fixture-165
@@ -32,9 +40,22 @@ Content-Transfer-Encoding: 8bit
 <p>Warenkorb-Nr.: 99XX99XX99XX</p>
 <p>Datum: 07.04.2024</p>
 <p>Guten Tag,</p>
-<p>vielen Dank für die Nutzung der DHL Online Frankierung. Hiermit bestätigen wir Ihnen den untenstehenden Auftrag.</p>
+<p>vielen Dank für die Nutzung der DHL Online Frankierung. Hiermit bestätigen</p>
+<p>wir Ihnen den untenstehenden Auftrag.</p>
+<p>Bitte drucken Sie Ihre Versandmarke aus und kleben diese gut sichtbar oben</p>
+<p>auf Ihre Sendung.</p>
+<p>Sie haben keinen Drucker?</p>
+<p>Mit freundlichen Grüßen!</p>
+<p>Ihr DHL Team</p>
+<p>Erika Musterfrau</p>
+<p>Erika Musterfrau</p>
+<p>Alle</p>
+<p>Versandmarken herunterladen</p>
+<p>Alle</p>
+<p>Versandmarken herunterladen</p>
 <p>2 kg - Paket</p>
 <p>max. 60 x 30 x 15 cm</p>
+<p>Haftung bis 500 €</p>
 <p>Sendungsverfolgung</p>
 <p>5,49 €</p>
 <p>Empfänger:</p>
@@ -42,8 +63,16 @@ Content-Transfer-Encoding: 8bit
 <p>Sendungsnummer:</p>
 <p>999999990165</p>
 <p>Versandmarke herunterladen</p>
+<p>Versandmarke ohne Drucker</p>
+<p>Bitte bei Abgabe Ihrer Sendung vorzeigen.</p>
+<p>PAK-ID:</p>
+<p>PAK XXX XXX XXX</p>
+<p>Packstation</p>
+<p>Filiale/Paketshop</p>
+<p>DHL Zusteller</p>
 <p>2 kg - Paket</p>
 <p>max. 60 x 30 x 15 cm</p>
+<p>Haftung bis 500 €</p>
 <p>Sendungsverfolgung</p>
 <p>5,49 €</p>
 <p>Empfänger:</p>
@@ -51,8 +80,18 @@ Content-Transfer-Encoding: 8bit
 <p>Sendungsnummer:</p>
 <p>999999990166</p>
 <p>Versandmarke herunterladen</p>
+<p>Versandmarke ohne Drucker</p>
+<p>Bitte bei Abgabe Ihrer Sendung vorzeigen.</p>
+<p>PAK-ID:</p>
+<p>PAK XXX XXX XXX</p>
+<p>Packstation</p>
+<p>Filiale/Paketshop</p>
+<p>DHL Zusteller</p>
 <p>Rechnungsbetrag</p>
 <p>10,98 €</p>
+<p>Die Bezahlung erfolgte über PayPal</p>
+<p>inkl. 0,00 € USt.</p>
+<p>Nach Abgabe Ihrer Sendung erhalten Sie einen Einlieferungsbeleg per E-Mail.</p>
 </body></html>
 
 --fixture-165--

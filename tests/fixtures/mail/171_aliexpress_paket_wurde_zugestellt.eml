@@ -1,26 +1,38 @@
-X-Fixture: synthetic - written by hand after the wording of a real mail; name, numbers, items and address invented
+X-Fixture: derived from an original mail; the name, the numbers, the items and
+ the address are replaced; of the links only the parameters that name the
+ order and the parcel are kept; the footer is cut
 From: AliExpress <transaction@notice.aliexpress.com>
 To: max@example.org
 Subject: Paket 00340999999999990171 wurde zugestellt
 Date: Mon, 03 Nov 2025 11:35:34 -0800
-Message-ID: <synthetic-171@example.org>
+Message-ID: <fixture-171@example.org>
 MIME-Version: 1.0
 Content-Type: text/html; charset="utf-8"
 Content-Transfer-Encoding: 8bit
 
 <html><body>
 <p>Wir wünschen Ihnen viel Freude mit Ihrem Kauf</p>
+<p>Paket zugestellt</p>
 <p>Hallo Max Mustermann,</p>
-<p>Ihr Paket 00340999999999990171 wurde erfolgreich zugestellt! Bestätigen Sie uns den Empfang Ihrer Bestellung, indem Sie unten anklicken.</p>
-<p><a href="https://www.aliexpress.com/p/tracking/index.html?_login=yes&amp;tradeOrderId=9999999999990171">Details prüfen</a></p>
+<p>Ihr Paket <a href="https://www.aliexpress.com/p/tracking/index.html?_addShare=no&amp;_login=yes&amp;tradeOrderId=9999999999990171&amp;trackingNumber=AP99999999990171">00340999999999990171</a> wurde erfolgreich zugestellt! Bestätigen Sie uns den Empfang Ihrer Bestellung, indem Sie unten anklicken. Wir wünschen Ihnen viel Freude mit Ihrem Kauf!</p>
+<p><a href="https://www.aliexpress.com/p/tracking/index.html?_addShare=no&amp;_login=yes&amp;tradeOrderId=9999999999990171&amp;trackingNumber=AP99999999990171">Details prüfen</a></p>
+<p>.</p>
 <p>.</p>
 <p>Paketinfos</p>
-<p>.</p>
+<p><a href="https://www.aliexpress.com/p/tracking/index.html?_addShare=no&amp;_login=yes&amp;tradeOrderId=9999999999990171">.</a></p>
 <p>Beispiel-Sensor für Temperatur und L...</p>
-<p>Variante A</p>
+<p>1pcs</p>
 <p>x1</p>
 <p>.</p>
+<p><a href="https://www.aliexpress.com/p/tracking/index.html?_addShare=no&amp;_login=yes&amp;tradeOrderId=9999999999990172">.</a></p>
+<p>Beispiel-Schalter kabellos mit Batte...</p>
+<p>1pcs</p>
+<p>x3</p>
+<p>.</p>
+<p>.</p>
+<p>.</p>
 <p>Versand nach</p>
-<p>Musterstraße 1, Musterstadt</p>
+<p>Musterstraße, 1</p>
+<p>Musterstadt, Bayern</p>
 <p>Max Mustermann (+49) 0000000000</p>
 </body></html>

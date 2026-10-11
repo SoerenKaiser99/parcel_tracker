@@ -621,7 +621,7 @@ def test_dhl_number_only_in_the_html_part_is_read():
     # The text part names the number only in a link: 12 digits, without their label.
     [u] = parse_mail(load_mail("159_dhl_sendung_ist_unterwegs_nummer_im_html.eml")).updates
     assert (u.number, u.carrier, u.title) == ("999999990159", "dhl", "Beispiel GmbH")
-    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2026, 1, 22))
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2026, 4, 16))
 
 
 def test_dhl_mail_with_an_empty_text_part_is_read_from_its_html_part():
@@ -678,7 +678,8 @@ def _express(sentence: str) -> EmailMessage:
 
 def test_dhl_express_delivery_names_the_time_of_the_mail_text():
     [u] = parse_mail(load_mail("166_dhl_express_on_demand_zugestellt.eml")).updates
-    assert (u.number, u.carrier, u.title) == ("9999990166", "dhl", "BEISPIEL HANDELS GMBH")
+    assert (u.number, u.carrier, u.title) == ("9999990166", "dhl", "Amazon-Sendung (DHL)")
+    assert u.shop == "amazon"
     assert u.status is ParcelStatus.DELIVERED
     assert u.delivered_at == datetime(2025, 6, 11, 15, 45, tzinfo=BERLIN)
 
