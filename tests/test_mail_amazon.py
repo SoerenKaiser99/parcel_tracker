@@ -3,6 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
+from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.amazon import (
     order_number,
     parse_amazon,
@@ -333,3 +334,90 @@ def test_legacy_14_digits_without_hermes_stay_an_order():
 def test_legacy_ups_numbers_keep_their_own_parcel():
     [u] = parse_amazon_legacy(load_mail("046_versandbestaetigung_ihre_amazon_de_beste.eml"))
     assert (u.carrier, u.tracking_ref) == ("ups", None)
+
+
+# ----- the plain layout ("Bestellung #…"): in delivery, a delay -----
+ON_THE_ROUTE = "172_shipment_tracking_ihr_paket_wird_zugestellt.eml"
+DELAYED = "173_order_update_lieferungsaktualisierung.eml"
+SHIPPED_LATER_LAYOUT = "174_versandbestaetigung_deine_amazon_de_beste.eml"
+
+
+def test_plain_mail_named_after_its_item_is_in_delivery():
+    # The subject is only the item's name: the sentence in the text tells the status.
+    [u] = parse_mail(load_mail(ON_THE_ROUTE)).updates
+    assert (u.number, u.carrier) == ("AMZ99900001720000172", "amazon")
+    assert (u.status, u.status_text, u.postponed) == (ParcelStatus.OUT_FOR_DELIVERY, None, False)
+    # The first item below the order number names the order.
+    assert u.title == "Beispiel-Rasensamen zur Rasensanierung für 25 m², für alle…"
+    assert (u.eta_date, u.delivered_at) == (None, None)
+
+
+def test_plain_mail_tells_the_order_once_however_often_it_names_it():
+    msg = load_mail(ON_THE_ROUTE)
+    text = msg.get_content()
+    msg.set_content(f"Bestellung #999-0000172-0000172\n\n{text}")
+    assert [u.number for u in parse_mail(msg).updates] == ["AMZ99900001720000172"]
+
+
+def test_plain_mail_without_the_sentence_tells_nothing():
+    msg = load_mail(ON_THE_ROUTE)
+    msg.set_content(msg.get_content().replace("wird zugestellt.", "ist angekündigt."))
+    assert parse_mail(msg).updates == []
+
+
+def test_delay_keeps_the_order_on_its_way_with_the_new_day():
+    [u] = parse_mail(load_mail(DELAYED)).updates
+    assert (u.number, u.status) == ("AMZ99900001730000173", ParcelStatus.IN_TRANSIT)
+    assert (u.status_text, u.postponed) == ("Lieferung verspätet", True)
+    assert u.eta_date == date(2025, 4, 26)
+    assert u.title == "Beispiel-Schleifscheibe 125 mm, Körnung 320"
+
+
+@pytest.mark.parametrize(
+    ("subj", "status"),
+    [
+        ("Unterwegs zur Zustellung: 6 „x“", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Zur Auslieferung: „x“ und ⁦3⁩ weitere Artikel", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Zustellversuch: „x“ und ⁦4⁩ weitere Artikel", ParcelStatus.IN_TRANSIT),
+        ("Lieferungsaktualisierung: Beispiel...", ParcelStatus.IN_TRANSIT),
+    ],
+)
+def test_subject_status_of_the_newer_wordings(subj, status):
+    assert subject_status(subj) is status
+
+
+def test_title_counts_further_items_between_direction_marks():
+    assert subject_title("Zur Auslieferung: „Beispiel...“ und ⁦3⁩ weitere Artikel") == (
+        "Beispiel… und 3 weitere Artikel"
+    )
+
+
+def test_attempt_in_the_wording_of_2026_takes_the_order_back_like_the_older_one():
+    msg = load_mail("125_order_update_versuchte_zustellung.eml")
+    older = parse_amazon(msg, False)
+    subj = str(msg["Subject"]).replace("Versuchte Zustellung:", "Zustellversuch:")
+    msg.replace_header("Subject", subj)
+    assert subj.startswith("Zustellversuch:") and parse_amazon(msg, False) == older
+    assert older[0].postponed and older[0].status_text == "Zustellung versucht"
+
+
+# ----- the layout of the old shipping mail, sent again until 2025 -----
+def test_shipping_mail_in_the_old_layout_keeps_the_dhl_number_with_the_order():
+    [u] = parse_mail(load_mail(SHIPPED_LATER_LAYOUT)).updates
+    assert (u.number, u.carrier, u.status) == (
+        "AMZ99900001740000174", "amazon", ParcelStatus.IN_TRANSIT,
+    )
+    assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990174", "dhl")
+    assert (u.title, u.eta_date) == ("Beispiel-Felgenreiniger…", date(2024, 9, 25))
+
+
+def test_old_layout_is_only_read_for_the_shipping_sender():
+    msg = load_mail(SHIPPED_LATER_LAYOUT)
+    msg.replace_header("From", '"Amazon.de" <order-update@amazon.de>')
+    assert parse_mail(msg).updates == []
+
+
+def test_the_first_old_wording_still_makes_a_parcel_of_the_carrier_number():
+    # (as before: only the later mails keep the number with the order)
+    msg = load_mail(SHIPPED_LATER_LAYOUT)
+    assert [u.number for u in parse_amazon_legacy(msg)] == ["00340999999999990174"]

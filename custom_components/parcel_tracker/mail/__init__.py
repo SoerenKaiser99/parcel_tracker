@@ -13,6 +13,7 @@ from .aliexpress import (
 from .amazon import (
     AMAZON_SENDERS,
     LEGACY_PREFIXES,
+    SHIPPING_SENDER,
     parse_amazon,
     parse_amazon_legacy,
     subject_status,
@@ -175,6 +176,8 @@ def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
             updates = parse_amazon_legacy(msg)
         else:
             updates = parse_amazon(msg, read_otp)
+            if not updates and address == SHIPPING_SENDER:
+                updates = parse_amazon_legacy(msg, with_order=True)
         if updates or real_amazon:
             return MailResult(updates=updates, amazon=real_amazon)
         return MailResult(updates=parse_generic(msg))
