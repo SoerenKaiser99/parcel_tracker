@@ -349,7 +349,8 @@ def test_plain_mail_named_after_its_item_is_in_delivery():
     assert (u.status, u.status_text, u.postponed) == (ParcelStatus.OUT_FOR_DELIVERY, None, False)
     # The first item below the order number names the order.
     assert u.title == "Beispiel-Rasensamen zur Rasensanierung für 25 m², für alle…"
-    assert (u.eta_date, u.delivered_at) == (None, None)
+    # The mail names no day: in delivery is the day it was sent.
+    assert (u.eta_date, u.delivered_at) == (date(2025, 9, 22), None)
 
 
 def test_plain_mail_tells_the_order_once_however_often_it_names_it():
@@ -387,9 +388,27 @@ def test_subject_status_of_the_newer_wordings(subj, status):
 
 
 def test_title_counts_further_items_between_direction_marks():
-    assert subject_title("Zur Auslieferung: „Beispiel...“ und ⁦3⁩ weitere Artikel") == (
-        "Beispiel… und 3 weitere Artikel"
+    # (the marks are dropped with the other invisible ones when the subject is read)
+    msg = load_mail(ON_THE_ROUTE)
+    count = f"{chr(0x2066)}3{chr(0x2069)}"
+    msg.replace_header("Subject", f"Zur Auslieferung: „Beispiel...“ und {count} weitere Artikel")
+    msg.set_content("Ankunft heute\nBestellnr.\n999-0000172-0000172\n")
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.title) == (
+        ParcelStatus.OUT_FOR_DELIVERY, "Beispiel… und 3 weitere Artikel",
     )
+
+
+def test_plain_mail_that_names_the_order_in_its_head_is_still_named_after_the_item():
+    msg = load_mail(ON_THE_ROUTE)
+    head = "Amazon.de Lieferung\nBestellung #999-0000172-0000172\nhttps://www.amazon.de/…\n\n"
+    msg.set_content(head + msg.get_content())
+    [u] = parse_mail(msg).updates
+    assert u.title == "Beispiel-Rasensamen zur Rasensanierung für 25 m², für alle…"
+    # A label or a date below the number is no item.
+    msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+                    "Aufgegeben am 4. November 2025\n")
+    assert parse_mail(msg).updates[0].title is None
 
 
 def test_attempt_in_the_wording_of_2026_takes_the_order_back_like_the_older_one():
@@ -421,3 +440,12 @@ def test_the_first_old_wording_still_makes_a_parcel_of_the_carrier_number():
     # (as before: only the later mails keep the number with the order)
     msg = load_mail(SHIPPED_LATER_LAYOUT)
     assert [u.number for u in parse_amazon_legacy(msg)] == ["00340999999999990174"]
+
+
+def test_another_mail_of_the_shipping_sender_is_not_read_as_shipped():
+    # (only the sentence of the old layout makes it a shipping mail)
+    msg = load_mail(SHIPPED_LATER_LAYOUT)
+    text = msg.get_content().replace("deine Bestellung verschickt hat", "sich gemeldet hat")
+    msg.set_content(text)
+    result = parse_mail(msg)
+    assert result.updates == [] and result.amazon  # it counts as an Amazon mail nobody knows

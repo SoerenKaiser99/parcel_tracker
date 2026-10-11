@@ -22,8 +22,9 @@ MONTHS = {
 }
 
 # Invisible marks Amazon/DHL put into mails: combining grapheme joiner, zero-width
-# chars, direction marks/embeddings (U+202B before the order number), soft hyphen.
-_INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­]")
+# chars, direction marks/embeddings (U+202B before the order number) and isolates
+# (around the count in "und 3 weitere Artikel"), soft hyphen.
+_INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­\u2066-\u2069]")
 _SPACES = re.compile("[ \t   ]+")
 _FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
 _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
@@ -61,6 +62,9 @@ class MailUpdate:
     # The shop confirms the delivery days afterwards (AliExpress "Lieferung bestätigt"): an
     # order that is delivered for real keeps its time of delivery and its history.
     confirmation: bool = False
+    # One's own shipment (handed in at a Packstation, a label bought online): it belongs
+    # to no order, so it is never merged into one and closes none when it arrives.
+    own: bool = False
 
 
 @dataclass

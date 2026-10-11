@@ -467,7 +467,8 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
             ),
             None,
         )
-    if target is None and update.status is not None:
+    # (one's own shipment belongs to no order: see ``MailUpdate.own``)
+    if target is None and update.status is not None and not update.own:
         target = _merge_candidate(parcels, update)
         if target is not None:
             old = target.status
@@ -479,6 +480,8 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
             return Change(target, old, False)
     if target is None:
         target = Parcel(number, update.carrier, "mail", name, now, now)
+        # (... so nobody asks later whether its delivery closes one: ``fold_delivered``)
+        target.order_checked = update.own
         parcels[number] = target
         _forward(target, update, now)
         return Change(target, None, True)

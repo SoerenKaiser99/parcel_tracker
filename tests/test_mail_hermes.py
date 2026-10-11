@@ -191,3 +191,11 @@ def test_routing():
         ("hermes", ParcelStatus.DELIVERED)
     ]
     assert not result.amazon and not result.ignored
+
+
+def test_shop_of_the_new_attempt_subject_ends_before_the_question():
+    body = "Neuer Zustellversuch am\nDonnerstag, 08.10.2026\nSendungsnummer H1000999999999990901\n"
+    msg = _msg("Erneuter Zustellversuch deiner Hermes Sendung von Zalando. Wo möchtest du sie "
+               "empfangen?", body)
+    [u] = parse_mail(msg).updates
+    assert (u.title, u.status) == ("Zalando", ParcelStatus.IN_TRANSIT)

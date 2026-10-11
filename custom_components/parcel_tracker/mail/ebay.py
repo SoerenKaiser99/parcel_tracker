@@ -113,8 +113,10 @@ def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
             delivered_at = at(day[0], int(dropped.group("h")), int(dropped.group("m")))
     subject_title = _DELIVERED.search(subj) or _UPDATE.search(subj)
     fallback = shorten(subject_title.group("title").rstrip(".… ")) if subject_title else None
+    orders = _orders(text)
     tracking_ref = tracking_carrier = None
-    if _UPDATE.search(subj) and (tracking := _TRACKING.search(text)):
+    # (a mail about several orders does not tell whose number it is)
+    if _UPDATE.search(subj) and len(orders) == 1 and (tracking := _TRACKING.search(text)):
         tracking_carrier = carrier_for(tracking.group("number"))
         tracking_ref = tracking.group("number") if tracking_carrier else None
     return [
@@ -131,5 +133,5 @@ def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
             tracking_ref=tracking_ref,
             tracking_carrier=tracking_carrier,
         )
-        for order, titles in _orders(text).items()
+        for order, titles in orders.items()
     ]

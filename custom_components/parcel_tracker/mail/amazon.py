@@ -69,8 +69,7 @@ _STAGES = {
 # closing quote still follows; otherwise it closes the title.
 _QUOTED = re.compile(
     r"^[^:]+:\s*(?:\d+\s*)?[„\"“](?P<title>(?:[^“\"”]|\"(?=[^“”]*[“”]))+)[“\"”]"
-    r"(?:\s*und\s+[\u2066-\u2069]?(?P<more>\d+)[\u2066-\u2069]?\s+"
-    r"(?:weitere[r]?|mehr)\s+Artikel)?"
+    r"(?:\s*und\s+(?P<more>\d+)\s+(?:weitere[r]?|mehr)\s+Artikel)?"
 )
 # ("Bestellung #…" in the plain layout of the delivery, delay and password mails)
 _ORDER = re.compile(
@@ -82,6 +81,9 @@ _ON_THE_ROUTE = re.compile(
     r"^Ihr (?:Amazon )?Paket(?: mit \S.*)? wird zugestellt\.?$", re.MULTILINE
 )
 _LATER = re.compile(r"Jetzt erwartet bis zum (\d{1,2}\.\s*[A-Za-zä]+)")
+# An item's line below the order number: no link, no label ("Ihr Paket verfolgen:"), no
+# date line, not the shop's name.
+_PLAIN_ITEM = re.compile(r"(?!Aufgegeben am\b|Amazon\.\w+$)[^\W_](?:(?!://).)*[^:]$")
 # An item below its order number: "[title]<link>" in a mail whose text was made from the
 # HTML, "* title" in the text part Amazon writes itself.
 _ITEM = re.compile(r"^(?:\[(?P<title>[^\]]+)\]<https?://|\* (?P<listed>\S.*)$)", re.MULTILINE)
@@ -98,6 +100,13 @@ _LEGACY_NUMBER = re.compile(r"Paketverfolgungsnummern?:\s*([0-9A-Z]{10,30})")
 _LEGACY_ETA = re.compile(r"^Zustellung:\s*\n\w+,\s*(\d{1,2})\.?\s*([A-Za-zä]+)", re.MULTILINE)
 _LEGACY_MORE = re.compile(r"\"\s*und\s+(\d+)\s+weiteren\s+Artikel")
 _LEGACY_HERMES = re.compile(r"mit Hermes versandt")
+# The sentence of the old layout: "… dass wir deine Bestellung versandt haben." / "… dass
+# <seller> deine Bestellung verschickt hat." / "… einen Teil deiner Bestellung verschicken
+# konnten." / "… die letzte Lieferung aus deiner Bestellung nun versandt haben."
+_LEGACY_SHIPPED = re.compile(
+    r"\b(?:deiner?|Ihrer?) Bestellung\b[^.\n]{0,20}?"
+    r"\b(?:versandt haben|verschickt hat|verschicken konnten)\b"
+)
 _HERMES_14 = re.compile(r"\d{14}")
 
 
@@ -161,17 +170,18 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     text = body_text(msg)
     sent = sent_at(msg)
     status = subject_status(subj) or stage_status(text)
-    # (one update per order, however often the mail names it)
-    orders: list[re.Match[str]] = []
-    for match in _ORDER.finditer(text):
-        if all(match.group(2) != seen.group(2) for seen in orders):
-            orders.append(match)
+    # One update per order, however often the mail names it: the last mention counts (the
+    # plain layout names the order in its head and again above the items).
+    last = {match.group(2): match for match in _ORDER.finditer(text)}
+    orders = sorted(last.values(), key=lambda match: match.start())
     if status is None or not orders:
         return []
 
     attempt = subj.strip().lower().startswith(_ATTEMPTS)
     delay = subj.strip().lower().startswith(f"{_DELAY}:")
     eta = _eta(text, sent)
+    if not eta and status is ParcelStatus.OUT_FOR_DELIVERY and _ON_THE_ROUTE.search(text):
+        eta = {"eta_date": sent.date()}  # (the plain mail names no day: it is today)
     if delay and (later := _LATER.search(text)):
         if resolved := resolve_dates(later.group(1), sent.date()):
             eta = {"eta_date": resolved[0]}
@@ -194,7 +204,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         if listed is None and match.group("plain"):
             # (the plain layout names the items on the lines below the number)
             below = text[match.end() : end].strip().splitlines()[:1]
-            if below and re.match(r"[^\W_]", below[0]) and "://" not in below[0]:
+            if below and _PLAIN_ITEM.match(below[0].strip()):
                 listed = below[0].strip()
         title = from_subject or (shorten(listed) if listed else None)
         updates.append(
@@ -212,6 +222,12 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
             )
         )
     return updates
+
+
+def old_shipping_layout(msg: EmailMessage) -> bool:
+    """Tell whether a mail is a shipping mail in the old layout (see SHIPPING_SENDER)."""
+    text = body_text(msg)
+    return bool(_LEGACY_ORDER.search(text) and _LEGACY_SHIPPED.search(text))
 
 
 def _legacy_title(subj: str) -> str | None:

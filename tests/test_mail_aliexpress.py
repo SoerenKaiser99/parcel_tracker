@@ -800,3 +800,24 @@ def test_unknown_relayed_sender_is_an_ordinary_unknown_mail():
     assert sender(msg)[0].endswith("@privaterelay.appleid.com")
     [u] = parse_mail(msg).updates  # the generic parser: only the safe number
     assert (u.number, u.carrier, u.status) == (DHL, "dhl", None)
+
+
+def test_delivery_problem_takes_the_order_back_from_in_delivery():
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Paket {DHL} wird zugestellt"))
+    order = parcels[ORDER]
+    assert order.status is ParcelStatus.OUT_FOR_DELIVERY
+    problem = _parcel(f"Lieferprobleme für Packstück {DHL}")
+    problem.replace_header("Date", "Wed, 07 Oct 2026 12:00:00 +0200")
+    [u] = parse_mail(problem).updates
+    assert u.postponed
+    _apply(parcels, problem)
+    assert (order.status, order.result.status_text) == (ParcelStatus.IN_TRANSIT, "Lieferprobleme")
+    assert order.result.eta_date is None  # no longer today
+
+
+def test_last_mile_mail_without_an_order_names_no_day():
+    # (it has to find its order by the status alone: see ``_merge_candidate``)
+    [u] = parse_mail(_msg(f"Paket {DHL} wird zugestellt")).updates
+    assert (u.number, u.carrier, u.status) == (DHL, "dhl", ParcelStatus.OUT_FOR_DELIVERY)
+    assert u.eta_date is None

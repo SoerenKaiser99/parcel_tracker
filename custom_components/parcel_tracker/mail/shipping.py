@@ -24,10 +24,13 @@ from .base import (
     subject,
     upcoming_date,
 )
+from .forward import _MONTHS as _SHORT_MONTHS
 
 DHL_SENDER = "noreply@dhl.de"
 DHL_DOMAIN = "dhl.de"  # every sender there (also paketankuendigung@dhl.de) is DHL
 DHL_COM_DOMAIN = "dhl.com"  # DHL Express and the online postage shop
+DHL_EXPRESS_SENDER = "noreply.odd@dhl.com"
+DHL_POSTAGE_SENDER = "noreply@dhl.com"
 UPS_SENDER = "pkginfo@ups.com"
 AMAZON_DHL_NAME = "Amazon-Sendung (DHL)"
 # Shops and carriers we know: only the display name of such a sender is looked at as a
@@ -148,6 +151,12 @@ def _dhl_numbers(text: str) -> list[str]:
     return numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
 
 
+def _dhl_all_numbers(text: str) -> list[str]:
+    """Every number of a mail that lists several shipments, each once, whatever its form."""
+    numbers = [n for carrier, n in find_numbers(text) if carrier == "dhl"]
+    return list(dict.fromkeys([*numbers, *_DHL_S10.findall(text), *_DHL_SHORT.findall(text)]))
+
+
 def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     """DHL notification: number, status, day or today's window, the shop the subject names.
 
@@ -190,6 +199,10 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     receipt = _DHL_RECEIPT.search(subj) is not None
     if receipt:
         title, shop_name, status = OWN_SHIPMENT_NAME, None, ParcelStatus.IN_TRANSIT
+        # (a receipt lists every parcel handed in; the HTML part names them all)
+        numbers = _dhl_all_numbers(f"{text}\n{html_body_text(msg)}") or numbers
+    else:
+        numbers = numbers[:1]
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
     if status is ParcelStatus.OUT_FOR_DELIVERY:
@@ -210,7 +223,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
         delivered_at = sent
     return [
         MailUpdate(
-            number=numbers[0],
+            number=number,
             carrier="dhl",
             status=status,
             sent_at=sent,
@@ -222,7 +235,9 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             shop=shop_name,
             postponed=postponed,
             status_text=_dhl_words(subj, status, receipt),
+            own=receipt,
         )
+        for number in numbers
     ]
 
 
@@ -238,17 +253,14 @@ _EXPRESS = re.compile(
 )
 _EXPRESS_DAY = re.compile(r"voraussichtliche Zustelldatum (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4})")
 _EXPRESS_TIME = re.compile(r"\bam (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4}) um (\d{1,2}):(\d{2})\b")
-# (the month stands in English or German, three letters)
-_EXPRESS_MONTHS = {
-    "jan": 1, "feb": 2, "mar": 3, "mär": 3, "apr": 4, "may": 5, "mai": 5, "jun": 6,
-    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "okt": 10, "nov": 11, "dec": 12, "dez": 12,
-}
+_EXPRESS_TODAY = re.compile(r"\bheute\b", re.IGNORECASE)
 _POSTAGE = re.compile(r"\bOnline\s+Frankierung\b", re.IGNORECASE)
 
 
 def _express_day(day: str, month: str, year: str) -> date | None:
     try:
-        return date(int(year), _EXPRESS_MONTHS[month.lower()], int(day))
+        # (the month stands in English or German, three letters)
+        return date(int(year), _SHORT_MONTHS[month.lower()], int(day))
     except (KeyError, ValueError):
         return None
 
@@ -256,8 +268,8 @@ def _express_day(day: str, month: str, year: str) -> date | None:
 def parse_dhl_com_mail(msg: EmailMessage) -> list[MailUpdate]:
     """Mails from dhl.com: DHL Express ("On Demand Delivery") and the online postage shop.
 
-    Express: the sentence about the shipment tells the status ("ist unterwegs", today
-    "wird … ausgeliefert", "wurde … zugestellt" with day and time), the shipper names the
+    Express: the sentence about the shipment tells the status ("ist unterwegs", "wird …
+    HEUTE … ausgeliefert", "wurde … zugestellt" with day and time), the shipper names the
     parcel through the naming gate. Postage ("Auftragsbestätigung Ihrer Online Frankierung"):
     one's own shipments, one per "Sendungsnummer:" of a label, announced; a stamp for a
     letter has no number and gives nothing. The recipients of the labels are never read.
@@ -267,8 +279,10 @@ def parse_dhl_com_mail(msg: EmailMessage) -> list[MailUpdate]:
     sent = sent_at(msg)
     if _POSTAGE.search(subject(msg)):
         return [
-            MailUpdate(number, "dhl", ParcelStatus.PRE_TRANSIT, sent, title=OWN_SHIPMENT_NAME)
-            for number in dict.fromkeys(_dhl_numbers(text))
+            MailUpdate(
+                number, "dhl", ParcelStatus.PRE_TRANSIT, sent, title=OWN_SHIPMENT_NAME, own=True
+            )
+            for number in _dhl_all_numbers(text)
         ]
     told = _EXPRESS.search(text)
     if not told:
@@ -288,7 +302,9 @@ def parse_dhl_com_mail(msg: EmailMessage) -> list[MailUpdate]:
         if day and int(when.group(4)) < 24 and int(when.group(5)) < 60:
             update.delivered_at = at(day, int(when.group(4)), int(when.group(5)))
     elif words.startswith("wird"):
-        update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
+        # (only "heute" is the day of the mail; any other day stays "on its way")
+        if _EXPRESS_TODAY.search(words):
+            update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
     elif day := _EXPRESS_DAY.search(text):
         update.eta_date = _express_day(*day.groups())
     return [update]

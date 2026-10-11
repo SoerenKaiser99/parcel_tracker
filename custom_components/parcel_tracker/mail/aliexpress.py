@@ -323,7 +323,11 @@ def _link_orders(msg: EmailMessage) -> list[str]:
 
 
 def _parcel_mail(
-    msg: EmailMessage, number: str, words: str | None, status: ParcelStatus = _ON_WAY
+    msg: EmailMessage,
+    number: str,
+    words: str | None,
+    status: ParcelStatus = _ON_WAY,
+    postponed: bool = False,
 ) -> MailResult:
     """A mail about the parcel at the carrier ("Packstück …", "Paket …", "Zollabfertigung …").
 
@@ -333,7 +337,9 @@ def _parcel_mail(
     carrier nobody can ask. Without an order in the links the mail is a carrier's mail
     about an AliExpress shipment: merged into the one order that fits, else a parcel of
     its own; with an unknown number only the status is left, for the one order that fits.
-    "In delivery" is the day of the mail, "delivered" the time it was sent.
+    "In delivery" is the day of the mail, "delivered" the time it was sent. A mail without
+    an order names no day: it has to find its order by the status alone. ``postponed``: the
+    mail may take its order back from "in Zustellung" (a failed delivery).
     """
     sent = sent_at(msg)
     when: dict[str, date | datetime] = {}
@@ -345,6 +351,7 @@ def _parcel_mail(
     orders = _link_orders(msg)
     names = _item_names(_lines(body_text(msg)))
     if not orders:
+        when.pop("eta_date", None)
         return MailResult(
             updates=[
                 MailUpdate(
@@ -356,6 +363,7 @@ def _parcel_mail(
                     title=PARCEL_NAME if carrier else None,
                     shop="aliexpress",
                     status_text=words,
+                    postponed=postponed,
                 )
             ]
         )
@@ -372,6 +380,7 @@ def _parcel_mail(
                 tracking_ref=number if carrier else None,
                 tracking_carrier=carrier,
                 status_text=words,
+                postponed=postponed,
             )
             for order in orders
         ]
@@ -396,7 +405,7 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     if found := _CUSTOMS_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), CUSTOMS_TEXT)
     if found := _PROBLEM_SUBJECT.match(subj):
-        return _parcel_mail(msg, found.group("number"), PROBLEM_TEXT)
+        return _parcel_mail(msg, found.group("number"), PROBLEM_TEXT, postponed=True)
     if found := _PACKAGE_SUBJECT.match(subj):
         step = _PACKAGE_STEPS.get(" ".join(found.group("step").lower().split()))
         if step is None:

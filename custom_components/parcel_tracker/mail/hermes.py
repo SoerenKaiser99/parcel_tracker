@@ -28,7 +28,10 @@ from .base import (
 HERMES_SENDER = "noreply@paketankuendigung.myhermes.de"
 
 _LABELLED = re.compile(r"Sendungsnummer\s*:?\s*(\d{14})\b")
-_SHOP = re.compile(r"(?:Sendung|Paket) von (?P<shop>[^\n]+?)(?: wurde| kommt| ist|\.?$)", re.M)
+# ("… Sendung von <shop>. Wo möchtest du sie empfangen?": the question is no part of it)
+_SHOP = re.compile(
+    r"(?:Sendung|Paket) von (?P<shop>[^\n]+?)(?: wurde| kommt| ist|\. Wo |\.?$)", re.M
+)
 _ETA_LABEL = re.compile(r"Voraussichtliche Zustellung:?")
 _FULL_DATE = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b")
 _DAY_MONTH = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(?!\d)")

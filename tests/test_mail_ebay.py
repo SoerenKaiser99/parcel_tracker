@@ -139,3 +139,15 @@ def test_the_number_of_another_ebay_mail_is_never_taken():
 def test_item_numbers_never_become_tracking_numbers():
     for name in (SHIPPED, DELIVERED):
         assert all(u.number.startswith("EBAY") for u in parse_mail(load_mail(name)).updates)
+
+
+def test_update_mail_about_two_orders_gives_neither_the_number():
+    msg = _msg(
+        "🚚 Update zur Bestellung: Beispiel-Artikel",
+        "Sendungsnummer: 00340999999999990901\n"
+        "Artikel A\nArtikelnr.:\n999999999901\nBestellnummer:\n99-00000-00001\n"
+        "Artikel B\nArtikelnr.:\n999999999902\nBestellnummer:\n99-00000-00002\n",
+    )
+    first, second = parse_mail(msg).updates
+    assert (first.number, second.number) == ("EBAY990000000001", "EBAY990000000002")
+    assert (first.tracking_ref, second.tracking_ref) == (None, None)
