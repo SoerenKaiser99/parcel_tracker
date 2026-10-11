@@ -95,7 +95,7 @@ Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key
 - Abgefragt wird die öffentliche DPD-Sendungsverfolgung, nur mit der Sendungsnummer. Zugangsdaten brauchst du nicht.
 - DPD liefert den Status und die fünf Meilenstein-Termine, aber keinen Standort und kein Zeitfenster.
 - Die detailliertere DPD-Seite braucht eine Postleitzahl und ist durch ein Captcha geschützt. Deshalb nutzt die Integration sie nicht.
-- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung.
+- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung. Die Mails danach setzen den Status selbst: „Zwischen … und … Uhr kommt Ihr DPD Paket“ („In Zustellung“ mit Zeitfenster), „Ihr Paket ist da!“ („Zugestellt“) und „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ („Abholbereit“).
 
 ## GLS
 

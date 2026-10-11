@@ -298,6 +298,7 @@ def test_announcement_sent_directly_reads_the_same():
         ("in 3 Werktagen", date(2026, 10, 3), None),
         ("in 1 Werktag", date(2026, 10, 1), None),
         ("in 2-2 Werktagen", date(2026, 10, 2), None),
+        ("am nächsten Werktag", date(2026, 10, 1), None),
         # nothing a day can be told from
         ("in 0 Werktagen", None, None),
         ("in 3-1 Werktagen", None, None),
@@ -374,6 +375,66 @@ def test_announcement_text_from_another_sender_is_not_read():
     msg.set_content(f"{msg.get_content()}\nPaketnummer: {NUMBER}\n")
     [u] = parse_mail(msg).updates
     assert (u.number, u.status, u.title, u.eta_date) == (NUMBER, None, None, None)
+
+
+# ----- the mails after the announcement: today's window, delivered, waiting in a shop -----
+WINDOW = "161_dpd_de_zwischen_uhr_kommt_ihr_dpd_paket.eml"
+DELIVERED = "162_dpd_de_ihr_paket_ist_da.eml"
+IN_SHOP = "163_dpd_de_im_pickup_paketshop_wartet.eml"
+
+
+def test_window_mail_is_in_delivery_today_with_its_window():
+    msg = load_mail(WINDOW)
+    [u] = parse_mail(msg).updates
+    day = sent_at(msg).date()
+    assert (u.number, u.carrier, u.title) == ("09999999999961", "dpd", SHIPPER)
+    assert (u.status, u.eta_date, u.eta_latest) == (ParcelStatus.OUT_FOR_DELIVERY, day, None)
+    assert (u.eta_from, u.eta_to) == (
+        datetime(2025, 10, 10, 14, 6, tzinfo=BERLIN), datetime(2025, 10, 10, 15, 6, tzinfo=BERLIN),
+    )
+
+
+def test_delivery_mail_is_delivered_when_it_was_sent():
+    msg = load_mail(DELIVERED)
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status, u.title) == ("09999999999961", ParcelStatus.DELIVERED, SHIPPER)
+    assert (u.delivered_at, u.eta_date, u.eta_from) == (sent_at(msg), None, None)
+
+
+def test_parcel_waiting_in_the_pickup_shop_is_ready_for_pickup():
+    [u] = parse_mail(load_mail(IN_SHOP)).updates
+    assert (u.number, u.status) == ("09999999999963", ParcelStatus.AWAITING_PICKUP)
+    assert (u.delivered_at, u.eta_date) == (None, None)
+    # The shop and its address are never read.
+    assert "Kiosk" not in repr(asdict(u)) and "Beispielweg" not in repr(asdict(u))
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Der Pickup Paketshop erhält in Kürze Ihr DPD Paket",  # not there yet
+        "Zwischen 25:00 und 26:00 Uhr kommt Ihr GLS Paket",
+        "Ist Ihr Paket da?",
+    ],
+)
+def test_other_subjects_after_the_announcement_tell_no_status(subject):
+    body = f"Versender & Paketnummer:\n\n{SHIPPER}\n{NUMBER}\n\nEmpfänger:\nMax Mustermann\n"
+    [u] = parse_mail(_msg(subject, body, DE_SENDER)).updates
+    assert (u.number, u.status, u.eta_date, u.delivered_at) == (NUMBER, None, None, None)
+
+
+def test_window_with_an_impossible_time_is_today_without_a_window():
+    body = f"Versender & Paketnummer:\n\n{SHIPPER}\n{NUMBER}\n\nEmpfänger:\nMax Mustermann\n"
+    msg = _msg("Zwischen 25:00 und 26:00 Uhr kommt Ihr DPD Paket", body, DE_SENDER)
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, sent_at(msg).date())
+    assert (u.eta_from, u.eta_to) == (None, None)
+
+
+def test_status_mail_from_another_sender_is_not_read():
+    body = f"Ihr DPD Paket ist da!\nPaketnummer: {NUMBER}\n"
+    [u] = parse_mail(_msg("Ihr Paket ist da!", body, "Shop <info@beispielshop.example>")).updates
+    assert (u.number, u.status, u.delivered_at) == (NUMBER, None, None)
 
 
 def test_announcement_creates_the_parcel_with_name_and_window():

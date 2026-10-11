@@ -238,6 +238,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - DPD Deutschland (`noreply@service.dpd.de`): Die Ankündigung „Bald ist Ihr DPD Paket da“ liefert neben der Paketnummer den Versender als Namen des Pakets – nur eine Firma mit Rechtsform oder einen bekannten Shop, nie eine Privatperson – und die Lieferschätzung.
     - Aus „Ihre Sendung stellen wir in 1-2 Werktagen zu“ wird eine Lieferspanne, gerechnet ab dem Tag der Mail. Werktage sind Montag bis Samstag; Feiertage kennt der Import nicht.
     - Das Paket steht damit auf „Angekündigt“, bis die DPD-Abfrage den Status liefert.
+    - Die Mails danach setzen den Status aus dem Betreff: „Zwischen 14:06 und 15:06 Uhr kommt Ihr DPD Paket“ setzt „In Zustellung“ für den Tag der Mail mit diesem Zeitfenster, „Ihr Paket ist da!“ setzt „Zugestellt“, „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ setzt „Abholbereit“.
     - Der Empfänger aus der Mail wird nie gelesen.
     - Alle anderen Mails von DPD Deutschland legen nur das Paket an.
     - DPD Österreich: siehe [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).
