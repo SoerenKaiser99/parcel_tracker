@@ -27,6 +27,7 @@ from .base import (
 
 DHL_SENDER = "noreply@dhl.de"
 DHL_DOMAIN = "dhl.de"  # every sender there (also paketankuendigung@dhl.de) is DHL
+DHL_COM_DOMAIN = "dhl.com"  # DHL Express and the online postage shop
 UPS_SENDER = "pkginfo@ups.com"
 AMAZON_DHL_NAME = "Amazon-Sendung (DHL)"
 # Shops and carriers we know: only the display name of such a sender is looked at as a
@@ -56,8 +57,15 @@ _DHL_SHORT = re.compile(r"\bSendungsnummer\s*:?\s*(\d{12})(?!\d)")
 # own below the button, in whatever form the sending post office gave it: 12 digits, a UPU
 # S10 number of any country ("LR…NL"), "JJATA…" from Austria.
 _DHL_SHOWN = re.compile(
-    r"^Sendungs(?:status|verlauf) einsehen\n((?=[A-Z0-9]*\d{8})[A-Z0-9]{12,30})$", re.MULTILINE
+    r"^(?:Sendungs(?:status|verlauf) einsehen|Ihre Sendung)\n"
+    r"((?=[A-Z0-9]*\d{8})[A-Z0-9]{12,30})$",
+    re.MULTILINE,
 )
+# One's own shipment: the receipt of a Packstation ("Einlieferungsbeleg: Ihr Versand an der
+# Packstation", "Digitaler Einlieferungsbeleg für Ihr DHL Paket") says it was handed in.
+_DHL_RECEIPT = re.compile(r"\bEinlieferungsbeleg\b", re.IGNORECASE)
+OWN_SHIPMENT_NAME = "Versand (DHL)"
+HANDED_IN_TEXT = "Eingeliefert"
 # DHL's newer layout leaves HTML table markup in its text/plain part.
 _MARKUP = re.compile(r"<(?:table|tr|td|p|div|br|span)\b", re.IGNORECASE)
 # "Ihre <Shop> Sendung ist unterwegs" / "… kommt heute …" / "… wurde zugestellt" / "… wird
@@ -159,6 +167,9 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
         if not is_forwarded(msg):
             title = company_name(shop)
     status, ahead = _dhl_status(subj)
+    receipt = _DHL_RECEIPT.search(subj) is not None
+    if receipt:
+        title, shop_name, status = OWN_SHIPMENT_NAME, None, ParcelStatus.IN_TRANSIT
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
     soon = status is ParcelStatus.OUT_FOR_DELIVERY and _DHL_SOON.search(subj.lower())
@@ -191,9 +202,77 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             delivered_at=delivered_at,
             shop=shop_name,
             postponed=postponed,
-            status_text=SOON_TEXT if soon else None,
+            status_text=SOON_TEXT if soon else HANDED_IN_TEXT if receipt else None,
         )
     ]
+
+
+# ----- dhl.com: DHL Express and the online postage shop -----
+# "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON ist unterwegs." / "… wird
+# voraussichtlich HEUTE bis Tagesende ausgeliefert." / "Ihre DHL Express Sendung mit der
+# Sendungsnummer 9999990166 von AMAZON wurde wie gewünscht am 11 Jun 2025 um 15:45
+# zugestellt." The subject is always "DHL On Demand Delivery".
+_EXPRESS = re.compile(
+    r"Ihre DHL Express Sendung mit (?:der )?Sendungsn(?:r\.|ummer) (?P<number>\d{10})(?!\d)"
+    r"(?: von (?P<shipper>\S.*?))? (?P<told>ist unterwegs|wird\b.*?\bausgeliefert"
+    r"|wurde\b.*?\bzugestellt)\b"
+)
+_EXPRESS_DAY = re.compile(r"voraussichtliche Zustelldatum (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4})")
+_EXPRESS_TIME = re.compile(r"\bam (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4}) um (\d{1,2}):(\d{2})\b")
+# (the month stands in English or German, three letters)
+_EXPRESS_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "mär": 3, "apr": 4, "may": 5, "mai": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "okt": 10, "nov": 11, "dec": 12, "dez": 12,
+}
+_POSTAGE = re.compile(r"\bOnline\s+Frankierung\b", re.IGNORECASE)
+
+
+def _express_day(day: str, month: str, year: str) -> date | None:
+    try:
+        return date(int(year), _EXPRESS_MONTHS[month.lower()], int(day))
+    except (KeyError, ValueError):
+        return None
+
+
+def parse_dhl_com_mail(msg: EmailMessage) -> list[MailUpdate]:
+    """Mails from dhl.com: DHL Express ("On Demand Delivery") and the online postage shop.
+
+    Express: the sentence about the shipment tells the status ("ist unterwegs", today
+    "wird … ausgeliefert", "wurde … zugestellt" with day and time), the shipper names the
+    parcel through the naming gate. Postage ("Auftragsbestätigung Ihrer Online Frankierung"):
+    one's own shipments, one per "Sendungsnummer:" of a label, announced; a stamp for a
+    letter has no number and gives nothing. The recipients of the labels are never read.
+    """
+    # (the text part of the postage mail names no number, its HTML part does)
+    text = f"{body_text(msg)}\n{html_body_text(msg)}"
+    sent = sent_at(msg)
+    if _POSTAGE.search(subject(msg)):
+        return [
+            MailUpdate(number, "dhl", ParcelStatus.PRE_TRANSIT, sent, title=OWN_SHIPMENT_NAME)
+            for number in dict.fromkeys(_dhl_numbers(text))
+        ]
+    told = _EXPRESS.search(text)
+    if not told:
+        return []
+    shipper = told.group("shipper") or ""
+    shop_name = shop_of(shipper)
+    update = MailUpdate(
+        told.group("number"), "dhl", ParcelStatus.IN_TRANSIT, sent,
+        title=AMAZON_DHL_NAME if shop_name == "amazon" else company_name(shipper),
+        shop=shop_name,
+    )
+    words = told.group("told")
+    if words.startswith("wurde"):
+        update.status, update.delivered_at = ParcelStatus.DELIVERED, sent
+        when = _EXPRESS_TIME.search(words)
+        day = _express_day(*when.groups()[:3]) if when else None
+        if day and int(when.group(4)) < 24 and int(when.group(5)) < 60:
+            update.delivered_at = at(day, int(when.group(4)), int(when.group(5)))
+    elif words.startswith("wird"):
+        update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
+    elif day := _EXPRESS_DAY.search(text):
+        update.eta_date = _express_day(*day.groups())
+    return [update]
 
 
 def parse_ups_mail(msg: EmailMessage) -> list[MailUpdate]:

@@ -1,0 +1,56 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number is invented; the language menu and the footer are cut
+From: "DHL Paket" <noreply@dhl.de>
+To: max@example.org
+Subject: Einlieferungsbeleg: Ihr Versand an der Packstation
+Date: Mon, 06 Jul 2026 15:14:11 +0200
+Message-ID: <fixture-164@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="fixture-164"
+
+--fixture-164
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+[Packstation Einlieferung]
+
+Hallo Max Mustermann,
+
+Sie haben Ihre Sendung erfolgreich eingeliefert.
+
+Eine DHL Zustellkraft wird sie schnellstmöglich abholen und auf den Versandweg bringen.
+
+**Ihre Versandinformationen**
+
+Sendungsnummer:
+
+[{DELIVERY_0_PARCEL_IDENTCODE}](https://custcomm.dhl.de/… [Nummer nur im Link oder Bildtext: 999999990164])
+
+Abgabezeitpunkt
+
+**06.07.2026, ****            15:14
+Uhr **
+
+Abgabestelle
+
+**Packstation 100, ****12345 Musterstadt**
+
+--fixture-164
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Ihre Versandinformation</p>
+<p>Hallo Max Mustermann,</p>
+<p>Sie haben Ihre Sendung erfolgreich eingeliefert.</p>
+<p>Eine DHL Zustellkraft wird sie schnellstmöglich abholen und auf den Versandweg bringen.</p>
+<p>Ihre Versandinformationen</p>
+<p>Sendungsnummer:</p>
+<p>999999990164</p>
+<p>Abgabezeitpunkt</p>
+<p>06.07.2026, 15:14</p>
+<p>Abgabestelle</p>
+<p>Packstation 100, 12345 Musterstadt</p>
+</body></html>
+
+--fixture-164--

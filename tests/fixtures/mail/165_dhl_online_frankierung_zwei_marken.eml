@@ -1,0 +1,58 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel numbers, the recipients and the codes are invented; the footer is cut
+From: noreply@dhl.com
+To: max@example.org
+Subject: =?utf-8?q?Auftragsbest=C3=A4tigung?= Ihrer Online Frankierung
+ 99XX99XX99XX
+Date: Sun, 07 Apr 2024 11:49:21 +0200
+Message-ID: <fixture-165@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="fixture-165"
+
+--fixture-165
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Warenkorb-Nr.:  99XX99XX99XX
+Datum:  07.04.2024
+
+Guten Tag,
+
+vielen Dank für die Nutzung der DHL Online Frankierung. Hiermit bestätigen
+wir Ihnen den untenstehenden Auftrag.
+
+Mit freundlichen Grüßen!
+Ihr DHL Team
+
+--fixture-165
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Warenkorb-Nr.: 99XX99XX99XX</p>
+<p>Datum: 07.04.2024</p>
+<p>Guten Tag,</p>
+<p>vielen Dank für die Nutzung der DHL Online Frankierung. Hiermit bestätigen wir Ihnen den untenstehenden Auftrag.</p>
+<p>2 kg - Paket</p>
+<p>max. 60 x 30 x 15 cm</p>
+<p>Sendungsverfolgung</p>
+<p>5,49 €</p>
+<p>Empfänger:</p>
+<p>Erika Musterfrau</p>
+<p>Sendungsnummer:</p>
+<p>999999990165</p>
+<p>Versandmarke herunterladen</p>
+<p>2 kg - Paket</p>
+<p>max. 60 x 30 x 15 cm</p>
+<p>Sendungsverfolgung</p>
+<p>5,49 €</p>
+<p>Empfänger:</p>
+<p>Erika Musterfrau</p>
+<p>Sendungsnummer:</p>
+<p>999999990166</p>
+<p>Versandmarke herunterladen</p>
+<p>Rechnungsbetrag</p>
+<p>10,98 €</p>
+</body></html>
+
+--fixture-165--
