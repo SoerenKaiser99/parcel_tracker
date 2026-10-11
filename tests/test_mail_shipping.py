@@ -308,6 +308,11 @@ DAY_BODY = (
         ("Ihre Sendung liegt nicht im Briefkasten", ParcelStatus.IN_TRANSIT),
         # waits for the recipient
         ("Ihre Sendung wurde an Packstation 123 zugestellt", ParcelStatus.AWAITING_PICKUP),
+        ("Ihre Beispiel GmbH Sendung liegt seit 2 Tagen in der Filiale",
+         ParcelStatus.AWAITING_PICKUP),
+        ("Nur noch 3 Tage: Ihre Sendung liegt in Ihrer Filiale", ParcelStatus.AWAITING_PICKUP),
+        ("Ihre Sendung ist auf dem Weg in eine Filiale", ParcelStatus.IN_TRANSIT),
+        ("Ihre Sendung liegt nicht in der Filiale", ParcelStatus.IN_TRANSIT),
         ("Ihre Sendung wurde in die Filiale Beispielweg 1 zugestellt",
          ParcelStatus.AWAITING_PICKUP),
         ("Ihre Sendung liegt in der Packstation 123 zur Abholung bereit",
@@ -704,6 +709,16 @@ def test_dhl_express_shipper_who_is_a_person_never_names_the_parcel():
 def test_other_mails_from_dhl_com_are_not_read_as_express():
     msg = _express("Ihre Anfrage zur Sendung 9999990166 haben wir erhalten.")
     assert parse_mail(msg).updates == []
+
+
+# ----- "auf dem Transportweg beschädigt": still on its way, told in its own words -----
+def test_dhl_damaged_packaging_stays_on_its_way_with_a_line_of_its_own():
+    subject = "Ihre Beispiel GmbH Sendung wurde leider auf dem Transportweg beschädigt"
+    [u] = parse_mail(_msg(subject, f"{DHL_NUMBER}\n", "DHL Paket <noreply@dhl.de>")).updates
+    assert (u.status, u.status_text) == (ParcelStatus.IN_TRANSIT, "Verpackung beschädigt")
+    assert (u.eta_date, u.delivered_at, u.postponed) == (None, None, False)
+    plain = _msg("Ihre Sendung ist unterwegs", f"{DHL_NUMBER}\n", "DHL Paket <noreply@dhl.de>")
+    assert parse_mail(plain).updates[0].status_text is None
 
 
 # ----- "wird gleich zugestellt": in delivery, told in the mail's own words -----

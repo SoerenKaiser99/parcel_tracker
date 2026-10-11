@@ -86,7 +86,15 @@ _DHL_DROPPED = re.compile(
 )
 # ... but "an Packstation 123 zugestellt" waits for the recipient.
 _DHL_PICKUP_PLACE = re.compile(r"packstation|filiale|paketshop|poststation|postfiliale")
-_DHL_READY = re.compile(r"\bzur\s+abholung\s+bereit\b|\babholbereit\b")
+# (also the reminder "liegt seit 2 Tagen in der Filiale")
+_DHL_READY = re.compile(
+    r"\bzur\s+abholung\s+bereit\b|\babholbereit\b|\bliegt\b(?:\s+\S+){0,4}?\s+in\s+"
+    r"(?:der|ihrer|einer)\s+(?:packstation|filiale|paketshop|poststation|postfiliale)\b"
+)
+# "… wurde leider auf dem Transportweg beschädigt": the packaging; DHL packs it anew and
+# delivers it. Still on its way, with a line of its own in the history.
+_DHL_DAMAGED = re.compile(r"\btransportweg\s+beschädigt\b")
+DAMAGED_TEXT = "Verpackung beschädigt"
 _DHL_TODAY = re.compile(r"\bkommt\s+heute\b|\bwird\s+(?:heute|gleich)\b.*\bzugestellt\b")
 # "wird gleich zugestellt": the courier is close. Still "in Zustellung", with a line of
 # its own in the history.
@@ -121,6 +129,18 @@ def _dhl_status(subj: str) -> tuple[ParcelStatus | None, int | None]:
             return ParcelStatus.IN_TRANSIT, 1
     # Any other mail about a "Sendung" (also a failed delivery): it is on its way.
     return (ParcelStatus.IN_TRANSIT if "sendung" in lower else None), None
+
+
+def _dhl_words(subj: str, status: ParcelStatus | None, receipt: bool) -> str | None:
+    """The mail's own words for the history, None if the status says it all."""
+    lower = subj.lower()
+    if receipt:
+        return HANDED_IN_TEXT
+    if status is ParcelStatus.OUT_FOR_DELIVERY and _DHL_SOON.search(lower):
+        return SOON_TEXT
+    if status is ParcelStatus.IN_TRANSIT and _DHL_DAMAGED.search(lower):
+        return DAMAGED_TEXT
+    return None
 
 
 def _dhl_numbers(text: str) -> list[str]:
@@ -172,7 +192,6 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
         title, shop_name, status = OWN_SHIPMENT_NAME, None, ParcelStatus.IN_TRANSIT
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
-    soon = status is ParcelStatus.OUT_FOR_DELIVERY and _DHL_SOON.search(subj.lower())
     if status is ParcelStatus.OUT_FOR_DELIVERY:
         eta_date = sent.date()
         if window := _DHL_WINDOW.search(text):
@@ -202,7 +221,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             delivered_at=delivered_at,
             shop=shop_name,
             postponed=postponed,
-            status_text=SOON_TEXT if soon else HANDED_IN_TEXT if receipt else None,
+            status_text=_dhl_words(subj, status, receipt),
         )
     ]
 
