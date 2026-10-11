@@ -151,3 +151,27 @@ def test_update_mail_about_two_orders_gives_neither_the_number():
     first, second = parse_mail(msg).updates
     assert (first.number, second.number) == ("EBAY990000000001", "EBAY990000000002")
     assert (first.tracking_ref, second.tracking_ref) == (None, None)
+
+
+# ----- "Zustellversuch": nobody was met -----
+def test_delivery_attempt_takes_the_order_back_on_its_way_in_its_own_words():
+    msg = _msg(
+        "Zustellversuch: Beispiel-Artikel...",
+        "Update zu Ihrer Bestellung.\nDHL Germany hat Sie leider nicht angetroffen.\n"
+        "Sendungsnummer: 00340999999999990901\nBestellung nachverfolgen\n"
+        "Beispiel-Artikel mit vollem Namen\nArtikelnr.:\n999999999901\n"
+        "Bestellnummer:\n99-00000-00001\nZustellversuch:\nMo, 28. Sep 15:56 Ortszeit\n"
+        "Versanddienstleister:\nDHL Germany\n",
+    )
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status) == ("EBAY990000000001", ParcelStatus.IN_TRANSIT)
+    assert (u.status_text, u.postponed) == ("Zustellung versucht", True)
+    assert (u.title, u.shipping_carrier_hint) == ("Beispiel-Artikel mit vollem Namen", "dhl")
+    assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990901", "dhl")
+    assert (u.eta_date, u.delivered_at) == (None, None)
+
+
+def test_other_ebay_mails_are_never_postponed():
+    for name in (SHIPPED, DELIVERED, UPDATE):
+        updates = parse_mail(load_mail(name)).updates
+        assert all(not u.postponed and u.status_text is None for u in updates)
