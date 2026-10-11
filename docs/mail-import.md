@@ -112,7 +112,34 @@ if address :is "from" [
 
 Ersetz `pakete@example.org` durch die Adresse deines Paket-Postfachs.
 
-In Gmail, Outlook & Co. heißt das „Filter“ bzw. „Regel“: Bedingung „Absender ist …“, Aktion „Weiterleiten an pakete@…“.
+In Outlook & Co. heißt das „Regel“ oder „Filter“: Bedingung „Absender ist …“, Aktion „Weiterleiten an pakete@…“.
+
+### Beispiel für Gmail
+
+Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind es zwei Schritte.
+
+**1. Das Paket-Postfach als Weiterleitungsadresse eintragen**
+
+1. Gmail im Browser öffnen → Zahnrad → **Alle Einstellungen aufrufen** → Reiter **Weiterleitung und POP/IMAP**.
+2. **Weiterleitungsadresse hinzufügen** und die Adresse deines Paket-Postfachs eintragen.
+3. Gmail schickt einen Bestätigungslink an das Paket-Postfach. Dort öffnen und bestätigen.
+
+**2. Den Filter anlegen**
+
+1. In den Einstellungen den Reiter **Filter und blockierte Adressen** öffnen → **Neuen Filter erstellen**.
+2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
+
+    ```text
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR no-reply@gls-pakete.de
+    ```
+
+3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
+4. Mit **Filter erstellen** abschließen.
+
+Die Mails bleiben dabei in deinem Gmail-Posteingang, das Paket-Postfach bekommt eine Kopie.
+
+!!! note "Von einem Nutzer beigesteuert"
+    Diese Anleitung stammt aus [Issue #22](https://github.com/SoerenKaiser99/parcel_tracker/issues/22). Die Menünamen können sich bei Google ändern. Stimmt ein Schritt nicht mehr, gern dort melden.
 
 ### Apple „E-Mail-Adresse verbergen“
 
