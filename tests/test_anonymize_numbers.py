@@ -96,7 +96,8 @@ def test_number_only_in_a_link_is_noted_as_an_invented_number(tmp_path, html_onl
     for text in filter(None, (plain, markup)):
         [invented] = NOTE.findall(text)  # once, although three links carry it
         assert INVENTED.fullmatch(invented) and invented != NUMBER
-        assert "54321" not in text
+        # (the invented number is random digits and may hold "54321" by chance)
+        assert "54321" not in text.replace(invented, "")
     if plain:
         assert "https://www.dhl.de/… [Nummer nur" in plain  # the link itself is still cut
     if not html_only:
@@ -132,8 +133,10 @@ def test_number_written_in_groups_keeps_its_groups(tmp_path, cell):
         [found] = re.findall(r"(?<!\d)\d{4}(?: \d{4}){4}(?!\d)", text)
         # the same number as in the other mail of the run, only written in groups
         assert found.replace(" ", "") == same
+        # the replacement is made of random digits and may hold such a group by chance
+        rest = text.replace(found, "")
         for group in GROUPED.split()[1:]:
-            assert group not in text, group
+            assert group not in rest, group
 
 
 def test_international_number_keeps_its_letters(tmp_path):
