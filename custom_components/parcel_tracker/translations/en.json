@@ -204,6 +204,7 @@
           "awaiting_pickup": "Ready for pickup",
           "delivered": "Delivered",
           "exception": "Problem",
+          "cancelled": "Cancelled",
           "unknown": "Unknown"
         }
       },

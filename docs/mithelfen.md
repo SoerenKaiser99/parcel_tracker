@@ -62,7 +62,7 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 | **GLS** | im PaketShop abholbereit; Zustellung verschoben |
 | **Hermes** | im PaketShop abholbereit; Zustellversuch |
 | **UPS** | jede Mail hilft, bisher gibt es nur wenige Beispiele |
-| **Amazon** | Lieferung verspätet; Bestellung storniert; Mails von Amazon in Österreich |
+| **Amazon** | Lieferung verspätet; Mails von Amazon in Österreich |
 | **eBay** | Versandmail mit Sendungsnummer; Artikel zugestellt |
 | **AliExpress** | englische Mails; Mails, die bei dir unter „Nicht erkannt“ landen |
 | **Eventim** | Versandbenachrichtigungen und Bestellbestätigungen mit einer anderen Liefermethode als „Standardversand (Deutschland)“, z. B. Einschreiben oder Express; Mails von `bestellstatus@eventim.de`, die bei dir unter „Nicht erkannt“ landen |

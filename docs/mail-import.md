@@ -187,13 +187,14 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Kommt eine Bestellung in mehreren Sendungen, heißt das nächste Paket „… (2)“.
     - Der Status geht nur vorwärts: Eine ältere Mail setzt ein Paket nie zurück.
     - Eine Ausnahme ist die Mail „Versuchte Zustellung“ (niemand wurde angetroffen): Sie nimmt eine Bestellung von „In Zustellung“ zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag. Die Bestellung zählt dann nicht mehr als heute. Was schon zugestellt oder abholbereit ist, bleibt, wie es ist.
+    - Storniert Amazon eine Bestellung („Artikel … storniert“, „Ihre Bestellung wurde storniert.“), bekommt sie den Status „Storniert“ (`cancelled`): ohne Liefertag und ohne Benachrichtigung. Das gilt nur für eine Bestellung, die noch nicht versendet ist oder ohne Zustellmail abgeschlossen wurde. Eine spätere Mail zur Bestellung öffnet sie wieder.
     - Kündigt DHL eine „Amazon Sendung“ an und passt genau ein offenes Amazon-Paket dazu (gleicher Liefertag), übernimmt das Amazon-Paket die DHL-Nummer und fragt ab dann DHL ab. Ist die Zuordnung nicht eindeutig, entsteht ein eigenes Paket „Amazon-Sendung (DHL)“.
 
 === "eBay"
 
     - Pro eBay-Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer, benannt nach dem Artikel.
     - eBay-Mails enthalten keine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
-    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum, „BESTELLUNG ZUGESTELLT“ setzt „Zugestellt“. Andere eBay-Mails landen in „Nicht erkannt“.
+    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum, „BESTELLUNG ZUGESTELLT“ setzt „Zugestellt“, „Kauf … wurde abgebrochen“ schließt die Bestellung als „Storniert“. Andere eBay-Mails landen in „Nicht erkannt“.
     - Nennt die Mail den Versanddienstleister, zeigt die Karte ihn an („eBay · Versendet · via Hermes“, Attribut `shipping_carrier_hint`).
 
 === "AliExpress"
@@ -205,7 +206,8 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Nennt die Mail eine „Voraussichtliche Zustellzeit“, wird sie der Liefertag.
     - Die „Packstück“-Mails und „Zollabfertigung für … wurde beendet“ nennen die Sendungsnummer des Paketdienstes. Ist es eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live abgefragt (DHL mit API-Key). Es entsteht kein zweites Paket. Eine Nummer in einem anderen Format (z. B. `AP…`) lässt sich bei keinem Paketdienst abfragen: Dann zählt nur der Schritt aus der Mail.
     - „wie ist es gelaufen?“ mit dem Satz „Wir haben die Lieferung Ihrer Bestellung … bestätigt“ setzt „Zugestellt“ mit dem Text „Lieferung bestätigt“.
-    - Nur als gelesen markiert werden die Aufforderung zur Bewertung, die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“.
+    - „Your order … is closed“ und „Stornierte Bestellung wegen überfälligem Versand“ schließen eine Bestellung, die noch nicht versendet ist oder ohne Zustellmail abgeschlossen wurde, als „Storniert“.
+    - Nur als gelesen markiert werden die Aufforderung zur Bewertung und die Erinnerung „auf Bestätigung wird gewartet“.
 
     Die AliExpress-Mails sind nach Beispielmails umgesetzt und im Alltag noch nicht bestätigt, siehe [Roadmap & Status](stand.md).
 

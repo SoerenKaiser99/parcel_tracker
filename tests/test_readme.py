@@ -1186,6 +1186,26 @@ def test_readme_documents_the_assumed_field_of_the_event():
     assert "Abgeschlossen ohne Zustellbestätigung" in notify
 
 
+def test_readme_explains_cancelled_orders():
+    amazon = README.split("\n### Amazon-Pakete\n")[1].split("\n### ")[0]
+    for text in ("„Artikel … storniert“", "„Ihre Bestellung wurde storniert.“",
+                 "„… Stornierung von Artikeln …“", "„Storniert“", "`cancelled`",
+                 "keine Benachrichtigung"):
+        assert text in amazon, text
+    ebay = README.split("\n### eBay-Pakete\n")[1].split("\n### ")[0]
+    assert "„Kauf … wurde abgebrochen“ schließt die Bestellung als „Storniert“" in ebay
+    aliexpress = README.split("\n### AliExpress-Pakete\n")[1].split("\n### ")[0]
+    assert "„Your order … is closed“ schließt" in aliexpress
+    assert "„Stornierte Bestellung wegen überfälligem Versand“" in aliexpress
+    assert "`cancelled`" in _section("Was es kann")
+    assert "`cancelled`" in _section("Beispiel-Automation")
+    assert "`cancelled`" in _section("Benachrichtigungen")
+    assert "„Storniert“" in _section("Karte hinzufügen")
+    english = _section("English summary")
+    assert "`cancelled`" in english
+    assert 'is closed" are ignored' not in english  # it cancels the order
+
+
 def test_readme_english_summary_mentions_both_behaviours():
     english = _section("English summary")
     for text in ("`assumed_delivered`", "`assumed`", "folded into", "more than 3 full days",

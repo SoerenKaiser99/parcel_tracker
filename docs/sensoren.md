@@ -34,6 +34,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `awaiting_pickup` | Abholbereit |
 | `delivered` | Zugestellt |
 | `exception` | Problem |
+| `cancelled` | Storniert (nur Shop-Bestellungen) |
 | `unknown` | Unbekannt |
 
 ### Attribute

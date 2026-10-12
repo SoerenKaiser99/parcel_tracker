@@ -19,9 +19,12 @@ const SHOPS = ["amazon", "ebay", "aliexpress", "eventim"];
 const STEPS = 5;
 const PICKUP = "awaiting_pickup";
 const DONE = "delivered";
+const CANCELLED = "cancelled";
+// Nothing more comes: greyed out, at the end of the list.
+const isClosed = (s) => s === DONE || s === CANCELLED;
 const hasDate = (a) => a.days_until != null && a.days_until >= 0;
 const ORDER = (s, a) => {
-  if (s === DONE) return 5;
+  if (isClosed(s)) return 5;
   if (a.days_until === 0) return 0;
   if (s === PICKUP) return 1;
   if (hasDate(a)) return 2;
@@ -154,7 +157,7 @@ function errorText(e) {
 const STATE_LABEL = {
   pre_transit: "Angekündigt", in_transit: "Unterwegs", at_delivery_depot: "Im Zustelldepot",
   out_for_delivery: "In Zustellung", awaiting_pickup: "Abholbereit", delivered: "Zugestellt",
-  exception: "Problem", unknown: "Unbekannt",
+  exception: "Problem", cancelled: "Storniert", unknown: "Unbekannt",
 };
 // A shop's first stage is an order, not a carrier announcement. A shop order closed
 // without a delivery mail (assumed_delivered) is "closed", not "delivered"; a parcel
@@ -197,6 +200,7 @@ function subText(label, a, s) {
 }
 
 function etaText(state, a) {
+  if (state === CANCELLED) return "Storniert";
   if (state === DONE) {
     if (a.assumed_delivered) return "Abgeschlossen (ohne Zustellbestätigung)";
     if (!a.delivered_at) return "Zugestellt";
@@ -893,7 +897,7 @@ class ParcelTrackerCard extends HTMLElement {
       const s = st.state;
       const label = stateLabel(st);
       const item = document.createElement("div");
-      item.className = "item" + (s === DONE ? " done" : "");
+      item.className = "item" + (isClosed(s) ? " done" : "");
       const bar = a.progress
         ? `<div class="bar">${Array.from({ length: STEPS }, (_, i) => `<i class="${i < a.progress ? "on" : ""}"></i>`).join("")}</div>`
         : "";

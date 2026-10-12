@@ -109,6 +109,7 @@ Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `a
 | `awaiting_pickup` | Abholbereit |
 | `delivered` | Zugestellt |
 | `exception` | Problem |
+| `cancelled` | Storniert (nur Shop-Bestellungen) |
 | `unknown` | Unbekannt |
 
 ### Beispiel von Hand

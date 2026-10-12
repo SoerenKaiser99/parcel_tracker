@@ -80,9 +80,16 @@ _ORDER_SUBJECT = re.compile(r"Bestellung (?P<order>\d{12,20})\s*:?\s*(?P<step>\S
 _ORDERS_SUBJECT = re.compile(r"\d+ Bestellungen wurden bestätigt: (?P<order>\d{12,20})\b")
 _PARCEL_SUBJECT = re.compile(r"Packstück (?P<number>[0-9A-Z]{8,30})\s*:?\s*(?P<step>\S.*)")
 _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) wurde beendet")
-# English, whatever the language of the account; its body tells no reason (cancelled,
-# refunded or done), so nothing is taken from it.
-_CLOSED_SUBJECT = re.compile(r"Your order \d+ is closed")
+# English, whatever the language of the account: the order was cancelled ("closed for a
+# timeout" if it was never paid; mostly the body tells no reason). It closes an order
+# that is not shipped yet or was closed on its own (see ``apply._cancel_order``).
+_CLOSED_SUBJECT = re.compile(r"Your order (?P<order>\d{12,20}) is closed")
+# German, sent along with "is closed" when the seller did not ship in time. The subject
+# names no order, the text does.
+_OVERDUE_SUBJECT = "Stornierte Bestellung wegen überfälligem Versand"
+_OVERDUE_ORDER = re.compile(
+    r"Ihre Bestellung\s+(?P<order>\d{12,20})\s+in der vorgesehenen Zeit nicht versendet"
+)
 
 _URL = re.compile(r"[\[<(]*https?://\S+")
 # "x2" below an item, "€ 3,99x2" in the layout with prices; "<variant> x2" on one line.
@@ -344,13 +351,20 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     """Any mail of AliExpress: updates, ignored, or (no updates) unrecognised.
 
     Order mails: confirmed and ready to ship ("Bestellt"), shipped and on its way
-    ("Versendet", with AliExpress's words for the step), delivery confirmed. Parcel mails:
-    see ``_parcel_mail``. Ignored: reminders, requests for a rating and "Your order … is
-    closed". A subject nobody knows yet is unrecognised, so it gets noticed.
+    ("Versendet", with AliExpress's words for the step), delivery confirmed, cancelled
+    ("Your order … is closed", "Stornierte Bestellung wegen überfälligem Versand"). Parcel
+    mails: see ``_parcel_mail``. Ignored: reminders and requests for a rating. A subject
+    nobody knows yet is unrecognised, so it gets noticed.
     """
     subj = subject(msg)
-    if _CLOSED_SUBJECT.match(subj):
-        return MailResult(ignored=True)
+    found = _CLOSED_SUBJECT.match(subj)
+    if found is None and subj.startswith(_OVERDUE_SUBJECT):
+        found = _OVERDUE_ORDER.search(body_text(msg))
+    if found:
+        number = order_number(found.group("order"))
+        return MailResult(
+            updates=[MailUpdate(number, "aliexpress", ParcelStatus.CANCELLED, sent_at(msg))]
+        )
     if found := _CUSTOMS_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), CUSTOMS_TEXT)
     if found := _PARCEL_SUBJECT.match(subj):

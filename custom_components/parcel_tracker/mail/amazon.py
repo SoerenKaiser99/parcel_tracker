@@ -35,12 +35,24 @@ LEGACY_PREFIXES = ("Ihre Amazon.de Bestellung von", "Ihre Amazon.de-Bestellung m
 # comes today; a later mail tells the next attempt or where the parcel waits.
 _ATTEMPT = "versuchte zustellung"
 ATTEMPT_TEXT = "Zustellung versucht"
+# "Artikel erfolgreich storniert: …": the items the subject names will not come.
+_CANCELLED = "artikel erfolgreich storniert"
+# The same in other wordings, without an item in the subject. The order number stands as
+# "Bestellung #…" or "Bestell-Nr.…", in the head of the mail and again above its items.
+_CANCELLED_SUBJECTS = (
+    "ihre bestellung wurde storniert",
+    "erfolgreiche stornierung von artikeln",
+)
+_CANCELLED_ORDER = re.compile(
+    r"^(?:Bestellung #|Bestell-Nr\.)\s*(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE
+)
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
     "versendet": ParcelStatus.IN_TRANSIT,
     "versandt": ParcelStatus.IN_TRANSIT,
     _ATTEMPT: ParcelStatus.IN_TRANSIT,
+    _CANCELLED: ParcelStatus.CANCELLED,
     "in zustellung": ParcelStatus.OUT_FOR_DELIVERY,
     "zustellung heute": ParcelStatus.OUT_FOR_DELIVERY,
     "geliefert": ParcelStatus.DELIVERED,
@@ -97,7 +109,9 @@ def subject_title(subj: str) -> str | None:
 
 
 def subject_status(subj: str) -> ParcelStatus | None:
-    """Status from the subject prefix before ':'."""
+    """Status from the subject prefix before ':', or from a subject that tells a cancellation."""
+    if subj.strip().lower().startswith(_CANCELLED_SUBJECTS):
+        return ParcelStatus.CANCELLED
     if ":" not in subj:
         return None
     return _PREFIXES.get(subj.split(":", 1)[0].strip().lower())
@@ -137,6 +151,10 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     sent = sent_at(msg)
     status = subject_status(subj) or stage_status(text)
     orders = list(_ORDER.finditer(text))
+    if status is ParcelStatus.CANCELLED and not orders:
+        # One update per order, however often the mail names it.
+        numbers = dict.fromkeys(_CANCELLED_ORDER.findall(text))
+        return [MailUpdate(order_number(number), "amazon", status, sent) for number in numbers]
     if status is None or not orders:
         return []
 

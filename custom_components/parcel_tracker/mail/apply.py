@@ -10,6 +10,7 @@ from ..carriers.gls import gls_number
 from ..carriers.track17 import strip_enrichment, with_track17
 from ..const import MAX_EVENTS, OPTIONAL_API_CARRIERS, SHOP_CARRIERS, SINGLE_PARCEL_SHOPS
 from ..models import (
+    CLOSED_STATUSES,
     NO_ETA_STATUSES,
     PROGRESS_STEP,
     Parcel,
@@ -42,6 +43,8 @@ SHOP_TEXT = {
 ASSUMED_TEXT = "Abgeschlossen ohne Zustellbestätigung"
 # Status text of a parcel the user marked as received (see mark_received).
 MANUAL_TEXT = "Erhalten (von Hand markiert)"
+# Status text of a shop order the shop cancelled (see _cancel_order).
+CANCELLED_TEXT = "Storniert"
 CARRIER_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Angekündigt",
     ParcelStatus.IN_TRANSIT: "Unterwegs",
@@ -84,6 +87,7 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     # A delivery the shop confirms days later is no news for what was delivered for real.
     known = update.confirmation and parcel.status is ParcelStatus.DELIVERED and not assumed
     # "Backwards" is measured against what is shown, also if that is 17track's status.
+    # (a cancelled order has no step: every status a mail of the shop tells opens it again)
     if (
         update.status is not None
         and not known
@@ -174,6 +178,18 @@ def _take_shop_facts(parcel: Parcel, update: MailUpdate) -> bool:
     return changed
 
 
+def _cancelled_before(parcel: Parcel, update: MailUpdate) -> bool:
+    """Tell whether the order was cancelled after the mail of ``update`` was sent.
+
+    Mails are not read in the order they were sent (forwarded by hand, handed in later):
+    only a mail newer than the cancellation, the newest line of the history, opens the
+    order again (see ``_cancel_order``).
+    """
+    if parcel.status is not ParcelStatus.CANCELLED:
+        return False
+    return update.sent_at <= parcel.result.events[0].timestamp
+
+
 def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
     """A shop order ("AMZ…"/"EBAY…"/"ALI…"/"EVT…"): one parcel per order, suffix for further
     shipments (never for AliExpress and Eventim: their mails name an order's items in turn)."""
@@ -192,8 +208,13 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
             and all(_step(p.status) >= _step(ParcelStatus.IN_TRANSIT) for p in siblings)
         )
         if not further_shipment:
-            open_ = [p for p in siblings if p.status is not ParcelStatus.DELIVERED]
-            target = (open_ or siblings)[0]
+            # What is open comes first; else the mail opens a cancelled shipment again
+            # (it was not shipped yet, like one that is only "Bestellt").
+            open_ = [p for p in siblings if p.status not in CLOSED_STATUSES]
+            cancelled = [p for p in siblings if p.status is ParcelStatus.CANCELLED]
+            target = (open_ or cancelled or siblings)[0]
+    if target is not None and _cancelled_before(target, update):
+        return None
     if target is None:
         count = len(siblings) + 1
         number = update.number if count == 1 else f"{update.number}P{count}"
@@ -288,7 +309,7 @@ def _merge_candidate(parcels: dict[str, Parcel], update: MailUpdate) -> Parcel |
         for p in parcels.values()
         if p.carrier in SHOP_CARRIERS
         and p.tracking_ref is None
-        and p.status is not ParcelStatus.DELIVERED
+        and p.status not in CLOSED_STATUSES
     ]
     open_orders = [
         p for p in orders if p.carrier == update.shop or _hint_key(p) == update.carrier
@@ -443,6 +464,47 @@ def mark_received(parcel: Parcel, now: datetime) -> None:
     parcel.track17_next_at = None
 
 
+def _cancel_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
+    """The shop cancelled an order: closed with a status of its own, "Storniert".
+
+    Only the one order that is not shipped yet ("Bestellt", no carrier's number): what is
+    on its way comes anyway, and what has arrived stays. So a cancellation read only after
+    the mail about the shipment (mails are not read in the order they were sent) closes
+    nothing either. An order closed without a delivery mail (nobody knows whether it came)
+    is cancelled too, whatever it was before. Nothing is created. The day the mails named
+    goes: nothing comes. A mail the shop sends after that opens the order again
+    (``_apply_order``).
+    """
+    waiting = [
+        p
+        for p in _order_parcels(parcels, update.carrier, update.number)
+        if p.tracking_ref is None
+        and (p.status is ParcelStatus.PRE_TRANSIT or p.assumed_delivered)
+    ]
+    if len(waiting) != 1:
+        return None
+    target = waiting[0]
+    old = target.result
+    # (the line in the history carries the time of the mail, the change is now)
+    events = [TrackingEvent(update.sent_at, CANCELLED_TEXT, None), *old.events]
+    target.result = TrackingResult(
+        status=ParcelStatus.CANCELLED,
+        status_text=CANCELLED_TEXT,
+        eta_date=None,
+        eta_from=None,
+        eta_to=None,
+        location=None,
+        pickup_point=None,
+        pickup_until=None,
+        delivered_at=None,
+        events=events[:MAX_EVENTS],
+    )
+    target.assumed_delivered = False
+    target.last_change_at = now
+    target.delivery_code = target.delivery_code_day = None
+    return Change(target, old.status, False)
+
+
 def _mail_name(update: MailUpdate) -> str | None:
     """The name a carrier mail gives; a carrier's own display name is none."""
     title = update.title
@@ -503,6 +565,8 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
 def apply_update(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
     """Create or advance the matching parcel in ``parcels`` (mutated in place)."""
     if update.carrier in SHOP_CARRIERS:
+        if update.status is ParcelStatus.CANCELLED:
+            return _cancel_order(parcels, update, now)
         if not update.number:
             return _apply_orderless(parcels, update, now)
         return _apply_order(parcels, update, now)
