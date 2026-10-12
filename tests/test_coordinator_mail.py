@@ -548,7 +548,17 @@ async def test_missing_folder_is_logged_once_without_a_repair_and_backs_off(
     assert mailbox.finished == []
     state = coord.diagnostics()["mail_import"]
     assert (state["last_error"], state["error_streak"]) == ("folder", 3)
-    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+
+    def own_warnings():
+        # (only the integration's own: asyncio warns about a slow callback now and then)
+        return [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING"
+            and r.name.startswith("custom_components.parcel_tracker")
+        ]
+
+    warnings = own_warnings()
     assert len(warnings) == 1 and "folder" in warnings[0].getMessage()
     assert "Geheim" not in caplog.text
     assert not ir.async_get(hass).issues
@@ -561,7 +571,7 @@ async def test_missing_folder_is_logged_once_without_a_repair_and_backs_off(
     freezer.tick(coord._mail_next - dt_util.utcnow())
     with caplog.at_level("WARNING"):
         await coord.async_import_mail()
-    assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 2
+    assert len(own_warnings()) == 2
 
 
 async def test_diagnostics_tell_only_whether_a_custom_folder_is_read(hass):
