@@ -102,19 +102,20 @@ Manche Pakete bekommen ihr „Zugestellt“ nie:
 Bisher blieb dafür nur „Löschen“. Mit „Erhalten“ sagst du der Integration selbst, dass das Paket da ist.
 
 1. Paket aufklappen und **Erhalten** antippen.
-2. Die Rückfrage **Wirklich erhalten?** bestätigen – oder **Abbrechen**.
+2. Es erscheinen **Abbrechen** und **Wirklich erhalten?**. Mit „Wirklich erhalten?“ bestätigst du. „Abbrechen“ steht genau dort, wo eben „Erhalten“ stand: Ein Doppeltipp bestätigt also nichts.
 
 Was dann gilt:
 
 - Das Paket ist zugestellt, mit dem Zeitpunkt des Tipps. Im Verlauf steht „Erhalten (von Hand markiert)“, in der Zeile „Erhalten“.
 - Es zählt beim Schild „zugestellt“ und bei `sensor.pakete_zugestellt_heute` mit und verschwindet wie jedes zugestellte Paket nach der eingestellten Zahl von Tagen.
 - **Die Markierung gilt.** Der Paketdienst wird nicht mehr abgefragt, und keine spätere Mail und keine Antwort von 17track ändert Status, Zeitpunkt oder Text.
+- **Die Markierung gilt für genau diesen Eintrag.** Eine Bestellung, zu der das markierte Paket gehören könnte, schließt sie nicht.
 - Eine Benachrichtigung gibt es nicht – du hast es ja gerade selbst angetippt. Das Event feuert mit dem Feld `manual`, siehe [Automationen](automationen.md#von-hand-erhalten-manual).
 
 !!! warning "Zurücknehmen geht nicht"
     Ein Paket, das als erhalten markiert ist, bleibt es. Deshalb die Rückfrage. Hast du dich vertippt, lösch das Paket und trag es neu ein.
 
-Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen: Sie zählt dann als heute zugestellt. Bei einem zugestellten Paket fehlt der Knopf.
+Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket fehlt der Knopf.
 
 Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
 

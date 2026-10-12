@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.30"
+VERSION = "0.3.31"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -109,6 +109,13 @@ SHIP_LATER_SHOPS = frozenset({"eventim"})
 # after its last change. A mail that changes the order starts the wait anew.
 ORDER_OVERDUE_DAYS = 3
 ORDER_NO_ETA_DAYS = 14
+# A delivered carrier parcel is folded into an order afterwards (mail.apply.fold_delivered)
+# only if it came around the days the order names: carriers are a day early or late, and a
+# box often comes just before a window starts. Not earlier than FOLD_DAYS_BEFORE days
+# before the first day and not later than FOLD_DAYS_AFTER days after the last one; a box
+# that comes a week before the window is somebody else's.
+FOLD_DAYS_BEFORE = 3
+FOLD_DAYS_AFTER = 3
 # Polled only while their optional API is configured; otherwise mail-only.
 OPTIONAL_API_CARRIERS = frozenset({"ups"})
 # Carriers a user can pick for a manually added parcel.

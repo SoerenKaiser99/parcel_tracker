@@ -73,6 +73,7 @@ Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` fe
 - **Mehrere Wechsel** in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status.
 - **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam, feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.
 - **Von Hand erhalten:** Markierst du ein Paket mit [„Erhalten“](karte.md#erhalten) selbst als erhalten, feuert das Event mit dem Feld `manual` auf `true`. Eine Benachrichtigung gibt es auch dafür nicht.
+- **Mehrere Bestellungen in einem Paket** (AliExpress): Das Event feuert für jede Bestellung, die Benachrichtigung aus den Optionen geht für das Paket einmal raus.
 
 Schlägt das Senden fehl, steht eine Warnung ohne Paketdaten im Log. Die Paketabfrage läuft unverändert weiter.
 
@@ -130,6 +131,11 @@ Ein Beispiel für das Feld **Text**:
 {{ name }} kommt mit {{ carrier }}
 ```
 
-Die Sendungsnummer, der Zustell-Code und der Ort stehen in keinem der voreingestellten Texte. Bestellungen, die ohne Zustellmail abgeschlossen wurden (`assumed`), meldet der Blueprint nicht.
+Die Sendungsnummer, der Zustell-Code und der Ort stehen in keinem der voreingestellten Texte. Bestellungen, die ohne Zustellmail abgeschlossen wurden (`assumed`), und Pakete, die von Hand als erhalten markiert wurden (`manual`), meldet der Blueprint nicht.
+
+!!! warning "Nach dem Update einmal neu importieren"
+    Home Assistant aktualisiert einen importierten Blueprint nicht von selbst. Der Blueprint prüft `assumed` seit v0.3.20 und `manual` seit v0.3.30. Eine Automation aus einer älteren Fassung meldet eine Markierung von Hand als „wurde zugestellt“ – vor v0.3.20 auch eine abgeschlossene Bestellung.
+
+    Importier den Blueprint nach dem Update auf 0.3.30 oder neuer einmal neu: **Einstellungen → Automationen & Szenen → Blueprints**, im Menü des Blueprints **Blueprint erneut importieren**. Deine Automationen daraus bleiben und nutzen danach die neue Fassung. Für eigene Automationen, die auf `new_status == delivered` filtern, steht die Bedingung unter [Automationen](automationen.md#von-hand-erhalten-manual).
 
 Der Blueprint braucht Home Assistant 2024.10 oder neuer.

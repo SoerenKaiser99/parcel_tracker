@@ -78,6 +78,7 @@ from .const import (
     NOTIFY_APP_SERVICE_PREFIX,
     NOTIFY_SERVICE_PREFIX,
     OPTIONAL_API_CARRIERS,
+    SHOP_CARRIERS,
     TICK,
     TRACK17_CARRIER_CODES,
     TRACK17_FIRST_POLL,
@@ -192,6 +193,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._unsaved_announced = False
         self._stopped = False
         self._first_fail: dict[str, datetime] = {}
+        # (carrier key, answer) of the lookup that just succeeded, for ``_share_poll``.
+        self._answer: tuple[str, TrackingResult] | None = None
         self._dhl_day: date | None = None
         self._dhl_calls = 0
         self._lock = asyncio.Lock()
@@ -214,6 +217,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._t17_streak = 0
         # Status 17track announced before the carrier's own, older answer took over.
         self._announced: dict[str, ParcelStatus] = {}
+        # Parcels whose very first status was "delivered": a first status is no news, so
+        # nobody was told. Looked at by the next ``_settle_orders`` (same refresh or
+        # import, so memory is enough): the order such a parcel closes tells it instead.
+        self._untold_delivery: set[str] = set()
+        # The status a notification went out for last, per carrier number (see
+        # ``_announce``): several orders of one box fire an event each, the notification
+        # goes out once. Memory only: after a restart the first order that tells a
+        # status pushes it.
+        self._box_told: dict[tuple[str | None, str], ParcelStatus] = {}
 
     # ----- settings -----
     @property
@@ -268,15 +280,25 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 if not self._pollable(parcel):
                     continue  # mail-only: status comes from mails
                 if parcel.next_poll_at is None or parcel.next_poll_at <= now:
-                    if parcel.status is not None and poll_interval(parcel.status, now) is None:
+                    # A delivered parcel is never asked again. An order that was only
+                    # closed on its own is: nobody saw it arrive, and a live answer
+                    # replaces the assumption (see ``_success``).
+                    done = parcel.status is not None and poll_interval(parcel.status, now) is None
+                    if done and not parcel.assumed_delivered:
                         continue
+                    self._answer = None
                     await self._poll_safely(parcel, now)
+                    self._share_poll(parcel, now)
                     changed = True
             # Not during the first refresh: setup must not wait for 17track.
             if self._first_refresh_done and await self._poll_track17(now):
                 changed = True
-            if self._settle_orders(now):
-                changed = True
+            # Mails first, where this cycle reads them: a mail that waits in the mailbox
+            # may tell the news an order is about to be closed for want of (the import
+            # settles afterwards, whatever becomes of it).
+            if not (self._first_refresh_done and self._mail_due(now)):
+                if self._settle_orders(now):
+                    changed = True
             if changed:
                 await self.store.async_save()
         # Not during the first refresh: setup must not wait for the mailbox or 17track.
@@ -370,6 +392,12 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         for number in removed:
             self.store.remove(number)
             self._announced.pop(number, None)
+        if removed:
+            self._forget_idle_carriers()
+            parcels = self.store.parcels.values()
+            boxes = {(p.tracking_carrier, p.tracking_ref) for p in parcels}
+            boxes |= {(p.carrier, p.number) for p in parcels}
+            self._box_told = {box: s for box, s in self._box_told.items() if box in boxes}
         today = dt_util.as_local(now).date()
         for parcel in self.store.parcels.values():
             if parcel.delivery_code and parcel.active_code(today) is None:
@@ -382,13 +410,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         First a delivered carrier parcel that a mail created on its own is folded into
         the one open order it belongs to (see ``fold_delivered``): the order is delivered
         and carries the number, the parcel of its own is gone, and its sensor with it
-        (the sensor platform drops what is no longer stored). Nothing is announced here:
-        the delivery was announced with the carrier parcel, or still waits and is
-        announced with the order.
+        (the sensor platform drops what is no longer stored). The delivery is announced
+        once: it was announced with the carrier parcel, or still waits and is announced
+        with the order, or nobody was told (the parcel had no status before) and the
+        order tells it now.
 
         Then every order nobody can ask about whose delivery day is long over is closed
-        (see ``order_overdue``). That fires the status event, marked ``assumed``, but
-        sends no notification: nothing arrived just now.
+        (see ``order_overdue``; an order with a carrier number only if nobody can be
+        asked about it at all, see ``_askable``). That fires the status event, marked
+        ``assumed``, but sends no notification: nothing arrived just now.
 
         Runs with every refresh and after every mail import, so it also settles what
         was stored before this version. A delivered parcel is looked at once
@@ -402,11 +432,26 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             parcel.order_checked = True
             changed = True
             delivered = parcel.result.delivered_at or parcel.last_change_at
-            if fold_delivered(self.store.parcels, parcel, dt_util.as_local(delivered)):
-                self._announced.pop(parcel.number, None)
+            order = fold_delivered(
+                self.store.parcels,
+                parcel,
+                dt_util.as_local(delivered),
+                announced=parcel.number not in self._untold_delivery,
+            )
+            if order is None:
+                continue
+            self._announced.pop(parcel.number, None)
+            waiting = order.unannounced_from
+            if self._announcing and waiting is not None:
+                # Nothing waits once announcing has started: tell it right away.
+                order.unannounced_from = None
+                if order.status is not waiting:
+                    self._announce(order, waiting)
+        self._untold_delivery.clear()
         today = dt_util.as_local(now).date()
         for parcel in self.store.parcels.values():
-            if not order_overdue(parcel, today, dt_util.get_default_time_zone()):
+            zone = dt_util.get_default_time_zone()
+            if not order_overdue(parcel, today, zone, self._askable(parcel)):
                 continue
             old = parcel.status
             close_unconfirmed(parcel, now)
@@ -421,7 +466,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
         Never raises: a broken mail import must not take down the parcel refresh.
         """
-        if self.mailbox is None or self._mail_lock.locked():
+        if not self._mail_due(dt_util.utcnow()):
             return
         async with self._mail_lock:
             now = dt_util.utcnow()
@@ -458,6 +503,19 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # Only the error type: mail contents never go into the log.
                 _LOGGER.warning("Mail import failed (%s); trying again later", type(err).__name__)
                 self._mail_failed(now, "error")
+            # The refresh left settling the orders to this import (see
+            # ``_async_update_data``): also when no mail came or the mailbox failed.
+            async with self._lock:
+                if not self._stopped and self._settle_orders(dt_util.utcnow()):
+                    await self.store.async_save()
+
+    def _mail_due(self, now: datetime) -> bool:
+        """Does a call of ``async_import_mail`` read the mailbox now?"""
+        return (
+            self.mailbox is not None
+            and not self._mail_lock.locked()
+            and (self._mail_next is None or now >= self._mail_next)
+        )
 
     async def _import_mail(self, mailbox: MailboxClient, now: datetime) -> None:
         mails = await self.hass.async_add_executor_job(mailbox.fetch_unseen)
@@ -578,6 +636,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     def _mail_changed(self, change: Change) -> None:
         parcel = change.parcel
+        if change.old_status is None and parcel.status is ParcelStatus.DELIVERED:
+            self._untold_delivery.add(parcel.number)
         if (
             change.old_status is not None
             and parcel.status is not None
@@ -614,6 +674,61 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if target is None:
             return False
         return target[0] not in OPTIONAL_API_CARRIERS or target[0] in self.carriers
+
+    def _share_poll(self, parcel: Parcel, now: datetime) -> None:
+        """Give what a lookup told about a shop order to the other orders of its box.
+
+        One box may hold several orders (an AliExpress "Packstück" mail names them all):
+        each carries the same carrier number. The carrier is asked once per cycle, for
+        the first order that is due, and its answer (or its failure and the time of the
+        next try) goes to the others, so none of them is asked on its own. Each order
+        fires its own status event; see ``_announce`` for the one notification. Orders
+        that are delivered are left as they are, like every delivered parcel (not one
+        that was only closed on its own). A failure for one of them is that order's
+        alone, as in ``_poll_safely``.
+        """
+        if parcel.tracking_ref is None:
+            return
+        answer = self._answer
+        for other in self.store.parcels.values():
+            if (
+                other is parcel
+                or other.tracking_ref is None
+                or other.poll_target != parcel.poll_target
+                or (other.status is ParcelStatus.DELIVERED and not other.assumed_delivered)
+            ):
+                continue
+            try:
+                other.last_poll_at = parcel.last_poll_at
+                if answer is not None:
+                    self._success(other, now, *answer)
+                else:
+                    other.last_error = parcel.last_error
+                    other.error_streak = parcel.error_streak
+                    other.first_error_at = parcel.first_error_at
+                other.next_poll_at = parcel.next_poll_at
+            except Exception:  # noqa: BLE001 - one odd order must not stop the refresh
+                _LOGGER.exception("Unexpected error polling %s", other.number)
+                key = other.tracking_carrier or "unknown"
+                self._fail(other, now, key, "unavailable", backoff_only=True)
+
+    def _askable(self, parcel: Parcel) -> bool:
+        """Can anybody be asked about a parcel's number with the current settings?
+
+        Told from the settings alone, never from what a lookup answered last: there is a
+        lookup for its carrier (not UPS without its API, not DHL without a key, not a
+        carrier without a client of ours), or the parcel is followed through 17track. A
+        number whose carrier is not known yet ("Automatisch") may be asked anywhere.
+        """
+        if parcel.track17 and self.track17 is not None:
+            return True
+        target = parcel.poll_target
+        if target is None:
+            return False
+        if target[0] is None:
+            return True
+        carrier = self.carriers.get(target[0])
+        return carrier is not None and getattr(carrier, "configured", True) is not False
 
     def _count_dhl(self, now: datetime) -> None:
         today = dt_util.as_local(now).date()
@@ -831,7 +946,26 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 translation_placeholders={"carrier": self.carriers[key].name},
             )
 
+    def _forget_idle_carriers(self) -> None:
+        """Drop the failure memory and the repair issue of carriers nobody asks any more.
+
+        Called when a parcel was removed or marked as received: without a parcel to ask
+        about, no answer would ever clear ``carrier_broken_<key>`` (see ``_success``).
+        A parcel without a carrier yet ("Automatisch") may be asked at any of them.
+        """
+        asked: set[str | None] = set()
+        for parcel in self.store.parcels.values():
+            if parcel.status is not ParcelStatus.DELIVERED and self._pollable(parcel):
+                asked.add(parcel.poll_target[0])
+        if None in asked:
+            return
+        for key in self.carriers:
+            if key not in asked:
+                self._first_fail.pop(key, None)
+                ir.async_delete_issue(self.hass, DOMAIN, f"carrier_broken_{key}")
+
     def _success(self, parcel: Parcel, now: datetime, key: str, result: TrackingResult) -> None:
+        self._answer = (key, result)
         self._first_fail.pop(key, None)
         ir.async_delete_issue(self.hass, DOMAIN, f"carrier_broken_{key}")
         if key in ("dhl", "ups"):
@@ -841,6 +975,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # async_mark_delivered), and the carrier is not asked again.
             parcel.next_poll_at = None
             return
+        # An order closed on its own: the carrier's answer is what really happened. A
+        # live "delivered" gives it its time of delivery (no event: delivered before
+        # and after); any other status opens it again, told like every status change.
+        parcel.assumed_delivered = False
         known = strip_enrichment(parcel.result)  # the carrier's or a mail's own values
         if (
             key in MAIL_ETA_CARRIERS
@@ -897,6 +1035,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if interval and key == "dhl" and self._dhl_calls > DHL_DAILY_SOFT_LIMIT:
             interval *= 2
         parcel.next_poll_at = now + interval if interval else None
+        if old is None and result.status is ParcelStatus.DELIVERED:
+            self._untold_delivery.add(parcel.number)
         if old is not None and old != result.status and self._news(parcel, old, took_over):
             self._fire(parcel, old)
 
@@ -963,11 +1103,27 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "manual": parcel.manual_delivered,
             },
         )
-        self._notify(parcel, old)
+        # One box, several orders (they share a carrier number), or a carrier's parcel
+        # and the order that took it in: the event above is each entry's own, the
+        # notification is the box's. An order does not push a status that was pushed
+        # for its box already. Only a notification that really went out counts: an
+        # assumed closing or a hand mark of one order says nothing about the box.
+        shared = parcel.tracking_ref is not None and parcel.carrier in SHOP_CARRIERS
+        if shared:
+            box = (parcel.tracking_carrier, parcel.tracking_ref)
+        else:
+            box = (parcel.carrier, parcel.number)
+        if shared and self._box_told.get(box) is r.status:
+            return
+        if self._notify(parcel, old):
+            self._box_told[box] = r.status
+        else:
+            self._box_told.pop(box, None)
 
     # ----- push notifications -----
-    def _notify(self, parcel: Parcel, old: ParcelStatus) -> None:
-        """Push the status change to the chosen notify entities and classic services.
+    def _notify(self, parcel: Parcel, old: ParcelStatus) -> bool:
+        """Push the status change to the chosen notify entities and classic services;
+        True if a notification was built and handed to the sender.
 
         Called exactly where the status event fires. The text is built right away
         (from the parcel as it is now); sending runs in a task of its own, so it can
@@ -977,15 +1133,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         try:
             targets = self._notify_targets
             if not targets or parcel.result.status.value not in self._notify_events:
-                return
+                return False
             built = build_notification(parcel, old, dt_util.now(), self.hide_names)
             tag = notification_tag(parcel.number)
         except Exception as err:  # noqa: BLE001 - a notification must never break a refresh
             # Only the error type: no parcel data in the log.
             _LOGGER.warning("Could not build a notification (%s)", type(err).__name__)
-            return
+            return False
         if built is None:
-            return
+            return False
         coro = None
         try:
             coro = self._send_notification(targets, *built, tag)
@@ -996,6 +1152,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if coro is not None:
                 coro.close()  # never started: nothing is left un-awaited
             _LOGGER.warning("Could not start sending a notification (%s)", type(err).__name__)
+            return False
+        return True
 
     async def _send_notification(
         self, targets: list[str], title: str, message: str, tag: str
@@ -1146,8 +1304,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if not due:
             return False
         try:
+            # (each number once: several orders of one box share a registration)
             infos = await self.track17.gettrackinfo(
-                [(p.track17_target[1], p.track17_carrier) for p in due]
+                list(dict.fromkeys((p.track17_target[1], p.track17_carrier) for p in due))
             )
         except AuthError:
             self._track17_auth()
@@ -1194,7 +1353,16 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         else:
             # Fill the carrier's gaps; without any carrier answer show 17track's whole one.
             parcel.track17_result = info.result
-            self._show(parcel, now, with_track17(strip_enrichment(parcel.result), info.result))
+            base = strip_enrichment(parcel.result)
+            if parcel.assumed_delivered:
+                # An order closed on its own: what 17track knows replaces the assumption
+                # as a whole (the closing is no carrier's answer). While 17track knows
+                # nothing, the assumption stays and 17track is asked again.
+                if info.result.status is ParcelStatus.UNKNOWN:
+                    parcel.track17_next_at = None if info.expired else now + TRACK17_INTERVAL
+                    return
+                base, parcel.assumed_delivered = None, False
+            self._show(parcel, now, with_track17(base, info.result))
         ended = info.expired or parcel.status is ParcelStatus.DELIVERED
         parcel.track17_next_at = None if ended else now + TRACK17_INTERVAL
 
@@ -1205,6 +1373,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if before != (result.to_dict() if result is not None else None):
             parcel.last_change_at = now
         parcel.result = result
+        if old is None and result is not None and result.status is ParcelStatus.DELIVERED:
+            self._untold_delivery.add(parcel.number)
         if old is not None and result is not None and old != result.status:
             self._fire(parcel, old)
 
@@ -1236,6 +1406,23 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if target is None or parcel.status is ParcelStatus.DELIVERED:
                 raise ValueError("track17_not_possible")
             carrier_key, poll_number = target
+            # One box, several orders: the number is registered once (it costs one
+            # number of the quota); every further order shares that registration.
+            twin = next(
+                (
+                    p
+                    for p in self.store.parcels.values()
+                    if p is not parcel and p.track17 and p.track17_target == target
+                ),
+                None,
+            )
+            if twin is not None:
+                parcel.track17, parcel.track17_carrier = True, twin.track17_carrier
+                parcel.track17_next_at = twin.track17_next_at
+                parcel.track17_result = twin.track17_result
+                await self.store.async_save()
+                self.async_set_updated_data(dict(self.store.parcels))
+                return parcel
             parcel.track17_carrier = await self._register17(poll_number, carrier_key)
             parcel.track17 = True
             if parcel.last_error == "track17_not_registered":
@@ -1398,6 +1585,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         async with self._lock:  # not while a refresh or a registration works on the parcels
             self.store.remove(normalize(number))  # KeyError: not tracked
             self._announced.pop(normalize(number), None)
+            self._forget_idle_carriers()
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
 
@@ -1423,11 +1611,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
         KeyError for a number that is not tracked, ValueError for a parcel that is
         delivered already (an order closed without a delivery mail is not: marking it
-        confirms the delivery). The hand mark wins from now on: the parcel is asked
-        about nowhere (delivered parcels never are), and an answer or a mail that comes
-        anyway changes nothing (``_success``, ``_apply_track17``, ``mail.apply._forward``).
-        The status event fires with ``manual``; nothing is pushed. A parcel a carrier
-        mail created then closes the one order it belongs to, like any delivered one.
+        confirms the delivery, and only that - it does not count as delivered today
+        and is kept no longer than before). The hand mark wins from now on: the parcel
+        is asked about nowhere (delivered parcels never are), and an answer or a mail
+        that comes anyway changes nothing (``_success``, ``_apply_track17``,
+        ``mail.apply._forward``). The status event fires with ``manual``; nothing is
+        pushed. The mark is about this one entry: it never closes an order
+        (``fold_delivered``).
         """
         async with self._lock:  # not while a refresh or a mail works on the parcels
             parcel = self.store.parcels[normalize(number)]
@@ -1437,6 +1627,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             now = dt_util.utcnow()
             mark_received(parcel, now)
             self._announced.pop(parcel.number, None)
+            self._forget_idle_carriers()
             if old is not ParcelStatus.DELIVERED:
                 # (a parcel nobody told anything about yet had no status: "unknown")
                 self._fire(parcel, old or ParcelStatus.UNKNOWN)

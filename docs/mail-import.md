@@ -201,10 +201,14 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Pro AliExpress-Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer, benannt nach dem Artikel. Den Namen des Händlers übernimmt die Integration nie.
     - Eine Bestellung bleibt ein Paket, auch wenn AliExpress sie in mehreren Sendungen verschickt. Eine Mail über mehrere Bestellungen legt jede Bestellung an.
     - Den Schritt liest der Import aus dem Betreff. „Bestellauftrag bestätigt“, „Bestellbestätigung“ und „versandfertig“ setzen „Bestellt“. „Bestellung versandt“, „teilweise versandt“, „Paket im Transit“, „In Ihrem Land / Ihrer Region angekommen“, „Neuer Lieferstatus“ und „Wird zugestellt“ setzen „Versendet“.
-    - „Wird zugestellt“ heißt bei AliExpress nur, dass das Paket dem Versandunternehmen übergeben wurde. Es zählt deshalb nicht als heute.
+    - „Wird zugestellt“ heißt bei AliExpress nur, dass das Paket dem Versandunternehmen übergeben wurde. Es zählt deshalb nicht als heute, was auch immer im Text der Mail steht.
     - Nennt die Mail eine „Voraussichtliche Zustellzeit“, wird sie der Liefertag.
     - Die „Packstück“-Mails und „Zollabfertigung für … wurde beendet“ nennen die Sendungsnummer des Paketdienstes. Ist es eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live abgefragt (DHL mit API-Key). Es entsteht kein zweites Paket. Eine Nummer in einem anderen Format (z. B. `AP…`) lässt sich bei keinem Paketdienst abfragen: Dann zählt nur der Schritt aus der Mail.
-    - „wie ist es gelaufen?“ mit dem Satz „Wir haben die Lieferung Ihrer Bestellung … bestätigt“ setzt „Zugestellt“ mit dem Text „Lieferung bestätigt“.
+    - Zu welcher Bestellung ein Packstück gehört, steht nur in den Links der Mail. Gelesen werden nur Links zu aliexpress.com, aufgerufen wird keiner.
+    - Liegen mehrere Bestellungen im selben Paket, bekommt jede die Nummer. Der Paketdienst wird für dieses Paket nur einmal gefragt, es gibt eine Benachrichtigung für das Paket (sie nennt die erste Bestellung), und bei `sensor.pakete_heute`, `sensor.pakete_moeglich` und `sensor.pakete_zugestellt_heute` zählt es einmal. Das Event `parcel_tracker_status_changed` feuert für jede Bestellung.
+    - Nennt eine spätere Mail zu einer Bestellung eine zweite, andere Nummer, entsteht dafür ein eigenes Paket „AliExpress-Sendung“.
+    - Steht die Nummer schon als eigenes Paket in der Liste? Ist es aus einer Mail entstanden, geht es in der Bestellung auf. Hast du es von Hand eingetragen oder als erhalten markiert, bleibt es, und die Bestellung übernimmt die Nummer nicht.
+    - „wie ist es gelaufen?“ mit dem Satz „Wir haben die Lieferung Ihrer Bestellung … bestätigt“ (mit der Bestellnummer aus dem Betreff) schließt die Bestellung mit dem Text „Lieferung bestätigt (laut AliExpress)“ – so wie eine [Bestellung ohne Zustellmail](#bestellungen-ohne-zustellmail): keine Benachrichtigung, nicht „heute zugestellt“. Die Mail beweist keine Ankunft, sie fragt selbst, ob der Artikel schon da ist. Hat der Paketdienst die Zustellung schon gemeldet, ändert die Mail nichts. Dasselbe gilt, solange die Bestellung bei ihm abgefragt wird und sich dort in den letzten 3 Tagen etwas getan hat; steht sie länger unverändert, schließt die Mail sie.
     - Nur als gelesen markiert werden die Aufforderung zur Bewertung, die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“.
 
     Die AliExpress-Mails sind nach Beispielmails umgesetzt und im Alltag noch nicht bestätigt, siehe [Roadmap & Status](stand.md).
@@ -215,7 +219,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
     - Gelesen werden nur die beiden Mails von `bestellstatus@eventim.de`: die Bestellbestätigung („Deine EVENTIM-Bestellung: … - Bestellnummer …“) und die Versandbenachrichtigung („eventim.de - Versandbenachrichtigung - Deine Bestellung Nr. …“).
     - Pro Bestellung entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Bei mehreren Veranstaltungen in einer Bestellung steht „… und 1 mehr“ dahinter. Eine Bestellung bleibt ein Eintrag, auch wenn die Tickets in zwei Briefen kommen.
-    - **Nur Postversand.** Eine Bestellung entsteht nur, wenn hinter „Liefermethode:“ ein Versand per Post steht (z. B. „Standardversand (Deutschland)“, Einschreiben, Express). Tickets zum Selbstausdrucken oder fürs Handy (ticketdirect, print@home, Mobile Ticket) landen nie im Briefkasten: Solche Bestellmails markiert der Import nur als gelesen.
+    - **Nur Postversand.** Eine Bestellung entsteht nur, wenn hinter „Liefermethode:“ ein Versand per Post steht (z. B. „Standardversand (Deutschland)“, Einschreiben, Wertbrief, Express). Tickets zum Selbstausdrucken oder fürs Handy (ticketdirect, print@home, Mobile Ticket) landen nie im Briefkasten, ebenso wenig ein Versand per E-Mail, ein Download, ein PDF oder eine Abholung oder Hinterlegung an der Abendkasse: Solche Bestellmails markiert der Import nur als gelesen.
     - Die Bestellbestätigung setzt „Bestellt“, ohne Liefertag. Eventim verschickt Tickets oft erst Wochen oder Monate nach der Bestellung.
     - Die Versandbenachrichtigung setzt „Versendet“ und rechnet den Lieferzeitraum aus „innerhalb von 2 bis 4 Werktagen“ ab dem Tag der Mail. Werktage sind Montag bis Samstag; Feiertage kennt der Import nicht.
     - **Keine Sendungsverfolgung.** Eventim nennt weder Paketdienst noch Sendungsnummer. Es gibt keine Abfrage, kein „Sendung verfolgen“ und keinen Knopf „Bestellung“.
@@ -270,7 +274,8 @@ Verschickt ein Marketplace-Händler selbst, kommt vom Shop oft keine „Zugestel
 
 - Der letzte Liefertag liegt mehr als 3 volle Tage zurück, und seitdem hat keine Mail die Bestellung verändert.
 - Ohne jeden Liefertag: 14 Tage nach der letzten Änderung.
-- Nur bei Bestellungen ohne Sendungsnummer. Kennt die Bestellung die Sendungsnummer des Paketdienstes, sagt der Paketdienst, was los ist.
+- Nur bei Bestellungen, zu denen niemand gefragt werden kann: ohne Sendungsnummer – oder mit einer Nummer, für die es mit den aktuellen Einstellungen gar keine Abfrage gibt (UPS ohne eingerichtete API, DHL ohne API-Key) und die auch nicht über 17track verfolgt wird.
+- Lässt sich der Paketdienst fragen, bleibt die Bestellung offen – auch wenn er die Nummer noch nicht kennt oder gerade nicht erreichbar ist. Sie endet dann mit seiner Antwort, einer Mail, „Erhalten“ oder nach 30 Tagen ohne Änderung.
 
 **Was passiert dann?**
 
@@ -280,11 +285,13 @@ Verschickt ein Marketplace-Händler selbst, kommt vom Shop oft keine „Zugestel
 - Es gibt keine Benachrichtigung.
 - Die Bestellung zählt nicht bei `sensor.pakete_zugestellt_heute` und `delivered_today` mit. Wann sie wirklich ankam, weiß niemand; `delivered_at` bleibt leer.
 
-**Kommt später doch eine Mail,** gilt die Mail: Eine „Zugestellt“-Mail trägt den echten Zeitpunkt nach (ohne nachträgliche Benachrichtigung). Eine Mail mit einem anderen Status – etwa einem neuen Liefertag – öffnet die Bestellung wieder.
+**Kommt später doch eine Mail,** gilt die Mail, wenn sie neuer ist als das Letzte, was die Bestellung beim Abschließen wusste: Eine Mail mit einem anderen Status – etwa einem neuen Liefertag – öffnet die Bestellung wieder, auch wenn sie nach einer Pause erst nach dem Abschließen gelesen wird. Eine noch ältere Mail ändert nichts.
+
+**Hat die Bestellung eine Sendungsnummer,** wird sie weiter abgefragt, sobald das möglich ist (etwa nach dem Eintragen des DHL-Keys). Meldet der Paketdienst etwas, gilt seine Antwort statt der Annahme. Eine „Zugestellt“-Mail trägt den echten Zeitpunkt in jedem Fall nach (ohne nachträgliche Benachrichtigung).
 
 Das gilt für Amazon, eBay, AliExpress und Eventim. Eine Eventim-Bestellung, die nur „Bestellt“ ist, schließt sich nie von selbst: Ihre Tickets werden oft erst viel später verschickt.
 
-Weißt du selbst, dass das Paket da ist? Dann tipp auf der Karte auf [„Erhalten“](karte.md#erhalten). Das Paket zählt dann als heute zugestellt, und die Bestellung wartet nicht mehr.
+Weißt du selbst, dass das Paket da ist? Dann tipp auf der Karte auf [„Erhalten“](karte.md#erhalten). Eine offene Bestellung zählt dann als heute zugestellt und wartet nicht mehr. Eine schon abgeschlossene Bestellung wird nur bestätigt: Sie zählt nicht als heute zugestellt.
 
 ## Zusammenführen: Carrier-Mail und Bestellung
 
@@ -309,10 +316,13 @@ Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdiens
 ??? note "Das Carrier-Paket gibt es schon als eigenes Paket"
     Kam die Shop-Mail erst später, bleiben es zunächst zwei Einträge. Wird ein Carrier-Paket zugestellt, das aus einer Mail entstanden ist, prüft die Integration noch einmal nach denselben Regeln, ob es zu genau einem offenen Amazon-, eBay- oder AliExpress-Paket ohne Sendungsnummer gehört.
 
+    - Nennt die Bestellung einen Liefertag oder Lieferzeitraum, muss der Tag der Zustellung darin liegen oder höchstens 3 Tage davor oder danach – auch dann, wenn die Bestellung den Paketdienst oder die Carrier-Mail den Shop genannt hat.
+
     - Passt es eindeutig, übernimmt das Shop-Paket Sendungsnummer, Verlauf und Zustellzeitpunkt und gilt als zugestellt. Das eigene Carrier-Paket samt Sensor verschwindet.
-    - Gemeldet wird die Zustellung nur einmal.
+    - Gemeldet wird die Zustellung nur einmal: mit dem Carrier-Paket, sonst mit dem Shop-Paket.
+    - Einen Namen, den du dem Carrier-Paket selbst gegeben hast, übernimmt das Shop-Paket.
     - Bei mehreren passenden Bestellungen passiert nichts.
-    - Pakete, die von Hand eingetragen wurden, fasst die Integration nie zusammen.
+    - Pakete, die von Hand eingetragen oder von Hand als [erhalten](karte.md#erhalten) markiert wurden, fasst die Integration nie zusammen.
     - Geprüft wird genau einmal, mit dem Stand zum Zeitpunkt der Zustellung.
 
 ## Ohne Postfach: Mail per HTTP übergeben

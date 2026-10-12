@@ -237,6 +237,8 @@ def test_shipping_notice_names_several_events_and_works_as_html_and_without_deta
         "Kurier",
         "Premiumversand",
         "Postversand",
+        "Wertbrief",
+        "Versand als Wertbrief (Deutschland)",
     ],
 )
 def test_postal_delivery_methods(method):
@@ -262,6 +264,14 @@ def test_postal_delivery_methods(method):
         "Abholung",
         "E-Ticket per Mail",
         "",
+        # v0.3.31: "Versand" and "Express" alone say nothing about a letter box.
+        "Versand per E-Mail",
+        "E-Mail-Versand",
+        "Express-Download",
+        "PDF-Ticket (Sofortversand)",
+        "Abholung an der Abendkasse (kein Versand)",
+        "Digitales Ticket (kein Postversand)",
+        "Hinterlegung (Expressversand nicht möglich)",
     ],
 )
 def test_other_delivery_methods_make_no_order(method):
@@ -660,3 +670,68 @@ async def test_sensor_diagnostics_and_hidden_names(hass, hass_storage, freezer):
     assert hass.states.get("sensor.paket_evt999999901").attributes["name"] == (
         "Eventim-Bestellung …9901"
     )
+
+
+# ----- v0.3.31: the title of a shipping notice is the first line of the event block -----
+def _notice(block: str) -> str:
+    return (
+        "VERSANDBENACHRICHTIGUNG\nHallo Max,\nLieferadresse:\nMax Mustermann\n"
+        "Musterstraße 1\n12345 Musterstadt\nDeutschland\n"
+        "Liefermethode: Standardversand (Deutschland)\n"
+        f"EINZELHEITEN DEINER BESTELLUNG\n{block}HINWEISE\n"
+    )
+
+
+def _notice_title(block: str) -> str | None:
+    (update,) = parse_eventim(_mail(SHIPPED_SUBJECT, _notice(block))).updates
+    return update.title
+
+
+REST = "Ort: Musterhalle, Musterstadt\nVeranstalter: Beispiel Konzert GmbH, Musterstadt\n"
+
+
+def test_event_name_on_two_lines_gives_its_first_line():
+    block = f"Beispielband\nDie große Abschiedstour\nDatum: Sa., 05.12.2026, 20:00\n{REST}"
+    assert _notice_title(block) == "Beispielband"
+    two = block + f"Musterfestival 2026\nWochenendticket\nDatum: So., 06.12.2026, 18:00\n{REST}"
+    assert _notice_title(two) == "Beispielband und 1 mehr"
+
+
+@pytest.mark.parametrize(
+    "above",
+    [
+        "Hallo Max,",
+        "Hi Max",
+        "Liebe Erika,",
+        "Max Mustermann\nMusterstraße 1\n12345 Musterstadt\nDeutschland",
+        "Musterstraße 1",
+        "12345 Musterstadt",
+        "Erika Beispiel\nBeispielweg 12a",
+        "Lieferadresse:",
+        "https://www.eventim.de/…",
+        "Zeile 1\nZeile 2\nZeile 3\nZeile 4",
+    ],
+)
+def test_no_title_from_lines_that_may_be_a_greeting_a_name_or_an_address(above):
+    """Fail closed: a person's name or address must never become the name of an order."""
+    assert _notice_title(f"{above}\nDatum: Sa., 05.12.2026, 20:00\n{REST}") is None
+    # Also not for the second event of a notice: no title at all then.
+    good = f"{EVENT}\nDatum: Sa., 05.12.2026, 20:00\n{REST}"
+    assert _notice_title(good + f"{above}\nDatum: So., 06.12.2026, 18:00\n{REST}") is None
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "Musterfest am Ring 2026",
+        "1975 – Die Jubiläumstour",
+        "Liebe ist alles – Das Musical",
+        "Hi-Fi Tage Musterstadt",
+    ],
+)
+def test_a_name_that_only_looks_a_bit_like_an_address_or_a_greeting_stays(name):
+    assert _notice_title(f"{name}\nDatum: Sa., 05.12.2026, 20:00\n{REST}") == name
+
+
+def test_no_title_without_an_event_line_above_the_day():
+    assert _notice_title(f"Datum: Sa., 05.12.2026, 20:00\n{REST}") is None

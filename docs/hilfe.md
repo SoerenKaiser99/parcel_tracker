@@ -145,7 +145,7 @@ Für diese Bestellung kam keine „Zugestellt“-Mail. Die Integration hat sie n
 
 ### Reparatur-Hinweis „…-Sendungsverfolgung funktioniert nicht“
 
-Seit 24 Stunden schlagen alle Abfragen bei diesem Paketdienst fehl. Vermutlich hat er seine Seite geändert. Prüf, ob es ein Update für Paket Tracker gibt. Bei GLS kommen die Pakete so lange weiter aus den GLS-Mails.
+Seit 24 Stunden schlagen alle Abfragen bei diesem Paketdienst fehl. Vermutlich hat er seine Seite geändert. Prüf, ob es ein Update für Paket Tracker gibt. Bei GLS kommen die Pakete so lange weiter aus den GLS-Mails. Der Hinweis verschwindet, sobald eine Abfrage wieder klappt – oder sobald kein Paket dieses Paketdienstes mehr abgefragt wird, weil du das letzte gelöscht oder als erhalten markiert hast.
 
 ### Reparatur-Hinweis „UPS-Monatsbudget verbraucht“
 

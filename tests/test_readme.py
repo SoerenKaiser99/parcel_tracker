@@ -1330,7 +1330,7 @@ def test_readme_explains_aliexpress_and_apples_relay():
         "es entsteht kein zweites Paket",
         "(z. B. `AP…`) lässt sich bei keinem Carrier abfragen",
         "sie werden gelesen, nie aufgerufen",
-        "„Lieferung bestätigt“",
+        "„Lieferung bestätigt (laut AliExpress)“",
         "„Your order … is closed“",
         "3 Tage nach dem letzten Liefertag, ohne Liefertag nach 14 Tagen",
     ):

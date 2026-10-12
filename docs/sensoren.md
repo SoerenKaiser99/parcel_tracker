@@ -197,8 +197,9 @@ Die Nummer im Beispiel ist erfunden.
 
 - Das Paket ist ab jetzt zugestellt: `delivered_at` ist der Zeitpunkt des Aufrufs, `status_text` „Erhalten (von Hand markiert)“, `manual_delivered` ist `true`.
 - Die Markierung gilt: Der Paketdienst wird nicht mehr abgefragt, und keine spätere Mail und keine Antwort von 17track ändert Status, Zeitpunkt oder Text. Zurücknehmen lässt sie sich nicht.
+- Die Markierung gilt für genau diesen Eintrag: Eine Bestellung, zu der das Paket gehören könnte, schließt sie nicht.
 - Das Event feuert mit `manual: true`, eine Benachrichtigung gibt es nicht.
-- Fehler: „Dieses Paket ist nicht in der Liste.“ bei einer unbekannten Nummer, „Dieses Paket ist schon zugestellt.“ bei einem zugestellten Paket. Eine Bestellung, die nur „Abgeschlossen ohne Zustellbestätigung“ ist, lässt sich markieren.
+- Fehler: „Dieses Paket ist nicht in der Liste.“ bei einer unbekannten Nummer, „Dieses Paket ist schon zugestellt.“ bei einem zugestellten Paket. Eine Bestellung, die nur „Abgeschlossen ohne Zustellbestätigung“ ist, lässt sich markieren: Sie wird damit bestätigt, `delivered_at` bleibt leer, und sie zählt nicht als heute zugestellt.
 
 ### `parcel_tracker.refresh`
 

@@ -10,10 +10,11 @@ such a mail names none. Buyer, address, shop and price are never taken.
 
 from __future__ import annotations
 
-import html
 import re
 from datetime import date, timedelta
 from email.message import EmailMessage
+from html.parser import HTMLParser
+from urllib.parse import parse_qsl, urlsplit
 
 from ..models import ParcelStatus
 from .base import (
@@ -54,17 +55,21 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "neuer lieferstatus": (_ON_WAY, None),
 }
 # "Wird zugestellt" comes hours after the shipping mail and its body says "dem
-# Versandunternehmen übergeben": handed to the carrier, not on the last mile.
+# Versandunternehmen übergeben": handed to the carrier, not on the last mile. No mail seen
+# so far tells the last mile under this subject, so it is never "in Zustellung": without
+# that sentence the order is simply on its way.
 _HANDED_OVER = "wird zugestellt"
 _HANDED_OVER_BODY = re.compile(r"dem\s+Versandunternehmen\s+übergeben")
 HANDED_OVER_TEXT = "Dem Versandunternehmen übergeben"
 # A reminder ("wird in Kürze als abgeschlossen markiert") and the request for a rating
 # tell nothing about the parcel.
 _NO_NEWS = frozenset({"auf bestätigung wird gewartet", "wie war ihr einkaufserlebnis?"})
-# "wie ist es gelaufen?": a survey, but its body confirms the delivery.
+# "wie ist es gelaufen?": a survey, but its body confirms the delivery of the order it
+# names. That is AliExpress's word, not an arrival anybody saw (the same mail goes on "Wenn
+# Sie den Artikel immer noch nicht erhalten haben …"): see ``MailUpdate.confirmation``.
 _SURVEY = "wie ist es gelaufen?"
-_CONFIRMED = re.compile(r"Wir haben die Lieferung Ihrer Bestellung\s+\d+\s+bestätigt")
-CONFIRMED_TEXT = "Lieferung bestätigt"
+_CONFIRMED = re.compile(r"Wir haben die Lieferung Ihrer Bestellung\s+(\d+)\s+bestätigt")
+CONFIRMED_TEXT = "Lieferung bestätigt (laut AliExpress)"
 # The step of a parcel mail, all on the way: AliExpress's words for the history (None
 # for a mail that tells no step of its own).
 _PARCEL_STEPS: dict[str, str | None] = {
@@ -84,7 +89,9 @@ _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) 
 # refunded or done), so nothing is taken from it.
 _CLOSED_SUBJECT = re.compile(r"Your order \d+ is closed")
 
-_URL = re.compile(r"[\[<(]*https?://\S+")
+# (the brackets in front of a link go with it; looked for from the first bracket of a run
+# only, so a long run of brackets without a link is read once, not once per bracket)
+_URL = re.compile(r"(?<![\[<(])[\[<(]*https?://\S+")
 # "x2" below an item, "€ 3,99x2" in the layout with prices; "<variant> x2" on one line.
 _QUANTITY = re.compile(r"(?:€ ?[\d.,]+ ?)?x\d+")
 _VARIANT_QUANTITY = re.compile(r"\S.* x\d+")
@@ -113,10 +120,26 @@ _ABOVE_ITEMS = frozenset(
         "zugestellt",
     }
 )
+# Lines that are no item's name wherever they stand: a greeting, a line with a phone
+# number (the recipient), a day, the labels around the address.
+_NO_ITEM = re.compile(
+    r"^(?:hallo|hi|hey|dear|liebe[rs]?|guten\s+tag)(?=[\s,!]|$)"
+    r"|\(\+\d+\)|\+\d{2}[\d ]{6,}"
+    r"|\b\d{1,2}/\d{1,2}/\d{4}\b"
+    r"|^(?:aufgegeben am|voraussichtliche zustellzeit|versand nach|bestell-nr\.|bestellsumme"
+    r"|gesamtbetrag|zahlungsmethode)",
+    re.IGNORECASE,
+)
 _ETA = re.compile(r"^Voraussichtliche Zustellzeit\n(\d{1,2})/(\d{1,2})/(\d{4})$", re.MULTILINE)
 _TRACKING = re.compile(r"Sendungsverfolgungsnummer lautet ([0-9A-Z]{8,30})\b")
-# The orders of a parcel stand only in its links (several in one: "o_ids=1,2").
-_LINK_ORDERS = re.compile(r"[?&](?:tradeOrderId|o_ids|orderId)=(\d+(?:(?:,|%2C)\d+)*)", re.I)
+# The orders of a parcel stand only in its links (several in one: "o_ids=1,2"): in these
+# parameters of a link to AliExpress itself.
+_LINK_HOST = "aliexpress.com"
+_LINK_PARAMS = frozenset({"tradeorderid", "o_ids", "orderid"})
+_PLAIN_LINK = re.compile(r"https?://[^\s<>\"'\[\]()]+")
+# More orders than this in one mail are no parcel's orders: the mail is told like one
+# that names none.
+MAX_LINK_ORDERS = 20
 
 
 def order_number(order: str) -> str:
@@ -166,21 +189,24 @@ def _above_items(lines: list[str], index: int) -> bool:
 def _item_names(lines: list[str]) -> list[str]:
     """The names of the items in ``lines``.
 
-    An item is its name, mostly a variant and then the quantity ("x2"); the name is found
-    from the quantity upwards. The shop's line is never a name.
+    An item is its name, mostly a variant and then the quantity ("x2"). The name is found
+    from the quantity upwards, and only where a layout puts it: right below a line that is
+    none of an item (a label, the shop's line, an order line, the quantity of the item
+    before). Anything else has no name: no title is better than a wrong one, and a
+    greeting, the recipient's line or a day never is one.
     """
     names = []
     for index, line in enumerate(lines):
         if _QUANTITY.fullmatch(line):
-            # name, variant, quantity; without a variant the name stands right above
-            rows = (index - 2, index - 1)
+            # the name stands right above, or above the variant
+            rows = (index - 1, index - 2)
         elif _VARIANT_QUANTITY.fullmatch(line):
             rows = (index - 1,)
         else:
             continue
-        if rows[0] < 0 or _above_items(lines, rows[-1]):
-            continue  # a quantity without an item above it
-        row = rows[0] if not _above_items(lines, rows[0]) else rows[-1]
+        row = next((r for r in rows if r >= 1 and _above_items(lines, r - 1)), None)
+        if row is None or _above_items(lines, row) or _NO_ITEM.search(lines[row]):
+            continue
         if name := _name(lines[row]):
             names.append(name)
     return names
@@ -232,9 +258,7 @@ def _order_step(step: str, text: str) -> tuple[ParcelStatus, str | None] | None:
     """(status, own words) of the step an order mail names; None for one we do not know."""
     key = " ".join(step.lower().split())
     if key == _HANDED_OVER:
-        if _HANDED_OVER_BODY.search(text):
-            return _ON_WAY, HANDED_OVER_TEXT
-        return ParcelStatus.OUT_FOR_DELIVERY, None
+        return _ON_WAY, HANDED_OVER_TEXT if _HANDED_OVER_BODY.search(text) else None
     return _ORDER_STEPS.get(key)
 
 
@@ -245,7 +269,9 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
         return MailResult(ignored=True)
     sent = sent_at(msg)
     if key == _SURVEY:
-        if not _CONFIRMED.search(text):
+        confirmed = _CONFIRMED.search(text)
+        # (only the order of this mail: a sentence about another one confirms nothing)
+        if not confirmed or confirmed.group(1) != order:
             return MailResult(ignored=True)
         status, words, confirmation = ParcelStatus.DELIVERED, CONFIRMED_TEXT, True
     elif found := _order_step(step, text):
@@ -257,6 +283,9 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
     if (named := _TRACKING.search(text)) and (carrier := carrier_for(named.group(1))):
         tracking_ref, tracking_carrier = named.group(1), carrier
     eta = _eta(text, sent.date()) if status is not ParcelStatus.DELIVERED else None
+    orders = _orders(text.splitlines(), order)
+    if confirmation:
+        orders = {order: orders.get(order)}
     return MailResult(
         updates=[
             MailUpdate(
@@ -266,32 +295,75 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
                 sent_at=sent,
                 title=title,
                 eta_date=eta,
-                delivered_at=sent if status is ParcelStatus.DELIVERED else None,
                 tracking_ref=tracking_ref,
                 tracking_carrier=tracking_carrier,
                 status_text=words,
                 confirmation=confirmation,
             )
-            for number, title in _orders(text.splitlines(), order).items()
+            for number, title in orders.items()
         ]
     )
 
 
+class _Hrefs(HTMLParser):
+    """The targets of the links (``<a href>``) of an HTML text."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.found: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "a":
+            self.found += [value for name, value in attrs if name == "href" and value]
+
+
+def _links(part: EmailMessage) -> list[str]:
+    """The links of one text part: ``href`` of an HTML part, the addresses in a text."""
+    try:
+        content = part.get_content()
+    except (LookupError, ValueError):
+        content = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
+    if part.get_content_type() == "text/plain":
+        return _PLAIN_LINK.findall(content)
+    parser = _Hrefs()
+    try:
+        parser.feed(content)
+        parser.close()
+    except (AssertionError, ValueError):  # broken markup: what was read so far
+        pass
+    return parser.found
+
+
 def _link_orders(msg: EmailMessage) -> list[str]:
-    """The order numbers the links of a mail name, first occurrence first."""
+    """The order numbers the links of a mail name, first occurrence first.
+
+    Read only from links to AliExpress itself (aliexpress.com and its sub-domains), from
+    the parameters that name orders; a list is split at its commas and every value must
+    be an order number as a whole. Nothing else counts: no other host, no text or other
+    attribute that looks like a link, no link inside a link (it stays encoded), no part
+    of a longer run of digits. More than MAX_LINK_ORDERS orders are none at all.
+    """
     orders: list[str] = []
     for part in msg.walk():
         if part.get_content_type() not in ("text/plain", "text/html"):
             continue
-        try:
-            content = part.get_content()
-        except (LookupError, ValueError):
-            content = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
-        for listed in _LINK_ORDERS.findall(html.unescape(content)):
-            for order in _DIGITS.findall(listed):
-                if order not in orders:
-                    orders.append(order)
-    return orders
+        for link in _links(part):
+            try:
+                url = urlsplit(link.strip())
+                host = (url.hostname or "").lower()
+            except ValueError:
+                continue
+            if url.scheme not in ("http", "https"):
+                continue
+            if host != _LINK_HOST and not host.endswith("." + _LINK_HOST):
+                continue
+            for name, listed in parse_qsl(url.query):
+                if name.lower() not in _LINK_PARAMS:
+                    continue
+                for order in listed.split(","):
+                    if _DIGITS.fullmatch(order) and order not in orders:
+                        orders.append(order)
+    return orders if len(orders) <= MAX_LINK_ORDERS else []
 
 
 def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResult:
