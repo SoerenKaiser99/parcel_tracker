@@ -49,7 +49,7 @@ Updates kommen auf diesem Weg nicht von selbst: Für eine neue Version lädst du
 
 | Feld | Bedeutung |
 |---|---|
-| **DHL-API-Key** (optional) | Wird beim Speichern geprüft. Das Feld darf leer bleiben: DPD, GLS und Hermes brauchen keinen Key, DHL-Pakete kommen ohne Key aus den DHL-Mails. Der Key lässt sich später ergänzen. Siehe [DHL](dienste.md#dhl). |
+| **DHL-API-Key** (optional) | Wird beim Speichern geprüft. Das Feld darf leer bleiben: DPD, GLS und Hermes brauchen keinen Key, DHL-Pakete kommen ohne Key aus den DHL-Mails. Mit Key gibt es für DHL den Live-Status (Ort, Verlauf, Zeitfenster). Der Key lässt sich später ergänzen. Siehe [DHL](dienste.md#dhl). |
 | **Land** | Deutschland, Österreich oder Schweiz. Vorbelegt mit dem Land aus den Home-Assistant-Einstellungen, sonst Deutschland. Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird. |
 | **PLZ** (optional) | Deutschland 5 Ziffern (z. B. 10115), Österreich und Schweiz 4 Ziffern (z. B. 1010). Mit PLZ liefert DHL zusätzliche Details und GLS den Verlauf. |
 | **Zugestellte Pakete ausblenden nach (Tagen)** | Standard 3, Bereich 1–30. Nach dieser Zeit verschwindet ein zugestelltes Paket aus der Übersicht. |
@@ -63,6 +63,7 @@ Alle vier Felder änderst du später über **Konfigurieren** an der Integration.
 Gut zu wissen:
 
 - Lässt du das Key-Feld beim Ändern leer, bleibt der vorhandene Key erhalten.
+- Bestehende Einrichtungen bleiben ohne Zutun auf Deutschland.
 - Wechselst du das Land, trag die PLZ im selben Formular neu ein. Passt die gespeicherte PLZ nicht zur Länge des neuen Landes, meldet das Formular das, statt sie zu verwerfen.
 
 ## Karte hinzufügen

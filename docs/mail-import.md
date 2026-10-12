@@ -78,7 +78,7 @@ Lehnt der Mailserver die Anmeldung ab? Viele Anbieter verlangen für IMAP nicht 
 ### Wie oft wird das Postfach gelesen?
 
 - Im eingestellten Intervall (1–60 Minuten, Standard 5) schaut der Import nach ungelesenen Mails im eingestellten Ordner (Standard: Posteingang).
-- Der Dienst `parcel_tracker.refresh` fragt zusätzlich das Postfach sofort ab.
+- Der Dienst `parcel_tracker.refresh` (auf der Karte „Aktualisieren“) fragt zusätzlich das Postfach sofort ab.
 - Ist das Postfach nicht erreichbar, wartet der Import unabhängig vom Intervall länger (5 → 10 → 20 → 40 → 60 Minuten).
 - Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
 - Wird das Zertifikat des Servers später nicht mehr akzeptiert (abgelaufen, ausgetauscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant.
@@ -214,23 +214,24 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
     - Pro eBay-Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer, benannt nach dem Artikel.
     - eBay-Mails enthalten keine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
-    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum, „BESTELLUNG ZUGESTELLT“ setzt „Zugestellt“. Andere eBay-Mails landen in „Nicht erkannt“.
+    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum („Lieferung ca.: Mi, 28. Jan - Do, 29. Jan“), „BESTELLUNG ZUGESTELLT“ setzt „Zugestellt“. Andere eBay-Mails landen in „Nicht erkannt“.
     - Nennt die Mail den Versanddienstleister, zeigt die Karte ihn an („eBay · Versendet · via Hermes“, Attribut `shipping_carrier_hint`).
 
 === "AliExpress"
 
-    - Pro AliExpress-Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer, benannt nach dem Artikel. Den Namen des Händlers übernimmt die Integration nie.
-    - Eine Bestellung bleibt ein Paket, auch wenn AliExpress sie in mehreren Sendungen verschickt. Eine Mail über mehrere Bestellungen legt jede Bestellung an.
-    - Den Schritt liest der Import aus dem Betreff. „Bestellauftrag bestätigt“, „Bestellbestätigung“ und „versandfertig“ setzen „Bestellt“. „Bestellung versandt“, „teilweise versandt“, „Paket im Transit“, „In Ihrem Land / Ihrer Region angekommen“, „Neuer Lieferstatus“ und „Wird zugestellt“ setzen „Versendet“.
+    - Pro AliExpress-Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer (z. B. `sensor.paket_ali9999999999990000`), benannt nach dem Artikel. Den Namen des Händlers übernimmt die Integration nie.
+    - Eine Bestellung bleibt ein Paket, auch wenn AliExpress sie in mehreren Sendungen verschickt. Eine Mail über mehrere Bestellungen („2 Bestellungen wurden bestätigt“) legt jede Bestellung an.
+    - Den Schritt liest der Import aus dem Betreff. „Bestellauftrag bestätigt“, „Bestellbestätigung“ und „versandfertig“ setzen „Bestellt“. „Bestellung versandt“, „teilweise versandt“, „Vom Kurier abgeholt“, „Paket im Transit“, „In Ihrem Land / Ihrer Region angekommen“, „Neuer Lieferstatus“ und „Wird zugestellt“ setzen „Versendet“. Im Verlauf steht dazu der Schritt, den AliExpress nennt, z. B. „Im Zielland angekommen“.
     - „Wird zugestellt“ heißt bei AliExpress nur, dass das Paket dem Versandunternehmen übergeben wurde. Es zählt deshalb nicht als heute, was auch immer im Text der Mail steht.
     - Nennt die Mail eine „Voraussichtliche Zustellzeit“, wird sie der Liefertag.
-    - Die „Packstück“-Mails und „Zollabfertigung für … wurde beendet“ nennen die Sendungsnummer des Paketdienstes. Ist es eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live abgefragt (DHL mit API-Key). Es entsteht kein zweites Paket. Eine Nummer in einem anderen Format (z. B. `AP…`) lässt sich bei keinem Paketdienst abfragen: Dann zählt nur der Schritt aus der Mail.
-    - Zu welcher Bestellung ein Packstück gehört, steht nur in den Links der Mail. Gelesen werden nur Links zu aliexpress.com, aufgerufen wird keiner.
+    - Die „Packstück“-Mails („Packstück … hat die Abflugregion verlassen“, „Packstück …: Vom Kurier abgeholt“, „Packstück …: In Ihrem Land / Ihrer Region“, „Packstück … hat eine Aktualisierung“) und „Zollabfertigung für … wurde beendet“ nennen die Sendungsnummer des Paketdienstes. „Hat eine Aktualisierung“ nennt keinen Schritt: Der Text im Verlauf bleibt, wie er war. Ist es eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live abgefragt (DHL mit API-Key). Es entsteht kein zweites Paket. Eine Nummer in einem anderen Format (z. B. `AP…`) lässt sich bei keinem Paketdienst abfragen: Dann zählt nur der Schritt aus der Mail.
+    - Zu welcher Bestellung ein Packstück gehört, steht nur in den Links der Mail (sie werden gelesen, nie aufgerufen; es zählen nur Links zu aliexpress.com). Fehlen sie – etwa in einer von Hand weitergeleiteten Mail –, gilt dasselbe wie bei einer Carrier-Mail: Passt genau eine offene AliExpress-Bestellung, übernimmt sie die Nummer, sonst entsteht ein eigenes Paket „AliExpress-Sendung“ (siehe [Zusammenführen](#zusammenfuhren-carrier-mail-und-bestellung)).
     - Liegen mehrere Bestellungen im selben Paket, bekommt jede die Nummer. Der Paketdienst wird für dieses Paket nur einmal gefragt, es gibt eine Benachrichtigung für das Paket (sie nennt die erste Bestellung), und bei `sensor.pakete_heute`, `sensor.pakete_moeglich` und `sensor.pakete_zugestellt_heute` zählt es einmal. Das Event `parcel_tracker_status_changed` feuert für jede Bestellung.
     - Nennt eine spätere Mail zu einer Bestellung eine zweite, andere Nummer, entsteht dafür ein eigenes Paket „AliExpress-Sendung“.
     - Steht die Nummer schon als eigenes Paket in der Liste? Ist es aus einer Mail entstanden, geht es in der Bestellung auf. Hast du es von Hand eingetragen oder als erhalten markiert, bleibt es, und die Bestellung übernimmt die Nummer nicht.
-    - „wie ist es gelaufen?“ mit dem Satz „Wir haben die Lieferung Ihrer Bestellung … bestätigt“ (mit der Bestellnummer aus dem Betreff) schließt die Bestellung mit dem Text „Lieferung bestätigt (laut AliExpress)“ – so wie eine [Bestellung ohne Zustellmail](#bestellungen-ohne-zustellmail): keine Benachrichtigung, nicht „heute zugestellt“. Die Mail beweist keine Ankunft, sie fragt selbst, ob der Artikel schon da ist. Hat der Paketdienst die Zustellung schon gemeldet, ändert die Mail nichts. Dasselbe gilt, solange die Bestellung bei ihm abgefragt wird und sich dort in den letzten 3 Tagen etwas getan hat; steht sie länger unverändert, schließt die Mail sie.
-    - Nur als gelesen markiert werden die Aufforderung zur Bewertung, die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“.
+    - „wie ist es gelaufen?“ mit dem Satz „Wir haben die Lieferung Ihrer Bestellung … bestätigt“ (mit der Bestellnummer aus dem Betreff) schließt die Bestellung mit dem Text „Lieferung bestätigt (laut AliExpress)“ – so wie eine [Bestellung ohne Zustellmail](#bestellungen-ohne-zustellmail): `assumed_delivered` ist `true`, keine Benachrichtigung, nicht „heute zugestellt“. Die Mail kommt oft erst Tage später und beweist keine Ankunft, sie fragt selbst, ob der Artikel schon da ist. Hat der Paketdienst die Zustellung schon gemeldet, ändert die Mail nichts: Dessen Zeitpunkt bleibt stehen. Dasselbe gilt, solange die Bestellung bei ihm abgefragt wird und sich dort in den letzten 3 Tagen etwas getan hat; steht sie länger unverändert, schließt die Mail sie.
+    - Nur als gelesen markiert werden die Aufforderung zur Bewertung („Wie war Ihr Einkaufserlebnis?“), die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“ (die Mail sagt nicht, ob die Bestellung abgeschlossen oder storniert wurde). Andere AliExpress-Mails landen in „Nicht erkannt“.
+    - Bestellungen ohne Sendungsnummer, für die keine Bestätigung kommt, schließt die Integration von selbst: 3 Tage nach dem letzten Liefertag, ohne Liefertag nach 14 Tagen (siehe [Bestellungen ohne Zustellmail](#bestellungen-ohne-zustellmail)).
 
     Die AliExpress-Mails sind nach Beispielmails umgesetzt und im Alltag noch nicht bestätigt, siehe [Roadmap & Status](stand.md).
 
@@ -239,30 +240,32 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     Eventim-Tickets, die per Post kommen, tauchen wie ein Paket in der Liste auf.
 
     - Gelesen werden nur die beiden Mails von `bestellstatus@eventim.de`: die Bestellbestätigung („Deine EVENTIM-Bestellung: … - Bestellnummer …“) und die Versandbenachrichtigung („eventim.de - Versandbenachrichtigung - Deine Bestellung Nr. …“).
-    - Pro Bestellung entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Bei mehreren Veranstaltungen in einer Bestellung steht „… und 1 mehr“ dahinter. Eine Bestellung bleibt ein Eintrag, auch wenn die Tickets in zwei Briefen kommen.
+    - Pro Bestellung entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer (z. B. `sensor.paket_evt999999901`), benannt nach der Veranstaltung. Bei mehreren Veranstaltungen in einer Bestellung steht „… und 1 mehr“ dahinter. Eine Bestellung bleibt ein Eintrag, auch wenn die Tickets in zwei Briefen kommen.
     - **Nur Postversand.** Eine Bestellung entsteht nur, wenn hinter „Liefermethode:“ ein Versand per Post steht (z. B. „Standardversand (Deutschland)“, Einschreiben, Wertbrief, Express). Tickets zum Selbstausdrucken oder fürs Handy (ticketdirect, print@home, Mobile Ticket) landen nie im Briefkasten, ebenso wenig ein Versand per E-Mail, ein Download, ein PDF oder eine Abholung oder Hinterlegung an der Abendkasse: Solche Bestellmails markiert der Import nur als gelesen.
     - Die Bestellbestätigung setzt „Bestellt“, ohne Liefertag. Eventim verschickt Tickets oft erst Wochen oder Monate nach der Bestellung.
     - Die Versandbenachrichtigung setzt „Versendet“ und rechnet den Lieferzeitraum aus „innerhalb von 2 bis 4 Werktagen“ ab dem Tag der Mail. Werktage sind Montag bis Samstag; Feiertage kennt der Import nicht.
-    - **Keine Sendungsverfolgung.** Eventim nennt weder Paketdienst noch Sendungsnummer. Es gibt keine Abfrage, kein „Sendung verfolgen“ und keinen Knopf „Bestellung“.
+    - **Keine Sendungsverfolgung.** Eventim nennt weder Paketdienst noch Sendungsnummer. Es gibt keine Abfrage, kein „Sendung verfolgen“ und keinen Knopf „Bestellung“ (die Mails nennen keine Bestellseite, die ohne Anmeldung funktioniert).
     - **So endet die Bestellung:** Eine „Zugestellt“-Mail gibt es nie. Tipp auf der Karte auf [„Erhalten“](karte.md#erhalten), wenn die Tickets da sind. Sonst schließt die Integration die Bestellung von selbst, 3 Tage nach dem letzten Tag des Lieferzeitraums (siehe [Bestellungen ohne Zustellmail](#bestellungen-ohne-zustellmail)).
     - Solange nur „Bestellt“ dasteht, schließt die Integration die Bestellung nie von selbst. Ändert sich 30 Tage lang nichts, verschwindet sie wie jedes Paket aus der Liste; die Versandbenachrichtigung legt sie dann wieder an.
-    - Käufer, Adresse, Veranstaltungsort, Plätze und Preise liest der Import nicht.
+    - Käufer, Adresse, Veranstaltungsort, Plätze und Preise liest der Import nicht; Links in den Mails werden nie aufgerufen.
 
     Die Eventim-Mails sind nach Beispielmails umgesetzt und im Alltag noch nicht bestätigt, siehe [Roadmap & Status](stand.md). Gesehen wurde bisher nur „Standardversand (Deutschland)“.
 
 === "DHL"
 
     - Den Status liest der Import nur aus dem Betreff, siehe die Tabelle unter [Kein Key? Dann die DHL-Mails](dienste.md#kein-key-dann-die-dhl-mails).
-    - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können.
-    - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson.
-    - Der Anzeigename eines Paketdienstes („DHL Paketankündigung“, „DHL Zustell-Update“) wird nie zum Namen: Ohne Shop heißt das Paket `DHL <Nummer>`.
+    - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
+    - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson. Der Name endet an der Rechtsform; was dahinter steht (ein Kürzel, eine Ansprechperson), wird nicht übernommen.
+    - Der Anzeigename eines Paketdienstes („DHL Paketankündigung“, „DHL Zustell-Update“) wird nie zum Namen: Ohne Shop heißt das Paket `DHL <Nummer>`. Nennt der Betreff eine Firma des Paketdienstes selbst („Ihre DHL Paket (Austria) GmbH c/o … Sendung“), gibt es ebenfalls keinen Namen.
+    - Trägt ein Paket aus einer älteren Version noch so einen Namen, ersetzt ihn die nächste Mail, die einen Shop nennt – aber nur, wenn der Name aus einem Paketdienst (DHL, DPD, GLS, Hermes, UPS, Deutsche Post) und Wörtern einer Benachrichtigung besteht und sonst nichts enthält („DHL Paketankündigung“, „DHL Zustell-Update“, „DPD Versandinfo“, „DHL Paket“). Jeder andere Name bleibt, auch „Hermes“, „DHL Express“ oder „Paket“: Er kann selbst vergeben sein.
+    - Eine „Amazon Sendung“ landet beim passenden Amazon-Paket, siehe [Zusammenführen](#zusammenfuhren-carrier-mail-und-bestellung).
     - Abholcodes liest der Import nie.
 
 === "DPD"
 
     - DPD Deutschland (`noreply@service.dpd.de`): Die Ankündigung „Bald ist Ihr DPD Paket da“ liefert neben der Paketnummer den Versender als Namen des Pakets – nur eine Firma mit Rechtsform oder einen bekannten Shop, nie eine Privatperson – und die Lieferschätzung.
     - Aus „Ihre Sendung stellen wir in 1-2 Werktagen zu“ wird eine Lieferspanne, gerechnet ab dem Tag der Mail. Werktage sind Montag bis Samstag; Feiertage kennt der Import nicht.
-    - Das Paket steht damit auf „Angekündigt“, bis die DPD-Abfrage den Status liefert.
+    - Das Paket steht damit auf „Angekündigt“, bis die DPD-Abfrage den Status liefert. Die Schätzung bleibt, bis die DPD-Abfrage selbst einen Tag nennt oder das Paket zugestellt bzw. abholbereit ist.
     - Der Empfänger aus der Mail wird nie gelesen.
     - Alle anderen Mails von DPD Deutschland legen nur das Paket an.
     - DPD Österreich: siehe [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).
@@ -273,19 +276,20 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - „Dein GLS Paket kommt heute!“ setzt „In Zustellung“ für den Tag der Mail.
     - „Dein Paket wurde … zugestellt“ setzt „Zugestellt“ – liegt das Paket im PaketShop zur Abholung bereit, „Abholbereit“.
     - „Dein Paket wird an dem gewünschten Ort abgestellt“ legt das Paket nur an („Angekündigt“) und setzt nie einen Status zurück.
-    - Die Paketnummer liest der Import nur direkt nach „Paketnummer“ bzw. „Sendungsnummer“ (11 Ziffern).
-    - Der Versender wird nur dann zum Namen, wenn es ein bekannter Shop ist oder der Name eine Rechtsform trägt (z. B. GmbH, AG, KG, e.K.).
-    - Abstellort, Zustelladresse, Empfängername, Telefonnummer und Referenzen übernimmt die Integration nie.
+    - Die Paketnummer liest der Import nur direkt nach „Paketnummer“ bzw. „Sendungsnummer“ (11 Ziffern). In Mails, die GLS selbst geschickt hat, darf eine Prüfziffer als zwölfte Ziffer folgen; gespeichert wird die Nummer ohne sie. Nennt eine solche Mail keine Nummer, zählt die aus dem Link `gls-group.eu/track/…`.
+    - Der Versender wird nur dann zum Namen, wenn es ein bekannter Shop ist oder der Name eine Rechtsform trägt (z. B. GmbH, AG, KG, e.K.) – Namen privater Absender übernimmt die Integration nie. Der Name endet an der Rechtsform: Aus „Beispiel Handels OHG (AT-B2C) Erika Musterfrau“ wird „Beispiel Handels OHG“.
+    - Abstellort, Zustelladresse, Empfängername, Telefonnummer und Referenzen übernimmt die Integration nie – weder in Attribute noch ins Log.
     - Versandmails von Shops ohne Paketnummer (z. B. „Versand Ihrer Bestellung“) landen in „Nicht erkannt“.
 
 === "Hermes"
 
-    - „Information zur Zustellung an den gebuchten WunschAblageort“ setzt „Angekündigt“.
+    - „Information zur Zustellung an den gebuchten WunschAblageort“ (die Sendung wurde gerade angekündigt) setzt „Angekündigt“.
     - „Ihre Hermes Sendung ist auf dem Weg“ setzt „Unterwegs“ samt Liefertag und Zeitfenster.
     - „… wurde an deinen WunschAblageort zugestellt“ setzt „Zugestellt“.
-    - Mails über einen gescheiterten Zustellversuch setzen keinen Status. Den liefert dann die Hermes-Abfrage.
-    - Der Shop aus der Mail wird nur dann zum Namen, wenn es ein bekannter Shop ist (z. B. Amazon, eBay, Otto, Zalando) und das Paket noch keinen Namen hat.
-    - Den Text des Wunsch-Ablageorts übernimmt die Integration nie.
+    - Mails über einen gescheiterten Zustellversuch („… konnte nicht zugestellt werden“, „nicht zugestellt“, „Zustellversuch“) setzen keinen Status. Den liefert dann die Hermes-Abfrage.
+    - Der Shop aus der Mail wird nur dann zum Namen, wenn es ein bekannter Shop ist (z. B. Amazon, eBay, Otto, Zalando) und das Paket noch keinen Namen hat – Namen privater Absender übernimmt die Integration nie.
+    - Den Text des Wunsch-Ablageorts übernimmt die Integration nie – weder in Attribute noch ins Log.
+    - Alte Amazon-Versandmails mit Hermes-Nummer hängen die Nummer an das Amazon-Paket; ab dann fragt es Hermes ab.
 
 ## Bestellungen ohne Zustellmail
 
@@ -332,19 +336,19 @@ Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdiens
     - dieses Paket keinen anderen Versanddienstleister nennt und
     - der Tag der Mail im Liefertag oder Lieferzeitraum des Pakets liegt (fehlt ein Tag, muss das Paket schon „Versendet“ sein).
 
-    Die Marke ist der Firmenname ohne Rechtsform: ein Wort ab 5 Buchstaben oder mehrere Wörter. Allerweltswörter allein („Neu GmbH“, „Smart Home GmbH“) und bekannte Shops (IKEA, Otto, Zalando …) zählen nicht. Passt etwas davon nicht, entsteht ein eigenes Paket.
+    Die Marke ist der Firmenname ohne Rechtsform: ein Wort ab 5 Buchstaben oder mehrere Wörter, ganze Wörter, Groß- und Kleinschreibung egal. Allerweltswörter allein („Neu GmbH“, „Smart Home GmbH“) und bekannte Shops (IKEA, Otto, Zalando …) zählen nicht. Für „In Zustellung“ und „Zugestellt“ gilt der Tag, an dem die Mail kam; eine Zustellmail macht aus einem nur bestellten Paket nie ein zugestelltes. Passt etwas davon nicht, entsteht ein eigenes Paket.
 
 ??? note "Das Carrier-Paket gibt es schon als eigenes Paket"
-    Kam die Shop-Mail erst später, bleiben es zunächst zwei Einträge. Wird ein Carrier-Paket zugestellt, das aus einer Mail entstanden ist, prüft die Integration noch einmal nach denselben Regeln, ob es zu genau einem offenen Amazon-, eBay- oder AliExpress-Paket ohne Sendungsnummer gehört.
+    Kam die Shop-Mail erst später, bleiben es zunächst zwei Einträge. Wird ein Carrier-Paket zugestellt, das aus einer Mail entstanden ist, prüft die Integration noch einmal nach denselben Regeln, ob es zu genau einem offenen Amazon-, eBay- oder AliExpress-Paket ohne Sendungsnummer gehört – so, als käme seine „Zugestellt“-Mail jetzt: mit dem Paketdienst, dem Firmennamen aus der Carrier-Mail und dem Tag der Zustellung.
 
     - Nennt die Bestellung einen Liefertag oder Lieferzeitraum, muss der Tag der Zustellung darin liegen oder höchstens 3 Tage davor oder danach – auch dann, wenn die Bestellung den Paketdienst oder die Carrier-Mail den Shop genannt hat.
 
     - Passt es eindeutig, übernimmt das Shop-Paket Sendungsnummer, Verlauf und Zustellzeitpunkt und gilt als zugestellt. Das eigene Carrier-Paket samt Sensor verschwindet.
-    - Gemeldet wird die Zustellung nur einmal: mit dem Carrier-Paket, sonst mit dem Shop-Paket.
+    - Gemeldet wird die Zustellung nur einmal: mit dem Carrier-Paket; stand dessen Meldung noch aus oder gab es keine, weil das Carrier-Paket vorher keinen Status hatte, mit dem Shop-Paket.
     - Einen Namen, den du dem Carrier-Paket selbst gegeben hast, übernimmt das Shop-Paket.
     - Bei mehreren passenden Bestellungen passiert nichts.
     - Pakete, die von Hand eingetragen oder von Hand als [erhalten](karte.md#erhalten) markiert wurden, fasst die Integration nie zusammen.
-    - Geprüft wird genau einmal, mit dem Stand zum Zeitpunkt der Zustellung.
+    - Geprüft wird genau einmal, mit dem Stand zum Zeitpunkt der Zustellung: Eine Bestellung, die eine Mail erst nach der Zustellung verändert hat (später bestellt oder versendet), kommt nicht infrage, und was beim ersten Mal nicht eindeutig war, wird später nicht doch noch zusammengeführt. Das gilt auch für Pakete, die beim Update schon zugestellt in der Liste stehen.
 
 ## Ohne Postfach: Mail per HTTP übergeben
 
@@ -399,7 +403,7 @@ Der Import übernimmt nur:
 
 - Bestell- bzw. Sendungsnummer,
 - einen auf 60 Zeichen gekürzten Artikeltitel,
-- den Namen eines Shops oder einer Firma (nur bis zur Rechtsform, nie den einer Privatperson und nie den Anzeigenamen eines Paketdienstes),
+- den Namen eines Shops oder einer Firma (nur bis zur Rechtsform, nie den einer Privatperson und nie den Anzeigenamen eines Paketdienstes; das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD),
 - Status, Liefertag und Zeitfenster,
 - den Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: den Zustell-Code.

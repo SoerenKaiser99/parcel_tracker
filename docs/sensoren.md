@@ -19,7 +19,7 @@ Die Entitäts-IDs sind fest. Die ID eines Paket-Sensors entsteht aus der Nummer 
 
 ## `sensor.paket_<nummer>`
 
-Ein Sensor pro Paket. `<nummer>` ist die Nummer des Pakets in Kleinbuchstaben. Bei Shop-Bestellungen beginnt sie mit `amz`, `ebay` oder `ali`, z. B. `sensor.paket_ebay990000000001`.
+Ein Sensor pro Paket. `<nummer>` ist die Nummer des Pakets in Kleinbuchstaben. Bei Shop-Bestellungen beginnt sie mit `amz`, `ebay`, `ali` oder `evt`, z. B. `sensor.paket_ebay990000000001`.
 
 Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl von Tagen nach der Zustellung), verschwindet auch sein Sensor.
 
@@ -256,7 +256,7 @@ Die Diagnose lädst du unter **Einstellungen → Geräte & Dienste → Paket Tra
 - den Zustand des Mail-Imports: Zeitpunkt des letzten Laufs, Wartezeit nach Fehlern, Zähler für erkannte und nicht erkannte Mails,
 - ob ein eigener Ordner statt des Posteingangs gelesen wird – nie seinen Namen,
 - ob ein anderer Port als 993 eingestellt ist – nie den Port selbst – und die gewählte Verbindung zum Mailserver,
-- zu den letzten zehn nicht erkannten Mails nur die Absender-Domain (bei unbekannten Absendern nur `other`) und ob die Mail weitergeleitet war,
+- zu den letzten zehn nicht erkannten Mails nur die Absender-Domain (bei unbekannten Absendern nur `other`; bei einer Weiterleitung die Domain des ursprünglichen Absenders, wenn der Import ihn kennt) und ob die Mail weitergeleitet war,
 - den IMAP-Server nur, wenn er zu einem öffentlichen Mailanbieter gehört (z. B. mailbox.org, GMX, Gmail); ein eigener Server steht nur als `custom` drin,
 - bei Benachrichtigungen nur die Anzahl der Ziele (getrennt nach Entitäten und klassischen Diensten, nie ihre Namen) und die gewählten Ereignisse.
 

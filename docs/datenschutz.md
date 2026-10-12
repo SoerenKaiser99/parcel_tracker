@@ -43,7 +43,7 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 
 - Bestell- bzw. Sendungsnummer,
 - ein auf 60 Zeichen gekürzter Artikeltitel,
-- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
+- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
 - Status, Liefertag und Zeitfenster,
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
@@ -118,7 +118,8 @@ Bei Namen, die vor v0.3.24 vergeben wurden, weiß die Integration nicht, wer sie
 - Namen, Artikeltitel und alles, was das [Zusammenführen](mail-import.md#zusammenfuhren-carrier-mail-und-bestellung) braucht, stehen unverändert im Speicher der Integration. Mails werden weiter genauso zugeordnet.
 - Schaltest du den Schalter wieder aus, sind die echten Namen sofort zurück.
 - Beim Speichern lädt die Integration neu. Ein Neustart von Home Assistant ist nicht nötig.
-- Die Entitäts-IDs entstehen aus der Nummer und ändern sich durch den Schalter nicht.
+- Die Entitäts-IDs (`sensor.paket_<nummer>`) entstehen aus der Nummer und ändern sich durch den Schalter nicht.
+- Der Diagnose-Download enthielt noch nie Namen. Er nennt nur, ob der Schalter eingeschaltet ist.
 
 ### Grenzen
 
@@ -150,4 +151,4 @@ Der Diagnose-Download enthält keine Geheimnisse und keine Namen. Sendungs- und 
 
 ## Markenhinweis
 
-DHL, DPD, Hermes, UPS, GLS, 17track, Amazon, eBay, AliExpress und Eventim sind Marken ihrer Inhaber. Die Logos dienen nur zur Kennzeichnung des Paketdienstes. Dieses Projekt ist nicht mit den Unternehmen verbunden.
+DHL, DPD, Hermes, UPS, GLS, 17track, Amazon, eBay, AliExpress und Eventim sind Marken ihrer Inhaber. Die Logos (Simple Icons, CC0) dienen nur zur Kennzeichnung des Paketdienstes: DHL als gelbes Schild mit rotem Schriftzug, UPS in der Textfarbe des Themes, Hermes als blauer Punkt mit „H“, GLS als blauer Punkt mit „G“ (Simple Icons hat kein GLS-Logo), AliExpress als roter Punkt mit „A“, Eventim als dunkelblauer Punkt mit „E“, „Andere (über 17track)“ als grauer Punkt mit „17“. Dieses Projekt ist nicht mit den Unternehmen verbunden.

@@ -4,7 +4,19 @@ Die Karte `custom:parcel-tracker-card` kommt mit der Integration. Im Karten-Ausw
 
 ![Die Karte mit geöffneter Eingabe und einem aufgeklappten DHL-Paket](images/karte-detail.png){ width="320" }
 
-Zum Ausprobieren ohne Home Assistant: [Demo-Karte öffnen](demo/index.html). Alle Pakete dort sind erfunden.
+Zum Ausprobieren ohne Home Assistant: [Demo-Karte öffnen](demo/index.html). Alle Pakete dort sind erfunden. Die Bilder auf diesen Seiten stammen aus dieser Demo.
+
+??? note "Die Demo steuern und lokal öffnen"
+    Die Demo-Seite zeigt die echte Karte ohne Home Assistant im Browser. Hinter die Adresse gehängt, ändern diese Parameter die Ansicht:
+
+    | Parameter | Wirkung |
+    |---|---|
+    | `?theme=dark` | das dunkle Design |
+    | `?open=1` | klappt das erste Paket auf |
+    | `?add=open` | öffnet die Eingabe hinter dem Plus-Knopf |
+    | `?add=always` | zeigt die Eingabe dauerhaft |
+
+    Lokal geht es auch: den Repository-Ordner mit `python3 -m http.server` ausliefern und `docs/demo/index.html` öffnen.
 
 Die Karte ist deutsch, unabhängig von der Sprache, die in Home Assistant eingestellt ist. Auch die Statusangaben („Unterwegs“, „Zugestellt“ …) kommen aus der Karte selbst.
 
@@ -23,7 +35,11 @@ Nach dem Hinzufügen klappt die Eingabe wieder zu. Bei einem Fehler bleibt sie o
 
     „Hinzugefügt. Ohne DHL-API-Key gibt es dafür keinen Live-Status: Key unter „Konfigurieren“ eintragen – oder der Status kommt aus den DHL-Mails über den Mail-Import.“
 
-    Für UPS ohne Zugangsdaten gibt es dieselbe Zeile mit „UPS-Zugangsdaten“. Die Zeile bleibt stehen, bis du sie über das × schließt, das nächste Paket hinzufügst oder das Paket einen Status bekommt. Für Pakete aus Mails erscheint sie nie.
+    Für UPS ohne Zugangsdaten:
+
+    „Hinzugefügt. Ohne UPS-Zugangsdaten gibt es dafür keinen Live-Status: Zugangsdaten unter „Konfigurieren“ eintragen – oder der Status kommt aus den UPS-Mails über den Mail-Import.“
+
+    Die Eingabe klappt dabei wie gewohnt zu, die Zeile bleibt unter dem Kartentitel stehen (mit `add_form: always` unter der Eingabe). Sie bleibt, bis du sie über das × am Zeilenende schließt, das nächste Paket hinzufügst oder die Eingabe wieder schließt. Sie verschwindet auch, sobald das Paket einen Status bekommt. Für Pakete aus Mails und für Pakete, die schon in der Liste standen, erscheint sie nie.
 
 Amazon-Nummern (`TBA…`) lassen sich nicht direkt verfolgen. Dafür ist der [E-Mail-Import](mail-import.md) da.
 
@@ -130,7 +146,7 @@ Legt fest, wie die Eingabe für neue Sendungen erscheint.
 | Wert | Wirkung |
 |---|---|
 | `button` (Standard) | Eingabe eingeklappt hinter dem Plus-Knopf |
-| `always` | Eingabe immer sichtbar, kein Plus-Knopf |
+| `always` | Eingabe immer sichtbar, kein Plus-Knopf (das Aussehen bis v0.3.8) |
 | `never` | Keine Eingabe und kein Plus-Knopf, z. B. für ein Wand-Tablet. Pakete kommen dann über den Dienst `parcel_tracker.add_parcel` oder den E-Mail-Import |
 
 Fehlt die Option oder steht dort ein anderer Wert, gilt `button`.

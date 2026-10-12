@@ -195,7 +195,7 @@ Alle für diesen Monat erlaubten UPS-Abfragen sind verbraucht. UPS-Pakete kommen
 !!! warning "Nicht ins Issue"
     Keine Zugangsdaten, keine API-Keys und keine rohen Mails. Sendungsnummern nur gekürzt oder mit erfundenen Ziffern nennen.
 
-Geht es um eine Mail, die der Import nicht erkennt, hilft zusätzlich eine anonymisierte Beispielmail – siehe unten.
+Geht es um eine Mail, die der Import nicht erkennt, hilft zusätzlich eine anonymisierte Beispielmail: siehe [Beispielmails einreichen](#beispielmails-einreichen).
 
 ## Beispielmails einreichen
 
@@ -249,7 +249,11 @@ Dazu gibt es `--phone` und `--email`. Ganz ohne Angaben arbeitet das Skript nur 
     - Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort,
     - Namen von Nachbarn, Empfängern und privaten Absendern.
 
-    Technische Kopfzeilen und Anhänge entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus, nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.
+    Technische Kopfzeilen und Anhänge entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus (Betreff mit „WG:“, „Fwd:“ oder „Fw:“ oder ein zitierter Kopfzeilenblock „Von: … Gesendet: …“), nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.
+
+    Steht eine Sendungsnummer nur in einem Link oder im Text eines Bildes, bleibt sie als erfundene Nummer in einer eigenen Zeile „[Nummer nur im Link oder Bildtext: …]“ erhalten.
+
+    Nummern ab 10 Ziffern, die in Gruppen geschrieben sind (getrennt durch Leerzeichen, Tabulator, Punkt oder Bindestrich), und internationale Nummern in Gruppen („CQ 123 456 785 DE“) behalten ihre Gruppen und bekommen erfundene Ziffern – gezählt werden nur Ziffern, die mit demselben Trennzeichen zu einer Nummer gehören. Datum, Uhrzeit („2026-09-28 11:51“), Preise sowie Reihen von Jahreszahlen oder zweistelligen Zahlen ohne Bezeichnung davor bleiben, Telefonnummern werden wie bisher ersetzt.
 
     Frühere Ergebnisse im Ordner `anonymisiert/` löscht das Skript vor dem Schreiben.
 
