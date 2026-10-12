@@ -68,7 +68,7 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 
 Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt. Also nicht doppelt für denselben Status und nicht, wenn ein Paketdienst nach 17track mit einem älteren Stand antwortet.
 
-- **Der allererste Status** eines neuen Pakets wird nie gemeldet.
+- **Der allererste Status** eines neuen Pakets wird nicht gemeldet. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
 - **Während eines Neustarts** geht nichts verloren: Wechselt ein Paket den Status, während Home Assistant neu startet oder die Integration neu lädt, folgen Event und Benachrichtigung genau einmal, sobald Home Assistant fertig gestartet ist – spätestens zwei Minuten nachdem die Integration geladen wurde. Nach einem Neuladen im laufenden Betrieb sofort.
 - **Mehrere Wechsel** in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status.
 - **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam, feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.

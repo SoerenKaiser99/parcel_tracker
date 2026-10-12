@@ -45,14 +45,14 @@ def test_mail_translations_present():
     strings = _load("strings.json")
     section = strings["options"]["step"]["init"]["sections"]["mail"]
     assert set(section["data"]) == {
-        "mail_enabled", "imap_host", "imap_user", "imap_password", "imap_folder",
-        "move_processed", "read_otp", "mail_interval",
+        "mail_enabled", "imap_host", "imap_port", "imap_security", "imap_user",
+        "imap_password", "imap_folder", "move_processed", "read_otp", "mail_interval",
     }
     assert {
         "imap_auth", "imap_cannot_connect", "imap_password_missing", "folder_not_found",
-        "folder_reserved",
+        "folder_reserved", "imap_certificate", "imap_login_disabled",
     } <= set(strings["options"]["error"])
-    assert {"imap_auth", "amazon_unrecognized"} <= set(strings["issues"])
+    assert {"imap_auth", "amazon_unrecognized", "imap_insecure"} <= set(strings["issues"])
     german = _load("translations/de.json")["options"]
     mail = german["step"]["init"]["sections"]["mail"]
     assert mail["data"]["imap_folder"] == "Ordner"
@@ -294,3 +294,37 @@ def test_device_trigger_translations_present():
         "exception": "Problem bei einem Paket",
         "status_changed": "Paketstatus hat sich geändert",
     }
+
+
+def test_mail_connection_translations():
+    """v0.3.32: port and kind of connection of the mail server."""
+    for name in ("strings.json", "translations/de.json"):
+        strings = _load(name)
+        assert set(strings["selector"]["imap_security"]["options"]) == set(const.IMAP_SECURITIES)
+        described = strings["options"]["step"]["init"]["sections"]["mail"]["data_description"]
+        # The usual ports, so nobody has to guess after choosing "unencrypted".
+        assert "993" in described["imap_port"] and "143" in described["imap_port"]
+        assert set(strings["issues"]["imap_insecure"]) == {"title", "description"}
+    german = _load("translations/de.json")
+    mail = german["options"]["step"]["init"]["sections"]["mail"]
+    assert mail["data"]["imap_port"] == "Port"
+    assert german["selector"]["imap_security"]["options"] == {
+        "ssl": "Verschlüsselt (TLS, Standard)",
+        "ssl_noverify": "Verschlüsselt, Zertifikat nicht prüfen",
+        "plain": "Unverschlüsselt",
+    }
+    warning = mail["data_description"]["imap_security"]
+    assert "eigenen Netz" in warning and "selbstsigniert" in warning
+    assert "Passwort" in warning
+    assert german["options"]["error"]["imap_certificate"] == (
+        "Das Zertifikat des Mailservers wurde nicht akzeptiert. Bei einem eigenen Server im "
+        "Heimnetz: Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ wählen."
+    )
+    assert german["options"]["error"]["imap_login_disabled"] == (
+        "Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an. „Verschlüsselt, "
+        "Zertifikat nicht prüfen“ wählen (meist Port 993) oder die Klartext-Anmeldung am "
+        "Server erlauben."
+    )
+    issue = german["issues"]["imap_insecure"]
+    assert "ohne geprüfte Verschlüsselung" in issue["description"]
+    assert "nur im eigenen Netz" in issue["description"]

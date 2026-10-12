@@ -23,7 +23,7 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
-from homeassistant.util.ssl import client_context
+from homeassistant.util.ssl import client_context, client_context_no_verify
 
 from .carriers.base import AuthError, CarrierError, CarrierUnavailable
 from .carriers.dhl import DhlCarrier
@@ -36,6 +36,8 @@ from .const import (
     CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
+    CONF_IMAP_PORT,
+    CONF_IMAP_SECURITY,
     CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_ENABLED,
@@ -58,6 +60,8 @@ from .const import (
     DEFAULT_HIDE_NAMES,
     DEFAULT_IMAP_FOLDER,
     DEFAULT_IMAP_HOST,
+    DEFAULT_IMAP_PORT,
+    DEFAULT_IMAP_SECURITY,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
@@ -66,9 +70,14 @@ from .const import (
     DEFAULT_READ_OTP,
     DEFAULT_UPS_BUDGET,
     DOMAIN,
+    IMAP_SECURITIES,
+    IMAP_SECURITY_NOVERIFY,
+    IMAP_SECURITY_PLAIN,
+    MAX_IMAP_PORT,
     MAX_KEEP_DELIVERED_DAYS,
     MAX_MAIL_INTERVAL,
     MAX_UPS_BUDGET,
+    MIN_IMAP_PORT,
     MIN_KEEP_DELIVERED_DAYS,
     MIN_MAIL_INTERVAL,
     MIN_UPS_BUDGET,
@@ -80,10 +89,14 @@ from .const import (
 )
 from .mail.imap import (
     ImapAuthError,
+    ImapCertificateError,
     ImapFolderNotFound,
+    ImapLoginDisabled,
     ImapUnavailable,
     MailboxClient,
     clean_folder,
+    clean_port,
+    clean_security,
     is_reserved_folder,
 )
 from .notification import service_name, service_target
@@ -102,6 +115,16 @@ _DAYS = NumberSelector(
 _MINUTES = NumberSelector(
     NumberSelectorConfig(
         min=MIN_MAIL_INTERVAL, max=MAX_MAIL_INTERVAL, mode=NumberSelectorMode.BOX
+    )
+)
+_PORT = NumberSelector(
+    NumberSelectorConfig(min=MIN_IMAP_PORT, max=MAX_IMAP_PORT, mode=NumberSelectorMode.BOX)
+)
+_SECURITY = SelectSelector(
+    SelectSelectorConfig(
+        options=list(IMAP_SECURITIES),
+        mode=SelectSelectorMode.DROPDOWN,
+        translation_key="imap_security",
     )
 )
 
@@ -274,7 +297,8 @@ def _mail_section(current: Mapping[str, Any]) -> section:
     The user is prefilled through ``default`` (never ``suggested_value``): a field
     the frontend leaves out or sends empty then comes back as the stored user.
     Switching the import off is the explicit ``mail_enabled`` switch. The folder is
-    prefilled the same way, with INBOX while none is stored.
+    prefilled the same way, with INBOX while none is stored; so are the port (993) and
+    the kind of connection (TLS with a checked certificate).
     """
     user = current.get(CONF_IMAP_USER) or ""
     return section(
@@ -286,6 +310,12 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                 vol.Optional(
                     CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
                 ): str,
+                vol.Optional(
+                    CONF_IMAP_PORT, default=clean_port(current.get(CONF_IMAP_PORT))
+                ): _PORT,
+                vol.Optional(
+                    CONF_IMAP_SECURITY, default=clean_security(current.get(CONF_IMAP_SECURITY))
+                ): _SECURITY,
                 vol.Optional(CONF_IMAP_USER, default=user or vol.UNDEFINED): str,
                 vol.Optional(CONF_IMAP_PASSWORD): _KEY,
                 vol.Optional(
@@ -388,19 +418,48 @@ async def _check_key(hass, key: str | None) -> str | None:
     return None if ok else "invalid_key"
 
 
+def mailbox_context(security: str):
+    """Home Assistant's shared TLS context for a kind of connection; None without TLS.
+
+    Both are built when Home Assistant starts, so none is ever created (and no
+    certificate loaded) in the event loop.
+    """
+    if security == IMAP_SECURITY_PLAIN:
+        return None
+    if security == IMAP_SECURITY_NOVERIFY:
+        return client_context_no_verify()
+    return client_context()
+
+
 async def _check_mailbox(
-    hass, host: str, user: str, password: str, folder: str = DEFAULT_IMAP_FOLDER
+    hass,
+    host: str,
+    user: str,
+    password: str,
+    folder: str = DEFAULT_IMAP_FOLDER,
+    port: int = DEFAULT_IMAP_PORT,
+    security: str = DEFAULT_IMAP_SECURITY,
 ) -> str | None:
     """Log in and select the folder to read; return an error code or None."""
     try:
         client = MailboxClient(
-            host, user, password, ssl_context=client_context(), folder=folder
+            host,
+            user,
+            password,
+            ssl_context=mailbox_context(security),
+            folder=folder,
+            port=port,
+            security=security,
         )
         await hass.async_add_executor_job(client.check_login)
     except ImapAuthError:
         return "imap_auth"
     except ImapFolderNotFound:  # a kind of "unavailable": asked for first
         return "folder_not_found"
+    except ImapCertificateError:  # likewise
+        return "imap_certificate"
+    except ImapLoginDisabled:  # likewise; nothing of the login was sent
+        return "imap_login_disabled"
     except ImapUnavailable:
         return "imap_cannot_connect"
     return None
@@ -508,6 +567,12 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     (``folder_not_found``; never created), together with the login check when that is
     due anyway. The two folders mails are filed into are refused (``folder_reserved``).
 
+    The port (``imap_port``) and the kind of connection (``imap_security``: ``ssl``,
+    ``ssl_noverify``, ``plain``) of the mail server are 993 and ``ssl`` while none is
+    stored; like the folder each is only written to the options once it is stored there
+    or differs from that. Both are login data: a change runs the login check with the
+    new values before anything is stored. Choosing ``plain`` never changes the port.
+
     The country (``de``, ``at``, ``ch``) decides how many digits the postcode has; the
     postcode is checked against the country submitted with it, so a stored postcode
     that no longer fits a changed country is a form error and never dropped silently.
@@ -545,11 +610,19 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             new_password = mail.get(CONF_IMAP_PASSWORD) or ""
             stored_password = self.config_entry.data.get(CONF_IMAP_PASSWORD, "")
             password = new_password or stored_password
+            # Missing from the form: the stored port and kind of connection (993 and
+            # the verifying TLS if there is none, or none that can be used).
+            stored_port = clean_port(options.get(CONF_IMAP_PORT))
+            port = clean_port(mail.get(CONF_IMAP_PORT, stored_port))
+            stored_security = clean_security(options.get(CONF_IMAP_SECURITY))
+            security = clean_security(mail.get(CONF_IMAP_SECURITY, stored_security))
             # Only log in again when the login data changed, so saving e.g. the
             # postcode works while the mail server is down.
             login_changed = (
                 host != stored_host
                 or user != stored_user
+                or port != stored_port
+                or security != stored_security
                 or (bool(new_password) and new_password != stored_password)
             )
             # Missing or emptied: the stored folder (INBOX if there is none).
@@ -608,7 +681,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             elif (
                 user
                 and (login_changed or folder_changed)
-                and (err := await _check_mailbox(self.hass, host, user, password, folder))
+                and (
+                    err := await _check_mailbox(
+                        self.hass, host, user, password, folder, port, security
+                    )
+                )
             ):
                 errors["base"] = err
             elif ups_id and not ups_secret:
@@ -655,6 +732,16 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     # An untouched form writes back exactly what is stored.
                     new_options[CONF_IMAP_FOLDER] = (
                         folder if folder_changed else options.get(CONF_IMAP_FOLDER, folder)
+                    )
+                if CONF_IMAP_PORT in options or port != DEFAULT_IMAP_PORT:
+                    new_options[CONF_IMAP_PORT] = (
+                        port if port != stored_port else options.get(CONF_IMAP_PORT, port)
+                    )
+                if CONF_IMAP_SECURITY in options or security != DEFAULT_IMAP_SECURITY:
+                    new_options[CONF_IMAP_SECURITY] = (
+                        security
+                        if security != stored_security
+                        else options.get(CONF_IMAP_SECURITY, security)
                     )
                 data = dict(self.config_entry.data)
                 if key_value:

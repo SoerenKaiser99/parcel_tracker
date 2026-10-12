@@ -583,3 +583,142 @@ async def test_diagnostics_tell_only_whether_a_custom_folder_is_read(hass):
     assert state["custom_folder"] is True
     assert "Geheim" not in str(state)
     assert (await _coordinator(hass, None)).diagnostics()["mail_import"]["custom_folder"] is False
+
+
+# ----- v0.3.32: the mail server's certificate is not accepted -----
+
+
+async def test_rejected_certificate_is_logged_once_per_outage_and_backs_off(
+    hass, freezer, caplog
+):
+    from custom_components.parcel_tracker.mail.imap import ImapCertificateError
+
+    def rejected():
+        error = ImapCertificateError("certificate rejected")
+        error.__cause__ = Exception("self-signed certificate for geheim.example")
+        return error
+
+    mailbox = FakeMailbox(error=rejected())
+    mailbox.host, mailbox.user, mailbox._password = "geheim.example", "geheim-user", "geheim-pw"
+    coord = await _coordinator(hass, mailbox)
+    waits = []
+    with caplog.at_level("DEBUG"):
+        for _ in range(3):
+            start = dt_util.utcnow()
+            await coord.async_import_mail()
+            waits.append((coord._mail_next - start).total_seconds() / 60)
+            freezer.tick(coord._mail_next - start)
+    assert waits == [5, 10, 20]
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == ("certificate", 3)
+
+    def own_warnings():
+        return [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING"
+            and r.name.startswith("custom_components.parcel_tracker")
+        ]
+
+    warnings = own_warnings()
+    assert len(warnings) == 1 and "certificate" in warnings[0].getMessage()
+    # Neither the certificate's words nor the server, the user or the password.
+    assert "geheim" not in caplog.text and "self-signed" not in caplog.text
+    # No repair: the options form is where the kind of connection is chosen and checked.
+    assert not ir.async_get(hass).issues
+    # The server is back with a good certificate: the next outage is told again.
+    mailbox.error = None
+    await coord.async_import_mail()
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == (None, 0)
+    mailbox.error = rejected()
+    freezer.tick(coord._mail_next - dt_util.utcnow())
+    with caplog.at_level("WARNING"):
+        await coord.async_import_mail()
+    assert len(own_warnings()) == 2
+
+
+async def test_a_plain_outage_between_two_certificate_errors_does_not_warn_again(
+    hass, freezer, caplog
+):
+    """One outage, whatever the server answers in between: one warning."""
+    from custom_components.parcel_tracker.mail.imap import ImapCertificateError
+
+    mailbox = FakeMailbox(error=ImapCertificateError("certificate rejected"))
+    coord = await _coordinator(hass, mailbox)
+    with caplog.at_level("WARNING"):
+        for error in (None, ImapUnavailable("down"), ImapCertificateError("certificate rejected")):
+            if error is not None:
+                mailbox.error = error
+            await coord.async_import_mail()
+            freezer.tick(coord._mail_next - dt_util.utcnow())
+    warnings = [
+        r for r in caplog.records
+        if r.levelname == "WARNING" and r.name.startswith("custom_components.parcel_tracker")
+    ]
+    assert len(warnings) == 1
+
+
+async def test_diagnostics_tell_port_and_security_without_the_port_itself(hass):
+    mailbox = FakeMailbox()
+    coord = await _coordinator(hass, mailbox)
+    state = coord.diagnostics()["mail_import"]
+    assert (state["custom_port"], state["security"]) == (False, None)
+    mailbox.port, mailbox.custom_port, mailbox.security = 10993, True, "ssl_noverify"
+    state = coord.diagnostics()["mail_import"]
+    assert (state["custom_port"], state["security"]) == (True, "ssl_noverify")
+    assert "10993" not in str(state)
+    mailbox.security = "Geheimer Freitext"
+    assert coord.diagnostics()["mail_import"]["security"] is None
+    state = (await _coordinator(hass, None)).diagnostics()["mail_import"]
+    assert (state["custom_port"], state["security"]) == (False, None)
+
+
+async def test_a_server_that_disables_plain_logins_is_logged_once_per_outage(
+    hass, freezer, caplog
+):
+    from custom_components.parcel_tracker.mail.imap import (
+        ImapCertificateError,
+        ImapLoginDisabled,
+    )
+
+    mailbox = FakeMailbox(error=ImapLoginDisabled("login disabled"))
+    mailbox.host, mailbox.user, mailbox._password = "geheim.example", "geheim-user", "geheim-pw"
+    coord = await _coordinator(hass, mailbox)
+
+    def own_warnings():
+        return [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING"
+            and r.name.startswith("custom_components.parcel_tracker")
+        ]
+
+    waits = []
+    with caplog.at_level("DEBUG"):
+        for _ in range(3):
+            start = dt_util.utcnow()
+            await coord.async_import_mail()
+            waits.append((coord._mail_next - start).total_seconds() / 60)
+            freezer.tick(coord._mail_next - start)
+    assert waits == [5, 10, 20]
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == ("login_disabled", 3)
+    assert len(own_warnings()) == 1 and "encryption" in own_warnings()[0].getMessage()
+    assert "geheim" not in caplog.text
+    assert not ir.async_get(hass).issues
+    # Another kind of trouble in the same outage has its own one warning.
+    mailbox.error = ImapCertificateError("certificate rejected")
+    with caplog.at_level("WARNING"):
+        for _ in range(2):
+            await coord.async_import_mail()
+            freezer.tick(coord._mail_next - dt_util.utcnow())
+    assert len(own_warnings()) == 2
+    # Working again: the next outage is told anew.
+    mailbox.error = None
+    await coord.async_import_mail()
+    mailbox.error = ImapLoginDisabled("login disabled")
+    freezer.tick(coord._mail_next - dt_util.utcnow())
+    with caplog.at_level("WARNING"):
+        await coord.async_import_mail()
+    assert len(own_warnings()) == 3

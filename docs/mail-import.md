@@ -24,16 +24,36 @@ Dein Hauptpostfach sieht die Integration so nie.
     | Feld | Bedeutung |
     |---|---|
     | **E-Mail-Import aktiv** | Schaltet den Import ein. |
-    | **IMAP-Server** | Standard `imap.mailbox.org`, Port 993 mit SSL. |
+    | **IMAP-Server** | Standard `imap.mailbox.org`. |
+    | **Port** | Standard `993`. Üblich sind 993 (verschlüsselt) und 143 (unverschlüsselt). Bei einem Mailanbieter bleibt 993 stehen. |
+    | **Verbindung** | Standard „Verschlüsselt (TLS, Standard)“ – das passt für jeden Mailanbieter. Die beiden anderen sind für einen eigenen Server im Heimnetz, siehe [Port und Verbindung](#port-und-verbindung). |
     | **Benutzername** und **Passwort** | Die des Paket-Postfachs. Leere Felder behalten die gespeicherten Werte. |
     | **Ordner** | Standard `INBOX` (der Posteingang). Der eine Ordner, den der Import liest. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Ein leeres Feld behält den gespeicherten Ordner. Siehe [Eigener Ordner](#eigener-ordner). |
     | **Verarbeitete Mails in Ordner verschieben** | Standard: an. |
     | **Zustell-Codes (Einmalpasswörter) mitlesen** | Standard: aus. Siehe [Zustell-Code](datenschutz.md#zustell-codes). |
     | **Postfach abfragen alle (Minuten)** | 1–60, Standard: 5. |
 
-4. Speichern. Die Anmeldung wird sofort geprüft, ein geänderter Ordner dabei einmal geöffnet.
+4. Speichern. Die Anmeldung wird sofort geprüft, ein geänderter Ordner dabei einmal geöffnet. Auch ein geänderter Port oder eine andere Verbindung wird erst gespeichert, wenn die Anmeldung damit klappt.
 
 Ausschalten geht nur über den Schalter **E-Mail-Import aktiv**: Ausgeschaltet gespeichert, entfernt er Benutzername und Passwort.
+
+### Port und Verbindung
+
+Bei einem Mailanbieter im Internet musst du hier nichts ändern: Port 993 und „Verschlüsselt (TLS, Standard)“. Die beiden Felder gibt es für einen Mailserver, den du selbst im Heimnetz betreibst.
+
+| Verbindung | Was passiert | Üblicher Port |
+|---|---|---|
+| **Verschlüsselt (TLS, Standard)** | Verschlüsselt, und das Zertifikat des Servers wird geprüft. | 993 |
+| **Verschlüsselt, Zertifikat nicht prüfen** | Verschlüsselt, aber ohne Prüfung des Zertifikats. Für einen eigenen Server mit selbstsigniertem Zertifikat. | 993 |
+| **Unverschlüsselt** | Ohne Verschlüsselung. Nur, wenn der Server gar kein TLS anbietet. | 143 |
+
+- Der Port ändert sich nicht von selbst, wenn du eine andere Verbindung wählst. Steht nach dem Wechsel auf „Unverschlüsselt“ noch 993 im Feld, trag den Port deines Servers ein (meist 143).
+- STARTTLS (erst unverschlüsselt verbinden, dann auf TLS umschalten) wird nicht versucht. Die Verbindung ist entweder von Anfang an verschlüsselt oder gar nicht.
+- Meldet das Formular „Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an.“, lehnt der Server Anmeldungen über eine unverschlüsselte Verbindung ab (dovecot macht das von Haus aus). Das Passwort wurde dann gar nicht erst gesendet. Wähl „Verschlüsselt, Zertifikat nicht prüfen“ (meist Port 993) oder erlaub die Klartext-Anmeldung am Server.
+- Meldet das Formular „Das Zertifikat des Mailservers wurde nicht akzeptiert.“, ist das Zertifikat selbstsigniert, abgelaufen oder auf einen anderen Namen ausgestellt. Bei einem eigenen Server im Heimnetz wählst du „Verschlüsselt, Zertifikat nicht prüfen“. Bei einem Mailanbieter stimmt meist der Servername nicht.
+
+!!! warning "Nur im eigenen Netz"
+    „Verschlüsselt, Zertifikat nicht prüfen“ und „Unverschlüsselt“ sind nur für einen Mailserver im eigenen Netz gedacht. Bei einem Anbieter im Internet könnte jemand unterwegs das Passwort mitlesen oder sich als der Server ausgeben. Sieht der eingetragene Server nicht nach einem im eigenen Netz aus (keine private Adresse, kein Name wie `nas`, `mail.fritz.box`, `mail.lan` oder ein Tailscale-Name auf `.ts.net`), erscheint unter **Einstellungen → Reparaturen** ein Hinweis. Steht der Server doch bei dir zu Hause, kannst du ihn ignorieren.
 
 ### Eigener Ordner
 
@@ -61,6 +81,7 @@ Lehnt der Mailserver die Anmeldung ab? Viele Anbieter verlangen für IMAP nicht 
 - Der Dienst `parcel_tracker.refresh` fragt zusätzlich das Postfach sofort ab.
 - Ist das Postfach nicht erreichbar, wartet der Import unabhängig vom Intervall länger (5 → 10 → 20 → 40 → 60 Minuten).
 - Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
+- Wird das Zertifikat des Servers später nicht mehr akzeptiert (abgelaufen, ausgetauscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant.
 - Gibt es den eingestellten Ordner später nicht mehr (umbenannt oder gelöscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant, ohne den Namen des Ordners. Trag dann unter **Konfigurieren** den richtigen Ordner ein.
 
 ## Filterregel anlegen
@@ -386,3 +407,26 @@ Der Import übernimmt nur:
 Adresse, Name, Telefonnummer, eBay-Käufer- und Verkäufernamen, Wunsch-Ablageort bzw. Abstellort, Referenzen, Preise und Mail-Inhalte landen weder in Attributen noch im Log.
 
 Mehr dazu unter [Datenschutz](datenschutz.md).
+
+## Für Fortgeschrittene: eigenes Postfach im Heimnetz
+
+Statt eines zusätzlichen Postfachs beim Mailanbieter kannst du das Paket-Postfach auch selbst betreiben.
+
+**Die Idee:** Bei dir zu Hause läuft ein kleiner Mailserver, z. B. dovecot in einem Container. Ein Werkzeug wie imapfilter holt nur die Paketmails aus deinen echten Postfächern und legt sie dort ab. Home Assistant kennt nur den lokalen Server.
+
+**Was es bringt:** Home Assistant kennt kein Passwort eines echten Postfachs, und du brauchst weder ein weiteres Konto noch Weiterleitungsregeln beim Anbieter.
+
+**Was es kostet:** Die echten Zugangsdaten liegen weiterhin in deinem Netz – auf dem Rechner mit dem Werkzeug statt in Home Assistant. Dazu kommt ein Dienst mehr, den du pflegst und aktuell hältst. Es lohnt sich, wenn dein Anbieter keine Weiterleitungsregeln kennt oder du kein weiteres Konto anlegen willst. Sonst ist das [eigene Paket-Postfach beim Anbieter](#einrichten) der einfachere Weg.
+
+**Einstellungen in Paket Tracker:**
+
+| Feld | Wert |
+|---|---|
+| **IMAP-Server** | lokaler Name oder IP-Adresse des Servers, z. B. `nas` oder `192.168.178.20` |
+| **Port** | der Port deines Servers, meist 993 |
+| **Verbindung** | „Verschlüsselt, Zertifikat nicht prüfen“ bei einem selbstsignierten Zertifikat. „Unverschlüsselt“ nur, wenn der Server kein TLS anbietet. |
+| **Benutzername**, **Passwort**, **Ordner** | die des lokalen Postfachs |
+
+Ein NAS mit einem Mailserver-Paket oder ein Docker-Host kann dasselbe. Eine Schritt-für-Schritt-Anleitung für bestimmte Geräte oder Programme gibt es hier nicht: Getestet ist bisher keine. Läuft so ein Aufbau bei dir, ist deine Konfiguration als [GitHub-Issue](https://github.com/SoerenKaiser99/parcel_tracker/issues) willkommen.
+
+**Einfacher mit n8n oder Node-RED:** Läuft eines der beiden schon bei dir, brauchst du gar keinen Mailserver. Übergib die Mails per `POST /api/parcel_tracker/import_mail`, siehe [Ohne Postfach: Mail per HTTP übergeben](#ohne-postfach-mail-per-http-ubergeben).

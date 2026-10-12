@@ -64,7 +64,9 @@ Die Optionen findest du unter **Einstellungen → Geräte & Dienste → Paket Tr
     | „DHL ist gerade nicht erreichbar. Versuch es später noch einmal.“ | später erneut speichern |
     | „Gib eine 5-stellige PLZ ein.“ / „Gib eine 4-stellige PLZ ein.“ | PLZ passend zum Land eintragen (Deutschland 5, Österreich und Schweiz 4 Ziffern) |
     | „Der Mailserver hat Benutzername oder Passwort abgelehnt.“ | siehe [App-Passwörter](mail-import.md#app-passworter) |
-    | „Der Mailserver ist nicht erreichbar. Prüf den Servernamen.“ | IMAP-Server prüfen |
+    | „Der Mailserver ist nicht erreichbar. Prüf Servernamen, Port und Verbindung.“ | IMAP-Server, Port und Verbindung prüfen |
+    | „Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an. „Verschlüsselt, Zertifikat nicht prüfen“ wählen (meist Port 993) oder die Klartext-Anmeldung am Server erlauben.“ | siehe [Port und Verbindung](mail-import.md#port-und-verbindung) |
+    | „Das Zertifikat des Mailservers wurde nicht akzeptiert. Bei einem eigenen Server im Heimnetz: Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ wählen.“ | siehe [Das Zertifikat des Mailservers wird nicht akzeptiert](#das-zertifikat-des-mailservers-wird-nicht-akzeptiert) |
     | „Gib das Passwort des Postfachs ein.“ | Passwort des Paket-Postfachs eintragen |
     | „UPS hat Client-ID oder Secret abgelehnt.“ | Zugangsdaten prüfen; steht die UPS-App noch auf „Pending“? |
     | „Gib das UPS-Client-Secret ein.“ | Client-Secret eintragen |
@@ -108,6 +110,15 @@ DHL berechnet Liefertag und Zeitfenster laufend neu. Ein Zeitfenster kann im Lau
 ### Die Anmeldung am Postfach wird abgelehnt
 
 Viele Anbieter verlangen für IMAP ein eigenes App-Passwort oder eine Freigabe: siehe [App-Passwörter](mail-import.md#app-passworter).
+
+### Das Zertifikat des Mailservers wird nicht akzeptiert
+
+Das Formular meldet: „Das Zertifikat des Mailservers wurde nicht akzeptiert. Bei einem eigenen Server im Heimnetz: Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ wählen.“
+
+- **Eigener Server im Heimnetz** (z. B. dovecot mit selbstsigniertem Zertifikat): Wähl im Feld **Verbindung** „Verschlüsselt, Zertifikat nicht prüfen“.
+- **Mailanbieter im Internet:** Lass die Verbindung auf „Verschlüsselt (TLS, Standard)“ und prüf den Servernamen. Das Zertifikat gilt nur für den Namen, den der Anbieter nennt (z. B. `imap.mailbox.org`), nicht für eine IP-Adresse.
+
+Mehr dazu: [Port und Verbindung](mail-import.md#port-und-verbindung).
 
 ### „Diesen Ordner gibt es im Postfach nicht.“
 
@@ -167,7 +178,7 @@ Alle für diesen Monat erlaubten UPS-Abfragen sind verbraucht. UPS-Pakete kommen
 
 - Ist ein Ziel gewählt? Ohne Ziel wird nichts gesendet.
 - Ist das Ereignis angekreuzt? „Problem“ ist von Haus aus nicht angekreuzt.
-- Der allererste Status eines neuen Pakets wird nie gemeldet.
+- Der allererste Status eines neuen Pakets wird nicht gemeldet. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
 - Für eine Bestellung, die ohne Zustellmail abgeschlossen wurde, gibt es keine Meldung.
 - Steht ein Ziel mit dem Zusatz „nicht mehr vorhanden“ in der Auswahl, wird es übersprungen.
 

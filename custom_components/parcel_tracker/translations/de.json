@@ -61,6 +61,8 @@
             "data": {
               "mail_enabled": "E-Mail-Import aktiv",
               "imap_host": "IMAP-Server",
+              "imap_port": "Port",
+              "imap_security": "Verbindung",
               "imap_user": "Benutzername",
               "imap_password": "Passwort",
               "imap_folder": "Ordner",
@@ -70,6 +72,8 @@
             },
             "data_description": {
               "mail_enabled": "Ausschalten entfernt den gespeicherten Benutzernamen und das Passwort.",
+              "imap_port": "Üblich: 993 verschlüsselt, 143 unverschlüsselt. Eine andere Verbindung zu wählen ändert den Port nicht.",
+              "imap_security": "„Verschlüsselt (TLS, Standard)“ passt für jeden Mailanbieter. Die beiden anderen sind nur für einen Mailserver im eigenen Netz gedacht, z. B. einen selbst betriebenen Server mit selbstsigniertem Zertifikat: Bei einem Anbieter im Internet könnte jemand das Passwort mitlesen oder sich als der Server ausgeben.",
               "imap_user": "Leer lassen behält den gespeicherten Benutzernamen.",
               "imap_password": "Leer lassen behält das gespeicherte Passwort.",
               "imap_folder": "Welcher Ordner des Postfachs gelesen wird – nur dieser eine. Lass „INBOX“ für das eigene Paket-Postfach stehen. Ein Ordner deines Hauptpostfachs geht auch, dann kennt Home Assistant aber das Passwort des ganzen Postfachs. Leer lassen behält den gespeicherten Ordner.",
@@ -116,7 +120,9 @@
       "invalid_postcode": "Gib eine 5-stellige PLZ ein.",
       "invalid_postcode_4": "Gib eine 4-stellige PLZ ein.",
       "imap_auth": "Der Mailserver hat Benutzername oder Passwort abgelehnt.",
-      "imap_cannot_connect": "Der Mailserver ist nicht erreichbar. Prüf den Servernamen.",
+      "imap_cannot_connect": "Der Mailserver ist nicht erreichbar. Prüf Servernamen, Port und Verbindung.",
+      "imap_certificate": "Das Zertifikat des Mailservers wurde nicht akzeptiert. Bei einem eigenen Server im Heimnetz: Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ wählen.",
+      "imap_login_disabled": "Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an. „Verschlüsselt, Zertifikat nicht prüfen“ wählen (meist Port 993) oder die Klartext-Anmeldung am Server erlauben.",
       "imap_password_missing": "Gib das Passwort des Postfachs ein.",
       "folder_not_found": "Diesen Ordner gibt es im Postfach nicht.",
       "folder_reserved": "In diesen Ordner legt Paket Tracker die Mails ab. Wähl einen anderen Ordner zum Lesen.",
@@ -140,6 +146,10 @@
     "imap_auth": {
       "title": "Anmeldung am Paket-Postfach abgelehnt",
       "description": "Der Mailserver akzeptiert die Anmeldung für das Paket-Postfach nicht mehr. Öffne die Optionen von Paket Tracker und gib das aktuelle Passwort ein."
+    },
+    "imap_insecure": {
+      "title": "Paket-Postfach wird ohne geprüfte Verschlüsselung abgefragt",
+      "description": "Das Paket-Postfach wird ohne geprüfte Verschlüsselung abgefragt (Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ oder „Unverschlüsselt“), und der Mailserver sieht nicht nach einem Server im eigenen Netz aus. Unterwegs könnte jemand das Passwort mitlesen oder sich als der Server ausgeben – diese Verbindungen nur im eigenen Netz verwenden. Wähl in den Optionen von Paket Tracker „Verschlüsselt (TLS, Standard)“. Steht der Server doch im eigenen Netz, kannst du diesen Hinweis ignorieren."
     },
     "amazon_unrecognized": {
       "title": "Amazon-Mails nicht erkannt",
@@ -222,6 +232,13 @@
         "de": "Deutschland",
         "at": "Österreich",
         "ch": "Schweiz"
+      }
+    },
+    "imap_security": {
+      "options": {
+        "ssl": "Verschlüsselt (TLS, Standard)",
+        "ssl_noverify": "Verschlüsselt, Zertifikat nicht prüfen",
+        "plain": "Unverschlüsselt"
       }
     },
     "notify_events": {

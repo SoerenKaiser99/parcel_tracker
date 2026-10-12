@@ -70,6 +70,7 @@ from .const import (
     FOLDER_PROCESSED,
     FOLDER_UNRECOGNIZED,
     GLS_PROBE_TRIES,
+    IMAP_SECURITIES,
     KEEP_ETA_UNTIL_DAY_CARRIERS,
     MAIL_ETA_CARRIERS,
     MAIL_INTERVAL,
@@ -95,9 +96,17 @@ from .mail.apply import (
     close_unconfirmed,
     fold_delivered,
     mark_received,
+    tells_newer,
 )
 from .mail.base import MailResult, is_forwarded, sender, sent_at
-from .mail.imap import ImapAuthError, ImapFolderNotFound, ImapUnavailable, MailboxClient
+from .mail.imap import (
+    ImapAuthError,
+    ImapCertificateError,
+    ImapFolderNotFound,
+    ImapLoginDisabled,
+    ImapUnavailable,
+    MailboxClient,
+)
 from .models import (
     NO_ETA_STATUSES,
     PROGRESS_STEP,
@@ -203,7 +212,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_next: datetime | None = None
         self._mail_streak = 0
         self._mail_last: datetime | None = None  # start of the last import run
-        self._mail_error: str | None = None  # "auth" | "folder" | "unavailable" | "error"
+        # "auth" | "folder" | "certificate" | "login_disabled" | "unavailable" | "error"
+        self._mail_error: str | None = None
+        # Kinds of trouble ("certificate", "login_disabled") that were logged in this
+        # outage: each once, until an import works again.
+        self._mail_told: set[str] = set()
         self._mail_recognized = 0
         self._mail_unrecognized = 0
         # Sender domain (known shop/carrier or "other") and forwarded flag of the last
@@ -496,6 +509,28 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                         "deleted?); the mail import pauses until it is back or changed"
                     )
                 self._mail_failed(now, "folder")
+            except ImapCertificateError:
+                # Once per outage, whatever else fails in between, and only that it was
+                # rejected: what the certificate says names the server. No repair: the
+                # options form is where the kind of connection is chosen and checked.
+                if "certificate" not in self._mail_told:
+                    self._mail_told.add("certificate")
+                    _LOGGER.warning(
+                        "The mail server's TLS certificate was not accepted; the mail "
+                        "import pauses until the certificate is valid or the connection "
+                        "is changed in the options"
+                    )
+                self._mail_failed(now, "certificate")
+            except ImapLoginDisabled:
+                # Likewise once per outage. User and password were not sent.
+                if "login_disabled" not in self._mail_told:
+                    self._mail_told.add("login_disabled")
+                    _LOGGER.warning(
+                        "The mail server accepts no login without encryption; the mail "
+                        "import pauses until the connection is changed in the options "
+                        "or the server allows it"
+                    )
+                self._mail_failed(now, "login_disabled")
             except ImapUnavailable as err:
                 _LOGGER.debug("Parcel mailbox not reachable: %s", err)
                 self._mail_failed(now, "unavailable")
@@ -522,6 +557,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         ir.async_delete_issue(self.hass, DOMAIN, "imap_auth")
         self._mail_streak = 0
         self._mail_error = None
+        self._mail_told.clear()
         if not mails:
             return
         parsed = await self.hass.async_add_executor_job(
@@ -637,7 +673,18 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def _mail_changed(self, change: Change) -> None:
         parcel = change.parcel
         if change.old_status is None and parcel.status is ParcelStatus.DELIVERED:
-            self._untold_delivery.add(parcel.number)
+            if change.announce:
+                # Delivered as its first status, but news (see ``Change.announce``):
+                # told once like a change to "delivered", by the parcel itself. Nobody
+                # told anything about it before, so it had no status: "unknown".
+                self._fire(parcel, ParcelStatus.UNKNOWN)
+            else:
+                self._untold(parcel)
+        if change.told and parcel.tracking_ref is not None:
+            # The order took in a carrier's parcel whose delivery was announced already
+            # (see ``Change.told``): its own step is an event below, but the box is not
+            # pushed again, also not after a restart emptied the push memory.
+            self._box_told[(parcel.tracking_carrier, parcel.tracking_ref)] = parcel.status
         if (
             change.old_status is not None
             and parcel.status is not None
@@ -975,9 +1022,18 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # async_mark_delivered), and the carrier is not asked again.
             parcel.next_poll_at = None
             return
-        # An order closed on its own: the carrier's answer is what really happened. A
-        # live "delivered" gives it its time of delivery (no event: delivered before
-        # and after); any other status opens it again, told like every status change.
+        # An order closed on its own: a live "delivered" gives it its time of delivery
+        # (no event: delivered before and after). Any other status opens it again, told
+        # like every status change, but only if it tells something newer than the
+        # closing: a carrier that goes on saying what it said before changes nothing.
+        before = parcel.carrier_status
+        parcel.carrier_status = result.status
+        if self._keeps_closing(parcel, result, before):
+            parcel.last_error = None
+            parcel.error_streak = 0
+            parcel.first_error_at = None
+            parcel.next_poll_at = self._next_poll(result.status, now, key)
+            return
         parcel.assumed_delivered = False
         known = strip_enrichment(parcel.result)  # the carrier's or a mail's own values
         if (
@@ -1031,14 +1087,35 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel.last_error = None
         parcel.error_streak = 0
         parcel.first_error_at = None
-        interval = poll_interval(result.status, now, key)
-        if interval and key == "dhl" and self._dhl_calls > DHL_DAILY_SOFT_LIMIT:
-            interval *= 2
-        parcel.next_poll_at = now + interval if interval else None
+        parcel.next_poll_at = self._next_poll(result.status, now, key)
         if old is None and result.status is ParcelStatus.DELIVERED:
-            self._untold_delivery.add(parcel.number)
+            self._untold(parcel)
         if old is not None and old != result.status and self._news(parcel, old, took_over):
             self._fire(parcel, old)
+
+    def _next_poll(self, status: ParcelStatus, now: datetime, key: str) -> datetime | None:
+        """When a carrier that answered is asked again; None if never."""
+        interval = poll_interval(status, now, key)
+        if interval and key == "dhl" and self._dhl_calls > DHL_DAILY_SOFT_LIMIT:
+            interval *= 2
+        return now + interval if interval else None
+
+    @staticmethod
+    def _keeps_closing(
+        parcel: Parcel, result: TrackingResult, before: ParcelStatus | None
+    ) -> bool:
+        """Does an order closed on its own stay closed after this answer?
+
+        It does while the answer is not "delivered" and tells nothing newer than the
+        closing: the same status as the answer ``before`` it (stored with the order,
+        so this holds after a restart; None if there was none, and then every status
+        is new), and no history line dated after the closing (``tells_newer``). So the
+        shop's word holds against a carrier stuck on "Unterwegs", and the order is
+        opened again as soon as the carrier moves on or answers for the first time.
+        """
+        if not parcel.assumed_delivered or result.status is ParcelStatus.DELIVERED:
+            return False
+        return result.status is before and not tells_newer(parcel, result.events)
 
     def _news(self, parcel: Parcel, old: ParcelStatus, took_over: bool) -> bool:
         """Is the carrier's new status worth a status event?
@@ -1063,6 +1140,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             del self._announced[parcel.number]  # caught up (or beyond): normal from now on
         return status is not announced
 
+    def _untold(self, parcel: Parcel) -> None:
+        """A parcel's very first status is "delivered": no news, nobody is told.
+
+        Remembered for the next ``_settle_orders`` and, stored, for an order that takes
+        the parcel in later (``Parcel.delivery_announced``): it tells the delivery then.
+        """
+        self._untold_delivery.add(parcel.number)
+        parcel.delivery_announced = False
+
     def _fire(self, parcel: Parcel, old: ParcelStatus) -> None:
         """A parcel's status changed: announce it, or keep it until announcing starts.
 
@@ -1080,6 +1166,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     def _announce(self, parcel: Parcel, old: ParcelStatus) -> None:
         r = parcel.result
+        if r.status is ParcelStatus.DELIVERED and not parcel.assumed_delivered:
+            # Stored with the parcel (every caller saves afterwards): told for good.
+            parcel.delivery_announced = True
         self.hass.bus.async_fire(
             EVENT_STATUS_CHANGED,
             {
@@ -1352,13 +1441,17 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             parcel.last_error = None
         else:
             # Fill the carrier's gaps; without any carrier answer show 17track's whole one.
+            before = parcel.track17_result.status if parcel.track17_result else None
             parcel.track17_result = info.result
             base = strip_enrichment(parcel.result)
             if parcel.assumed_delivered:
                 # An order closed on its own: what 17track knows replaces the assumption
                 # as a whole (the closing is no carrier's answer). While 17track knows
-                # nothing, the assumption stays and 17track is asked again.
-                if info.result.status is ParcelStatus.UNKNOWN:
+                # nothing, or nothing newer than the closing (see ``_keeps_closing``),
+                # the assumption stays and 17track is asked again.
+                if info.result.status is ParcelStatus.UNKNOWN or self._keeps_closing(
+                    parcel, info.result, before
+                ):
                     parcel.track17_next_at = None if info.expired else now + TRACK17_INTERVAL
                     return
                 base, parcel.assumed_delivered = None, False
@@ -1374,7 +1467,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             parcel.last_change_at = now
         parcel.result = result
         if old is None and result is not None and result.status is ParcelStatus.DELIVERED:
-            self._untold_delivery.add(parcel.number)
+            self._untold(parcel)
         if old is not None and result is not None and old != result.status:
             self._fire(parcel, old)
 
@@ -1490,6 +1583,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "configured": self.mailbox is not None,
                 # Only whether another folder than INBOX is read, never its name.
                 "custom_folder": getattr(self.mailbox, "custom_folder", False) is True,
+                # Only whether another port than 993 is used, never the port; the kind
+                # of connection is one of three fixed words.
+                "custom_port": getattr(self.mailbox, "custom_port", False) is True,
+                "security": (
+                    security
+                    if (security := getattr(self.mailbox, "security", None)) in IMAP_SECURITIES
+                    else None
+                ),
                 "interval_minutes": int(self._mail_interval.total_seconds() // 60),
                 "last_run": self._mail_last.isoformat() if self._mail_last else None,
                 # After an error this is the end of the backoff (see error_streak).
