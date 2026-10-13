@@ -65,9 +65,6 @@ class MailUpdate:
     # (``Parcel.assumed_delivered``): nobody saw it arrive, so nothing is pushed and it
     # never counts as delivered today. See ``apply._confirm``.
     confirmation: bool = False
-    # One's own shipment (handed in at a Packstation, a label bought online): it belongs
-    # to no order, so it is never merged into one and closes none when it arrives.
-    own: bool = False
 
 
 @dataclass

@@ -85,8 +85,6 @@ Den Status liest der Import nur aus dem Betreff der DHL-Mail:
 
 Abholcodes liest der Import nie. Steht im Textteil der Mail keine Sendungsnummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil.
 
-Auch eigene Sendungen liest der Import: Der „Einlieferungsbeleg“ der Packstation legt ein Paket „Versand (DHL)“ als „Unterwegs“ an, die „Auftragsbestätigung Ihrer Online Frankierung“ je Versandmarke mit Sendungsnummer eines als „Angekündigt“. Den Empfänger einer Versandmarke liest er nie. Eigene Sendungen bleiben eigene Pakete: Sie werden nie mit einer Bestellung zusammengeführt und schließen keine. Mails von DHL Express („DHL On Demand Delivery“) setzen „Unterwegs“, „In Zustellung“ und „Zugestellt“ aus dem Satz im Text.
-
 Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key auf der Karte „Kein Live-Status“ statt eines Termins. Aufgeklappt steht dort „Kein Live-Status: DHL-API-Key fehlt (unter „Konfigurieren“ eintragen).“ Die Integration kann eine solche Nummer nicht prüfen: Ob sie stimmt, vertippt oder längst zugestellt ist, erfährt sie ohne Key nicht. Erst mit Key meldet DHL bei einer unbekannten Nummer „Noch keine Daten vom Carrier“.
 
 ??? note "Warum es keinen anderen Weg gibt"

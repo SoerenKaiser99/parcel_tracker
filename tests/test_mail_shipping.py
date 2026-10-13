@@ -5,8 +5,7 @@ from email.message import EmailMessage
 import pytest
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
-from custom_components.parcel_tracker.mail import known_sender_domain, parse_mail
-from custom_components.parcel_tracker.mail.apply import apply_update
+from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.base import sent_at
 from custom_components.parcel_tracker.mail.shipping import (
     AMAZON_DHL_NAME,
@@ -14,7 +13,7 @@ from custom_components.parcel_tracker.mail.shipping import (
     parse_generic,
     parse_ups_mail,
 )
-from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
+from custom_components.parcel_tracker.models import ParcelStatus
 
 from .conftest import load_mail
 
@@ -648,71 +647,6 @@ def test_dhl_html_part_twelve_digits_elsewhere_are_no_number():
     assert parse_mail(_html_only_number(page)).updates == []
 
 
-# ----- one's own shipment: the receipt of a Packstation, labels bought online -----
-def test_dhl_packstation_receipt_is_ones_own_shipment_on_its_way():
-    [u] = parse_mail(load_mail("164_dhl_einlieferungsbeleg_packstation.eml")).updates
-    assert (u.number, u.carrier, u.title) == ("999999990164", "dhl", "Versand (DHL)")
-    assert (u.status, u.status_text) == (ParcelStatus.IN_TRANSIT, "Eingeliefert")
-    assert (u.eta_date, u.delivered_at, u.shop) == (None, None, None)
-
-
-def test_dhl_online_postage_announces_one_shipment_for_each_label():
-    first, second = parse_mail(load_mail("165_dhl_online_frankierung_zwei_marken.eml")).updates
-    assert (first.number, second.number) == ("999999990165", "999999990166")
-    for u in (first, second):
-        assert (u.carrier, u.status, u.title) == ("dhl", ParcelStatus.PRE_TRANSIT, "Versand (DHL)")
-        assert "Musterfrau" not in repr(u)  # the recipient of a label is never read
-
-
-def test_dhl_postage_for_a_letter_has_no_number_and_gives_nothing():
-    msg = _msg("Auftragsbestätigung Ihrer Online Frankierung 99XX99XX99XX",
-               "1x Standardbrief bis 20 g\n#PORTO\nYA0T95NA\n", "noreply@dhl.com")
-    assert parse_mail(msg).updates == []
-
-
-# ----- DHL Express ("On Demand Delivery"): the sentence in the text tells the status -----
-def _express(sentence: str) -> EmailMessage:
-    return _msg("DHL On Demand Delivery", f"Hallo Max Mustermann,\n{sentence}\n",
-                "DHL EXPRESS <noreply.odd@dhl.com>")
-
-
-def test_dhl_express_delivery_names_the_time_of_the_mail_text():
-    [u] = parse_mail(load_mail("166_dhl_express_on_demand_zugestellt.eml")).updates
-    assert (u.number, u.carrier, u.title) == ("9999990166", "dhl", "Amazon-Sendung (DHL)")
-    assert u.shop == "amazon"
-    assert u.status is ParcelStatus.DELIVERED
-    assert u.delivered_at == datetime(2025, 6, 11, 15, 45, tzinfo=BERLIN)
-
-
-def test_dhl_express_on_its_way_and_in_delivery():
-    way = _express(
-        "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON ist unterwegs.\n"
-        "Zur Zeit ist das voraussichtliche Zustelldatum 01 Oct 2026 bis Tagesende."
-    )
-    [u] = parse_mail(way).updates
-    assert (u.number, u.status, u.shop) == ("9999990166", ParcelStatus.IN_TRANSIT, "amazon")
-    assert (u.title, u.eta_date) == ("Amazon-Sendung (DHL)", date(2026, 10, 1))
-    today = _express(
-        "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON wird voraussichtlich "
-        "HEUTE bis Tagesende ausgeliefert."
-    )
-    [u] = parse_mail(today).updates
-    assert (u.status, u.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, sent_at(today).date())
-    assert (u.eta_from, u.eta_to, u.delivered_at) == (None, None, None)
-
-
-def test_dhl_express_shipper_who_is_a_person_never_names_the_parcel():
-    msg = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von ERIKA MUSTERFRAU "
-                   "ist unterwegs.")
-    [u] = parse_mail(msg).updates
-    assert (u.number, u.title, u.shop) == ("9999990166", None, None)
-
-
-def test_other_mails_from_dhl_com_are_not_read_as_express():
-    msg = _express("Ihre Anfrage zur Sendung 9999990166 haben wir erhalten.")
-    assert parse_mail(msg).updates == []
-
-
 # ----- "auf dem Transportweg beschädigt": still on its way, told in its own words -----
 def test_dhl_damaged_packaging_stays_on_its_way_with_a_line_of_its_own():
     subject = "Ihre Beispiel GmbH Sendung wurde leider auf dem Transportweg beschädigt"
@@ -737,65 +671,10 @@ def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
     assert parse_mail(today).updates[0].status_text is None
 
 
-# ----- review: one's own shipments stay on their own, several numbers, the day word -----
-def _shop_order(number: str = "EBAY990000000001") -> Parcel:
-    now = datetime(2026, 9, 30, 8, 0, tzinfo=BERLIN)
-    result = TrackingResult(
-        ParcelStatus.IN_TRANSIT, "Versendet", None, None, None, None, None, None, None
-    )
-    return Parcel(number, "ebay", "mail", "Beispiel-Artikel", now, now, result=result,
-                  mail_title="Beispiel-Artikel", shipping_carrier_hint="dhl")
-
-
-def test_ones_own_shipment_never_joins_a_shop_order_that_waits_for_dhl():
-    now = datetime(2026, 9, 30, 9, 0, tzinfo=BERLIN)
-    [update] = parse_mail(load_mail("164_dhl_einlieferungsbeleg_packstation.eml")).updates
-    assert update.own
-    order = _shop_order()
-    parcels = {order.number: order}
-    change = apply_update(parcels, update, now)
-    # A parcel of its own; the order keeps waiting for its number.
-    assert change.created and order.tracking_ref is None
-    own = parcels["999999990164"]
-    assert (own.name, own.status) == ("Versand (DHL)", ParcelStatus.IN_TRANSIT)
-    # ... and nobody asks later whether its delivery closes an order.
-    assert own.order_checked
-    # The same mail without the mark would have been taken for the order's parcel.
-    update.own = False
-    other = _shop_order()
-    assert apply_update({other.number: other}, update, now).parcel is other
-    assert other.tracking_ref == "999999990164"
-
-
-def test_labels_bought_online_are_ones_own_shipments_too():
-    updates = parse_mail(load_mail("165_dhl_online_frankierung_zwei_marken.eml")).updates
-    assert [u.own for u in updates] == [True, True]
-
-
-def test_receipt_for_two_parcels_gives_two_shipments():
+# ----- the receipt of a Packstation is about a parcel somebody sent -----
+def test_dhl_packstation_receipt_is_not_read():
     msg = _msg("Einlieferungsbeleg: Ihr Versand an der Packstation", "[{PARCEL}]\n",
                "DHL Paket <noreply@dhl.de>")
     msg.add_alternative(
-        "<html><body><p>Sendungsnummer:</p><p>999999990901</p>"
-        "<p>Sendungsnummer:</p><p>999999990902</p></body></html>", subtype="html")
-    updates = parse_mail(msg).updates
-    assert [u.number for u in updates] == ["999999990901", "999999990902"]
-    assert all(u.own and u.status is ParcelStatus.IN_TRANSIT for u in updates)
-
-
-def test_postage_with_labels_of_different_kinds_gives_one_shipment_each():
-    msg = _msg("Auftragsbestätigung Ihrer Online Frankierung 99XX99XX99XX",
-               f"Sendungsnummer:\n999999990901\nSendungsnummer:\n{DHL_NUMBER}\n", "noreply@dhl.com")
-    assert {u.number for u in parse_mail(msg).updates} == {"999999990901", DHL_NUMBER}
-
-
-def test_dhl_express_delivery_on_another_day_is_not_in_delivery_today():
-    msg = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON wird "
-                   "voraussichtlich MORGEN bis Tagesende ausgeliefert.")
-    [u] = parse_mail(msg).updates
-    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, None)
-
-
-def test_dhl_com_senders_are_known_so_a_forward_is_read_as_the_original():
-    assert known_sender_domain("noreply.odd@dhl.com") == "dhl.com"
-    assert known_sender_domain("noreply@dhl.com") == "dhl.com"
+        "<html><body><p>Sendungsnummer:</p><p>999999990901</p></body></html>", subtype="html")
+    assert parse_mail(msg).updates == []
