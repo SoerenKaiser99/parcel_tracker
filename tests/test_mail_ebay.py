@@ -175,3 +175,27 @@ def test_other_ebay_mails_are_never_postponed():
     for name in (SHIPPED, DELIVERED, UPDATE):
         updates = parse_mail(load_mail(name)).updates
         assert all(not u.postponed and u.status_text is None for u in updates)
+
+
+# ----- review: the carrier's mail came first -----
+def test_update_takes_over_the_parcel_a_dhl_mail_made_before():
+    from custom_components.parcel_tracker.mail.apply import apply_update
+    from custom_components.parcel_tracker.mail.base import sent_at
+
+    update = load_mail(UPDATE)
+    [order] = parse_mail(update).updates
+    assert order.tracking_carrier == "dhl"
+    dhl = EmailMessage(policy=policy.default)
+    dhl["From"] = "DHL Paket <noreply@dhl.de>"
+    dhl["Subject"] = "Ihre Sendung ist unterwegs"
+    dhl["Date"] = update["Date"]
+    dhl.set_content(f"{order.tracking_ref}\n")
+    [parcel] = parse_mail(dhl).updates
+    parcels = {}
+    now = sent_at(update)
+    apply_update(parcels, parcel, now)
+    assert list(parcels) == [order.tracking_ref]
+    apply_update(parcels, order, now)
+    # One entry is left: the order, asked about at DHL.
+    assert list(parcels) == [order.number]
+    assert parcels[order.number].tracking_ref == order.tracking_ref

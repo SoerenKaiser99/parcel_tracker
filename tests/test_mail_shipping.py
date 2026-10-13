@@ -678,3 +678,12 @@ def test_dhl_packstation_receipt_is_not_read():
     msg.add_alternative(
         "<html><body><p>Sendungsnummer:</p><p>999999990901</p></body></html>", subtype="html")
     assert parse_mail(msg).updates == []
+
+
+def test_dhl_html_part_reads_only_the_forms_dhl_shows_below_the_button():
+    # (an invoice number, 15 digits: no number of DHL's, whatever stands above them)
+    for shown in ("RE2026000012345", "999999999990159", "ABCDEFGH99990159", "LR999999159"):
+        page = f"<p>Ihre Sendung</p><p>{shown}</p>"
+        assert parse_mail(_html_only_number(page)).updates == [], shown
+        page = f"<p>Sendungsstatus einsehen</p><p>{shown}</p>"
+        assert parse_mail(_html_only_number(page)).updates == [], shown

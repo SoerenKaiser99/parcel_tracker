@@ -60,10 +60,11 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "zur auslieferung bereit": (_ON_WAY, "Zur Auslieferung bereit"),
     "zugestellt": (ParcelStatus.DELIVERED, None),
 }
-# "Wird zugestellt" comes hours after the shipping mail and its body says "dem
-# Versandunternehmen übergeben": handed to the carrier, not on the last mile. No mail seen
-# so far tells the last mile under this subject, so it is never "in Zustellung": without
-# that sentence the order is simply on its way.
+# "Bestellung <number>: Wird zugestellt" comes hours after the shipping mail and its body
+# says "dem Versandunternehmen übergeben": handed to the carrier, not on the last mile. No
+# mail seen so far tells the last mile under this subject, so it is never "in Zustellung":
+# without that sentence the order is simply on its way. (The mail about a parcel, "Paket
+# <number> wird zugestellt", is another one: see _PACKAGE_STEPS.)
 _HANDED_OVER = "wird zugestellt"
 _HANDED_OVER_BODY = re.compile(r"dem\s+Versandunternehmen\s+übergeben")
 HANDED_OVER_TEXT = "Dem Versandunternehmen übergeben"
@@ -88,8 +89,9 @@ _PARCEL_STEPS: dict[str, str | None] = {
     "hat eine aktualisierung": None,
 }
 CUSTOMS_TEXT = "Zollabfertigung beendet"
-# "Paket <number> ist versandbereit" / "… wird zugestellt" (on the last mile, the delivery
-# follows within hours) / "… wurde zugestellt": (status, own words).
+# "Paket <number> ist versandbereit" / "… wird zugestellt" (on the last mile: in nine of
+# ten mails seen "… wurde zugestellt" followed two to five hours later, once the day
+# after) / "… wurde zugestellt": (status, own words).
 _PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "ist versandbereit": (_PRE, "Versandbereit"),
     "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),

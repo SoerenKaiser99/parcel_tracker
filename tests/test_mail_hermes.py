@@ -199,3 +199,16 @@ def test_shop_of_the_new_attempt_subject_ends_before_the_question():
                "empfangen?", body)
     [u] = parse_mail(msg).updates
     assert (u.title, u.status) == ("Zalando", ParcelStatus.IN_TRANSIT)
+
+
+# ----- review: "kommt heute … nicht", a delivery that is not one at the door -----
+def test_not_today_after_all_is_not_in_delivery():
+    body = "Sendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg("Deine Sendung kommt heute leider nicht mehr.", body)).updates
+    assert (u.status, u.eta_date) == (None, None)
+
+
+def test_only_the_delivery_at_the_door_is_delivered():
+    body = "Sendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg("Erfolgreiche PaketShopzustellung", body)).updates
+    assert (u.status, u.delivered_at) == (None, None)

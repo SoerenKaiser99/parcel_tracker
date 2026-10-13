@@ -53,11 +53,13 @@ _DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}DE)(?![A-Za-z0-9])")
 _DHL_SHORT = re.compile(r"\bSendungsnummer\s*:?\s*(\d{12})(?!\d)")
 # The text part of some mails is empty, or names the number only in a link (the text of the
 # link is a placeholder nobody filled in). The HTML part shows the number on a line of its
-# own below the button, in whatever form the sending post office gave it: 12 digits, a UPU
-# S10 number of any country ("LR…NL"), "JJATA…" from Austria.
+# own below the button. Read there are only the forms seen there that the patterns above do
+# not find: 12 digits, a UPU S10 number of any country ("LR…NL"), five letters and 16
+# digits ("JJATA…" from Austria), "JJD" with up to 24 digits. Anything else on that line
+# (an invoice number, 15 digits) is no number of DHL's.
 _DHL_SHOWN = re.compile(
     r"^(?:Sendungs(?:status|verlauf) einsehen|Ihre Sendung)\n"
-    r"((?=[A-Z0-9]*\d{8})[A-Z0-9]{12,30})$",
+    r"(\d{12}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{5}\d{16}|JJD\d{18,24})$",
     re.MULTILINE,
 )
 # The receipt of a Packstation ("Einlieferungsbeleg: Ihr Versand an der Packstation") is

@@ -449,3 +449,25 @@ def test_another_mail_of_the_shipping_sender_is_not_read_as_shipped():
     msg.set_content(text)
     result = parse_mail(msg)
     assert result.updates == [] and result.amazon  # it counts as an Amazon mail nobody knows
+
+
+# ----- review: a recipient's line is no item, an update that tells no delay -----
+def test_plain_mail_never_takes_the_line_about_the_recipient_as_the_title():
+    msg = load_mail(ON_THE_ROUTE)
+    for line in ("Lieferung an Erika Musterfrau", "Versand an Erika Musterfrau",
+                 "Lieferadresse Erika Musterfrau", "Empfänger Erika Musterfrau"):
+        msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+                        f"{line}\n")
+        [u] = parse_mail(msg).updates
+        assert u.title is None, line
+
+
+def test_delivery_update_that_tells_no_delay_just_stays_on_its_way():
+    msg = load_mail(DELAYED)
+    text = msg.get_content()
+    assert "verspätet sich aber" in text and "Jetzt erwartet bis zum 26. April." in text
+    text = text.replace("verspätet sich aber", "kommt bald").replace("Jetzt erwartet bis", "Bis")
+    msg.set_content(text)
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status) == ("AMZ99900001730000173", ParcelStatus.IN_TRANSIT)
+    assert (u.status_text, u.postponed) == (None, False)

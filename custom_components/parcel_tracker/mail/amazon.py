@@ -41,8 +41,11 @@ LEGACY_PREFIXES = ("Ihre Amazon.de Bestellung von", "Ihre Amazon.de-Bestellung m
 _ATTEMPT = "versuchte zustellung"
 _ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
 ATTEMPT_TEXT = "Zustellung versucht"
-# "Lieferungsaktualisierung: …": on its way, but later ("Jetzt erwartet bis zum 26. April.").
+# "Lieferungsaktualisierung: …": on its way, but later ("… verspätet sich aber", "Jetzt
+# erwartet bis zum 26. April."). Only a mail that says so is a delay: the subject alone
+# would also fit news of another kind, which just leaves the order on its way.
 _DELAY = "lieferungsaktualisierung"
+_DELAYED = re.compile(r"\bverspätet\b|\bJetzt erwartet bis zum\b")
 DELAY_TEXT = "Lieferung verspätet"
 
 _PREFIXES = {
@@ -82,8 +85,12 @@ _ON_THE_ROUTE = re.compile(
 )
 _LATER = re.compile(r"Jetzt erwartet bis zum (\d{1,2}\.\s*[A-Za-zä]+)")
 # An item's line below the order number: no link, no label ("Ihr Paket verfolgen:"), no
-# date line, not the shop's name.
-_PLAIN_ITEM = re.compile(r"(?!Aufgegeben am\b|Amazon\.\w+$)[^\W_](?:(?!://).)*[^:]$")
+# date line, not the shop's name and no line about the recipient ("Lieferung an <name>"):
+# a person's name never names a parcel.
+_PLAIN_ITEM = re.compile(
+    r"(?!Aufgegeben am\b|Amazon\.\w+$|(?:Lieferung|Lieferadresse|Versand|Zustellung|Empfänger)\b)"
+    r"[^\W_](?:(?!://).)*[^:]$"
+)
 # An item below its order number: "[title]<link>" in a mail whose text was made from the
 # HTML, "* title" in the text part Amazon writes itself.
 _ITEM = re.compile(r"^(?:\[(?P<title>[^\]]+)\]<https?://|\* (?P<listed>\S.*)$)", re.MULTILINE)
@@ -178,7 +185,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         return []
 
     attempt = subj.strip().lower().startswith(_ATTEMPTS)
-    delay = subj.strip().lower().startswith(f"{_DELAY}:")
+    delay = subj.strip().lower().startswith(f"{_DELAY}:") and bool(_DELAYED.search(text))
     eta = _eta(text, sent)
     if not eta and status is ParcelStatus.OUT_FOR_DELIVERY and _ON_THE_ROUTE.search(text):
         eta = {"eta_date": sent.date()}  # (the plain mail names no day: it is today)

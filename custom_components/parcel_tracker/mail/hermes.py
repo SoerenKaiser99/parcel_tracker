@@ -38,9 +38,11 @@ _DAY_MONTH = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(?!\d)")
 _WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s*Uhr")
 
 
-# "… wurde zugestellt", "Erfolgreiche Haustürzustellung"
-_DELIVERED = re.compile(r"\bwurde\b.*\bzugestellt\b|\berfolgreiche\s+\w*zustellung\b")
-_TODAY = re.compile(r"\bkommt\s+heute\b")
+# "… wurde zugestellt", "Erfolgreiche Haustürzustellung" (only at the door: a parcel in a
+# PaketShop waits for its recipient)
+_DELIVERED = re.compile(r"\bwurde\b.*\bzugestellt\b|\berfolgreiche\s+haustürzustellung\b")
+# "Deine Sendung kommt heute." (not "… kommt heute leider nicht mehr")
+_TODAY = re.compile(r"\bkommt\s+heute\b(?!.*\bnicht\b)")
 # "Neuer Zustelltermin am" (it takes longer) / "Neuer Zustellversuch am" (nobody was met):
 # the day below it, the second one with a window.
 _NEW_DAY = re.compile(r"Neuer Zustell(?:termin|versuch) am")
