@@ -56,7 +56,7 @@ Alle Felder stehen [weiter unten](#felder-des-events).
 
 ### Angenommene Zustellung (`assumed`)
 
-Schließt die Integration eine Bestellung, für die keine „Zugestellt“-Mail kam (siehe [Bestellungen ohne Zustellmail](mail-import.md#bestellungen-ohne-zustellmail)), ist das Feld `assumed` auf `true`.
+Schließt die Integration eine Bestellung, für die keine „Zugestellt“-Mail kam (siehe [Bestellungen ohne Zustellmail](mail-import.md#bestellungen-ohne-zustellmail)), ist das Feld `assumed` auf `true`. Dasselbe gilt, wenn AliExpress eine Lieferung nur per Mail bestätigt („Lieferung bestätigt (laut AliExpress)“).
 
 - **„Paket wurde zugestellt“ feuert dann nicht.** Niemand weiß, ob und wann das Paket ankam.
 - **„Paketstatus hat sich geändert“ feuert auch dann.** `{{ trigger.event.data.assumed }}` sagt, ob es so ein Fall ist.
@@ -67,13 +67,26 @@ Markierst du ein Paket von Hand als erhalten – mit dem Knopf [„Erhalten“](
 
 - **„Paket wurde zugestellt“ feuert dann nicht.** Niemand hat geliefert, du hast es selbst gesagt.
 - **„Paketstatus hat sich geändert“ feuert auch dann.** `{{ trigger.event.data.manual }}` sagt, ob es so ein Fall ist.
-- Eine Benachrichtigung schickt die Integration dafür nicht, auch der Blueprint nicht.
+- Eine Benachrichtigung schickt die Integration dafür nicht, auch der Blueprint nicht – wenn er aktuell ist, siehe unten.
+
+!!! warning "Blueprint nach dem Update einmal neu importieren"
+    Home Assistant aktualisiert einen importierten Blueprint nicht von selbst. Der [Blueprint](benachrichtigungen.md#blueprint) prüft `assumed` seit v0.3.20 und `manual` seit v0.3.30.
+
+    Hast du ihn vorher importiert, meldet deine Automation eine Markierung von Hand als „wurde zugestellt“ – bei einer Fassung vor v0.3.20 auch eine Bestellung, die ohne Zustellmail abgeschlossen wurde.
+
+    Importier den Blueprint nach dem Update auf 0.3.30 oder neuer deshalb einmal neu: **Einstellungen → Automationen & Szenen → Blueprints**, im Menü des Blueprints **Blueprint erneut importieren**. Deine Automationen daraus bleiben und nutzen danach die neue Fassung.
+
+    Eigene Automationen, die auf `new_status == delivered` filtern, brauchen dieselbe Prüfung als Bedingung:
+
+    ```jinja
+    {{ not trigger.event.data.assumed and not trigger.event.data.manual }}
+    ```
 
 ## Das Event `parcel_tracker_status_changed`
 
 Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt.
 
-- Der allererste Status eines neuen Pakets feuert kein Event.
+- Der allererste Status eines neuen Pakets feuert kein Event. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet (mit `old_status` gleich `unknown`) – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
 - Wechsel während eines Neustarts gehen nicht verloren: Das Event folgt genau einmal, sobald Home Assistant fertig gestartet ist, spätestens zwei Minuten nachdem die Integration geladen wurde. Mehrere Wechsel in dieser Zeit werden zu einem Event vom alten zum neuesten Status.
 
 ### Felder des Events

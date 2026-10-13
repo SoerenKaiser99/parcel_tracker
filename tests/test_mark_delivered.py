@@ -120,7 +120,8 @@ def test_the_mark_confirms_an_order_closed_without_a_delivery_mail():
     assert order.assumed_delivered is True and not delivered_today(order, TODAY, BERLIN)
     mark_received(order, NOW)
     assert (order.assumed_delivered, order.manual_delivered) == (False, True)
-    assert order.result.delivered_at == NOW and delivered_today(order, TODAY, BERLIN)
+    # Confirmed, but nobody knows when it came (v0.3.31): never "delivered today".
+    assert order.result.delivered_at is None and not delivered_today(order, TODAY, BERLIN)
 
 
 def test_counts_as_delivered_today_and_goes_after_the_days_it_is_kept():
@@ -412,9 +413,9 @@ async def test_mails_after_the_mark_change_nothing(hass, hass_storage, freezer):
     await coord.async_shutdown()
 
 
-async def test_a_hand_marked_mail_parcel_closes_its_order(hass, hass_storage, freezer):
-    """Like any delivered parcel a carrier mail created (see ``fold_delivered``): the one
-    order it belongs to is closed with it and keeps the hand mark."""
+async def test_a_hand_marked_mail_parcel_closes_no_order(hass, hass_storage, freezer):
+    """The mark is about the one entry that was tapped (v0.3.31): the order the parcel
+    might belong to stays open and is never frozen by it."""
     _calls, events = await _prepared(hass, freezer)
     parcel = _carrier_parcel(BRAND, ParcelStatus.OUT_FOR_DELIVERY, delivered_at=None)
     parcel.next_poll_at = NOW + _days(1)
@@ -425,15 +426,16 @@ async def test_a_hand_marked_mail_parcel_closes_its_order(hass, hass_storage, fr
     await coord.async_mark_delivered(DHL)
     await hass.async_block_till_done()
 
-    assert set(coord.store.parcels) == {ORDER}
+    assert set(coord.store.parcels) == {ORDER, DHL}
     order = coord.store.parcels[ORDER]
-    assert (order.status, order.manual_delivered) == (ParcelStatus.DELIVERED, True)
-    assert order.result.status_text == TEXT and order.tracking_ref == DHL
+    assert (order.status, order.manual_delivered) == (ParcelStatus.IN_TRANSIT, False)
+    assert order.tracking_ref is None
+    assert coord.store.parcels[DHL].result.status_text == TEXT
     assert [(e.data["number"], e.data["manual"]) for e in events] == [(DHL, True)]
-    # Frozen as well: the carrier is not asked about the number the order took over.
+    # Also not later: the marked parcel is looked at once.
     freezer.tick(timedelta(hours=2))
     await coord.async_refresh_parcels(None)
-    assert order.result.status_text == TEXT
+    assert set(coord.store.parcels) == {ORDER, DHL}
     await coord.async_shutdown()
 
 

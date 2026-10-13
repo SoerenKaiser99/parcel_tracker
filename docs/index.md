@@ -32,6 +32,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Namen ausblenden.** Ein Schalter für Geschenke auf einem gemeinsamen Dashboard: Pakete heißen dann nur noch nach dem Paketdienst.
 - **Lokal und datensparsam.** Kein Cloud-Konto, kein fremder Tracking-Dienst nötig. Die Zugangsdaten bleiben in Home Assistant.
 - **Weitere Paketdienste auf Wunsch.** Mit einem eigenen 17track-Key verfolgst du auch Paketdienste ohne eigene Anbindung, z. B. FedEx.
+- **Offen.** Open Source, gebaut für deutsche Paketdienste.
 
 Was noch nicht geht, steht unter [Roadmap & Status](stand.md).
 

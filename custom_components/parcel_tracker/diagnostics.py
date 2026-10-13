@@ -23,6 +23,7 @@ from .const import (
     CONF_DHL_API_KEY,
     CONF_HIDE_NAMES,
     CONF_IMAP_HOST,
+    CONF_IMAP_SECURITY,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
@@ -35,6 +36,7 @@ from .const import (
     CONF_UPS_CLIENT_SECRET,
     DEFAULT_NOTIFY_EVENTS,
     DEFAULT_UPS_BUDGET,
+    IMAP_SECURITIES,
     NOTIFY_EVENTS,
     NOTIFY_SERVICE_PREFIX,
     VERSION,
@@ -47,13 +49,16 @@ from .models import Parcel, TrackingResult, _iso
 # Settings that say nothing about the person. Every other key of the entry (keys,
 # passwords, UPS ID/secret, mailbox user, postcode, anything added later) is redacted.
 # The IMAP host is only named if it belongs to a public provider (see below), the
-# country only as one of the three on offer.
+# country only as one of the three on offer, the kind of connection to the mail server
+# only as one of its three fixed words. The port stays redacted: a port of one's own can
+# tell an own server apart (the mail import's state says whether it is another than 993).
 SAFE_KEYS = frozenset(
     {
         CONF_COUNTRY,
         CONF_KEEP_DELIVERED_DAYS,
         CONF_HIDE_NAMES,
         CONF_IMAP_HOST,
+        CONF_IMAP_SECURITY,
         CONF_MOVE_PROCESSED,
         CONF_READ_OTP,
         CONF_MAIL_INTERVAL,
@@ -141,6 +146,8 @@ def _redact(data: Mapping[str, Any]) -> dict[str, Any]:
     shown = async_redact_data(dict(data), set(data) - SAFE_KEYS)
     if CONF_IMAP_HOST in shown:
         shown[CONF_IMAP_HOST] = public_imap_host(shown[CONF_IMAP_HOST])
+    if CONF_IMAP_SECURITY in shown and shown[CONF_IMAP_SECURITY] not in IMAP_SECURITIES:
+        shown[CONF_IMAP_SECURITY] = _HIDDEN
     if CONF_COUNTRY in shown:
         shown[CONF_COUNTRY] = known_country(shown[CONF_COUNTRY])
     if CONF_HIDE_NAMES in shown:

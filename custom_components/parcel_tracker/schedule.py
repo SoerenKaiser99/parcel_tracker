@@ -70,17 +70,27 @@ _ORDER_FINAL = frozenset(
 )
 
 
-def order_overdue(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
+def order_overdue(
+    parcel: Parcel, today: date, tz: tzinfo = BERLIN, askable: bool = True
+) -> bool:
     """Tell whether a shop order waits in vain for its "delivered" mail.
 
-    Only an order nobody can ask about (Amazon, eBay, AliExpress, Eventim; no carrier
-    number) that is not delivered, ready for pickup or in trouble. Its last delivery day
+    Only an order nobody can ask about (Amazon, eBay, AliExpress, Eventim) that is not
+    delivered, ready for pickup or in trouble. Nobody can ask about an order without a
+    carrier number. An order with a number is overdue only if nobody can be asked about
+    that number at all with the current settings (``askable`` False, the caller knows:
+    no lookup for its carrier, e.g. UPS without its API or DHL without a key, and no
+    17track). What a carrier that can be asked answered last says nothing here: a number
+    it does not know yet, or one failed lookup, never closes an order - the carrier may
+    tell the delivery tomorrow. Its last delivery day
     must lie more than ORDER_OVERDUE_DAYS full days before ``today`` (a day in ``tz``); a
     mail that changed the order after that day counts from the day it came. Without any
     delivery day: ORDER_NO_ETA_DAYS days after the last change. Never an Eventim order
     that is only "Bestellt": its tickets may be sent months later (SHIP_LATER_SHOPS).
     """
-    if parcel.carrier not in SHOP_CARRIERS or parcel.tracking_ref is not None:
+    if parcel.carrier not in SHOP_CARRIERS:
+        return False
+    if parcel.tracking_ref is not None and askable:
         return False
     result = parcel.result
     if result is not None and result.status in _ORDER_FINAL:
@@ -138,12 +148,16 @@ def delivered_today(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
 
     The time of delivery decides; a carrier or mail that names none leaves the day the
     status changed. Such a parcel is in no group of ``today_group`` any more. An order
-    closed without a delivery mail never counts: nobody knows when it came.
+    closed without a delivery mail never counts: nobody knows when it came. Neither does
+    such an order once the user confirmed it by hand ("Erhalten" sets a time of delivery
+    for everything else, see ``mail.apply.mark_received``).
     """
     result = parcel.result
     if result is None or result.status is not ParcelStatus.DELIVERED:
         return False
     if parcel.assumed_delivered:
+        return False
+    if parcel.manual_delivered and result.delivered_at is None:
         return False
     delivered = result.delivered_at or parcel.last_change_at
     return delivered.astimezone(tz).date() == today
@@ -167,18 +181,32 @@ def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> Pa
     (unknown, a problem, waiting at a pickup point, no answer from the carrier yet).
     Today's lists follow ``today_group`` and ``delivered_today``. Ready for pickup is
     every parcel with that status (Packstation, branch, parcel shop); it stays on the way.
+
+    Today's lists count boxes: several shop orders that come in one box (they carry the
+    same carrier number) are one entry there, the first of them. On the way and ready
+    for pickup is every order.
     """
     summary = ParcelSummary()
+    seen: set[tuple[str, str | None, str]] = set()
     for parcel in parcels:
         if parcel.status is not ParcelStatus.DELIVERED:
             summary.active.append(parcel)
         if parcel.status is ParcelStatus.AWAITING_PICKUP:
             summary.awaiting_pickup.append(parcel)
         group = today_group(parcel, today, tz)
+        if group is None and delivered_today(parcel, today, tz):
+            group = "delivered"
+        if group is None:
+            continue
+        if parcel.tracking_ref:
+            box = (group, parcel.tracking_carrier, parcel.tracking_ref)
+            if box in seen:
+                continue
+            seen.add(box)
         if group == TODAY_SURE:
             summary.sure.append(parcel)
         elif group == TODAY_POSSIBLE:
             summary.possible.append(parcel)
-        elif delivered_today(parcel, today, tz):
+        else:
             summary.delivered_today.append(parcel)
     return summary

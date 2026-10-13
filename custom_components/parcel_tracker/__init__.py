@@ -15,7 +15,6 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
-from homeassistant.util.ssl import client_context
 
 from .card_install import (
     BUNDLED_CARD,
@@ -34,6 +33,7 @@ from .carriers.track17 import (
     Track17Disabled,
 )
 from .carriers.ups import ApiBudget, UpsCarrier
+from .config_flow import mailbox_context
 from .const import (
     CARD_URL,
     CARRIER_AUTO,
@@ -42,6 +42,8 @@ from .const import (
     CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
+    CONF_IMAP_PORT,
+    CONF_IMAP_SECURITY,
     CONF_IMAP_USER,
     CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
@@ -50,6 +52,7 @@ from .const import (
     DEFAULT_IMAP_HOST,
     DEFAULT_UPS_BUDGET,
     DOMAIN,
+    IMAP_SECURITY_SSL,
     SELECTABLE_CARRIERS,
     entry_country,
 )
@@ -58,7 +61,7 @@ from .detect import UnsupportedNumber
 from .device import async_register_device
 from .http import ImportMailView
 from .lovelace_resource import async_ensure_resource
-from .mail.imap import MailboxClient
+from .mail.imap import MailboxClient, clean_security, looks_local
 from .store import DuplicateParcel, ParcelStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,14 +109,44 @@ def _mailbox(entry: ConfigEntry) -> MailboxClient | None:
     password = entry.data.get(CONF_IMAP_PASSWORD)
     if not user or not password:
         return None
+    # Nothing stored (every entry from before v0.3.32): TLS with a checked certificate
+    # on port 993, as always. The TLS context comes from Home Assistant, ready-made.
+    security = clean_security(entry.options.get(CONF_IMAP_SECURITY))
     return MailboxClient(
         entry.options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST,
         user,
         password,
-        ssl_context=client_context(),
+        ssl_context=mailbox_context(security),
         # No folder stored (every entry from before v0.3.29): INBOX, as always.
         folder=entry.options.get(CONF_IMAP_FOLDER),
+        port=entry.options.get(CONF_IMAP_PORT),
+        security=security,
     )
+
+
+def _insecure_mail_hint(hass: HomeAssistant, mailbox: MailboxClient | None) -> None:
+    """A hint in the repairs while the mailbox is read without verified encryption from
+    a server that does not look like one in the own network (see ``looks_local``).
+
+    The options flow cannot warn after saving, so this stands in for it. It can be
+    ignored, and stays ignored over reloads; it goes away on its own once the
+    connection is verified again, the host is a local one or the import is off.
+    """
+    if (
+        mailbox is not None
+        and mailbox.security != IMAP_SECURITY_SSL
+        and not looks_local(mailbox.host)
+    ):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            "imap_insecure",
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="imap_insecure",
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, "imap_insecure")
 
 
 def _ups_carrier(hass: HomeAssistant, entry: ConfigEntry, budget: ApiBudget) -> UpsCarrier | None:
@@ -275,6 +308,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bo
     mailbox = _mailbox(entry)
     if mailbox is None:
         _mail_import_off(hass, entry)
+    _insecure_mail_hint(hass, mailbox)
     track17 = _track17_client(hass, entry)
     if track17 is None:
         for issue in TRACK17_ISSUES:

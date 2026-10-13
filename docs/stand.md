@@ -30,7 +30,7 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Mails von GLS Österreich und DPD Österreich, internationale DHL-Nummern (`CQ…DE`) | umgesetzt nach anonymisierten Beispielmails von Testern |
 | Benachrichtigungen (Optionen und Blueprint) | umgesetzt, an Benachrichtigungs-Entitäten und klassische Dienste (z. B. Pushover) |
 | Land (Deutschland, Österreich, Schweiz) | umgesetzt für PLZ-Länge und GLS-Abfrage |
-| Bestellungen ohne Zustellmail (Amazon, eBay, AliExpress, Eventim) | umgesetzt: Ein zugestelltes Carrier-Paket schließt die passende Bestellung, überfällige Bestellungen ohne Sendungsnummer werden „Abgeschlossen ohne Zustellbestätigung“ |
+| Bestellungen ohne Zustellmail (Amazon, eBay, AliExpress, Eventim) | umgesetzt: Ein zugestelltes Carrier-Paket schließt die passende Bestellung, überfällige Bestellungen, zu denen kein Paketdienst gefragt werden kann, werden „Abgeschlossen ohne Zustellbestätigung“ |
 
 ## Umgesetzt, aber noch nicht bestätigt
 

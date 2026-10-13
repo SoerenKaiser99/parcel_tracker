@@ -5,23 +5,39 @@ All methods block; the coordinator runs them in the executor.
 One folder is read: INBOX unless another one is set. Its name goes over the wire in
 modified UTF-7 (RFC 3501, 5.1.3) as a quoted string; imaplib does neither by itself.
 The two folders mails are filed into stay top-level and are never the folder read.
+
+The connection is TLS from the first byte with a checked certificate unless the options
+say otherwise: TLS without checking the certificate (an own server at home with a
+self-signed one), or no TLS at all. STARTTLS is never tried.
 """
 
 from __future__ import annotations
 
 import base64
 import imaplib
+import ipaddress
 import logging
 import re
 import ssl
 from collections.abc import Callable
 from typing import Any
 
-from ..const import DEFAULT_IMAP_FOLDER, FOLDER_PROCESSED, FOLDER_UNRECOGNIZED
+from ..const import (
+    DEFAULT_IMAP_FOLDER,
+    DEFAULT_IMAP_PORT,
+    DEFAULT_IMAP_SECURITY,
+    FOLDER_PROCESSED,
+    FOLDER_UNRECOGNIZED,
+    IMAP_SECURITIES,
+    IMAP_SECURITY_NOVERIFY,
+    IMAP_SECURITY_PLAIN,
+    MAX_IMAP_PORT,
+    MIN_IMAP_PORT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-IMAP_PORT = 993
+IMAP_PORT = DEFAULT_IMAP_PORT
 IMAP_TIMEOUT = 30
 FETCH_LIMIT = 50
 
@@ -41,6 +57,22 @@ class ImapUnavailable(ImapError):
     """Server unreachable, timeout or protocol error."""
 
 
+class ImapCertificateError(ImapUnavailable):
+    """The server's TLS certificate was not accepted (self-signed, expired, other name).
+
+    A kind of "unavailable", so callers that do not care keep backing off as before.
+    Its text never carries what the certificate or the server said.
+    """
+
+
+class ImapLoginDisabled(ImapUnavailable):
+    """The server takes no login over an unencrypted connection (LOGINDISABLED).
+
+    Raised before user and password are sent. A kind of "unavailable", so callers that
+    do not care keep backing off as before.
+    """
+
+
 class ImapFolderNotFound(ImapUnavailable):
     """The folder to read cannot be selected (missing, renamed, or no valid name).
 
@@ -52,6 +84,83 @@ class ImapFolderNotFound(ImapUnavailable):
 _RESERVED = frozenset({FOLDER_PROCESSED.casefold(), FOLDER_UNRECOGNIZED.casefold()})
 # What servers use between the levels of a folder path.
 _DELIMITER = re.compile(r"[/.]")
+
+
+# Names that only resolve inside an own network (RFC 6762, RFC 8375, the usual router
+# domains, Tailscale's own); the suffix itself counts as well ("fritz.box").
+_LOCAL_SUFFIXES = (
+    "local",
+    "lan",
+    "home",
+    "home.arpa",
+    "fritz.box",
+    "internal",
+    "intranet",
+    "localdomain",
+    "ts.net",
+)
+# Shared address space of carrier-grade NAT (RFC 6598); Tailscale hands these out too.
+_CGNAT = ipaddress.ip_network("100.64.0.0/10")
+# What a resolver reads as one number, and so as an IPv4 address: "0x08080808" (and
+# plain digits, which hold no letter at all) is 8.8.8.8, not a host called that.
+_HEX_NUMBER = re.compile(r"0x[0-9a-f]*")
+
+
+def clean_port(value: Any) -> int:
+    """The port as stored or typed in; 993 for anything that is no port."""
+    if isinstance(value, bool):
+        return DEFAULT_IMAP_PORT
+    if isinstance(value, str) and value.strip().isdecimal():
+        value = int(value.strip())
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if isinstance(value, int) and MIN_IMAP_PORT <= value <= MAX_IMAP_PORT:
+        return value
+    return DEFAULT_IMAP_PORT
+
+
+def clean_security(value: Any) -> str:
+    """The kind of connection as stored or chosen; the verifying default for any other."""
+    return value if isinstance(value, str) and value in IMAP_SECURITIES else DEFAULT_IMAP_SECURITY
+
+
+def looks_local(host: Any) -> bool:
+    """True if a mail server's host lies in an own network, as far as its name tells.
+
+    An address counts if it is private, loopback, link-local or from the shared range
+    of carrier-grade NAT (IPv4, IPv6 also in brackets or with a zone, an IPv4 address
+    mapped into IPv6 as that address). A name counts if it has a single label with a
+    letter in it ("nas"; never a number in decimal, octal or hex form, which is an
+    address written differently) or ends in a domain that only resolves at home
+    (``_LOCAL_SUFFIXES``). Nothing is looked up: a public name that points to a private
+    address is not local here.
+    """
+    if not isinstance(host, str):
+        return False
+    name = host.strip().lower().rstrip(".")
+    if not name:
+        return False
+    literal = name[1:-1] if name.startswith("[") and name.endswith("]") else name
+    try:
+        address = ipaddress.ip_address(literal.partition("%")[0])
+    except ValueError:
+        pass
+    else:
+        mapped = getattr(address, "ipv4_mapped", None)
+        address = mapped or address
+        return (
+            address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or (address.version == 4 and address in _CGNAT)
+        )
+    if "." not in name:
+        return (
+            ":" not in name
+            and any(char.isalpha() for char in name)
+            and not _HEX_NUMBER.fullmatch(name)
+        )
+    return any(name == suffix or name.endswith(f".{suffix}") for suffix in _LOCAL_SUFFIXES)
 
 
 def clean_folder(value: Any) -> str:
@@ -121,23 +230,45 @@ class MailboxClient:
         host: str,
         user: str,
         password: str,
-        factory: Callable[..., Any] = imaplib.IMAP4_SSL,
+        factory: Callable[..., Any] | None = None,
         ssl_context: ssl.SSLContext | None = None,
         folder: str | None = None,
+        port: Any = DEFAULT_IMAP_PORT,
+        security: Any = DEFAULT_IMAP_SECURITY,
     ) -> None:
         self.host = host
         self.user = user
         self.folder = clean_folder(folder)
+        self.port = clean_port(port)
+        self.security = clean_security(security)
         self._password = password
-        self._factory = factory
-        # Home Assistant hands in its shared verifying context; without one a default
-        # verifying context is built on first connect (in the executor, it loads certs).
+        # Without TLS it is imaplib.IMAP4, which takes no context; a factory handed in
+        # (tests) is called with the arguments of the class it stands for.
+        self._factory = factory or (imaplib.IMAP4_SSL if self.tls else imaplib.IMAP4)
+        # Home Assistant hands in its shared context that fits the kind of connection
+        # (verifying or not); without one it is built on first connect (in the
+        # executor, it loads certs).
         self._ssl_context = ssl_context
         self._told_no_expunge = False
 
+    @property
+    def tls(self) -> bool:
+        """True unless the connection is unencrypted by choice."""
+        return self.security != IMAP_SECURITY_PLAIN
+
+    @property
+    def custom_port(self) -> bool:
+        """True when another port than 993 is used."""
+        return self.port != DEFAULT_IMAP_PORT
+
     def _context(self) -> ssl.SSLContext:
         if self._ssl_context is None:
-            self._ssl_context = ssl.create_default_context()
+            context = ssl.create_default_context()
+            if self.security == IMAP_SECURITY_NOVERIFY:
+                # (the name check goes first: a context that checks names must verify)
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+            self._ssl_context = context
         return self._ssl_context
 
     @property
@@ -159,9 +290,15 @@ class MailboxClient:
     def _connect(self) -> Any:
         mailbox = self._mailbox()  # before any connection: a refused folder costs none
         try:
-            conn = self._factory(
-                self.host, IMAP_PORT, ssl_context=self._context(), timeout=IMAP_TIMEOUT
-            )
+            if self.tls:
+                conn = self._factory(
+                    self.host, self.port, ssl_context=self._context(), timeout=IMAP_TIMEOUT
+                )
+            else:
+                conn = self._factory(self.host, self.port, timeout=IMAP_TIMEOUT)
+        except ssl.SSLCertVerificationError as err:
+            # (only the kind of error: the certificate's own words name the server)
+            raise ImapCertificateError("certificate rejected") from err
         except (OSError, imaplib.IMAP4.error) as err:
             raise ImapUnavailable(type(err).__name__) from err
         try:
@@ -181,6 +318,12 @@ class MailboxClient:
         return conn
 
     def _login(self, conn: Any) -> None:
+        if not self.tls:
+            # Without TLS the password would go out readable. A server that says it takes
+            # no such login (Dovecot does by default) is not sent one at all.
+            announced = {str(c).upper() for c in getattr(conn, "capabilities", None) or ()}
+            if "LOGINDISABLED" in announced:
+                raise ImapLoginDisabled("login disabled")
         try:
             conn.login(self.user, self._password)
         except imaplib.IMAP4.abort as err:

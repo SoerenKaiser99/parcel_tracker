@@ -343,9 +343,12 @@ def test_tester_mode_replaces_buyer_and_address(tmp_path):
         for path in sorted((tmp_path / "anonymisiert").glob("*.eml"))
     )
     for msg in (order, shipped):
-        dump = (msg.as_string() + msg.get_body(("plain", "html")).get_content()).lower()
+        # (not the raw mail and no short number: boundary and invented digits are random)
+        dump = _dump(msg)
+        # (the customer number of the link as it stands there, "4711secret": the four
+        # digits alone could come up among invented ones)
         for secret in ("probst", "jörg", "joerg", "lindenweg", "privatpost", ORDER_A,
-                       "secret", "4711"):
+                       "secret", "kunde=", "4711secret", "kunde=4711"):
             assert secret not in dump, secret
     # Still Eventim's two mails for the parser, with the delivery method and the estimate.
     (update,) = parse_mail(order).updates
@@ -353,3 +356,96 @@ def test_tester_mode_replaces_buyer_and_address(tmp_path):
     (update,) = parse_mail(shipped).updates
     assert (update.carrier, update.status) == ("eventim", ParcelStatus.IN_TRANSIT)
     assert update.eta_date is not None and update.eta_latest is not None
+
+
+# ----- v0.3.31: the tester mode knows Eventim like the fixture mode -----
+FORWARDED = (
+    "Hier die Mail von Eventim.\n\nViele Grüße\nJörg Probst\n\n"
+    "-------- Weitergeleitete Nachricht --------\n"
+    "Von: EVENTIM <bestellstatus@eventim.de>\nGesendet: Samstag, 14. März 2026 09:02\n"
+    "An: Jörg Probst <joerg.probst@privatpost.de>\n"
+    f"Betreff: Deine EVENTIM-Bestellung: Funkelstern - Die Tour 2026 - Bestellnummer {ORDER_A}\n"
+    "\n"
+)
+
+
+def _forward(raw: bytes) -> bytes:
+    original = email.message_from_bytes(raw, policy=policy.default)
+    msg = EmailMessage()
+    msg["From"] = "Jörg Probst <joerg.probst@privatpost.de>"
+    msg["To"] = "pakete@postfach.example"
+    msg["Subject"] = f"WG: {original['Subject']}"
+    msg["Date"] = "Sat, 14 Mar 2026 09:30:11 +0000"
+    msg.set_content(FORWARDED + original.get_body(("plain",)).get_content())
+    return bytes(msg)
+
+
+@pytest.fixture(scope="module")
+def tester(tmp_path_factory) -> list[EmailMessage]:
+    src = tmp_path_factory.mktemp("anon_evt_tester")
+    mails = (ORDER, ORDER_OLD, SHIPPED, UNKNOWN, ALARM, CLUB, PRESENTS, RELAYED, _forward(ORDER))
+    for index, raw in enumerate(mails, 1):
+        (src / f"{index}.eml").write_bytes(raw)
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), str(src), "--name", "Jörg Probst",
+         "--email", "joerg.probst@privatpost.de"],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL,
+    )
+    assert done.returncode == 0, done.stderr
+    assert "Nicht lesbar" not in done.stdout
+    return [
+        email.message_from_bytes(path.read_bytes(), policy=policy.default)
+        for path in sorted((src / "anonymisiert").glob("*.eml"))
+    ]
+
+
+def _dump(msg: EmailMessage) -> str:
+    """Headers and texts, lower case (not the raw mail: its MIME boundary is random)."""
+    bodies = "".join(part.get_content() for part in msg.walk() if not part.is_multipart())
+    headers = "".join(f"{name}: {value}\n" for name, value in msg.items())
+    return (headers + bodies).lower()
+
+
+# Short runs of digits are not looked for: the tester mode invents digits at random.
+TESTER_SECRETS = [secret for secret in SECRETS if not (secret.isdigit() and len(secret) < 8)]
+
+
+def test_tester_mode_leaves_nothing_of_buyer_purchase_or_event(tester):
+    """Only a name and a mail address were given: event, day, venue, organiser, seats,
+    prices, payment method and the day of the order go by the Eventim rules."""
+    assert len(tester) == 9
+    for index, msg in enumerate(tester, 1):
+        dump = _dump(msg)
+        for secret in [*TESTER_SECRETS, "14. märz", "09:02", "09:30:11", "hier die mail"]:
+            assert secret.lower() not in dump, (index, secret)
+    # The postcode goes with the address block, whatever its lines are.
+    for msg in (tester[0], tester[8]):
+        assert (
+            "Rechnungsadresse:\nMax Mustermann\nMusterstraße 1\n12345 Musterstadt\n"
+            "Deutschland\n"
+        ) in msg.get_body(("plain",)).get_content()
+
+
+def test_tester_mode_keeps_what_the_parser_reads(tester):
+    order, old, shipped, unknown, alarm, club, presents, relayed, forwarded = tester
+    for msg in (order, old, forwarded):
+        (update,) = parse_mail(msg).updates
+        assert (update.carrier, update.status) == ("eventim", ParcelStatus.PRE_TRANSIT)
+        assert update.title.startswith("Beispielband – Tour 2026")
+    for msg in (shipped, relayed):
+        (update,) = parse_mail(msg).updates
+        assert (update.carrier, update.status) == ("eventim", ParcelStatus.IN_TRANSIT)
+    (update,) = parse_mail(shipped).updates
+    assert update.eta_date is not None and update.eta_latest is not None
+    assert parse_mail(unknown).updates == []
+    for msg in (alarm, club, presents):
+        assert parse_mail(msg).ignored
+        assert str(msg["Subject"]) == "Neuigkeiten von EVENTIM"
+        assert msg.get_body(("plain",)).get_content().startswith("[Inhalt entfernt")
+    assert str(club["From"]) == "EVENTIM <kundenservice-musterverein@eventim.de>"
+    assert str(relayed["From"]).endswith(
+        "<bestellstatus_at_eventim_de_0a1b2c3d4e_0a1b2c3d@privaterelay.appleid.com>"
+    )
+    # The day of the order is the mail's own Date header: an invented one instead.
+    for msg in tester[:8]:
+        assert (msg["Date"].datetime.year, msg["Date"].datetime.month) == (2026, 1)

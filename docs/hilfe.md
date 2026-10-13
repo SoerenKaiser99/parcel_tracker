@@ -64,7 +64,9 @@ Die Optionen findest du unter **Einstellungen → Geräte & Dienste → Paket Tr
     | „DHL ist gerade nicht erreichbar. Versuch es später noch einmal.“ | später erneut speichern |
     | „Gib eine 5-stellige PLZ ein.“ / „Gib eine 4-stellige PLZ ein.“ | PLZ passend zum Land eintragen (Deutschland 5, Österreich und Schweiz 4 Ziffern) |
     | „Der Mailserver hat Benutzername oder Passwort abgelehnt.“ | siehe [App-Passwörter](mail-import.md#app-passworter) |
-    | „Der Mailserver ist nicht erreichbar. Prüf den Servernamen.“ | IMAP-Server prüfen |
+    | „Der Mailserver ist nicht erreichbar. Prüf Servernamen, Port und Verbindung.“ | IMAP-Server, Port und Verbindung prüfen |
+    | „Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an. „Verschlüsselt, Zertifikat nicht prüfen“ wählen (meist Port 993) oder die Klartext-Anmeldung am Server erlauben.“ | siehe [Port und Verbindung](mail-import.md#port-und-verbindung) |
+    | „Das Zertifikat des Mailservers wurde nicht akzeptiert. Bei einem eigenen Server im Heimnetz: Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ wählen.“ | siehe [Das Zertifikat des Mailservers wird nicht akzeptiert](#das-zertifikat-des-mailservers-wird-nicht-akzeptiert) |
     | „Gib das Passwort des Postfachs ein.“ | Passwort des Paket-Postfachs eintragen |
     | „UPS hat Client-ID oder Secret abgelehnt.“ | Zugangsdaten prüfen; steht die UPS-App noch auf „Pending“? |
     | „Gib das UPS-Client-Secret ein.“ | Client-Secret eintragen |
@@ -109,6 +111,15 @@ DHL berechnet Liefertag und Zeitfenster laufend neu. Ein Zeitfenster kann im Lau
 
 Viele Anbieter verlangen für IMAP ein eigenes App-Passwort oder eine Freigabe: siehe [App-Passwörter](mail-import.md#app-passworter).
 
+### Das Zertifikat des Mailservers wird nicht akzeptiert
+
+Das Formular meldet: „Das Zertifikat des Mailservers wurde nicht akzeptiert. Bei einem eigenen Server im Heimnetz: Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ wählen.“
+
+- **Eigener Server im Heimnetz** (z. B. dovecot mit selbstsigniertem Zertifikat): Wähl im Feld **Verbindung** „Verschlüsselt, Zertifikat nicht prüfen“.
+- **Mailanbieter im Internet:** Lass die Verbindung auf „Verschlüsselt (TLS, Standard)“ und prüf den Servernamen. Das Zertifikat gilt nur für den Namen, den der Anbieter nennt (z. B. `imap.mailbox.org`), nicht für eine IP-Adresse.
+
+Mehr dazu: [Port und Verbindung](mail-import.md#port-und-verbindung).
+
 ### „Diesen Ordner gibt es im Postfach nicht.“
 
 Das Feld **Ordner** braucht den Namen so, wie der Mailserver ihn führt. Ein Unterordner heißt je nach Anbieter `Pakete/DHL` oder `INBOX.Pakete`; viele Mailprogramme zeigen den vollen Namen in den Eigenschaften des Ordners. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Siehe [Eigener Ordner](mail-import.md#eigener-ordner).
@@ -145,7 +156,7 @@ Für diese Bestellung kam keine „Zugestellt“-Mail. Die Integration hat sie n
 
 ### Reparatur-Hinweis „…-Sendungsverfolgung funktioniert nicht“
 
-Seit 24 Stunden schlagen alle Abfragen bei diesem Paketdienst fehl. Vermutlich hat er seine Seite geändert. Prüf, ob es ein Update für Paket Tracker gibt. Bei GLS kommen die Pakete so lange weiter aus den GLS-Mails.
+Seit 24 Stunden schlagen alle Abfragen bei diesem Paketdienst fehl. Vermutlich hat er seine Seite geändert. Prüf, ob es ein Update für Paket Tracker gibt. Bei GLS kommen die Pakete so lange weiter aus den GLS-Mails. Der Hinweis verschwindet, sobald eine Abfrage wieder klappt – oder sobald kein Paket dieses Paketdienstes mehr abgefragt wird, weil du das letzte gelöscht oder als erhalten markiert hast.
 
 ### Reparatur-Hinweis „UPS-Monatsbudget verbraucht“
 
@@ -167,7 +178,7 @@ Alle für diesen Monat erlaubten UPS-Abfragen sind verbraucht. UPS-Pakete kommen
 
 - Ist ein Ziel gewählt? Ohne Ziel wird nichts gesendet.
 - Ist das Ereignis angekreuzt? „Problem“ ist von Haus aus nicht angekreuzt.
-- Der allererste Status eines neuen Pakets wird nie gemeldet.
+- Der allererste Status eines neuen Pakets wird nicht gemeldet. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
 - Für eine Bestellung, die ohne Zustellmail abgeschlossen wurde, gibt es keine Meldung.
 - Steht ein Ziel mit dem Zusatz „nicht mehr vorhanden“ in der Auswahl, wird es übersprungen.
 
@@ -184,7 +195,7 @@ Alle für diesen Monat erlaubten UPS-Abfragen sind verbraucht. UPS-Pakete kommen
 !!! warning "Nicht ins Issue"
     Keine Zugangsdaten, keine API-Keys und keine rohen Mails. Sendungsnummern nur gekürzt oder mit erfundenen Ziffern nennen.
 
-Geht es um eine Mail, die der Import nicht erkennt, hilft zusätzlich eine anonymisierte Beispielmail – siehe unten.
+Geht es um eine Mail, die der Import nicht erkennt, hilft zusätzlich eine anonymisierte Beispielmail: siehe [Beispielmails einreichen](#beispielmails-einreichen).
 
 ## Beispielmails einreichen
 
@@ -238,7 +249,11 @@ Dazu gibt es `--phone` und `--email`. Ganz ohne Angaben arbeitet das Skript nur 
     - Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort,
     - Namen von Nachbarn, Empfängern und privaten Absendern.
 
-    Technische Kopfzeilen und Anhänge entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus, nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.
+    Technische Kopfzeilen und Anhänge entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus (Betreff mit „WG:“, „Fwd:“ oder „Fw:“ oder ein zitierter Kopfzeilenblock „Von: … Gesendet: …“), nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.
+
+    Steht eine Sendungsnummer nur in einem Link oder im Text eines Bildes, bleibt sie als erfundene Nummer in einer eigenen Zeile „[Nummer nur im Link oder Bildtext: …]“ erhalten.
+
+    Nummern ab 10 Ziffern, die in Gruppen geschrieben sind (getrennt durch Leerzeichen, Tabulator, Punkt oder Bindestrich), und internationale Nummern in Gruppen („CQ 123 456 785 DE“) behalten ihre Gruppen und bekommen erfundene Ziffern – gezählt werden nur Ziffern, die mit demselben Trennzeichen zu einer Nummer gehören. Datum, Uhrzeit („2026-09-28 11:51“), Preise sowie Reihen von Jahreszahlen oder zweistelligen Zahlen ohne Bezeichnung davor bleiben, Telefonnummern werden wie bisher ersetzt.
 
     Frühere Ergebnisse im Ordner `anonymisiert/` löscht das Skript vor dem Schreiben.
 

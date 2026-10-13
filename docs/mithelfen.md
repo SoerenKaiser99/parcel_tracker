@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 11. Oktober 2026, Version 0.3.30. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 13. Oktober 2026, Version 0.3.32. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -30,6 +30,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **AliExpress** | Erscheint die Bestellung mit Artikelname und Zustelltag? Wird nach der „Packstück“-Mail live beim Paketdienst abgefragt? Werden die Mails „Vom Kurier abgeholt“ und „Packstück … hat eine Aktualisierung“ erkannt? Landet eine Mail bei den nicht erkannten? |
 | **Eventim** | Erscheint eine Ticketbestellung mit Postversand als „Bestellt“ mit dem Namen der Veranstaltung? Setzt die Versandbenachrichtigung „Versendet“ und den Lieferzeitraum? Bleiben Bestellungen mit print@home, ticketdirect oder Mobile Ticket draußen? Neu seit v0.3.30. | im Forum |
 | **Eigener Ordner im Postfach** | Wird genau der eingetragene Ordner gelesen und kein anderer? Klappt es mit Umlauten, Leerzeichen und Unterordnern im Namen (z. B. `Bestellungen & Pakete`, `Pakete/DHL`)? Neu seit v0.3.29, ohne echten Mailserver gebaut. | im Forum | [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) |
+| **Eigener Mailserver im Heimnetz (Port, ohne Zertifikatsprüfung)** | Klappt die Verbindung mit eigenem Port und „Verschlüsselt, Zertifikat nicht prüfen“ oder „Unverschlüsselt“? Welcher Server läuft bei dir (dovecot, ein NAS, …)? Neu seit v0.3.32, ohne echten Mailserver gebaut. | im Forum |
 | **Apple „E-Mail-Adresse verbergen“** | Werden so weitergereichte Mails von Amazon, DHL, DPD, GLS, Hermes, UPS oder eBay erkannt? Mit echten Mails geprüft ist bisher nur AliExpress. | im Forum |
 | **DHL: „liegt am gewünschten Ablageort“** | Springt das Paket mit dieser Mail auf „Zugestellt“? | [Issue #9](https://github.com/SoerenKaiser99/parcel_tracker/issues/9) |
 | **DHL: „wird gleich zugestellt“** | Zählt das Paket mit dieser Mail als heute, und steht „Wird gleich zugestellt“ als eigene Zeile im Verlauf? | im Forum |

@@ -59,8 +59,11 @@ class MailUpdate:
     # The mail's own words for the status, shown and written to the history instead of
     # the usual text of the status ("Zustellung versucht").
     status_text: str | None = None
-    # The shop confirms the delivery days afterwards (AliExpress "Lieferung bestätigt"): an
-    # order that is delivered for real keeps its time of delivery and its history.
+    # The shop confirms the delivery days afterwards (AliExpress "Lieferung bestätigt"). An
+    # order that is delivered for real keeps its time of delivery and its history. Any
+    # other order is closed on the shop's word alone, like one without a delivery mail
+    # (``Parcel.assumed_delivered``): nobody saw it arrive, so nothing is pushed and it
+    # never counts as delivered today. See ``apply._confirm``.
     confirmation: bool = False
     # One's own shipment (handed in at a Packstation, a label bought online): it belongs
     # to no order, so it is never merged into one and closes none when it arrives.

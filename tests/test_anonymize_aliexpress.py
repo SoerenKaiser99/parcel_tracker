@@ -2,6 +2,7 @@
 
 import email
 import html
+import re
 import subprocess
 import sys
 from email import policy
@@ -250,9 +251,11 @@ def test_tester_mode_invents_the_relay_ids_and_replaces_the_address_block(tmp_pa
         "@privaterelay.appleid.com>"
     )
     for msg in (parcel, shipped):
-        dump = (msg.as_string() + html.unescape(_text(msg))).lower()
-        for secret in ("probst", "jörg", "lindenweg", "beispielhausen", "hinterhof", "0151",
-                       "k7m2x9q4pz", "4f8e1a7c", "privatpost", ORDER_A, DHL):
+        # (not the raw mail and no short number: boundary and invented digits are random)
+        dump = _all(msg)
+        # (the whole phone number: twelve digits never come up by chance)
+        for secret in ("probst", "jörg", "lindenweg", "beispielhausen", "hinterhof",
+                       "015112345678", "k7m2x9q4pz", "4f8e1a7c", "privatpost", ORDER_A, DHL):
             assert secret not in dump, secret
     assert "Versand nach</p>\n<p>Musterstraße 1, Musterstadt</p>\n<p>Max Mustermann +49" in _text(
         parcel
@@ -261,3 +264,104 @@ def test_tester_mode_invents_the_relay_ids_and_replaces_the_address_block(tmp_pa
     # The relayed mail is still one of AliExpress for the parser.
     [u] = parse_mail(shipped).updates
     assert (u.carrier, u.status) == ("aliexpress", ParcelStatus.IN_TRANSIT)
+
+
+# ----- v0.3.31: what the tester mode still let through -----
+def _tester(tmp_path, *mails: bytes) -> list[EmailMessage]:
+    for index, raw in enumerate(mails, 1):
+        (tmp_path / f"{index}.eml").write_bytes(raw)
+    done = subprocess.run(
+        [sys.executable, str(SCRIPT), str(tmp_path), "--ohne-angaben"],
+        capture_output=True, text=True, stdin=subprocess.DEVNULL,
+    )
+    assert done.returncode == 0, done.stderr
+    assert "Nicht lesbar" not in done.stdout
+    return [
+        email.message_from_bytes(path.read_bytes(), policy=policy.default)
+        for path in sorted((tmp_path / "anonymisiert").glob("*.eml"))
+    ]
+
+
+def _all(msg: EmailMessage) -> str:
+    """Headers and texts, lower case (not the raw mail: its MIME boundary is random)."""
+    bodies = "".join(part.get_content() for part in msg.walk() if not part.is_multipart())
+    headers = "".join(f"{name}: {value}\n" for name, value in msg.items())
+    return (headers + html.unescape(bodies)).lower()
+
+
+def test_tester_mode_invents_the_relay_ids_in_a_quoted_sender_line_too(tmp_path):
+    """Forwarded by hand: the relay address stands in the quoted "Von:" line."""
+    msg = EmailMessage()
+    msg["From"] = "Jörg Probst <jp1987@gmx.de>"
+    msg["To"] = "pakete@postfach.example"
+    msg["Subject"] = f"WG: Bestellung {ORDER_A}: Bestellung versandt"
+    msg["Date"] = "Sat, 14 Mar 2026 09:30:11 +0000"
+    msg.set_content(
+        "-------- Weitergeleitete Nachricht --------\n"
+        f"Von: AliExpress <{RELAY}>\nGesendet: Samstag, 14. März 2026 09:02\n"
+        f"An: Jörg Probst <jp1987@gmx.de>\nBetreff: Bestellung {ORDER_A}: Bestellung versandt\n\n"
+        f"Ihre Bestellung {ORDER_A} wurde versandt.\nSchreiben Sie an {RELAY}.\n"
+    )
+    (written,) = _tester(tmp_path, bytes(msg))
+    dump = _all(written)
+    for secret in ("k7m2x9q4pz", "4f8e1a7c", "jp1987", "probst"):
+        assert secret not in dump, secret
+    text = written.get_body(("plain",)).get_content()
+    assert (
+        "<transaction_at_notice_aliexpress_com_0a1b2c3d4e_0a1b2c3d@privaterelay.appleid.com>"
+    ) in text
+    assert text.count("privaterelay.appleid.com") == 1  # (the one in the text is replaced)
+    # Still told as AliExpress's mail by the importer.
+    [u] = parse_mail(written).updates
+    assert (u.carrier, u.status) == ("aliexpress", ParcelStatus.IN_TRANSIT)
+
+
+def test_tester_mode_replaces_a_long_block_below_versand_nach(tmp_path):
+    """Four and more lines above the line with name and phone number."""
+    raw = _mail(
+        DIRECT,
+        f"Packstück {DHL} hat die Abflugregion verlassen",
+        "Infos zu Ihrem Paket in der Nachricht\nHallo ae4711234,\n"
+        f"Ihr Packstück {DHL} hat den Abflugort verlassen.\nLieferung verfolgen\nPaketinfos\n"
+        "Elektrische Zahnbürste mit Reiseetui...\nx2\n"
+        "Versand nach\nLindenweg, 7\nHinterhof\n3. Etage links\nBeispielhausen\n"
+        "Nordrhein-Westfalen, Beispielland\n54321\nJörg Probst (+49) 015112345678\n"
+        "Die pünktliche Ankunft Ihres Pakets hat für uns höchste Priorität.\n" + FOOTER,
+    )
+    (written,) = _tester(tmp_path, raw)
+    dump = _all(written)
+    for secret in ("lindenweg", "hinterhof", "etage", "beispielhausen", "nordrhein",
+                   "beispielland", "probst", "jörg", "015112345678"):
+        assert secret not in dump, secret
+    # Postcode and phone number: nothing stands between the placeholders and the next line
+    # of the mail (invented digits elsewhere say nothing about short numbers).
+    text = html.unescape(written.get_body(("html",)).get_content())
+    assert (
+        "Versand nach</p>\n<p>Musterstraße 1, Musterstadt</p>\n"
+        "<p>Max Mustermann +49 000 0000000</p>\n<p>Die pünktliche Ankunft Ihres Pakets"
+    ) in text
+
+
+@pytest.mark.parametrize(
+    ("ids", "invented"),
+    [
+        ("k7m2-x9q4pz_4f8e.1a7c", "0a1b2c3d4e5_0a1b2c3d4"),
+        ("k7m2x9q4pz_4f8e1a7c_zz9", "0a1b2c3d4e_0a1b2c3d_0a1"),
+        ("K7M2X9Q4PZ_4F8E1A7C", "0a1b2c3d4e_0a1b2c3d"),
+    ],
+)
+def test_tester_mode_invents_relay_ids_of_any_shape(tmp_path, ids, invented):
+    """Fail closed: whatever follows the sender's domain in a relay address is replaced."""
+    raw = _mail(
+        f"AliExpress <transaction_at_notice_aliexpress_com_{ids}@privaterelay.appleid.com>",
+        f"Bestellung {ORDER_A}: Bestellung versandt",
+        f"Ihre Bestellung {ORDER_A} wurde versandt.\n",
+    )
+    (written,) = _tester(tmp_path, raw)
+    assert str(written["From"]) == (
+        f"AliExpress <transaction_at_notice_aliexpress_com_{invented}@privaterelay.appleid.com>"
+    )
+    dump = _all(written)
+    for part in re.split(r"[_.-]", ids.lower()):
+        if len(part) > 4:
+            assert part not in dump, part

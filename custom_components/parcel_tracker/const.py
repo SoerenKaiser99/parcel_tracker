@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.30"
+VERSION = "0.3.32"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -18,6 +18,8 @@ CONF_IMAP_HOST = "imap_host"
 CONF_IMAP_USER = "imap_user"
 CONF_IMAP_PASSWORD = "imap_password"
 CONF_IMAP_FOLDER = "imap_folder"
+CONF_IMAP_PORT = "imap_port"
+CONF_IMAP_SECURITY = "imap_security"
 CONF_MOVE_PROCESSED = "move_processed"
 CONF_READ_OTP = "read_otp"
 CONF_MAIL_INTERVAL = "mail_interval"
@@ -46,6 +48,18 @@ MIN_KEEP_DELIVERED_DAYS = 1
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30
 DEFAULT_IMAP_HOST = "imap.mailbox.org"
+# The port and the kind of connection of the mail server; entries from before v0.3.32
+# store neither. The kinds are selector option values and so translation keys (lower
+# case): TLS with a checked certificate, TLS without checking it (a self-signed
+# certificate of an own server at home), no TLS at all. STARTTLS is never tried.
+DEFAULT_IMAP_PORT = 993
+MIN_IMAP_PORT = 1
+MAX_IMAP_PORT = 65535
+IMAP_SECURITY_SSL = "ssl"
+IMAP_SECURITY_NOVERIFY = "ssl_noverify"
+IMAP_SECURITY_PLAIN = "plain"
+IMAP_SECURITIES = (IMAP_SECURITY_SSL, IMAP_SECURITY_NOVERIFY, IMAP_SECURITY_PLAIN)
+DEFAULT_IMAP_SECURITY = IMAP_SECURITY_SSL
 DEFAULT_MOVE_PROCESSED = True
 DEFAULT_READ_OTP = False
 DEFAULT_MAIL_INTERVAL = 5
@@ -109,6 +123,17 @@ SHIP_LATER_SHOPS = frozenset({"eventim"})
 # after its last change. A mail that changes the order starts the wait anew.
 ORDER_OVERDUE_DAYS = 3
 ORDER_NO_ETA_DAYS = 14
+# A delivered carrier parcel is folded into an order afterwards (mail.apply.fold_delivered)
+# only if it came around the days the order names: carriers are a day early or late, and a
+# box often comes just before a window starts. Not earlier than FOLD_DAYS_BEFORE days
+# before the first day and not later than FOLD_DAYS_AFTER days after the last one; a box
+# that comes a week before the window is somebody else's.
+FOLD_DAYS_BEFORE = 3
+FOLD_DAYS_AFTER = 3
+# A carrier mail that makes a parcel which is delivered right away is announced if it
+# names a shop or a company - but only if the mail is no older than this: a mail read
+# late tells nothing that came just now.
+NEW_DELIVERY_MAX_AGE = timedelta(hours=24)
 # Polled only while their optional API is configured; otherwise mail-only.
 OPTIONAL_API_CARRIERS = frozenset({"ups"})
 # Carriers a user can pick for a manually added parcel.

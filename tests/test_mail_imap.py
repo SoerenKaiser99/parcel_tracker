@@ -6,12 +6,15 @@ import pytest
 from custom_components.parcel_tracker.const import FOLDER_PROCESSED, FOLDER_UNRECOGNIZED
 from custom_components.parcel_tracker.mail.imap import (
     ImapAuthError,
+    ImapCertificateError,
     ImapFolderNotFound,
+    ImapLoginDisabled,
     ImapUnavailable,
     MailboxClient,
     clean_folder,
     encode_mailbox,
     is_reserved_folder,
+    looks_local,
     quote_mailbox,
 )
 
@@ -479,3 +482,245 @@ def test_folder_name_is_not_part_of_the_error_or_the_log(caplog):
         client.fetch_unseen()
     assert "Geheim" not in str(err.value)
     assert "Geheim" not in caplog.text
+
+
+# ----- v0.3.32: port and connection security -----
+
+
+def _recording(security=None, port=None, error=None, **extra):
+    """A client whose connection is a FakeImap; returns it and the factory's arguments."""
+    FakeImap.instances = []
+    seen: list[tuple] = []
+
+    def factory(*args, **kwargs):
+        seen.append((args, kwargs))
+        if error is not None:
+            raise error
+        return FakeImap(*args, **kwargs)
+
+    if security is not None:
+        extra["security"] = security
+    if port is not None:
+        extra["port"] = port
+    client = MailboxClient("mail.fritz.box", "paket-user", "geheim-pw", factory=factory, **extra)
+    return client, seen
+
+
+def test_defaults_are_tls_with_verification_on_993():
+    client, seen = _recording()
+    assert (client.port, client.security, client.custom_port) == (993, "ssl", False)
+    client.check_login()
+    (args, kwargs), = seen
+    assert args == ("mail.fritz.box", 993)
+    assert kwargs["timeout"] == 30
+    context = kwargs["ssl_context"]
+    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname is True
+
+
+@pytest.mark.parametrize(
+    ("security", "factory"),
+    [(None, imaplib.IMAP4_SSL), ("ssl", imaplib.IMAP4_SSL),
+     ("ssl_noverify", imaplib.IMAP4_SSL), ("plain", imaplib.IMAP4)],
+)
+def test_each_mode_picks_its_imaplib_class(security, factory):
+    extra = {} if security is None else {"security": security}
+    assert MailboxClient("h", "u", "p", **extra)._factory is factory
+
+
+def test_ssl_on_another_port_still_verifies():
+    client, seen = _recording("ssl", 10993)
+    client.fetch_unseen()
+    (args, kwargs), = seen
+    assert args == ("mail.fritz.box", 10993) and client.custom_port is True
+    assert kwargs["ssl_context"].verify_mode == ssl.CERT_REQUIRED
+    assert kwargs["ssl_context"].check_hostname is True
+
+
+def test_noverify_is_tls_without_checking_certificate_or_name():
+    client, seen = _recording("ssl_noverify", 993)
+    client.check_login()
+    (args, kwargs), = seen
+    assert args == ("mail.fritz.box", 993)
+    context = kwargs["ssl_context"]
+    assert isinstance(context, ssl.SSLContext)
+    assert context.verify_mode == ssl.CERT_NONE and context.check_hostname is False
+
+
+def test_noverify_uses_the_context_handed_in():
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    client, seen = _recording("ssl_noverify", ssl_context=context)
+    client.check_login()
+    assert seen[0][1]["ssl_context"] is context
+
+
+def test_plain_gets_no_tls_context_and_never_asks_for_starttls():
+    client, seen = _recording("plain", 143)
+    assert client.fetch_unseen() == []
+    (args, kwargs), = seen
+    assert args == ("mail.fritz.box", 143)
+    assert kwargs == {"timeout": 30}  # the signature of imaplib.IMAP4
+    commands = [call[0] for call in FakeImap.instances[0].calls]
+    assert "starttls" not in commands and commands[0] == "login"
+
+
+def test_plain_keeps_the_port_it_is_given():
+    """Switching to "plain" never changes the port on its own, also not 993."""
+    client, seen = _recording("plain")
+    client.check_login()
+    assert seen[0][0] == ("mail.fritz.box", 993)
+
+
+def test_plain_ignores_a_context_handed_in():
+    client, seen = _recording("plain", 143, ssl_context=ssl.create_default_context())
+    client.check_login()
+    assert "ssl_context" not in seen[0][1]
+
+
+@pytest.mark.parametrize("security", ["", "SSL", "starttls", None, 7])
+def test_an_unknown_mode_is_the_verifying_default(security):
+    client = MailboxClient("h", "u", "p", security=security)
+    assert client.security == "ssl" and client._factory is imaplib.IMAP4_SSL
+
+
+@pytest.mark.parametrize("port", [None, 0, -1, 65536, "abc", 993.5, True])
+def test_an_unusable_port_is_the_default(port):
+    assert MailboxClient("h", "u", "p", port=port).port == 993
+
+
+@pytest.mark.parametrize("port", [1, 143, 65535, 1143.0, "10993"])
+def test_a_stored_port_is_used(port):
+    assert MailboxClient("h", "u", "p", port=port).port == int(port)
+
+
+def test_a_rejected_certificate_is_told_apart(caplog):
+    error = ssl.SSLCertVerificationError(
+        1, "[SSL: CERTIFICATE_VERIFY_FAILED] self-signed certificate for geheim.example"
+    )
+    client, _ = _recording("ssl", error=error)
+    with caplog.at_level("DEBUG"), pytest.raises(ImapCertificateError) as raised:
+        client.check_login()
+    # Still a kind of "unavailable" for callers that do not care.
+    assert isinstance(raised.value, ImapUnavailable)
+    told = str(raised.value) + caplog.text
+    for secret in ("geheim", "paket-user", "self-signed"):
+        assert secret not in told
+
+
+def test_other_tls_errors_stay_plain_unavailable():
+    client, _ = _recording("ssl", error=ssl.SSLError(1, "wrong version number"))
+    with pytest.raises(ImapUnavailable) as raised:
+        client.check_login()
+    assert not isinstance(raised.value, ImapCertificateError)
+
+
+@pytest.mark.parametrize(
+    ("host", "local"),
+    [
+        ("192.168.178.20", True),
+        ("10.0.0.5", True),
+        ("172.16.0.1", True),
+        ("172.31.255.254", True),
+        ("172.32.0.1", False),
+        ("127.0.0.1", True),
+        ("169.254.10.10", True),
+        ("8.8.8.8", False),
+        ("193.99.144.80", False),
+        ("::1", True),
+        ("[::1]", True),
+        ("fd12:3456:789a::1", True),
+        ("[fd12:3456:789a::1]", True),
+        ("fe80::1", True),
+        ("fe80::1%eth0", True),
+        ("::ffff:192.168.1.10", True),
+        ("::ffff:8.8.8.8", False),
+        ("100.64.0.1", True),  # CGNAT, also what Tailscale hands out
+        ("100.127.255.254", True),
+        ("100.128.0.1", False),
+        ("100.63.255.255", False),
+        # One label, but a number: these resolve to 8.8.8.8 and 127.0.0.1.
+        ("134744072", False),
+        ("0x08080808", False),
+        ("0X08080808", False),
+        ("017700000001", False),
+        ("0", False),
+        ("0xcafe", False),
+        ("cafe", True),
+        ("nas2", True),
+        ("2nas", True),
+        ("mail.home", True),
+        ("mail.localdomain", True),
+        ("mail.intranet", True),
+        ("nas.tail1234.ts.net", True),
+        ("mail.homepage.example", False),
+        ("ts.net.example.org", False),
+        ("2a00:1450:4001:81b::200e", False),
+        ("localhost", True),
+        ("nas", True),
+        ("Dovecot", True),
+        ("mail.local", True),
+        ("mail.lan", True),
+        ("mail.home.arpa", True),
+        ("nas.fritz.box", True),
+        ("FRITZ.BOX", True),
+        ("mail.internal", True),
+        ("mail.internal.", True),
+        (" mail.lan ", True),
+        ("imap.mailbox.org", False),
+        ("imap.gmail.com", False),
+        ("mail.example.de", False),
+        ("local.example.org", False),
+        ("notlocal", True),
+        ("mylan.example.com", False),
+        ("", False),
+        (None, False),
+        ("999.1.1.1", False),
+        ("192.168.1", False),
+    ],
+)
+def test_looks_local(host, local):
+    assert looks_local(host) is local
+
+
+# ----- v0.3.32: a server that takes no login without encryption -----
+
+
+def _capable(security, caps, port=143):
+    FakeImap.instances = []
+
+    def factory(*args, **kwargs):
+        kwargs.pop("ssl_context", None)
+        return FakeImap(*args, caps=caps, **kwargs)
+
+    return MailboxClient(
+        "mail.fritz.box", "paket-user", "geheim-pw", factory=factory, port=port, security=security
+    )
+
+
+@pytest.mark.parametrize("caps", [("IMAP4REV1", "LOGINDISABLED"), ("IMAP4rev1", "logindisabled")])
+def test_plain_never_sends_the_login_to_a_server_that_disables_it(caps, caplog):
+    """Dovecot on port 143 by default: the password must not go out in clear text."""
+    client = _capable("plain", caps)
+    with caplog.at_level("DEBUG"), pytest.raises(ImapLoginDisabled) as raised:
+        client.check_login()
+    calls = FakeImap.instances[0].calls
+    assert not [call for call in calls if call[0] == "login"]
+    assert calls == [("logout",)]
+    assert isinstance(raised.value, ImapUnavailable)
+    told = str(raised.value) + caplog.text
+    for secret in ("geheim", "paket-user", "fritz"):
+        assert secret not in told
+
+
+def test_plain_logs_in_where_the_server_allows_it():
+    client = _capable("plain", ("IMAP4REV1", "STARTTLS"))
+    client.check_login()
+    assert ("login", "paket-user") in FakeImap.instances[0].calls
+
+
+@pytest.mark.parametrize("security", ["ssl", "ssl_noverify"])
+def test_over_tls_the_servers_word_about_plain_logins_does_not_matter(security):
+    client = _capable(security, ("IMAP4REV1", "LOGINDISABLED"), port=993)
+    client.check_login()
+    assert ("login", "paket-user") in FakeImap.instances[0].calls

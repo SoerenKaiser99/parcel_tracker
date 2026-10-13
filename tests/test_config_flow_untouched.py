@@ -9,7 +9,7 @@ and dropped user and password; the UPS section had the same flaw.
 from unittest.mock import patch
 
 import pytest
-from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.data_entry_flow import FlowResultType, InvalidData
 from homeassistant.helpers import config_validation as cv
 from probatio import to_field_list
 from pytest_homeassistant_custom_component.common import MockConfigEntry, async_mock_service
@@ -22,6 +22,8 @@ from custom_components.parcel_tracker.const import (
     CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
+    CONF_IMAP_PORT,
+    CONF_IMAP_SECURITY,
     CONF_IMAP_USER,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
@@ -43,7 +45,13 @@ from custom_components.parcel_tracker.const import (
     FOLDER_PROCESSED,
     FOLDER_UNRECOGNIZED,
 )
-from custom_components.parcel_tracker.mail.imap import ImapFolderNotFound, ImapUnavailable
+from custom_components.parcel_tracker.mail.imap import (
+    ImapAuthError,
+    ImapCertificateError,
+    ImapFolderNotFound,
+    ImapLoginDisabled,
+    ImapUnavailable,
+)
 
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 FLOW = "custom_components.parcel_tracker.config_flow."
@@ -609,3 +617,266 @@ async def test_folder_without_a_mail_import_is_stored_unchecked(hass):
     assert seen == []
     assert entry.options[CONF_IMAP_FOLDER] == "Pakete"
     assert entry.options[CONF_IMAP_USER] == ""
+
+
+# ----- v0.3.32: port and kind of connection of the mail server -----
+
+
+def _mail_fields(result) -> list[dict]:
+    return next(f for f in _fields(result) if f["name"] == CONF_MAIL_SECTION)["schema"]
+
+
+def _with_mail(**values):
+    def payload(fields):
+        data = _frontend_initial(fields)
+        data[CONF_MAIL_SECTION] = {**data[CONF_MAIL_SECTION], **values}
+        return data
+
+    return payload
+
+
+def _without_mail(*keys):
+    def payload(fields):
+        data = _frontend_initial(fields)
+        data[CONF_MAIL_SECTION] = {
+            k: v for k, v in data[CONF_MAIL_SECTION].items() if k not in keys
+        }
+        return data
+
+    return payload
+
+
+async def test_untouched_form_of_an_entry_from_before_port_and_security(hass):
+    """An entry saved before v0.3.32 has neither: the form shows 993 and the verifying
+    TLS, and open and save stores nothing new and does not ask the mail server."""
+    entry = _entry(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    fields = {f["name"]: f for f in _mail_fields(result)}
+    names = list(fields)
+    # Right below the server, in front of the login.
+    assert names.index(CONF_IMAP_PORT) == names.index(CONF_IMAP_HOST) + 1
+    assert names.index(CONF_IMAP_SECURITY) == names.index(CONF_IMAP_PORT) + 1
+    assert names.index(CONF_IMAP_USER) == names.index(CONF_IMAP_SECURITY) + 1
+    number = fields[CONF_IMAP_PORT]["selector"]["number"]
+    assert (number["min"], number["max"], number["mode"]) == (1, 65535, "box")
+    select = fields[CONF_IMAP_SECURITY]["selector"]["select"]
+    assert select["options"] == ["ssl", "ssl_noverify", "plain"]
+    assert select["translation_key"] == "imap_security"
+    initial = _frontend_initial(_fields(result))[CONF_MAIL_SECTION]
+    assert (initial[CONF_IMAP_PORT], initial[CONF_IMAP_SECURITY]) == (993, "ssl")
+    for payload in (_frontend_initial, _defaults_only):
+        result, checks = await _save(hass, entry, payload)
+        assert result["type"] is FlowResultType.CREATE_ENTRY
+        for check in checks:
+            check.assert_not_called()
+        assert entry.data == DATA
+        assert CONF_IMAP_PORT not in entry.options
+        assert CONF_IMAP_SECURITY not in entry.options
+    assert {**entry.options, CONF_POSTCODE: "20095"} == OPTIONS
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        {},
+        {CONF_IMAP_PORT: 993, CONF_IMAP_SECURITY: "ssl"},
+        {CONF_IMAP_PORT: 143, CONF_IMAP_SECURITY: "plain"},
+        {CONF_IMAP_PORT: 10993},
+        {CONF_IMAP_SECURITY: "ssl_noverify"},
+    ],
+    ids=["none", "defaults", "plain-143", "port-only", "noverify-only"],
+)
+@pytest.mark.parametrize(
+    "payload",
+    [
+        _frontend_initial,
+        _defaults_only,
+        _without_mail(CONF_IMAP_PORT, CONF_IMAP_SECURITY),
+        lambda fields: {CONF_KEEP_DELIVERED_DAYS: 7, CONF_POSTCODE: "20095"},
+    ],
+    ids=["untouched", "defaults-only", "missing", "no-sections"],
+)
+async def test_untouched_or_missing_port_and_security_keep_what_is_stored(hass, stored, payload):
+    options = {**OPTIONS, **stored}
+    entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION]
+    assert shown[CONF_IMAP_PORT] == stored.get(CONF_IMAP_PORT, 993)
+    assert shown[CONF_IMAP_SECURITY] == stored.get(CONF_IMAP_SECURITY, "ssl")
+    result, checks = await _save(hass, entry, payload)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.data == DATA
+    assert {**entry.options, CONF_POSTCODE: "20095"} == options
+
+
+async def _save_mail(hass, entry, payload, check=None):
+    """Submit the form; returns the result and (port, security) of every login check."""
+    seen: list[tuple] = []
+
+    def check_login(client):
+        seen.append((client.port, client.security))
+        if check is not None:
+            raise check
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with (
+        patch(CHECKS["imap"], autospec=True, side_effect=check_login),
+        patch(CHECKS["ups"], side_effect=AssertionError),
+        patch(SETUP, return_value=True),
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], payload(_fields(result))
+        )
+        await hass.async_block_till_done()
+    return result, seen
+
+
+async def test_changed_port_runs_the_login_check_and_is_stored(hass):
+    entry = _entry(hass)
+    # (the number selector hands in a float)
+    result, seen = await _save_mail(hass, entry, _with_mail(**{CONF_IMAP_PORT: 10993.0}))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert seen == [(10993, "ssl")]
+    assert entry.options == {**OPTIONS, CONF_IMAP_PORT: 10993}
+    assert type(entry.options[CONF_IMAP_PORT]) is int
+    assert entry.data == DATA
+
+
+@pytest.mark.parametrize("security", ["ssl_noverify", "plain"])
+async def test_changed_security_runs_the_login_check_and_is_stored(hass, security):
+    entry = _entry(hass)
+    result, seen = await _save_mail(hass, entry, _with_mail(**{CONF_IMAP_SECURITY: security}))
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    # The port stays what the form held, also 993 for "plain": never changed silently.
+    assert seen == [(993, security)]
+    assert entry.options == {**OPTIONS, CONF_IMAP_SECURITY: security}
+
+
+async def test_the_login_check_uses_a_context_that_fits_the_mode(hass):
+    """Handed in from outside, so none is ever built in the event loop."""
+    import ssl
+
+    contexts: dict = {}
+
+    def check_login(client):
+        contexts[client.security] = client._ssl_context
+
+    for security in ("ssl_noverify", "plain", "ssl"):
+        entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(OPTIONS))
+        if security == "ssl":
+            entry = MockConfigEntry(
+                domain=DOMAIN, data=dict(DATA), options={**OPTIONS, CONF_IMAP_SECURITY: "plain"}
+            )
+        entry.add_to_hass(hass)
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        with (
+            patch(CHECKS["imap"], autospec=True, side_effect=check_login),
+            patch(SETUP, return_value=True),
+        ):
+            await hass.config_entries.options.async_configure(
+                result["flow_id"], _with_mail(**{CONF_IMAP_SECURITY: security})(_fields(result))
+            )
+            await hass.async_block_till_done()
+        await hass.config_entries.async_remove(entry.entry_id)
+    assert contexts["plain"] is None
+    assert contexts["ssl"].verify_mode == ssl.CERT_REQUIRED
+    assert contexts["ssl"].check_hostname is True
+    assert contexts["ssl_noverify"].verify_mode == ssl.CERT_NONE
+    assert contexts["ssl_noverify"].check_hostname is False
+
+
+async def test_back_to_the_defaults_is_checked_and_stored(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=dict(DATA),
+        options={**OPTIONS, CONF_IMAP_PORT: 143, CONF_IMAP_SECURITY: "plain"},
+    )
+    entry.add_to_hass(hass)
+    result, seen = await _save_mail(
+        hass, entry, _with_mail(**{CONF_IMAP_PORT: 993, CONF_IMAP_SECURITY: "ssl"})
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert seen == [(993, "ssl")]
+    assert entry.options == {**OPTIONS, CONF_IMAP_PORT: 993, CONF_IMAP_SECURITY: "ssl"}
+
+
+@pytest.mark.parametrize(
+    ("error", "code"),
+    [
+        (ImapCertificateError("certificate rejected"), "imap_certificate"),
+        (ImapLoginDisabled("login disabled"), "imap_login_disabled"),
+        (ImapUnavailable("down"), "imap_cannot_connect"),
+        (ImapAuthError("login rejected"), "imap_auth"),
+        (ImapFolderNotFound("select rejected"), "folder_not_found"),
+    ],
+)
+async def test_a_failed_check_of_new_connection_settings_stores_nothing(hass, error, code):
+    entry = _entry(hass)
+    payload = _with_mail(**{CONF_IMAP_PORT: 143, CONF_IMAP_SECURITY: "plain"})
+    result, seen = await _save_mail(hass, entry, payload, error)
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"base": code}
+    assert seen == [(143, "plain")]
+    assert entry.options == OPTIONS and entry.data == DATA
+    # The form comes back with what was chosen.
+    shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION]
+    assert (shown[CONF_IMAP_PORT], shown[CONF_IMAP_SECURITY]) == (143, "plain")
+
+
+async def test_a_rejected_certificate_has_its_own_error_for_a_changed_host(hass):
+    """What the user with a local dovecot saw as "not reachable"."""
+    entry = _entry(hass)
+    result, seen = await _save_mail(
+        hass,
+        entry,
+        _with_mail(**{CONF_IMAP_HOST: "dovecot.fritz.box"}),
+        ImapCertificateError("certificate rejected"),
+    )
+    assert result["errors"] == {"base": "imap_certificate"}
+    assert seen == [(993, "ssl")]
+    assert entry.options == OPTIONS
+
+
+@pytest.mark.parametrize("port", [0, 65536, -1, 70000])
+async def test_a_port_out_of_range_is_refused_by_the_form(hass, port):
+    entry = _entry(hass)
+    with pytest.raises(InvalidData):
+        await _save_mail(hass, entry, _with_mail(**{CONF_IMAP_PORT: port}))
+    assert entry.options == OPTIONS
+
+
+async def test_an_unknown_security_is_refused_by_the_form(hass):
+    entry = _entry(hass)
+    with pytest.raises(InvalidData):
+        await _save_mail(hass, entry, _with_mail(**{CONF_IMAP_SECURITY: "starttls"}))
+    assert entry.options == OPTIONS
+
+
+async def test_port_and_security_without_a_mail_import_are_stored_unchecked(hass):
+    options = {k: v for k, v in OPTIONS.items() if k != CONF_IMAP_USER}
+    data = {k: v for k, v in DATA.items() if k != CONF_IMAP_PASSWORD}
+    entry = MockConfigEntry(domain=DOMAIN, data=data, options=options)
+    entry.add_to_hass(hass)
+    payload = _with_mail(**{CONF_IMAP_PORT: 143, CONF_IMAP_SECURITY: "plain"})
+    result, seen = await _save_mail(hass, entry, payload)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert seen == []
+    assert (entry.options[CONF_IMAP_PORT], entry.options[CONF_IMAP_SECURITY]) == (143, "plain")
+
+
+async def test_a_stored_port_nobody_can_use_is_shown_as_the_default_and_kept(hass):
+    """Options edited by hand: the form still opens and an untouched save keeps them."""
+    options = {**OPTIONS, CONF_IMAP_PORT: 0, CONF_IMAP_SECURITY: "tls13"}
+    entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION]
+    assert (shown[CONF_IMAP_PORT], shown[CONF_IMAP_SECURITY]) == (993, "ssl")
+    result, checks = await _save(hass, entry, _frontend_initial)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    for check in checks:
+        check.assert_not_called()
+    assert entry.options == options

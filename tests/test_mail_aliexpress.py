@@ -73,11 +73,12 @@ RELAY = f"transaction_at_notice_aliexpress_com_{RELAY_IDS}@privaterelay.appleid.
 LINK = "https://www.aliexpress.com/p/tracking/index.html?_login=yes&tradeOrderId="
 
 
-def _msg(subject: str, body: str = "", sender_: str = ALIEXPRESS_SENDER, html: str | None = None):
+def _msg(subject: str, body: str = "", sender_: str = ALIEXPRESS_SENDER, html: str | None = None,
+         when: str = "Wed, 07 Oct 2026 08:00:00 +0200"):
     msg = EmailMessage(policy=policy.default)
     msg["From"] = f"AliExpress <{sender_}>"
     msg["Subject"] = subject
-    msg["Date"] = "Wed, 07 Oct 2026 08:00:00 +0200"
+    msg["Date"] = when
     if html is None:
         msg.set_content(body or "Hallo Max Mustermann,\n")
     else:
@@ -147,9 +148,10 @@ def test_wird_zugestellt_is_only_the_handover_to_the_carrier():
     assert (u.status, u.status_text) == (ParcelStatus.IN_TRANSIT, HANDED_OVER_TEXT)
 
 
-def test_wird_zugestellt_without_that_sentence_is_out_for_delivery():
+def test_wird_zugestellt_without_that_sentence_is_on_its_way_too():
+    """No mail seen so far tells the last mile under this subject (v0.3.31)."""
     [u] = parse_mail(_msg("Bestellung 9999999999990901: Wird zugestellt")).updates
-    assert (u.status, u.status_text) == (ParcelStatus.OUT_FOR_DELIVERY, None)
+    assert (u.status, u.status_text) == (ParcelStatus.IN_TRANSIT, None)
 
 
 def test_in_transit_and_arrived_keep_the_words_of_aliexpress():
@@ -232,7 +234,9 @@ def test_confirmed_delivery_closes_the_order():
     u = _one(DELIVERY_CONFIRMED)
     assert (u.number, u.status) == ("ALI9999999999990021", ParcelStatus.DELIVERED)
     assert (u.status_text, u.confirmation) == (CONFIRMED_TEXT, True)
-    assert u.delivered_at == datetime(2023, 12, 23, 17, 4, 11, tzinfo=BERLIN)
+    # AliExpress's word, days later: the mail tells no time of delivery (v0.3.31).
+    assert u.delivered_at is None
+    assert u.sent_at == datetime(2023, 12, 23, 17, 4, 11, tzinfo=BERLIN)
     assert u.title == "Beispiel-Schalter kabello…"
 
 
@@ -442,7 +446,10 @@ def test_forwarded_by_hand_is_read_like_the_original():
 def test_order_is_created_and_moves_forward_with_its_own_words():
     parcels: dict = {}
     order = "ALI9999999999990005"
-    [created] = _apply(parcels, _msg("Bestellung 9999999999990005: Bestellbestätigung"))
+    # (sent before the two mails of the fixtures: only a newer mail brings new words)
+    first = _msg("Bestellung 9999999999990005: Bestellbestätigung",
+                 when="Mon, 01 Apr 2024 08:00:00 +0200")
+    [created] = _apply(parcels, first)
     assert created.created and list(parcels) == [order]
     parcel = parcels[order]
     assert (parcel.carrier, parcel.carrier_mode, parcel.status) == (
@@ -519,7 +526,8 @@ def test_mail_with_another_item_is_never_a_further_shipment():
 def test_parcel_mail_attaches_the_number_to_the_order_instead_of_a_second_parcel():
     parcels: dict = {}
     order = "ALI9999999999990011"
-    _apply(parcels, _msg("Bestellung 9999999999990011: Bestellung versandt"))
+    _apply(parcels, _msg("Bestellung 9999999999990011: Bestellung versandt",
+                         when="Mon, 14 Jul 2025 08:00:00 +0000"))
     parcels[order].next_poll_at = NOW + timedelta(hours=1)
     [change] = _apply(parcels, PARCEL_DHL)
     assert list(parcels) == [order] and not change.created
@@ -617,7 +625,11 @@ def test_confirmed_delivery_closes_an_open_order():
     [parcel] = parcels.values()
     assert (change.old_status, parcel.status) == (ParcelStatus.IN_TRANSIT, ParcelStatus.DELIVERED)
     assert parcel.result.status_text == CONFIRMED_TEXT
-    assert parcel.result.delivered_at == datetime(2023, 12, 23, 17, 4, 11, tzinfo=BERLIN)
+    # Closed on AliExpress's word: assumed, without a time of delivery (v0.3.31).
+    assert parcel.assumed_delivered is True and parcel.result.delivered_at is None
+    assert parcel.result.events[0] == TrackingEvent(
+        datetime(2023, 12, 23, 17, 4, 11, tzinfo=BERLIN), CONFIRMED_TEXT, None
+    )
 
 
 def test_late_confirmation_leaves_a_real_delivery_as_it_is():
@@ -635,15 +647,20 @@ def test_late_confirmation_leaves_a_real_delivery_as_it_is():
     assert parcel.result.to_dict() == before
 
 
-def test_confirmation_makes_an_assumed_delivery_a_real_one():
+def test_confirmation_gives_an_assumed_delivery_its_words_only():
+    """Still nobody saw it arrive (v0.3.31): the order stays closed as assumed."""
     parcels: dict = {}
-    _apply(parcels, _msg("Bestellung 9999999999990021: Bestellung versandt"))
+    sent = datetime(2023, 12, 1, 8, 0, tzinfo=UTC)
+    _apply(parcels, _msg("Bestellung 9999999999990021: Bestellung versandt",
+                         when="Fri, 01 Dec 2023 08:00:00 +0000"), sent)
     [parcel] = parcels.values()
-    close_unconfirmed(parcel, NOW)
+    closed = datetime(2023, 12, 20, 8, 0, tzinfo=UTC)  # three days before the confirmation
+    close_unconfirmed(parcel, closed)
     assert parcel.assumed_delivered and parcel.result.status_text == ASSUMED_TEXT
     [change] = _apply(parcels, DELIVERY_CONFIRMED)
-    assert change is not None and not parcel.assumed_delivered
+    assert change is not None and parcel.assumed_delivered
     assert parcel.result.status_text == CONFIRMED_TEXT
+    assert parcel.result.delivered_at is None and parcel.last_change_at == closed
 
 
 def test_ignored_mails_change_nothing():

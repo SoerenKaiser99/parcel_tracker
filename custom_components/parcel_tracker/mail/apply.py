@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime, time, timedelta
 
 from ..carriers.gls import gls_number
 from ..carriers.track17 import strip_enrichment, with_track17
-from ..const import MAX_EVENTS, OPTIONAL_API_CARRIERS, SHOP_CARRIERS, SINGLE_PARCEL_SHOPS
+from ..const import (
+    CARRIER_NAMES,
+    FOLD_DAYS_AFTER,
+    FOLD_DAYS_BEFORE,
+    MAX_EVENTS,
+    NEW_DELIVERY_MAX_AGE,
+    OPTIONAL_API_CARRIERS,
+    ORDER_OVERDUE_DAYS,
+    SHOP_CARRIERS,
+    SINGLE_PARCEL_SHOPS,
+)
 from ..models import (
     NO_ETA_STATUSES,
     PROGRESS_STEP,
@@ -17,6 +27,7 @@ from ..models import (
     TrackingEvent,
     TrackingResult,
 )
+from .amazon import ATTEMPT_TEXT
 from .base import (
     MailUpdate,
     brand_of,
@@ -30,6 +41,9 @@ from .base import (
 _DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
 # A postponed delivery (MailUpdate.postponed) never takes these back.
 _ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
+# Words a shop's mail about a postponed delivery brings. They tell one moment: a later
+# mail that only repeats the status does not keep them (see ``_forward``).
+_POSTPONED_TEXTS = frozenset({ATTEMPT_TEXT})
 
 SHOP_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Bestellt",
@@ -58,10 +72,98 @@ class Change:
     parcel: Parcel
     old_status: ParcelStatus | None
     created: bool
+    # The order took in a carrier's parcel that was delivered already and whose delivery
+    # waits for no announcement: the box's delivery is told. The order's change is its
+    # own event, but no notification (see the coordinator's ``_mail_changed``).
+    told: bool = False
+    # A carrier mail made this parcel, delivered right away, and it is news all the same
+    # (see ``_apply_tracking``): the coordinator announces it once as delivered.
+    announce: bool = False
 
 
 def _step(status: ParcelStatus | None) -> int:
     return PROGRESS_STEP.get(status, 0) if status else 0
+
+
+def _newest(events: list[TrackingEvent]) -> datetime | None:
+    """The time of the newest line of a history (lines without a time zone do not count:
+    they cannot be compared with a mail's time)."""
+    times = [e.timestamp for e in events if e.timestamp and e.timestamp.tzinfo is not None]
+    return max(times, default=None)
+
+
+def _known_before(parcel: Parcel) -> datetime:
+    """The time of the newest thing known about an order when it was closed on its own:
+    its newest history line that is not the closing itself, or the newest mail that told
+    its status (``Parcel.last_mail_at``: a mail that only repeats a status leaves no
+    line), whichever is later. Without either: the time the order was made.
+
+    A mail tells news about a closed order if it was sent after that, whenever it is
+    read. Not the time of the closing: after a pause the closing comes first and the
+    mails that waited are read afterwards, and they are news all the same.
+    """
+    result = parcel.result
+    closing = (ASSUMED_TEXT, result.status_text)
+    line = _newest([e for e in result.events if e.text not in closing])
+    mail = parcel.last_mail_at
+    if mail is not None and mail.tzinfo is None:
+        mail = None  # (cannot be compared with a mail's time)
+    if line is not None and mail is not None:
+        return max(line, mail)
+    return line or mail or parcel.added_at
+
+
+def closed_at(parcel: Parcel) -> datetime:
+    """When an order was closed on its own: the time of its closing line in the history
+    (for the shop's confirmation the time of that mail), else of its last change.
+
+    What a carrier tells about a closed order is news if it is dated after that.
+    """
+    result = parcel.result
+    closing = (ASSUMED_TEXT, result.status_text)
+    return _newest([e for e in result.events if e.text in closing]) or parcel.last_change_at
+
+
+def tells_newer(parcel: Parcel, events: list[TrackingEvent]) -> bool:
+    """Does a carrier's history hold a line dated after an order was closed on its own?
+
+    A line that names only a day (00:00, as DPD dates them) counts if it is of the day
+    of the closing: it may well have been written after it. Lines without a time zone
+    cannot be compared and do not count.
+    """
+    closed = closed_at(parcel)
+    for event in events:
+        at = event.timestamp
+        if at is None or at.tzinfo is None:
+            continue
+        if at > closed:
+            return True
+        if at.timetz().replace(tzinfo=None) == time(0) and (
+            at.date() == closed.astimezone(at.tzinfo).date()
+        ):
+            return True
+    return False
+
+
+def _delivery_told(parcel: Parcel) -> bool:
+    """Was the delivery of a delivered carrier parcel announced (``delivery_announced``)?
+
+    A parcel stored by an older version has no mark: it counts as announced if its
+    history shows it had a status before (more than one line), since a change to
+    "delivered" is always told. With a single line "delivered" was its first status,
+    which nobody is told about.
+    """
+    if parcel.delivery_announced is not None:
+        return parcel.delivery_announced
+    return parcel.result is not None and len(parcel.result.events) > 1
+
+
+def _remember_mail(parcel: Parcel, update: MailUpdate) -> None:
+    """Keep the time of the newest mail that told a shop order's status."""
+    if parcel.carrier not in SHOP_CARRIERS:
+        return
+    if parcel.last_mail_at is None or update.sent_at > parcel.last_mail_at:
+        parcel.last_mail_at = update.sent_at
 
 
 def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
@@ -79,32 +181,55 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     # An order closed without a delivery mail is not delivered for sure: whatever a mail
     # tells afterwards holds, the real delivery as well as a new day or "in Zustellung".
     assumed = parcel.assumed_delivered
+    if update.confirmation:
+        return _confirm(parcel, update, now)
+    # "Afterwards" is meant by the mail's own time: one that is older than what was
+    # known when the order was closed (``_known_before``) and is read late tells nothing
+    # new. Only the real delivery still counts then: it says for sure that, and when,
+    # the order came.
+    late = (
+        assumed
+        and update.status is not ParcelStatus.DELIVERED
+        and update.sent_at <= _known_before(parcel)
+    )
     # A postponed delivery is a step back the carrier itself tells; what has arrived stays.
     postponed = update.postponed and parcel.status not in _ARRIVED
-    # A delivery the shop confirms days later is no news for what was delivered for real.
-    known = update.confirmation and parcel.status is ParcelStatus.DELIVERED and not assumed
     # "Backwards" is measured against what is shown, also if that is 17track's status.
     if (
         update.status is not None
-        and not known
+        and not late
         and (assumed or postponed or _step(update.status) >= _step(parcel.status))
     ):
+        # (after ``late`` was told: this mail is not measured against itself)
+        _remember_mail(parcel, update)
         parcel.assumed_delivered = False
         texts = SHOP_TEXT if parcel.carrier in SHOP_CARRIERS else CARRIER_TEXT
         text = update.status_text or texts.get(update.status, update.status.value)
-        if (
-            update.status_text is None
+        same = old is not None and old.status is update.status and not assumed
+        newest = _newest(old.events) if same else None
+        # A mail read late (it is older than the newest line of the history) that brings
+        # no new status tells nothing the history does not know: words and history stay.
+        stale = newest is not None and update.sent_at < newest
+        own_words = False
+        if stale:
+            text = old.status_text
+        elif update.status_text is not None:
+            own_words = same and old.status_text != text
+        elif (
+            same
             and parcel.carrier in SHOP_CARRIERS
-            and old is not None
-            and old.status is update.status
             and old.status_text
-            and not assumed
+            and old.status_text in _POSTPONED_TEXTS
+            and not update.postponed
         ):
+            # "Zustellung versucht" told one moment: the next mail of the same status is
+            # the plain status again, with a line of its own in the history.
+            own_words = True
+        elif same and parcel.carrier in SHOP_CARRIERS and old.status_text:
             # A shop mail that only repeats the status ("Neuer Lieferstatus") keeps the
             # words an earlier mail or the carrier gave it ("Im Zielland angekommen").
             text = old.status_text
         events = list(old.events) if old else []
-        own_words = update.status_text is not None and old is not None and old.status_text != text
         if old is None or old.status is not update.status or assumed or own_words:
             events.insert(0, TrackingEvent(update.sent_at, text, None))
         if update.eta_date:
@@ -145,6 +270,41 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     return changed
 
 
+def _confirm(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
+    """The shop confirms the delivery days afterwards (``MailUpdate.confirmation``).
+
+    That is the shop's word, not an arrival anybody saw, and it comes days late. So:
+
+    - An order that is delivered for real keeps its time of delivery and its history.
+    - An order with a carrier number whose result changed in the last ORDER_OVERDUE_DAYS
+      days is left to the carrier: it tells the delivery itself, with its time. Once
+      nothing new came for longer (the carrier never knew the number, or never says
+      "delivered"), the shop's word is the best there is.
+    - Any other open order is closed like one without a delivery mail: delivered, but
+      only assumed (``close_unconfirmed``), with the shop's words. Nothing is pushed, and
+      it never counts as delivered today.
+    - An order that was closed on its own already stays what it is: without a time of
+      delivery, and the days it is kept go on counting from the closing. Only the words
+      change. Nothing for a confirmation older than what was known at the closing
+      (``_known_before``), or one whose words the order shows already.
+    """
+    result = parcel.result
+    text = update.status_text or SHOP_TEXT[ParcelStatus.DELIVERED]
+    if parcel.assumed_delivered:
+        if result.status_text == text or update.sent_at <= _known_before(parcel):
+            return False
+        events = [TrackingEvent(update.sent_at, text, None), *result.events]
+        parcel.result = replace(result, status_text=text, events=events[:MAX_EVENTS])
+        return True
+    if parcel.status is ParcelStatus.DELIVERED:
+        return False
+    fresh = now - parcel.last_change_at <= timedelta(days=ORDER_OVERDUE_DAYS)
+    if parcel.tracking_ref is not None and fresh:
+        return False
+    close_unconfirmed(parcel, now, text, update.sent_at)
+    return True
+
+
 def _order_parcels(parcels: dict[str, Parcel], carrier: str, number: str) -> list[Parcel]:
     siblings = [
         p
@@ -154,10 +314,26 @@ def _order_parcels(parcels: dict[str, Parcel], carrier: str, number: str) -> lis
     return sorted(siblings, key=lambda p: (len(p.number), p.number))
 
 
-def _take_shop_facts(parcel: Parcel, update: MailUpdate) -> bool:
-    """Carrier hint and carrier number a shop mail names; True if something changed.
+def _take_shop_facts(
+    parcels: dict[str, Parcel], parcel: Parcel, update: MailUpdate, now: datetime
+) -> bool:
+    """Carrier hint and carrier number a shop mail names; True if the order changed.
 
     Nothing for an order the user marked as received: nobody is asked about it any more.
+
+    The number is the order's from now on, unless it is tracked on its own already:
+
+    - as a parcel a carrier's mail made: that parcel is folded into the order right here
+      (``_fold``), so one entry is left and the carrier is asked once. The order keeps
+      what only it knew (``_joined``), and its status change, if this is one, is the
+      order's own news: the caller tells it;
+    - as a parcel the user added by hand, or marked as received: the user's own entry
+      wins. It stays as it is and the order does NOT take the number, so the carrier is
+      not asked a second time about the same box.
+
+    An order that has a number already keeps it. A second, different number of an order
+    that is always one entry (SINGLE_PARCEL_SHOPS: AliExpress sends an order in several
+    boxes) becomes a carrier's parcel of its own, see ``_further_parcel``.
     """
     if parcel.manual_delivered:
         return False
@@ -166,12 +342,53 @@ def _take_shop_facts(parcel: Parcel, update: MailUpdate) -> bool:
     if hint and parcel.shipping_carrier_hint != hint:
         parcel.shipping_carrier_hint = hint
         changed = True
-    if update.tracking_ref and parcel.tracking_ref is None:
-        parcel.tracking_ref = update.tracking_ref
-        parcel.tracking_carrier = update.tracking_carrier
-        parcel.next_poll_at = None
-        changed = True
+    number = update.tracking_ref
+    if not number:
+        return changed
+    if parcel.tracking_ref is None:
+        own = parcels.get(number)
+        if own is None or own is parcel:
+            parcel.tracking_ref = number
+            parcel.tracking_carrier = update.tracking_carrier
+            parcel.next_poll_at = None
+            changed = True
+        elif (
+            own.carrier not in SHOP_CARRIERS
+            and own.carrier_mode == "mail"
+            and own.tracking_ref is None
+            and not own.manual_delivered
+        ):
+            _fold(parcels, own, parcel, keep=True)
+            changed = True
+    elif parcel.tracking_ref != number and parcel.carrier in SINGLE_PARCEL_SHOPS:
+        _further_parcel(parcels, parcel, update, now)
     return changed
+
+
+def _further_parcel(
+    parcels: dict[str, Parcel], order: Parcel, update: MailUpdate, now: datetime
+) -> None:
+    """The second box of an order that has a carrier number already: a parcel of its own.
+
+    Named after the shop only ("AliExpress-Sendung": which items are in it is not told),
+    with the status of the mail. It belongs to this order, so it is never folded into
+    another one (``Parcel.order_checked``). Nothing if the number is tracked already,
+    on its own or by another order, or if no carrier of ours has such a number.
+    """
+    number, carrier = update.tracking_ref, update.tracking_carrier
+    if (
+        not carrier
+        or carrier in SHOP_CARRIERS
+        or number in parcels
+        or any(p.tracking_ref == number for p in parcels.values())
+    ):
+        return
+    name = f"{CARRIER_NAMES[order.carrier]}-Sendung"
+    extra = Parcel(number, carrier, "mail", name, now, now, order_checked=True)
+    parcels[number] = extra
+    status = update.status if _step(update.status) < _step(ParcelStatus.DELIVERED) else None
+    words = MailUpdate(number, carrier, status, update.sent_at, status_text=update.status_text)
+    _forward(extra, words, now)
 
 
 def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
@@ -200,18 +417,31 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
         name = update.title if count == 1 or not update.title else f"{update.title} ({count})"
         target = Parcel(number, update.carrier, "mail", name, now, now, mail_title=update.title)
         parcels[number] = target
-        _take_shop_facts(target, update)
+        _take_shop_facts(parcels, target, update, now)
         _forward(target, update, now)
         return Change(target, None, True)
     if target.mail_title is None and update.title:
         target.mail_title = update.title
         target.name = target.name or update.title
     old = target.status
-    facts = _take_shop_facts(target, update)
+    own = parcels.get(update.tracking_ref) if update.tracking_ref else None
+    facts = _take_shop_facts(parcels, target, update, now)
+    # A carrier's parcel of that number was folded into the order just now. If it was
+    # delivered, its delivery was announced (``_delivery_told``) and nothing about it
+    # waits to be announced, the box's delivery is told: known from what is stored, so
+    # it holds after a restart as well. A delivery nobody heard of is the order's news.
+    told = (
+        own is not None
+        and own is not target
+        and update.tracking_ref not in parcels
+        and own.status is ParcelStatus.DELIVERED
+        and own.unannounced_from is None
+        and _delivery_told(own)
+    )
     forwarded = _forward(target, update, now)
     if facts and not forwarded:
         target.last_change_at = now
-    return Change(target, old, False) if facts or forwarded else None
+    return Change(target, old, False, told) if facts or forwarded else None
 
 
 def _in_window(parcel: Parcel, day) -> bool:
@@ -219,6 +449,17 @@ def _in_window(parcel: Parcel, day) -> bool:
     if result is None or result.eta_date is None:
         return False
     return result.eta_date <= day <= (result.eta_latest or result.eta_date)
+
+
+def _near_window(parcel: Parcel, day: date) -> bool:
+    """True if ``day`` lies in the order's day or window or a few days around it
+    (FOLD_DAYS_BEFORE, FOLD_DAYS_AFTER)."""
+    result = parcel.result
+    if result is None or result.eta_date is None:
+        return False
+    first = result.eta_date - timedelta(days=FOLD_DAYS_BEFORE)
+    last = (result.eta_latest or result.eta_date) + timedelta(days=FOLD_DAYS_AFTER)
+    return first <= day <= last
 
 
 def _hint_key(parcel: Parcel) -> str | None:
@@ -275,13 +516,22 @@ def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
     return order if order.status is ParcelStatus.IN_TRANSIT else None
 
 
-def _merge_candidate(parcels: dict[str, Parcel], update: MailUpdate) -> Parcel | None:
+def _merge_candidate(
+    parcels: dict[str, Parcel], update: MailUpdate, delivered: date | None = None
+) -> Parcel | None:
     """The one open shop order a carrier mail belongs to, if unambiguous.
 
     The order qualifies when the carrier mail names its shop or the shop mail named
     this carrier; the day must match the order's day or window (without a day: the
     order must be in transit). A mail that names another company than the shop (the
     brand that sells at Amazon) may still belong to an order: see ``_brand_candidate``.
+
+    ``delivered`` is the day a parcel was delivered: one that is matched afterwards (see
+    ``fold_delivered``), or the day of a "zugestellt" mail about a number nobody knows
+    yet (see ``_apply_tracking``). The order must be in transit, and if it names a day or
+    window, that day must lie in or close to it (``_near_window``: carriers are a day
+    early or late). An order for quite other days waits for another box, whoever carries
+    it.
     """
     orders = [
         p
@@ -293,7 +543,14 @@ def _merge_candidate(parcels: dict[str, Parcel], update: MailUpdate) -> Parcel |
     open_orders = [
         p for p in orders if p.carrier == update.shop or _hint_key(p) == update.carrier
     ]
-    if update.eta_date:
+    if delivered:
+        matches = [
+            p
+            for p in open_orders
+            if p.status is ParcelStatus.IN_TRANSIT
+            and (p.result.eta_date is None or _near_window(p, delivered))
+        ]
+    elif update.eta_date:
         matches = [p for p in open_orders if _in_window(p, update.eta_date)]
     else:
         matches = [p for p in open_orders if p.status is ParcelStatus.IN_TRANSIT]
@@ -318,7 +575,7 @@ def _apply_orderless(
 
 
 def fold_delivered(
-    parcels: dict[str, Parcel], parcel: Parcel, delivered: datetime
+    parcels: dict[str, Parcel], parcel: Parcel, delivered: datetime, announced: bool = True
 ) -> Parcel | None:
     """Close the one open shop order a delivered carrier parcel belongs to; None if none.
 
@@ -330,10 +587,17 @@ def fold_delivered(
     merged right away: it carries the carrier's number and result, and the parcel of its
     own is dropped from ``parcels``. Never for a parcel somebody added by hand, and never
     into an order a mail changed after the delivery (it was shipped or ordered later, so
-    it is another box).
+    it is another box). The day of the delivery must lie in or close to the days the
+    order names, if it names any (see ``_merge_candidate``).
+
+    Never for a parcel marked as received by hand either: that is the user's word about
+    this one entry at the moment of the tap, not a delivery anybody saw, so it closes
+    no order.
 
     The delivery is announced once: if the parcel's own announcement is still waiting,
-    the order takes it over; otherwise the order is closed without one.
+    or was never made (``announced`` False: the parcel had no status before it was
+    delivered, and a first status is no news), the order takes it over; otherwise the
+    order is closed without one. A name the user typed in on the parcel goes along.
     """
     if (
         parcel.carrier is None
@@ -341,6 +605,7 @@ def fold_delivered(
         or parcel.carrier_mode != "mail"
         or parcel.tracking_ref is not None
         or parcel.status is not ParcelStatus.DELIVERED
+        or parcel.manual_delivered
         or parcels.get(parcel.number) is not parcel
     ):
         return None
@@ -353,17 +618,63 @@ def fold_delivered(
         title=name,
         shop=shop_of(name) if name else None,
     )
-    order = _merge_candidate(parcels, update)
+    order = _merge_candidate(parcels, update, delivered.date())
     if order is None or order.last_change_at > delivered:
         return None
-    waiting = parcel.unannounced_from not in (None, ParcelStatus.DELIVERED)
+    waiting = not announced or parcel.unannounced_from not in (None, ParcelStatus.DELIVERED)
     order.unannounced_from = (order.unannounced_from or order.status) if waiting else None
+    _fold(parcels, parcel, order)
+    return order
+
+
+def _joined(ours: TrackingResult | None, theirs: TrackingResult | None) -> TrackingResult | None:
+    """The carrier's result (``theirs``) for an order that had a result of its own.
+
+    The carrier's values hold. The order keeps what only it knew: its day or window if
+    the carrier names none (and the parcel is still on its way), and its history lines,
+    put together with the carrier's, newest first. A parcel nobody told anything about
+    yet takes nothing away from the order.
+    """
+    if theirs is None or ours is None:
+        return theirs or ours
+    changes: dict = {}
+    if theirs.eta_date is None and theirs.status not in NO_ETA_STATUSES:
+        changes.update(
+            eta_date=ours.eta_date,
+            eta_latest=ours.eta_latest,
+            eta_from=ours.eta_from,
+            eta_to=ours.eta_to,
+        )
+    events = [*theirs.events, *(e for e in ours.events if e not in theirs.events)]
+    if all(e.timestamp and e.timestamp.tzinfo is not None for e in events):
+        events.sort(key=lambda e: e.timestamp, reverse=True)
+    # (a carrier's long history, GLS or 17track, is never cut by this)
+    changes["events"] = events[: max(MAX_EVENTS, len(theirs.events))]
+    return replace(theirs, **changes)
+
+
+def _fold(parcels: dict[str, Parcel], parcel: Parcel, order: Parcel, keep: bool = False) -> None:
+    """Make a carrier's parcel and the shop order it belongs to one entry: the order.
+
+    The order ends up as if the carrier's number had been its own from the start: it
+    carries the number and the carrier's result, and the parcel is dropped from
+    ``parcels``. A name the user typed in on the parcel goes along. With ``keep`` (the
+    order is still open and names the number itself) the order keeps what only it knew,
+    see ``_joined``. Who tells what happened is up to the caller.
+    """
+    if parcel.name and parcel.name_manual:
+        order.name, order.name_manual = parcel.name, True
     order.tracking_ref = parcel.number
     order.tracking_carrier = parcel.carrier
-    order.result = parcel.result
-    # (marked as received by hand: the order is, and stays, as the parcel was marked)
-    order.manual_delivered = parcel.manual_delivered
-    order.last_change_at = parcel.last_change_at
+    if keep:
+        order.result = _joined(order.result, parcel.result)
+        order.last_change_at = max(order.last_change_at, parcel.last_change_at)
+    else:
+        order.result = parcel.result
+        order.last_change_at = parcel.last_change_at
+    if parcel.result is not None:
+        # (an order closed on its own that takes a carrier's result is not assumed any more)
+        order.assumed_delivered = False
     order.last_poll_at = parcel.last_poll_at
     order.next_poll_at = None
     order.last_error = None
@@ -375,22 +686,28 @@ def fold_delivered(
     order.track17_carrier = parcel.track17_carrier
     order.track17_next_at = None
     order.track17_result = parcel.track17_result
+    # (what the carrier last told about the number goes along with it)
+    order.carrier_status = parcel.carrier_status
     del parcels[parcel.number]
-    return order
 
 
-def close_unconfirmed(parcel: Parcel, now: datetime) -> None:
+def close_unconfirmed(
+    parcel: Parcel, now: datetime, text: str = ASSUMED_TEXT, at: datetime | None = None
+) -> None:
     """Close a shop order no delivery mail came for (see ``schedule.order_overdue``).
 
     Delivered, so everything that tidies up delivered parcels applies, but marked
     (``assumed_delivered``) and without a time of delivery: nobody knows it. The day the
     mails named stays. A later mail of the shop takes the mark away again (``_forward``).
+
+    Also for an order the shop itself calls delivered days later (``_confirm``): then with
+    the shop's words (``text``) and the time of its mail in the history (``at``).
     """
     old = parcel.result
-    events = [TrackingEvent(now, ASSUMED_TEXT, None), *(old.events if old else [])]
+    events = [TrackingEvent(at or now, text, None), *(old.events if old else [])]
     parcel.result = TrackingResult(
         status=ParcelStatus.DELIVERED,
-        status_text=ASSUMED_TEXT,
+        status_text=text,
         eta_date=old.eta_date if old else None,
         eta_from=old.eta_from if old else None,
         eta_to=old.eta_to if old else None,
@@ -416,8 +733,14 @@ def mark_received(parcel: Parcel, now: datetime) -> None:
     code), and so is the mark of an order closed without a delivery mail: now somebody
     confirmed it. Nobody is asked about the parcel any more, and nothing changes it
     again (``Parcel.manual_delivered``; see ``_forward`` and the coordinator).
+
+    An order that was closed on its own already is only confirmed: the mark and the
+    words change, but nobody knows when it came. It gets no time of delivery (so it
+    never counts as delivered today, see ``schedule.delivered_today``), and the days it
+    is kept go on counting from the closing.
     """
     old = parcel.result
+    closed = parcel.assumed_delivered
     events = [TrackingEvent(now, MANUAL_TEXT, None), *(old.events if old else [])]
     parcel.result = TrackingResult(
         status=ParcelStatus.DELIVERED,
@@ -428,13 +751,14 @@ def mark_received(parcel: Parcel, now: datetime) -> None:
         location=None,
         pickup_point=None,
         pickup_until=None,
-        delivered_at=now,
+        delivered_at=None if closed else now,
         # (a long history, GLS or 17track, loses its oldest line, never the newest)
         events=events[: max(MAX_EVENTS, len(events) - 1)],
     )
     parcel.manual_delivered = True
     parcel.assumed_delivered = False
-    parcel.last_change_at = now
+    if not closed:
+        parcel.last_change_at = now
     parcel.delivery_code = parcel.delivery_code_day = None
     parcel.last_error = None
     parcel.error_streak = 0
@@ -469,7 +793,10 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
         )
     # (one's own shipment belongs to no order: see ``MailUpdate.own``)
     if target is None and update.status is not None and not update.own:
-        target = _merge_candidate(parcels, update)
+        # "Zugestellt" without a day of its own: the mail's day is the day of delivery,
+        # and the order's days must fit it like for a parcel folded in afterwards.
+        delivered = update.status is ParcelStatus.DELIVERED and not update.eta_date
+        target = _merge_candidate(parcels, update, _mail_day(update) if delivered else None)
         if target is not None:
             old = target.status
             target.tracking_ref = number
@@ -484,7 +811,15 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
         target.order_checked = update.own
         parcels[number] = target
         _forward(target, update, now)
-        return Change(target, None, True)
+        # A first status is no news - but a delivery whose mail names a shop or a company
+        # is: it is somebody's order that just came, and no order here took it (its days
+        # are others, or it is not known). Not for a mail read late: nothing came just now.
+        news = (
+            target.status is ParcelStatus.DELIVERED
+            and (name is not None or update.shop is not None)
+            and now - update.sent_at <= NEW_DELIVERY_MAX_AGE
+        )
+        return Change(target, None, True, announce=news)
     old = target.status
     named = False
     # Older versions stored a carrier's display name ("DHL Zustell-Update") as the name: it
