@@ -63,7 +63,8 @@ _DHL_SHOWN = re.compile(
     re.MULTILINE,
 )
 # The receipt of a Packstation ("Einlieferungsbeleg: Ihr Versand an der Packstation") is
-# about a parcel somebody sent, not one that comes: its number is not read.
+# about a parcel somebody sent, not one that comes. Its text part names no number, and the
+# HTML part is not searched for one.
 _DHL_RECEIPT = re.compile(r"\bEinlieferungsbeleg\b", re.IGNORECASE)
 # DHL's newer layout leaves HTML table markup in its text/plain part.
 _MARKUP = re.compile(r"<(?:table|tr|td|p|div|br|span)\b", re.IGNORECASE)

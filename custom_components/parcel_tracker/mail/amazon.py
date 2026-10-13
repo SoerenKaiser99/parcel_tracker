@@ -8,6 +8,8 @@ from email.message import EmailMessage
 
 from ..models import ParcelStatus
 from .base import (
+    ATTEMPT_TEXT,
+    DELAY_TEXT,
     MONTHS,
     MailUpdate,
     at,
@@ -18,6 +20,7 @@ from .base import (
     sent_at,
     shorten,
     subject,
+    title_key,
     upcoming_date,
 )
 
@@ -40,13 +43,11 @@ LEGACY_PREFIXES = ("Ihre Amazon.de Bestellung von", "Ihre Amazon.de-Bestellung m
 # …" is the same mail in the wording of 2026.)
 _ATTEMPT = "versuchte zustellung"
 _ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
-ATTEMPT_TEXT = "Zustellung versucht"
-# "Lieferungsaktualisierung: …": on its way, but later ("… verspätet sich aber", "Jetzt
-# erwartet bis zum 26. April."). Only a mail that says so is a delay: the subject alone
-# would also fit news of another kind, which just leaves the order on its way.
+# "Lieferungsaktualisierung: …": on its way, with a new day ("Jetzt erwartet bis zum 26.
+# April."). Only a mail that says so is a delay ("… verspätet sich aber. Bitte entschuldigen
+# Sie die Verzögerung."): the subject and a new day alone would also fit an earlier arrival.
 _DELAY = "lieferungsaktualisierung"
-_DELAYED = re.compile(r"\bverspätet\b|\bJetzt erwartet bis zum\b")
-DELAY_TEXT = "Lieferung verspätet"
+_DELAYED = re.compile(r"\bverspätet\b|\bVerzögerung\b")
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
@@ -91,6 +92,11 @@ _PLAIN_ITEM = re.compile(
     r"(?!Aufgegeben am\b|Amazon\.\w+$|(?:Lieferung|Lieferadresse|Versand|Zustellung|Empfänger)\b)"
     r"[^\W_](?:(?!://).)*[^:]$"
 )
+# The plain layout names an item with its quantity before it ("2 x …", "2-mal …"), below
+# the number and, without quotes, in the subject ("2 x Beispiel... und 2 weiteren
+# Artikeln"). The other mails of the order name it without the quantity.
+_QUANTITY = re.compile(r"^\d+\s*(?:x|-mal)\s+", re.IGNORECASE)
+_PLAIN_MORE = re.compile(r"\s+und\s+\d+\s+weiteren?\s+Artikeln?\s*$")
 # An item below its order number: "[title]<link>" in a mail whose text was made from the
 # HTML, "* title" in the text part Amazon writes itself.
 _ITEM = re.compile(r"^(?:\[(?P<title>[^\]]+)\]<https?://|\* (?P<listed>\S.*)$)", re.MULTILINE)
@@ -171,25 +177,51 @@ def _eta(text: str, sent: datetime) -> dict[str, date | datetime | None]:
     return {}
 
 
+def _plain_title(subj: str | None, below: str) -> str | None:
+    """Name of an order in the plain layout, from the lines below its number.
+
+    The item the subject names if it is listed (the other mails of the order name that
+    one), else the first one; without its quantity, so the name fits theirs (``title_key``).
+    None if the first line is no item.
+    """
+    items: list[str] = []
+    for line in below.strip().splitlines()[:20]:
+        line = line.strip()
+        if line.startswith("---") or (not items and not _PLAIN_ITEM.match(line)):
+            break
+        if line and _PLAIN_ITEM.match(line):
+            items.append(_QUANTITY.sub("", line))
+    if not items:
+        return None
+    if subj:
+        named = subj.split(":", 1)[1] if subject_status(subj) is not None else subj
+        wanted = title_key(_QUANTITY.sub("", _PLAIN_MORE.sub("", named.strip())))
+        items.sort(key=lambda item: title_key(item) != wanted)  # (stable: else the first)
+    return items[0]
+
+
 def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     """Parse a current-format Amazon mail; one update per order number."""
     subj = subject(msg)
     text = body_text(msg)
     sent = sent_at(msg)
     status = subject_status(subj) or stage_status(text)
-    # One update per order, however often the mail names it: the last mention counts (the
-    # plain layout names the order in its head and again above the items).
-    last = {match.group(2): match for match in _ORDER.finditer(text)}
-    orders = sorted(last.values(), key=lambda match: match.start())
+    # In the plain layout an order named again is the same one (in the head and again above
+    # the items): its last mention counts. In the usual layout a number that comes again is
+    # a further shipment with its own day and items.
+    mentions = list(_ORDER.finditer(text))
+    last = {match.group(2): match for match in mentions if match.group("plain")}
+    orders = [m for m in mentions if not m.group("plain") or last[m.group(2)] is m]
     if status is None or not orders:
         return []
 
     attempt = subj.strip().lower().startswith(_ATTEMPTS)
-    delay = subj.strip().lower().startswith(f"{_DELAY}:") and bool(_DELAYED.search(text))
+    news = subj.strip().lower().startswith(f"{_DELAY}:")
+    delay = news and bool(_DELAYED.search(text))
     eta = _eta(text, sent)
     if not eta and status is ParcelStatus.OUT_FOR_DELIVERY and _ON_THE_ROUTE.search(text):
         eta = {"eta_date": sent.date()}  # (the plain mail names no day: it is today)
-    if delay and (later := _LATER.search(text)):
+    if news and (later := _LATER.search(text)):
         if resolved := resolve_dates(later.group(1), sent.date()):
             eta = {"eta_date": resolved[0]}
     code = None
@@ -210,9 +242,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         listed = item.group("title") or item.group("listed") if item else None
         if listed is None and match.group("plain"):
             # (the plain layout names the items on the lines below the number)
-            below = text[match.end() : end].strip().splitlines()[:1]
-            if below and _PLAIN_ITEM.match(below[0].strip()):
-                listed = below[0].strip()
+            listed = _plain_title(subj if len(orders) == 1 else None, text[match.end() : end])
         title = from_subject or (shorten(listed) if listed else None)
         updates.append(
             MailUpdate(

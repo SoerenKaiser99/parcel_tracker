@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from dataclasses import replace
+from datetime import date, datetime, timedelta
 from email import policy
 from email.message import EmailMessage
 
@@ -199,3 +200,26 @@ def test_update_takes_over_the_parcel_a_dhl_mail_made_before():
     # One entry is left: the order, asked about at DHL.
     assert list(parcels) == [order.number]
     assert parcels[order.number].tracking_ref == order.tracking_ref
+
+
+def test_attempt_keeps_a_later_day_the_carrier_named_before():
+    from custom_components.parcel_tracker.mail.apply import apply_update
+    from custom_components.parcel_tracker.mail.base import sent_at
+
+    update = load_mail(UPDATE)
+    [order] = parse_mail(update).updates
+    now = sent_at(update)
+    parcels = {}
+    apply_update(parcels, order, now)
+    parcel = parcels[order.number]
+    later = now.date() + timedelta(days=30)
+    # The carrier's mail named a new day; eBay's "Zustellversuch" comes after it.
+    apply_update(parcels, replace(order, eta_date=later, eta_latest=None), now)
+    attempt = replace(order, eta_date=None, eta_latest=None, postponed=True,
+                      status_text="Zustellung versucht")
+    apply_update(parcels, attempt, now)
+    assert (parcel.result.status_text, parcel.result.eta_date) == ("Zustellung versucht", later)
+    # ... but a day that is today (or past) is the one the attempt takes back.
+    apply_update(parcels, replace(order, eta_date=now.date(), eta_latest=None), now)
+    apply_update(parcels, attempt, now)
+    assert parcel.result.eta_date is None

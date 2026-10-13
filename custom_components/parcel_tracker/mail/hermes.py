@@ -113,6 +113,8 @@ def parse_hermes_mail(msg: EmailMessage) -> list[MailUpdate]:
     day = None
     if new_day := _eta(text, sent.date(), _NEW_DAY):
         update.status, update.postponed, day = ParcelStatus.IN_TRANSIT, True, new_day
+        # (its window stands below the label; one above it is the failed attempt's)
+        text = text[_NEW_DAY.search(text).end() :][:200]
     elif status is ParcelStatus.DELIVERED:
         update.delivered_at = sent
     elif status is ParcelStatus.OUT_FOR_DELIVERY:

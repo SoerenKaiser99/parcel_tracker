@@ -212,3 +212,15 @@ def test_only_the_delivery_at_the_door_is_delivered():
     body = "Sendungsnummer H1000999999999990901\n"
     [u] = parse_mail(_msg("Erfolgreiche PaketShopzustellung", body)).updates
     assert (u.status, u.delivered_at) == (None, None)
+
+
+def test_window_of_the_failed_attempt_is_not_the_new_days():
+    body = (
+        "wir haben dich heute zwischen 10:00 und 12:00 Uhr leider nicht angetroffen.\n"
+        "Neuer Zustelltermin am\nDonnerstag, 08.10.2026\n"
+        "Sendungsnummer H1000999999999990901\n"
+    )
+    msg = _msg("Wichtige Information zur Zustellung deiner Hermes Sendung von Zalando", body)
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2026, 10, 8))
+    assert (u.eta_from, u.eta_to) == (None, None)

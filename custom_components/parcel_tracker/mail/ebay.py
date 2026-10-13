@@ -1,8 +1,8 @@
 """eBay order mails (no Home Assistant imports).
 
-Only "Update zur Bestellung" carries the carrier's number ("Sendungsnummer: …"); it is
-taken when it tells its carrier on its own. 12-digit numbers are item numbers and are never
-read as one. Buyer, seller and address are never taken.
+Only "Update zur Bestellung" and "Zustellversuch" carry the carrier's number
+("Sendungsnummer: …"); it is taken when it tells its carrier on its own. 12-digit numbers
+are item numbers and are never read as one. Buyer, seller and address are never taken.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from email.message import EmailMessage
 
 from ..models import ParcelStatus
 from .base import (
+    ATTEMPT_TEXT,
     MailUpdate,
     at,
     body_text,
@@ -32,7 +33,6 @@ _TRACKING = re.compile(r"Sendungsnummer:[ \t]*\n?[ \t]*(?P<number>[0-9A-Z]{8,30}
 # "Zustellversuch: …": the carrier met nobody ("DHL Germany hat Sie leider nicht
 # angetroffen."). On its way again, no longer today; it names the number as well.
 _ATTEMPT = re.compile(r"Zustellversuch:\s*(?P<title>.+)$")
-ATTEMPT_TEXT = "Zustellung versucht"
 # (one layout puts "eBay-Käuferschutz", "Preis:" and the price between title and number)
 _ITEM = re.compile(
     r"^(?P<title>[^\n]+)\n(?:eBay-Käuferschutz\nPreis:\n[^\n]+\n)?"

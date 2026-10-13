@@ -27,8 +27,9 @@ from ..models import (
     TrackingEvent,
     TrackingResult,
 )
-from .amazon import ATTEMPT_TEXT
 from .base import (
+    ATTEMPT_TEXT,
+    DELAY_TEXT,
     MailUpdate,
     brand_of,
     carrier_key,
@@ -43,7 +44,7 @@ _DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
 _ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
 # Words a shop's mail about a postponed delivery brings. They tell one moment: a later
 # mail that only repeats the status does not keep them (see ``_forward``).
-_POSTPONED_TEXTS = frozenset({ATTEMPT_TEXT})
+_POSTPONED_TEXTS = frozenset({ATTEMPT_TEXT, DELAY_TEXT})
 
 SHOP_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Bestellt",
@@ -234,9 +235,14 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             events.insert(0, TrackingEvent(update.sent_at, text, None))
         if update.eta_date:
             eta = (update.eta_date, update.eta_from, update.eta_to, update.eta_latest)
-        elif old and update.status not in _DROP_ETA and not postponed:
+        elif (
+            old
+            and update.status not in _DROP_ETA
+            and (not postponed or (old.eta_date and old.eta_date > update.sent_at.date()))
+        ):
             # (a delivered parcel keeps its day: it is the day shown as delivered; a
-            # postponed delivery that names no new day has none)
+            # postponed delivery that names no new day has none - but a day after the
+            # mail's own is not the one it takes back: the carrier named it already)
             eta = (old.eta_date, old.eta_from, old.eta_to, old.eta_latest)
         else:
             eta = (None, None, None, None)

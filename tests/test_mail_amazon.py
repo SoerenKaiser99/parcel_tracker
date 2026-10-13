@@ -465,9 +465,39 @@ def test_plain_mail_never_takes_the_line_about_the_recipient_as_the_title():
 def test_delivery_update_that_tells_no_delay_just_stays_on_its_way():
     msg = load_mail(DELAYED)
     text = msg.get_content()
-    assert "verspätet sich aber" in text and "Jetzt erwartet bis zum 26. April." in text
-    text = text.replace("verspätet sich aber", "kommt bald").replace("Jetzt erwartet bis", "Bis")
-    msg.set_content(text)
+    late = "Ihr Paket ist unterwegs, verspätet sich aber. Bitte entschuldigen Sie die Verzögerung."
+    assert late in text and "Jetzt erwartet bis zum 26. April." in text
+    # A new day alone is no delay (it may be an earlier one): the day is taken, no more.
+    msg.set_content(text.replace(late, "Ihr Paket ist unterwegs."))
     [u] = parse_mail(msg).updates
     assert (u.number, u.status) == ("AMZ99900001730000173", ParcelStatus.IN_TRANSIT)
-    assert (u.status_text, u.postponed) == (None, False)
+    assert (u.status_text, u.postponed, u.eta_date) == (None, False, date(2025, 4, 26))
+
+
+def test_plain_mail_is_named_after_the_item_of_its_subject_without_the_quantity():
+    msg = load_mail(ON_THE_ROUTE)
+    body = ("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+            "2 x Beispiel-Riegel Kokos 200 g\n\n3-mal Beispiel-Maßband 5 m\n\n"
+            "----------\nIhr Paket verfolgen:\n")
+    # The subject is the item's name: the other mails of the order name that one.
+    msg.replace_header("Subject", "Beispiel-Maßband 5... und 1 weiteren Artikel")
+    msg.set_content(body)
+    assert parse_mail(msg).updates[0].title == "Beispiel-Maßband 5 m"
+    # A subject that names no item of the list: the first one, without "2 x".
+    msg.replace_header("Subject", "Zustellung heute: Ihr Amazon Paket wird zugestellt")
+    assert parse_mail(msg).updates[0].title == "Beispiel-Riegel Kokos 200 g"
+    msg.replace_header("Subject", "Lieferungsaktualisierung: Beispiel-Riegel Kokos...")
+    assert parse_mail(msg).updates[0].title == "Beispiel-Riegel Kokos 200 g"
+
+
+def test_usual_layout_keeps_an_order_named_twice_as_two_shipments():
+    # (only the plain layout names its order twice for one shipment)
+    body = ("Ankunft morgen\nBestellnr.\n999-0000172-0000172\n* Beispiel-Alpha\n\n"
+            "Ankunft: Freitag\nBestellnr.\n999-0000172-0000172\n* Beispiel-Beta\n")
+    msg = load_mail(ON_THE_ROUTE)
+    msg.replace_header("Subject", "Versendet: 2 Lieferungen")
+    msg.set_content(body)
+    first, second = parse_mail(msg).updates
+    assert first.number == second.number == "AMZ99900001720000172"
+    assert (first.title, second.title) == ("Beispiel-Alpha", "Beispiel-Beta")
+    assert first.eta_date != second.eta_date
