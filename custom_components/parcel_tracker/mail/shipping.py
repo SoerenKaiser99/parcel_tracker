@@ -23,9 +23,12 @@ from .base import (
     subject,
     upcoming_date,
 )
+from .forward import _MONTHS as _SHORT_MONTHS
 
 DHL_SENDER = "noreply@dhl.de"
 DHL_DOMAIN = "dhl.de"  # every sender there (also paketankuendigung@dhl.de) is DHL
+DHL_COM_DOMAIN = "dhl.com"  # DHL Express
+DHL_EXPRESS_SENDER = "noreply.odd@dhl.com"
 UPS_SENDER = "pkginfo@ups.com"
 AMAZON_DHL_NAME = "Amazon-Sendung (DHL)"
 # Shops and carriers we know: only the display name of such a sender is looked at as a
@@ -176,6 +179,64 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             status_text=SOON_TEXT if soon else None,
         )
     ]
+
+
+# ----- dhl.com: DHL Express -----
+# "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON ist unterwegs." / "… wird
+# voraussichtlich HEUTE bis Tagesende ausgeliefert." / "Ihre DHL Express Sendung mit der
+# Sendungsnummer 9999990166 von AMAZON wurde wie gewünscht am 11 Jun 2025 um 15:45
+# zugestellt." The subject is always "DHL On Demand Delivery".
+_EXPRESS = re.compile(
+    r"Ihre DHL Express Sendung mit (?:der )?Sendungsn(?:r\.|ummer) (?P<number>\d{10})(?!\d)"
+    r"(?: von (?P<shipper>\S.*?))? (?P<told>ist unterwegs|wird\b.*?\bausgeliefert"
+    r"|wurde\b.*?\bzugestellt)\b"
+)
+_EXPRESS_DAY = re.compile(r"voraussichtliche Zustelldatum (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4})")
+_EXPRESS_TIME = re.compile(r"\bam (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4}) um (\d{1,2}):(\d{2})\b")
+_EXPRESS_TODAY = re.compile(r"\bheute\b", re.IGNORECASE)
+
+
+def _express_day(day: str, month: str, year: str) -> date | None:
+    try:
+        # (the month stands in English or German, three letters)
+        return date(int(year), _SHORT_MONTHS[month.lower()], int(day))
+    except (KeyError, ValueError):
+        return None
+
+
+def parse_dhl_express_mail(msg: EmailMessage) -> list[MailUpdate]:
+    """DHL Express ("On Demand Delivery", from dhl.com).
+
+    The sentence about the shipment tells the status ("ist unterwegs", "wird … HEUTE …
+    ausgeliefert", "wurde … zugestellt" with day and time), the shipper names the parcel
+    through the naming gate.
+    """
+    text = body_text(msg)
+    sent = sent_at(msg)
+    told = _EXPRESS.search(text)
+    if not told:
+        return []
+    shipper = told.group("shipper") or ""
+    shop_name = shop_of(shipper)
+    update = MailUpdate(
+        told.group("number"), "dhl", ParcelStatus.IN_TRANSIT, sent,
+        title=AMAZON_DHL_NAME if shop_name == "amazon" else company_name(shipper),
+        shop=shop_name,
+    )
+    words = told.group("told")
+    if words.startswith("wurde"):
+        update.status, update.delivered_at = ParcelStatus.DELIVERED, sent
+        when = _EXPRESS_TIME.search(words)
+        day = _express_day(*when.groups()[:3]) if when else None
+        if day and int(when.group(4)) < 24 and int(when.group(5)) < 60:
+            update.delivered_at = at(day, int(when.group(4)), int(when.group(5)))
+    elif words.startswith("wird"):
+        # (only "heute" is the day of the mail; any other day stays "on its way")
+        if _EXPRESS_TODAY.search(words):
+            update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
+    elif day := _EXPRESS_DAY.search(text):
+        update.eta_date = _express_day(*day.groups())
+    return [update]
 
 
 def parse_ups_mail(msg: EmailMessage) -> list[MailUpdate]:

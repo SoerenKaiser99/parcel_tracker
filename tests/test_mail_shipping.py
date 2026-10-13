@@ -5,7 +5,7 @@ from email.message import EmailMessage
 import pytest
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
-from custom_components.parcel_tracker.mail import parse_mail
+from custom_components.parcel_tracker.mail import known_sender_domain, parse_mail
 from custom_components.parcel_tracker.mail.base import sent_at
 from custom_components.parcel_tracker.mail.shipping import (
     AMAZON_DHL_NAME,
@@ -603,3 +603,57 @@ def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
     assert (u.eta_date, u.eta_from, u.eta_to) == (sent_at(soon).date(), None, None)
     today = _msg("Ihre Sendung wird heute zugestellt", WINDOW_BODY, "DHL Paket <noreply@dhl.de>")
     assert parse_mail(today).updates[0].status_text is None
+
+
+# ----- DHL Express ("On Demand Delivery"): the sentence in the text tells the status -----
+def _express(sentence: str) -> EmailMessage:
+    return _msg("DHL On Demand Delivery", f"Hallo Max Mustermann,\n{sentence}\n",
+                "DHL EXPRESS <noreply.odd@dhl.com>")
+
+
+def test_dhl_express_delivery_names_the_time_of_the_mail_text():
+    [u] = parse_mail(load_mail("166_dhl_express_on_demand_zugestellt.eml")).updates
+    assert (u.number, u.carrier, u.title) == ("9999990166", "dhl", "Amazon-Sendung (DHL)")
+    assert u.shop == "amazon"
+    assert u.status is ParcelStatus.DELIVERED
+    assert u.delivered_at == datetime(2025, 6, 11, 15, 45, tzinfo=BERLIN)
+
+
+def test_dhl_express_on_its_way_and_in_delivery():
+    way = _express(
+        "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON ist unterwegs.\n"
+        "Zur Zeit ist das voraussichtliche Zustelldatum 01 Oct 2026 bis Tagesende."
+    )
+    [u] = parse_mail(way).updates
+    assert (u.number, u.status, u.shop) == ("9999990166", ParcelStatus.IN_TRANSIT, "amazon")
+    assert (u.title, u.eta_date) == ("Amazon-Sendung (DHL)", date(2026, 10, 1))
+    today = _express(
+        "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON wird voraussichtlich "
+        "HEUTE bis Tagesende ausgeliefert."
+    )
+    [u] = parse_mail(today).updates
+    assert (u.status, u.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, sent_at(today).date())
+    assert (u.eta_from, u.eta_to, u.delivered_at) == (None, None, None)
+
+
+def test_dhl_express_shipper_who_is_a_person_never_names_the_parcel():
+    msg = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von ERIKA MUSTERFRAU "
+                   "ist unterwegs.")
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.title, u.shop) == ("9999990166", None, None)
+
+
+def test_other_mails_from_dhl_com_are_not_read_as_express():
+    msg = _express("Ihre Anfrage zur Sendung 9999990166 haben wir erhalten.")
+    assert parse_mail(msg).updates == []
+
+
+def test_dhl_express_delivery_on_another_day_is_not_in_delivery_today():
+    msg = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON wird "
+                   "voraussichtlich MORGEN bis Tagesende ausgeliefert.")
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, None)
+
+
+def test_dhl_express_sender_is_known_so_a_forward_is_read_as_the_original():
+    assert known_sender_domain("noreply.odd@dhl.com") == "dhl.com"
