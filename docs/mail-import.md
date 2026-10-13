@@ -198,7 +198,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 - Mit ausgeschalteter Option „Verarbeitete Mails in Ordner verschieben“ bleiben die Mails im gelesenen Ordner und werden nur als gelesen markiert.
 - Die beiden Ordner liegen immer auf der obersten Ebene des Postfachs, auch wenn ein eigener Ordner gelesen wird.
 - Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`) und alle Mails von Eventim, die keine Bestellung mit Postversand sind (Newsletter, Ticketalarm, Kundenservice, die Ticketshops der Vereine).
-- Jede Mail zählt nur einmal (erkannt an ihrer Message-ID).
+- Jede erkannte Mail zählt nur einmal (erkannt an ihrer Message-ID). Eine Mail, die nicht erkannt wurde, liest der Import noch einmal, sobald sie wieder ungelesen in dem Ordner liegt, den er liest, z. B. nach einem Update.
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
 
 ## Was aus welcher Mail wird
@@ -354,7 +354,7 @@ Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdiens
 
 Für Fortgeschrittene. Hast du Paketmails schon in einem eigenen Werkzeug (n8n, Node-RED, ein Skript), kannst du sie einzeln an Home Assistant übergeben. Ein Paket-Postfach brauchst du dafür nicht.
 
-Der Import liest die Mail genau wie eine aus dem Postfach: Sie zählt nur einmal (Message-ID) und wird nicht gelesen, wenn sie älter als 14 Tage ist.
+Der Import liest die Mail genau wie eine aus dem Postfach: Eine erkannte Mail zählt nur einmal (Message-ID), und eine Mail, die älter als 14 Tage ist, wird nicht gelesen. Eine nicht erkannte Mail kannst du nach einem Update noch einmal übergeben.
 
 1. In Home Assistant unter **Profil → Sicherheit** ein **langlebiges Zugriffstoken** anlegen.
 2. Die komplette Mail als Quelltext (RFC 822, `.eml`) per `POST` an `/api/parcel_tracker/import_mail` schicken – unverändert als Inhalt der Anfrage und mit dem Token in der Kopfzeile `Authorization`.
@@ -382,7 +382,7 @@ Die Antwort ist JSON, z. B.:
 | `unrecognized` | keine Sendung erkannt |
 | `ignored` | Werbung oder Konto-Mail |
 | `stale` | älter als 14 Tage |
-| `duplicate` | diese Mail wurde schon gelesen |
+| `duplicate` | diese Mail wurde schon gelesen und angewendet |
 
 Fehler erkennst du am Statuscode:
 

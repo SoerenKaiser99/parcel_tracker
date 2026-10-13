@@ -20,6 +20,7 @@ from custom_components.parcel_tracker.const import (
 from custom_components.parcel_tracker.coordinator import ParcelCoordinator
 from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.apply import apply_update
+from custom_components.parcel_tracker.mail.base import MailResult
 from custom_components.parcel_tracker.mail.imap import ImapAuthError, ImapUnavailable
 from custom_components.parcel_tracker.models import ParcelStatus
 from custom_components.parcel_tracker.store import ParcelStore
@@ -722,3 +723,91 @@ async def test_a_server_that_disables_plain_logins_is_logged_once_per_outage(
     with caplog.at_level("WARNING"):
         await coord.async_import_mail()
     assert len(own_warnings()) == 3
+
+
+# ----- issue #21: only a mail that was applied is remembered by its Message-ID -----
+PARSE = "custom_components.parcel_tracker.coordinator.parse_mail"
+TODAY_MAIL = "Wed, 30 Sep 2026 08:00:00 +0000"
+
+
+async def _import(coord, mails) -> list:
+    """One more import run with these mails; what became of them."""
+    coord.mailbox.mails = list(mails)
+    coord._mail_next = None
+    await coord.async_import_mail()
+    return coord.mailbox.finished[-1][0]
+
+
+async def test_mail_that_told_nothing_is_read_again_when_it_comes_back(hass, freezer):
+    """The mail a parser was improved for: the version before could not read it."""
+    freezer.move_to("2026-09-30 10:00:00+00:00")
+    mail = dated_mail(1, TODAY_MAIL)
+    coord = await _coordinator(hass, FakeMailbox())
+    with patch(PARSE, return_value=MailResult()):
+        assert await _import(coord, [("1", mail)]) == [("1", FOLDER_UNRECOGNIZED)]
+    with patch(PARSE, side_effect=ValueError("boom")):
+        assert await _import(coord, [("2", mail)]) == [("2", FOLDER_UNRECOGNIZED)]
+    with patch(PARSE, return_value=MailResult(ignored=True)):
+        assert await _import(coord, [("3", mail)]) == [("3", None)]
+    with patch("custom_components.parcel_tracker.coordinator.MAIL_MAX_AGE", timedelta(0)):
+        assert await _import(coord, [("4", mail)]) == [("4", None)]
+    assert coord.store.message_ids == []
+    assert coord.store.parcels == {}
+
+    assert await _import(coord, [("5", mail)]) == [("5", FOLDER_PROCESSED)]
+    assert coord.store.get("00340999999999999911") is not None
+    assert coord.store.message_ids == ["<dated1@example.org>"]
+    # Applied: from now on the same mail changes nothing.
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update", wraps=apply_update
+    ) as apply:
+        assert await _import(coord, [("6", mail)]) == [("6", FOLDER_PROCESSED)]
+    assert apply.call_count == 0
+    state = coord.diagnostics()["mail_import"]
+    assert (state["recognized"], state["unrecognized"]) == (1, 2)
+
+
+async def test_mail_that_could_not_be_filed_is_applied_once(hass, freezer):
+    """The mailbox fails after reading: every mail is still unseen at the next fetch."""
+    freezer.move_to("2026-09-30 10:00:00+00:00")
+    no_number = dated_mail(2, TODAY_MAIL).partition(b"\r\n\r\n")[0] + b"\r\n\r\nDanke\r\n"
+    mails = [("1", dated_mail(1, TODAY_MAIL)), ("2", no_number)]
+
+    class Unfiled(FakeMailbox):
+        def finish(self, dispositions, move):
+            super().finish(dispositions, move)
+            raise ImapUnavailable("gone")
+
+    coord = await _coordinator(hass, Unfiled())
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update", wraps=apply_update
+    ) as apply:
+        for _ in range(2):
+            assert await _import(coord, mails) == [
+                ("1", FOLDER_PROCESSED),
+                ("2", FOLDER_UNRECOGNIZED),
+            ]
+    assert apply.call_count == 1
+    assert coord._mail_error is None  # reading worked: no backoff
+    assert coord.store.message_ids == ["<dated1@example.org>"]
+
+
+async def test_amazon_mail_read_again_counts_as_one_miss(hass):
+    coord = await _coordinator(hass, FakeMailbox())
+    registry = ir.async_get(hass)
+    for run in range(6):
+        await _import(coord, [(str(run), unknown_amazon_mail(0))])
+    assert coord._amazon_misses == 1
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
+    # Five different mails are still five misses, whatever is read again in between.
+    for i in (1, 1, 2, 0, 3):
+        await _import(coord, [(f"again{i}", unknown_amazon_mail(i))])
+    assert coord._amazon_misses == 4
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
+    await _import(coord, [("5", unknown_amazon_mail(4))])
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is not None
+    # A recognised Amazon mail starts over, also for the mails counted before.
+    await _import(coord, [("6", raw("001_bestellbestaetigung_bestellt.eml"))])
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
+    await _import(coord, [("7", unknown_amazon_mail(0))])
+    assert coord._amazon_misses == 1

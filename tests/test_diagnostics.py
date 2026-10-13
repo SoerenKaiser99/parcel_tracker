@@ -617,7 +617,7 @@ async def test_mail_import_counts_and_remembers_only_domain_and_forwarded(hass, 
     assert (state["last_error"], state["error_streak"]) == (None, 0)
     assert (state["recognized"], state["unrecognized"]) == (1, 4)
     assert state["amazon_misses"] == 1
-    assert state["known_message_ids"] == 5
+    assert state["known_message_ids"] == 1  # only the mail that was applied
     assert state["last_unrecognized"] == [
         {"domain": "other", "forwarded": False},
         {"domain": "amazon.de", "forwarded": False},
@@ -667,7 +667,7 @@ async def test_forwarded_mail_is_booked_under_its_original_sender(hass, freezer)
     await coordinator.async_refresh()
     state = (await async_get_config_entry_diagnostics(hass, entry))["mail_import"]
     assert (state["recognized"], state["unrecognized"]) == (1, 3)
-    assert state["known_message_ids"] == 4
+    assert state["known_message_ids"] == 1
     assert state["last_unrecognized"] == [
         {"domain": "dhl.de", "forwarded": True},
         {"domain": "other", "forwarded": True},

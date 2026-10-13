@@ -98,6 +98,23 @@ async def test_mails_without_a_parcel(hass, entry, hass_client):
     assert entry.runtime_data.store.parcels == {}
 
 
+async def test_mail_that_told_nothing_can_be_handed_in_again(hass, entry, hass_client):
+    """Issue #21: only an applied mail is a duplicate; the others changed nothing."""
+    client = await hass_client()
+    for mail, result in (
+        (no_number(_date()), "unrecognized"),
+        (advertising(_date()), "ignored"),
+        (dated_mail(1, _date(days_ago=15)), "stale"),
+    ):
+        for _ in range(2):
+            assert await _post(client, mail) == (200, {"result": result, "parcels": []})
+    assert entry.runtime_data.store.message_ids == []
+    # Its Message-ID is taken only once a mail with it was applied.
+    mail = dated_mail(1, _date())
+    assert await _post(client, mail) == (200, {"result": "recognized", "parcels": [number(1)]})
+    assert await _post(client, mail) == (200, {"result": "duplicate", "parcels": []})
+
+
 def aliexpress(subject: str, date: str) -> bytes:
     return (
         "From: AliExpress <transaction@notice.aliexpress.com>\r\n"

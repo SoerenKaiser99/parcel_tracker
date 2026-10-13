@@ -138,7 +138,7 @@ Das prüfst du der Reihe nach:
 6. **Apple „E-Mail-Adresse verbergen“?** Die Filterregel braucht die Relay-Adresse, so wie sie in der Mail steht.
 7. **Werbung oder Konto-Mail?** Solche Mails markiert der Import absichtlich nur als gelesen.
 
-Liegt eine echte Paketmail in `Paket-Tracker-Nicht-erkannt`, lässt sich das nur mit einer Beispielmail beheben: [Beispielmails einreichen](#beispielmails-einreichen).
+Liegt eine echte Paketmail in `Paket-Tracker-Nicht-erkannt`, lässt sich das nur mit einer Beispielmail beheben: [Beispielmails einreichen](#beispielmails-einreichen). Kann ein Update die Mail lesen, schieb sie danach zurück in den Ordner, den der Import liest, und markier sie als ungelesen: Dann liest er sie noch einmal (solange sie nicht älter als 14 Tage ist).
 
 ### Reparatur-Hinweis „Amazon-Mails nicht erkannt“
 

@@ -72,6 +72,7 @@ from .const import (
     GLS_PROBE_TRIES,
     IMAP_SECURITIES,
     KEEP_ETA_UNTIL_DAY_CARRIERS,
+    MAIL_DEDUP_KEEP,
     MAIL_ETA_CARRIERS,
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
@@ -223,6 +224,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # unrecognised mails; nothing else of a mail is kept.
         self.unrecognized_mails: deque[dict[str, Any]] = deque(maxlen=UNRECOGNIZED_KEEP)
         self._amazon_misses = 0
+        # Message-IDs behind these misses: a mail that is read again counts once.
+        self._amazon_missed: deque[str] = deque(maxlen=MAIL_DEDUP_KEEP)
         self.track17 = track17
         self.track17_quota: Quota | None = None
         self.track17_blocked = False  # key rejected: no 17track calls until a reload
@@ -575,7 +578,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 mailbox.finish, dispositions, self._move_processed
             )
         except (ImapAuthError, ImapUnavailable) as err:
-            # Mails were fetched with PEEK and stay unseen; Message-ID dedup skips them next time.
+            # Mails were fetched with PEEK and stay unseen. The next fetch skips the applied
+            # ones (Message-ID) and reads the others again; they changed nothing.
             _LOGGER.debug("Could not file processed mails: %s", err)
 
     def _mail_failed(self, now: datetime, code: str) -> None:
@@ -585,9 +589,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_next = now + delay
 
     def _handle_mail(self, item: _ParsedMail, now: datetime) -> str | None:
-        """Apply one parsed mail; return its target folder (None = only mark seen)."""
+        """Apply one parsed mail; return its target folder (None = only mark seen).
+
+        Only a mail that was applied is remembered by its Message-ID: it must not change
+        a parcel twice. A mail that told nothing (not recognised, ignored, too old, not
+        readable) changed nothing and is read again when it comes back, so a later
+        version can read what this one could not.
+        """
         try:
-            if item.message_id and not self.store.remember_message(item.message_id):
+            if item.message_id and item.message_id in self.store.message_ids:
                 return FOLDER_PROCESSED
             if item.stale:
                 return None  # too old to say anything about today's parcels
@@ -597,7 +607,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if result is None or result.ignored:
                 return None
             if result.amazon:
-                self._count_amazon(recognized=bool(result.updates))
+                self._count_amazon(item, recognized=bool(result.updates))
             if not result.updates:
                 self._unrecognized(item)
                 return FOLDER_UNRECOGNIZED
@@ -613,6 +623,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             )
             self._unrecognized(item)
             return FOLDER_UNRECOGNIZED
+        if item.message_id:
+            self.store.remember_message(item.message_id)
         self._mail_recognized += 1
         return FOLDER_PROCESSED
 
@@ -654,11 +666,16 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_unrecognized += 1
         self.unrecognized_mails.append({"domain": item.domain, "forwarded": item.forwarded})
 
-    def _count_amazon(self, recognized: bool) -> None:
+    def _count_amazon(self, item: _ParsedMail, recognized: bool) -> None:
         if recognized:
             self._amazon_misses = 0
+            self._amazon_missed.clear()
             ir.async_delete_issue(self.hass, DOMAIN, "amazon_unrecognized")
             return
+        if item.message_id:
+            if item.message_id in self._amazon_missed:
+                return  # read again (see ``_handle_mail``): one mail is one miss
+            self._amazon_missed.append(item.message_id)
         self._amazon_misses += 1
         if self._amazon_misses >= AMAZON_UNRECOGNIZED_LIMIT:
             ir.async_create_issue(
