@@ -30,7 +30,7 @@ from custom_components.parcel_tracker.mail.apply import (
     close_unconfirmed,
     fold_delivered,
 )
-from custom_components.parcel_tracker.mail.base import sender, shop_of, unrelay
+from custom_components.parcel_tracker.mail.base import sender, sent_at, shop_of, unrelay
 from custom_components.parcel_tracker.models import (
     Parcel,
     ParcelStatus,
@@ -745,3 +745,70 @@ def test_unknown_relayed_sender_is_an_ordinary_unknown_mail():
     assert sender(msg)[0].endswith("@privaterelay.appleid.com")
     [u] = parse_mail(msg).updates  # the generic parser: only the safe number
     assert (u.number, u.carrier, u.status) == (DHL, "dhl", None)
+
+
+# ----- the last mile: "Paket … wird / wurde zugestellt", "Lieferprobleme" -----
+PARCEL_DELIVERED = "171_aliexpress_paket_wurde_zugestellt.eml"
+
+
+def _parcel(subject: str) -> EmailMessage:
+    return _msg(subject, html=f'<p>Hallo Max Mustermann,</p><p><a href="{LINK}9999999999990901">'
+                              "Lieferung verfolgen</a></p>")
+
+
+def test_delivered_parcel_closes_its_orders_and_brings_the_number():
+    # The links of the mail name two orders: one parcel for both.
+    msg = load_mail(PARCEL_DELIVERED)
+    first, second = parse_mail(msg).updates
+    assert (first.number, second.number) == ("ALI9999999999990171", "ALI9999999999990172")
+    for u in (first, second):
+        assert (u.carrier, u.status) == ("aliexpress", ParcelStatus.DELIVERED)
+        assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990171", "dhl")
+        assert (u.delivered_at, u.eta_date) == (sent_at(msg), None)
+        assert u.title is None  # (which item belongs to which order is not told)
+
+
+@pytest.mark.parametrize(
+    ("subject", "status", "words"),
+    [
+        (f"Paket {DHL} wird zugestellt", ParcelStatus.OUT_FOR_DELIVERY, None),
+        (f"Paket {DHL} wurde zugestellt", ParcelStatus.DELIVERED, None),
+        (f"Paket {DHL} ist versandbereit", ParcelStatus.PRE_TRANSIT, "Versandbereit"),
+        (f"Lieferprobleme für Packstück {DHL}", ParcelStatus.IN_TRANSIT, "Lieferprobleme"),
+    ],
+)
+def test_steps_of_a_parcel_on_the_last_mile(subject, status, words):
+    msg = _parcel(subject)
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status, u.status_text) == (ORDER, status, words)
+    assert (u.tracking_ref, u.tracking_carrier) == (DHL, "dhl")
+    # in delivery: the day of the mail; delivered: when it was sent
+    today = status is ParcelStatus.OUT_FOR_DELIVERY
+    assert u.eta_date == (sent_at(msg).date() if today else None)
+    assert u.delivered_at == (sent_at(msg) if status is ParcelStatus.DELIVERED else None)
+
+
+def test_a_parcel_step_nobody_knows_is_unrecognised():
+    result = parse_mail(_parcel(f"Paket {DHL} etwas ganz Neues"))
+    assert not result.ignored and result.updates == []
+
+
+def test_delivery_problem_takes_the_order_back_from_in_delivery():
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Paket {DHL} wird zugestellt"))
+    order = parcels[ORDER]
+    assert order.status is ParcelStatus.OUT_FOR_DELIVERY
+    problem = _parcel(f"Lieferprobleme für Packstück {DHL}")
+    problem.replace_header("Date", "Wed, 07 Oct 2026 12:00:00 +0200")
+    [u] = parse_mail(problem).updates
+    assert u.postponed
+    _apply(parcels, problem)
+    assert (order.status, order.result.status_text) == (ParcelStatus.IN_TRANSIT, "Lieferprobleme")
+    assert order.result.eta_date is None  # no longer today
+
+
+def test_last_mile_mail_without_an_order_names_no_day():
+    # (it has to find its order by the status alone: see ``_merge_candidate``)
+    [u] = parse_mail(_msg(f"Paket {DHL} wird zugestellt")).updates
+    assert (u.number, u.carrier, u.status) == (DHL, "dhl", ParcelStatus.OUT_FOR_DELIVERY)
+    assert u.eta_date is None
