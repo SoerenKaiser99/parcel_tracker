@@ -12,7 +12,8 @@ Tester mode (messages in German):
 Takes the mails of every sender and writes them to "anonymisiert/" next to the mails as
 001_<sender domain>.eml, with --zip also as paket-tracker-beispiele.zip; results of an earlier
 run in that folder (the ZIP and the NNN_*.eml files this script wrote) are removed first. A
-value that no option gives is asked for on a terminal (an empty answer skips it). Without any
+value that no option gives is asked for on a terminal (an empty answer skips it; a stdin that
+is redirected, also from a null device that calls itself a terminal, is none). Without any
 value the call is refused (exit code 2) unless --ohne-angaben says that this is intended; then
 nothing is asked, only the generic scrubbing runs and a warning says that names and places may
 remain. Replaced are the given values in every spelling (case, ae/oe/ue, name parts, street
@@ -1528,6 +1529,20 @@ def _t_build(msg, number, scrubber):
     return out, "privat" if private else domain or "unbekannt", private, left
 
 
+def _t_terminal():
+    """True if somebody can answer on stdin. In some development environments the null
+    device (subprocess.DEVNULL, "< NUL") says it is a terminal too; there Python reads a
+    real console only through its console reader."""
+    try:
+        if sys.stdin is None or not sys.stdin.isatty():
+            return False
+        if os.name != "nt":
+            return True
+        return type(sys.stdin.buffer.raw).__name__ == "_WindowsConsoleIO"
+    except Exception:  # a replaced stdin without these parts: nobody is asked
+        return False
+
+
 def _t_ask(values):
     """Ask on the terminal for every value that no option gave; an empty answer skips it."""
     missing = [key for key in _T_OPTIONS if not values[key]]
@@ -1591,7 +1606,7 @@ def _t_run(args):
                                "anonymisiert")
     if any(os.path.abspath(out_dir) == os.path.dirname(os.path.abspath(f)) for f in files):
         raise _TUsage("Der Zielordner darf nicht der Ordner mit den Original-Mails sein.")
-    if not bare and sys.stdin is not None and sys.stdin.isatty():
+    if not bare and _t_terminal():
         _t_ask(values)
     values = {
         key: [unicodedata.normalize("NFC", v.strip()) for v in found if v.strip()]
