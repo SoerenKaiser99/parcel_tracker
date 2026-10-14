@@ -201,7 +201,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 - In einem eigenen Ordner, der gelesen wird, liegen die beiden Ordner nie.
 - Kann der Import einen der Ordner weder finden noch anlegen, oder lehnt der Server das Verschieben ab, bleiben die Mails im gelesenen Ordner und sind als gelesen markiert. Dann steht je Ordner einmal eine Warnung im Protokoll von Home Assistant. Eine neue Warnung zu diesem Ordner kommt erst, wenn das Ablegen in ihn wieder geklappt hat und danach erneut scheitert. Was genau scheitert, steht in der [Diagnose](sensoren.md#diagnose) im Abschnitt `filing`. Abhilfe: die beiden Ordner im Mailprogramm anlegen oder „Verarbeitete Mails in Ordner verschieben“ ausschalten.
 - Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`) und alle Mails von Eventim, die keine Bestellung mit Postversand sind (Newsletter, Ticketalarm, Kundenservice, die Ticketshops der Vereine).
-- Jede erkannte Mail zählt nur einmal (erkannt an ihrer Message-ID). Eine Mail, die nicht erkannt wurde, liest der Import noch einmal, sobald sie wieder ungelesen in dem Ordner liegt, den er liest, z. B. nach einem Update.
+- Jede erkannte Mail zählt nur einmal (erkannt an ihrer Message-ID). Eine Mail, die nicht erkannt wurde, liest der Import noch einmal, sobald sie wieder ungelesen in dem Ordner liegt, den er liest, z. B. nach einem Update. Das gilt für Mails, die ab v0.3.34 gelesen wurden: Bis v0.3.33 hat sich der Import jede Mail gemerkt, auch eine nicht erkannte.
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
 
 ## Was aus welcher Mail wird
@@ -357,7 +357,7 @@ Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdiens
 
 Für Fortgeschrittene. Hast du Paketmails schon in einem eigenen Werkzeug (n8n, Node-RED, ein Skript), kannst du sie einzeln an Home Assistant übergeben. Ein Paket-Postfach brauchst du dafür nicht.
 
-Der Import liest die Mail genau wie eine aus dem Postfach: Eine erkannte Mail zählt nur einmal (Message-ID), und eine Mail, die älter als 14 Tage ist, wird nicht gelesen. Eine nicht erkannte Mail kannst du nach einem Update noch einmal übergeben.
+Der Import liest die Mail genau wie eine aus dem Postfach: Eine erkannte Mail zählt nur einmal (Message-ID), und eine Mail, die älter als 14 Tage ist, wird nicht gelesen. Eine nicht erkannte Mail kannst du nach einem Update noch einmal übergeben, wenn sie ab v0.3.34 übergeben wurde.
 
 1. In Home Assistant unter **Profil → Sicherheit** ein **langlebiges Zugriffstoken** anlegen.
 2. Die komplette Mail als Quelltext (RFC 822, `.eml`) per `POST` an `/api/parcel_tracker/import_mail` schicken – unverändert als Inhalt der Anfrage und mit dem Token in der Kopfzeile `Authorization`.

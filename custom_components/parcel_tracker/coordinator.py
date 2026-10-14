@@ -223,9 +223,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # Sender domain (known shop/carrier or "other") and forwarded flag of the last
         # unrecognised mails; nothing else of a mail is kept.
         self.unrecognized_mails: deque[dict[str, Any]] = deque(maxlen=UNRECOGNIZED_KEEP)
+        # Message-IDs of the mails since the start that changed nothing: one that is read
+        # again (see ``_handle_mail``) is counted and logged once. Memory only, so a new
+        # version reads it afresh.
+        self._mail_missed: deque[str] = deque(maxlen=MAIL_DEDUP_KEEP)
         self._amazon_misses = 0
-        # Message-IDs behind these misses: a mail that is read again counts once.
-        self._amazon_missed: deque[str] = deque(maxlen=MAIL_DEDUP_KEEP)
         self.track17 = track17
         self.track17_quota: Quota | None = None
         self.track17_blocked = False  # key rejected: no 17track calls until a reload
@@ -579,7 +581,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             )
         except (ImapAuthError, ImapUnavailable) as err:
             # Mails were fetched with PEEK and stay unseen. The next fetch skips the applied
-            # ones (Message-ID) and reads the others again; they changed nothing.
+            # ones (Message-ID) and reads the others again; they changed nothing and are
+            # counted and logged only once (``_unrecognized``).
             _LOGGER.debug("Could not file processed mails: %s", err)
 
     def _mail_failed(self, now: datetime, code: str) -> None:
@@ -591,10 +594,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def _handle_mail(self, item: _ParsedMail, now: datetime) -> str | None:
         """Apply one parsed mail; return its target folder (None = only mark seen).
 
-        Only a mail that was applied is remembered by its Message-ID: it must not change
-        a parcel twice. A mail that told nothing (not recognised, ignored, too old, not
-        readable) changed nothing and is read again when it comes back, so a later
-        version can read what this one could not.
+        Only a mail that is applied is remembered by its Message-ID, before its first
+        update: it must not change a parcel twice, also when applying fails halfway. A
+        mail that told nothing (not recognised, ignored, too old, not readable) changed
+        nothing and is read again when it comes back, so a later version can read what
+        this one could not.
         """
         try:
             if item.message_id and item.message_id in self.store.message_ids:
@@ -606,25 +610,25 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             result = item.result
             if result is None or result.ignored:
                 return None
-            if result.amazon:
-                self._count_amazon(item, recognized=bool(result.updates))
             if not result.updates:
-                self._unrecognized(item)
+                self._unrecognized(item, amazon=result.amazon)
                 return FOLDER_UNRECOGNIZED
+            if result.amazon:
+                self._count_amazon(recognized=True)
+            if item.message_id:
+                self.store.remember_message(item.message_id)
             for update in result.updates:
                 if change := apply_update(self.store.parcels, update, now):
                     self._mail_changed(change)
         except Exception as err:  # noqa: BLE001 - one odd mail must not stop the import
-            # Only the error type: mail contents never go into the log.
-            _LOGGER.warning(
-                "Could not read a mail (%s); moved it to %s",
-                type(err).__name__,
-                FOLDER_UNRECOGNIZED,
-            )
-            self._unrecognized(item)
+            if self._unrecognized(item):
+                # Only the error type: mail contents never go into the log.
+                _LOGGER.warning(
+                    "Could not read a mail (%s); moved it to %s",
+                    type(err).__name__,
+                    FOLDER_UNRECOGNIZED,
+                )
             return FOLDER_UNRECOGNIZED
-        if item.message_id:
-            self.store.remember_message(item.message_id)
         self._mail_recognized += 1
         return FOLDER_PROCESSED
 
@@ -661,21 +665,26 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcels = sorted(number for number in after if before.get(number) != after[number])
         return {"result": result, "parcels": parcels}
 
-    def _unrecognized(self, item: _ParsedMail) -> None:
-        """Count an unrecognised mail; keep only its sender domain class and forwarded flag."""
+    def _unrecognized(self, item: _ParsedMail, amazon: bool = False) -> bool:
+        """Count an unrecognised mail; keep only its sender domain class and forwarded flag.
+
+        False for a mail counted before: read again, it is neither counted nor logged.
+        """
+        if item.message_id:
+            if item.message_id in self._mail_missed:
+                return False
+            self._mail_missed.append(item.message_id)
         self._mail_unrecognized += 1
         self.unrecognized_mails.append({"domain": item.domain, "forwarded": item.forwarded})
+        if amazon:
+            self._count_amazon(recognized=False)
+        return True
 
-    def _count_amazon(self, item: _ParsedMail, recognized: bool) -> None:
+    def _count_amazon(self, recognized: bool) -> None:
         if recognized:
             self._amazon_misses = 0
-            self._amazon_missed.clear()
             ir.async_delete_issue(self.hass, DOMAIN, "amazon_unrecognized")
             return
-        if item.message_id:
-            if item.message_id in self._amazon_missed:
-                return  # read again (see ``_handle_mail``): one mail is one miss
-            self._amazon_missed.append(item.message_id)
         self._amazon_misses += 1
         if self._amazon_misses >= AMAZON_UNRECOGNIZED_LIMIT:
             ir.async_create_issue(

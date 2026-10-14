@@ -764,7 +764,8 @@ async def test_mail_that_told_nothing_is_read_again_when_it_comes_back(hass, fre
         assert await _import(coord, [("6", mail)]) == [("6", FOLDER_PROCESSED)]
     assert apply.call_count == 0
     state = coord.diagnostics()["mail_import"]
-    assert (state["recognized"], state["unrecognized"]) == (1, 2)
+    # Not recognised twice, but one mail: counted once (see the next test).
+    assert (state["recognized"], state["unrecognized"]) == (1, 1)
 
 
 async def test_mail_that_could_not_be_filed_is_applied_once(hass, freezer):
@@ -792,6 +793,57 @@ async def test_mail_that_could_not_be_filed_is_applied_once(hass, freezer):
     assert coord.store.message_ids == ["<dated1@example.org>"]
 
 
+async def test_mail_that_comes_back_unfiled_is_counted_and_logged_once(hass, caplog):
+    """Review of #27: filing fails at every run, an hour at 5 minutes."""
+
+    class Unfiled(FakeMailbox):
+        def finish(self, dispositions, move):
+            super().finish(dispositions, move)
+            raise ImapUnavailable("gone")
+
+    broken = dated_mail(1, TODAY_MAIL)
+    mails = [("1", unknown_amazon_mail(0)), ("2", broken)]
+
+    def flaky(msg, read_otp):
+        if msg["Message-ID"] == "<dated1@example.org>":
+            raise ValueError("boom")
+        return parse_mail(msg, read_otp)
+
+    coord = await _coordinator(hass, Unfiled())
+    with patch(PARSE, side_effect=flaky), caplog.at_level("WARNING"):
+        for _ in range(12):
+            assert await _import(coord, mails) == [
+                ("1", FOLDER_UNRECOGNIZED),
+                ("2", FOLDER_UNRECOGNIZED),
+            ]
+    assert caplog.text.count("Could not read a mail (ValueError)") == 1
+    state = coord.diagnostics()["mail_import"]
+    assert (state["unrecognized"], state["amazon_misses"]) == (2, 1)
+    assert len(state["last_unrecognized"]) == 2
+
+
+async def test_mail_that_fails_halfway_is_not_applied_again(hass):
+    """An update was applied before the error: the mail counts as read."""
+
+    def applied_then_fails(parcels, update, now):
+        apply_update(parcels, update, now)
+        raise RuntimeError("boom")
+
+    mail = dated_mail(1, TODAY_MAIL)
+    coord = await _coordinator(hass, FakeMailbox())
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update",
+        side_effect=applied_then_fails,
+    ):
+        assert await _import(coord, [("1", mail)]) == [("1", FOLDER_UNRECOGNIZED)]
+    assert coord.store.message_ids == ["<dated1@example.org>"]
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update", wraps=apply_update
+    ) as apply:
+        assert await _import(coord, [("2", mail)]) == [("2", FOLDER_PROCESSED)]
+    assert apply.call_count == 0
+
+
 async def test_amazon_mail_read_again_counts_as_one_miss(hass):
     coord = await _coordinator(hass, FakeMailbox())
     registry = ir.async_get(hass)
@@ -806,8 +858,10 @@ async def test_amazon_mail_read_again_counts_as_one_miss(hass):
     assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
     await _import(coord, [("5", unknown_amazon_mail(4))])
     assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is not None
-    # A recognised Amazon mail starts over, also for the mails counted before.
+    # A recognised Amazon mail starts over; a mail counted before stays counted.
     await _import(coord, [("6", raw("001_bestellbestaetigung_bestellt.eml"))])
     assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
     await _import(coord, [("7", unknown_amazon_mail(0))])
+    assert coord._amazon_misses == 0
+    await _import(coord, [("8", unknown_amazon_mail(5))])
     assert coord._amazon_misses == 1
