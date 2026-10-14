@@ -399,7 +399,7 @@ data:
 - `unrecognized`: keine Sendung erkannt
 - `ignored`: Werbung oder Konto-Mail
 - `stale`: älter als 14 Tage
-- `duplicate`: diese Mail wurde schon gelesen
+- `duplicate`: diese Mail wurde schon gelesen und angewendet
 
 **Anpassen:**
 
