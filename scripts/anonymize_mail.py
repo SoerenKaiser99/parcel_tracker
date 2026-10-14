@@ -3,93 +3,19 @@
 Runs locally with the Python standard library only (Python 3.9 or newer), as a single file,
 without network access.
 
-Tester mode (messages in German):
+Tester mode, the default (messages in German, --help lists the options):
 
-    python3 anonymize_mail.py <file.eml | folder> [--zip] [--out DIR] [--ohne-angaben]
-        [--name "First Last"] [--street ...] [--postcode ...] [--city ...] [--phone ...]
-        [--email ...]
+    python3 anonymize_mail.py <file.eml | folder> [--zip] [--out DIR] [--ohne-angaben] ...
 
-Takes the mails of every sender and writes them to "anonymisiert/" next to the mails as
-001_<sender domain>.eml, with --zip also as paket-tracker-beispiele.zip; results of an earlier
-run in that folder (the ZIP and the NNN_*.eml files this script wrote) are removed first. A
-value that no option gives is asked for on a terminal (an empty answer skips it). Without any
-value the call is refused (exit code 2) unless --ohne-angaben says that this is intended; then
-nothing is asked, only the generic scrubbing runs and a warning says that names and places may
-remain. Replaced are the given values in every spelling (case, ae/oe/ue, name parts, street
-with any or no house number), every mail address but the sender's (the sender of a forwarded
-or answered mail is a person and is replaced too, as is a sender address that carries another
-address in its local part; a sender address of Apple's relay "E-Mail-Adresse verbergen",
-"<sender>_at_<domain>_<id>_<id>@privaterelay.appleid.com", keeps its shape and gets invented
-ids: everything behind the sender's domain is replaced, whatever it looks like, also in the
-quoted sender line of a forwarded mail; of a forwarded mail with a quoted header block
-"Von: … / Gesendet: … / An: … / Betreff: …" only that block and the mail below it are taken,
-the lines above it are dropped, the quoted sender address stays and the quoted recipients are
-replaced), phone
-numbers, links (cut to the host), tracking, order and other
-long numbers (same length and structure, invented digits, the same number becomes the same
-replacement in every mail of a run, a number of ten digits or more written in groups with
-spaces, tabs, dots or dashes keeps its groups, as does an international number, and a
-tracking number that stands only in a link or in the text of an image is kept as a marked
-line "[Nummer nur im Link oder Bildtext: ...]"), drop-off places and permissions, salutations, recipient
-address blocks ("PLZ Ort", "Ort, PLZ", "ORT BUNDESLAND PLZ"), AliExpress's block below
-"Versand nach" (every line up to the one with the name and the phone number, at most twelve;
-one line where no such line follows), addresses without a label
-(street line above a postcode and city, lines with postcode and city), Amazon's "first name –
-place" line above the order number, the names of neighbours and of the person that took the
-parcel, and senders or sellers that are no company (in the text, in the From display name and
-in the subject). What the rules find in one mail (the recipient's name with each of its words,
-street, postcode and place, private senders, drop-off places, also the display name of the To
-header) is replaced in every mail of the run. Only From, Subject and Date are kept of the
-headers; HTML parts are reduced to their text (one <p> per line, no attributes, no comments)
-and every other attachment is dropped. The replaced values are never printed. Exit codes:
-0 done, 2 wrong call.
+Fixture mode, for the developer and only with the explicit flag (see "fixture mode" below):
 
-Fixture mode (for the developer, only with the explicit flag):
+    python3 anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME
+        [MAILDOMAIN ...]
 
-usage: anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME [MAILDOMAIN ...]
+The replaced values are never printed. Exit codes: 0 done, 1 aborted or failed, 2 wrong call.
 
-Personal values come only from the command line; there are no other options (an argument
-starting with "-" is an error, so a mistyped call never runs with half the values). Mails with a
-text/plain part are written as text/plain; HTML-only mails (eBay, older Hermes) are converted
-to text, scrubbed and written back as simple text/html (one <p> per line), so the parser's
-HTML fallback is exercised by the fixtures. Numbering continues after the highest fixture in
-DST_DIR; mails with an already written Message-ID are skipped.
-
-GLS mails (no-reply@gls-pakete.de): the recipient blocks ("*Zustelladresse*", "*Empfänger*",
-"*an NAME*" of the delivery mail) and the sender block ("*Versender*") are replaced as a
-whole, whatever they contain; phone numbers, parcel numbers (99999999901, 99999999902, ... in
-order of appearance), references and the drop-off place ("Ablageort: Garage") are replaced in
-the text and in the subject (and so in the file name), and the legal footer is cut. Recipient
-and company names learnt from these blocks are replaced in every mail.
-
-AliExpress mails (transaction@notice.aliexpress.com and every other sender at aliexpress.com,
-also passed on by Apple's relay): nothing of the buyer or the purchase stays. The text ends
-in front of the offers and the footer; the greeting, the block below "Versand nach", the day
-of the order, the shop's name, item names (invented ones, cut where the real one was cut),
-variants, quantities and prices are replaced; order numbers and the carrier's number become
-99…0001, 99…0002, … in order of appearance (a prefix of letters and DHL's 00340 stay, so the
-carrier is still told). The links of a mail about a parcel name its orders: each is kept as
-one invented link with the replaced number, all other links are cut to the host. The ids in a
-relay address are replaced by invented ones of the same length.
-
-Eventim mails (every sender at eventim.de and eventimpresents.com, also passed on by Apple's
-relay; in both modes, in the tester mode also when such a mail was forwarded by hand: then
-the quoted header block stays in front, with its sender, subject and day replaced the same
-way): nothing of the buyer, the purchase or the event stays. Of the order sender's mails
-(bestellstatus@eventim.de: order confirmation and shipping notice) only lines the script knows
-are written, every other line is dropped: headings, Eventim's own sentences, the labels of
-the order ("Bestellnummer:", "Liefermethode:" with its value, ...). Replaced in them: the
-greeting, the address blocks, every date (also the Date header: invented days, one after the
-other from Mon, 5 Jan 2026), the payment method, prices, the event (name, day, venue,
-organiser: invented ones, the same name for the same event) and its tickets; order numbers
-become 99…01, 99…02, … in order of appearance. The text ends with the heading "HINWEISE":
-hints, legal texts and the imprint are cut. Of every other Eventim mail (newsletter, ticket
-alarm, customer service, a club's ticket shop) only the sender address is kept, with the
-club's name in "kundenservice-<club>@" replaced; the display name is "EVENTIM", subject and
-text are one fixed line each. In the tester mode the general rules above run afterwards.
-
-Mails of other senders (shops) are never taken: a shop mail needed as a fixture is written by
-hand with invented content and marked with an "X-Fixture: synthetic" header.
+What each rule replaces is told by the tests (tests/test_anonymize_*.py); the instructions for
+testers are in docs/hilfe.md ("Beispielmails einreichen").
 """
 import email
 import email.utils
@@ -207,6 +133,26 @@ def relay_original(address):
 
 
 # ----- Eventim (both modes) -----
+# Senders: every sender at eventim.de and eventimpresents.com, also passed on by Apple's relay.
+# Nothing of the buyer, the purchase or the event stays.
+#
+# Order sender (bestellstatus@eventim.de: order confirmation and shipping notice):
+# - Only lines the script knows are written, every other line is dropped: headings, Eventim's
+#   own sentences, the labels of the order ("Bestellnummer:", "Liefermethode:" with its
+#   value, ...).
+# - Replaced in them: the greeting, the address blocks, every date (also the Date header:
+#   invented days, one after the other from Mon, 5 Jan 2026), the payment method, prices, the
+#   event (name, day, venue, organiser: invented ones, the same name for the same event) and
+#   its tickets.
+# - Order numbers become 99…01, 99…02, … in order of appearance.
+# - The text ends with the heading "HINWEISE": hints, legal texts and the imprint are cut.
+#
+# Every other Eventim mail (newsletter, ticket alarm, customer service, a club's ticket shop):
+# - Only the sender address is kept, with the club's name in "kundenservice-<club>@" replaced.
+# - The display name is "EVENTIM", subject and text are one fixed line each.
+#
+# Tester mode: also a mail forwarded by hand; its quoted header block stays in front, with
+# its sender, subject and day replaced the same way. The general rules run afterwards.
 EVT_DOMAINS = ("eventim.de", "eventimpresents.com")
 EVT_ORDER_SENDER = "bestellstatus@eventim.de"
 
@@ -1705,6 +1651,15 @@ if "--fixtures" not in _ARGS:
 _ARGS.remove("--fixtures")
 
 # ----- fixture mode -----
+# - Personal values come only from the command line, there are no other options: an argument
+#   starting with "-" is an error, so a mistyped call never runs with half the values.
+# - Mails with a text/plain part are written as text/plain. HTML-only mails (eBay, older
+#   Hermes) are converted to text, scrubbed and written back as simple text/html (one <p> per
+#   line), so the parser's HTML fallback is exercised by the fixtures.
+# - Numbering continues after the highest fixture in DST_DIR; mails with an already written
+#   Message-ID are skipped.
+# - Mails of other senders (shops) are never taken: a shop mail needed as a fixture is written
+#   by hand with invented content and marked with an "X-Fixture: synthetic" header.
 _USAGE = (
     "usage: anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME"
     " [MAILDOMAIN ...]"
@@ -1764,7 +1719,19 @@ _REGION = re.compile(
     r"|Mecklenburg-Vorpommern)[ \t]*\n"
 )
 _SHIP_TO = re.compile(r"(Geliefert an:)[ \t]*\n(?:[^\n]*\n){1,6}?(Deutschland)")
-# GLS: "*Zustelladresse*" / "*Empfänger*" + name line (+ address lines) up to the next
+
+
+# ----- GLS -----
+# Sender: no-reply@gls-pakete.de.
+# - Replaced as a whole, whatever they contain: the recipient blocks ("*Zustelladresse*",
+#   "*Empfänger*", "*an NAME*" of the delivery mail) and the sender block ("*Versender*").
+# - Replaced in the text and in the subject (and so in the file name): phone numbers, parcel
+#   numbers (99999999901, 99999999902, ... in order of appearance), references and the
+#   drop-off place ("Ablageort: Garage").
+# - The legal footer is cut.
+# - Recipient and company names learnt from these blocks are replaced in every mail.
+
+# GLS:"*Zustelladresse*" / "*Empfänger*" + name line (+ address lines) up to the next
 # empty line; "*Versender*" + company line (+ address lines) likewise.
 _GLS_RECIPIENT_BLOCK = re.compile(
     r"(\*(?:Zustelladresse|Empfänger)\*[ \t]*\n)((?:[ \t]*[^\s][^\n]*\n)+)"
@@ -1867,6 +1834,17 @@ def scrub_gls(t):
 
 
 # ----- AliExpress -----
+# Senders: transaction@notice.aliexpress.com and every other sender at aliexpress.com, also
+# passed on by Apple's relay. Nothing of the buyer or the purchase stays:
+# - The text ends in front of the offers and the footer.
+# - Replaced: the greeting, the block below "Versand nach", the day of the order, the shop's
+#   name, item names (invented ones, cut where the real one was cut), variants, quantities
+#   and prices.
+# - Order numbers and the carrier's number become 99…0001, 99…0002, … in order of appearance.
+#   A prefix of letters and DHL's 00340 stay, so the carrier is still told.
+# - The links of a mail about a parcel name its orders: each is kept as one invented link
+#   with the replaced number. All other links are cut to the host.
+# - The ids in a relay address are replaced by invented ones of the same length.
 _ALI_ITEMS = (
     "Beispiel-Kabel USB-C auf USB-A geflochten 2 m schwarz",
     "Beispiel-Sensor für Temperatur und Luftfeuchte weiß",
