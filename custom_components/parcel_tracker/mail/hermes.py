@@ -46,7 +46,8 @@ _TODAY = re.compile(r"\bkommt\s+heute\b(?!.*\bnicht\b)")
 # "Neuer Zustelltermin am" (it takes longer) / "Neuer Zustellversuch am" (nobody was met):
 # the day below it, the second one with a window.
 _NEW_DAY = re.compile(r"Neuer Zustell(?:termin|versuch) am")
-_NOT_DELIVERED = re.compile(r"nicht zugestellt|konnte nicht|zustellversuch")
+# ("… nicht zugestellt", "… konnte nicht …", "Erfolgreiche Haustürzustellung nicht möglich")
+_NOT_DELIVERED = re.compile(r"\bnicht\b|zustellversuch")
 
 
 def _status(subj: str, text: str) -> ParcelStatus | None:
@@ -88,7 +89,8 @@ def parse_hermes_mail(msg: EmailMessage) -> list[MailUpdate]:
     """Announcement, 'auf dem Weg' (day + window), 'kommt heute' (window) or 'zugestellt'.
 
     A mail that names a new day ("Neuer Zustelltermin am", "Neuer Zustellversuch am") puts
-    the parcel back on its way for that day, whatever its subject says.
+    the parcel back on its way for that day - unless its subject says it was delivered or
+    comes today: that is the newer news.
     """
     subj = subject(msg)
     text = body_text(msg)
@@ -111,7 +113,8 @@ def parse_hermes_mail(msg: EmailMessage) -> list[MailUpdate]:
         shop=shop_of(shop) if shop else None,
     )
     day = None
-    if new_day := _eta(text, sent.date(), _NEW_DAY):
+    settled = status in (ParcelStatus.DELIVERED, ParcelStatus.OUT_FOR_DELIVERY)
+    if not settled and (new_day := _eta(text, sent.date(), _NEW_DAY)):
         update.status, update.postponed, day = ParcelStatus.IN_TRANSIT, True, new_day
         # (its window stands below the label; one above it is the failed attempt's)
         text = text[_NEW_DAY.search(text).end() :][:200]

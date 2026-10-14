@@ -452,14 +452,36 @@ def test_another_mail_of_the_shipping_sender_is_not_read_as_shipped():
 
 
 # ----- review: a recipient's line is no item, an update that tells no delay -----
-def test_plain_mail_never_takes_the_line_about_the_recipient_as_the_title():
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Lieferung an Erika Musterfrau", "lieferung an Erika Musterfrau",
+        "LIEFERUNG AN ERIKA MUSTERFRAU", "Versand an Erika Musterfrau",
+        "Lieferadresse Erika Musterfrau", "Ihre Lieferadresse: Erika Musterfrau",
+        "Lieferanschrift Erika Musterfrau", "Empfänger Erika Musterfrau",
+        "Empfängerin: Erika Musterfrau", "Erika Musterfrau", "An Erika Musterfrau",
+        "Musterstraße 1", "12345 Musterstadt", "Packstation 123",
+    ],
+)
+def test_plain_mail_never_takes_a_line_the_subject_does_not_name_as_the_title(line):
+    # (the subject of 172 names "Beispiel-Rasensamen...")
     msg = load_mail(ON_THE_ROUTE)
-    for line in ("Lieferung an Erika Musterfrau", "Versand an Erika Musterfrau",
-                 "Lieferadresse Erika Musterfrau", "Empfänger Erika Musterfrau"):
-        msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
-                        f"{line}\n")
-        [u] = parse_mail(msg).updates
-        assert u.title is None, line
+    msg.set_content(f"Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n{line}\n")
+    [u] = parse_mail(msg).updates
+    assert u.title is None
+    # Above the item it names, the line is passed over.
+    msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+                    f"{line}\nBeispiel-Rasensamen für 25 m²\n")
+    assert parse_mail(msg).updates[0].title == "Beispiel-Rasensamen für 25 m²"
+
+
+def test_plain_mail_takes_the_item_a_short_subject_begins():
+    # (shorter than the 15 characters ``title_key`` compares)
+    msg = load_mail(ON_THE_ROUTE)
+    msg.replace_header("Subject", "WAGO 2773...")
+    msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+                    "    WAGO 2773 Spleißverbinder-Set\n")
+    assert parse_mail(msg).updates[0].title == "WAGO 2773 Spleißverbinder-Set"
 
 
 def test_delivery_update_that_tells_no_delay_just_stays_on_its_way():
@@ -474,6 +496,26 @@ def test_delivery_update_that_tells_no_delay_just_stays_on_its_way():
     assert (u.status_text, u.postponed, u.eta_date) == (None, False, date(2025, 4, 26))
 
 
+@pytest.mark.parametrize(
+    ("sentence", "delayed"),
+    [
+        ("Verspätete Lieferung.", True),
+        ("Es kommt zu Verzögerungen.", True),
+        ("IHR PAKET VERSPÄTET SICH.", True),
+        ("Ihr Paket ist nicht verspätet.", False),
+        ("Ihr Paket ist unterwegs.", False),
+    ],
+)
+def test_delivery_update_reads_the_delay_in_any_wording(sentence, delayed):
+    msg = load_mail(DELAYED)
+    late = "Ihr Paket ist unterwegs, verspätet sich aber. Bitte entschuldigen Sie die Verzögerung."
+    msg.set_content(msg.get_content().replace(late, sentence))
+    [u] = parse_mail(msg).updates
+    assert (u.postponed, u.status_text) == (
+        (True, "Lieferung verspätet") if delayed else (False, None)
+    )
+
+
 def test_plain_mail_is_named_after_the_item_of_its_subject_without_the_quantity():
     msg = load_mail(ON_THE_ROUTE)
     body = ("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
@@ -483,11 +525,12 @@ def test_plain_mail_is_named_after_the_item_of_its_subject_without_the_quantity(
     msg.replace_header("Subject", "Beispiel-Maßband 5... und 1 weiteren Artikel")
     msg.set_content(body)
     assert parse_mail(msg).updates[0].title == "Beispiel-Maßband 5 m"
-    # A subject that names no item of the list: the first one, without "2 x".
-    msg.replace_header("Subject", "Zustellung heute: Ihr Amazon Paket wird zugestellt")
-    assert parse_mail(msg).updates[0].title == "Beispiel-Riegel Kokos 200 g"
     msg.replace_header("Subject", "Lieferungsaktualisierung: Beispiel-Riegel Kokos...")
     assert parse_mail(msg).updates[0].title == "Beispiel-Riegel Kokos 200 g"
+    # A subject that names no item of the list names nothing: the other mails of the order
+    # name it.
+    msg.replace_header("Subject", "Zustellung heute: Ihr Amazon Paket wird zugestellt")
+    assert parse_mail(msg).updates[0].title is None
 
 
 def test_usual_layout_keeps_an_order_named_twice_as_two_shipments():

@@ -46,8 +46,9 @@ _ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
 # "Lieferungsaktualisierung: …": on its way, with a new day ("Jetzt erwartet bis zum 26.
 # April."). Only a mail that says so is a delay ("… verspätet sich aber. Bitte entschuldigen
 # Sie die Verzögerung."): the subject and a new day alone would also fit an earlier arrival.
+# ("… ist nicht verspätet" is none.)
 _DELAY = "lieferungsaktualisierung"
-_DELAYED = re.compile(r"\bverspätet\b|\bVerzögerung\b")
+_DELAYED = re.compile(r"(?<!nicht )\b(?:verspät|verzöger)\w*", re.IGNORECASE)
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
@@ -85,13 +86,6 @@ _ON_THE_ROUTE = re.compile(
     r"^Ihr (?:Amazon )?Paket(?: mit \S.*)? wird zugestellt\.?$", re.MULTILINE
 )
 _LATER = re.compile(r"Jetzt erwartet bis zum (\d{1,2}\.\s*[A-Za-zä]+)")
-# An item's line below the order number: no link, no label ("Ihr Paket verfolgen:"), no
-# date line, not the shop's name and no line about the recipient ("Lieferung an <name>"):
-# a person's name never names a parcel.
-_PLAIN_ITEM = re.compile(
-    r"(?!Aufgegeben am\b|Amazon\.\w+$|(?:Lieferung|Lieferadresse|Versand|Zustellung|Empfänger)\b)"
-    r"[^\W_](?:(?!://).)*[^:]$"
-)
 # The plain layout names an item with its quantity before it ("2 x …", "2-mal …"), below
 # the number and, without quotes, in the subject ("2 x Beispiel... und 2 weiteren
 # Artikeln"). The other mails of the order name it without the quantity.
@@ -177,27 +171,27 @@ def _eta(text: str, sent: datetime) -> dict[str, date | datetime | None]:
     return {}
 
 
-def _plain_title(subj: str | None, below: str) -> str | None:
-    """Name of an order in the plain layout, from the lines below its number.
+def _plain_title(subj: str, below: str) -> str | None:
+    """Name of an order in the plain layout: the line below its number the subject names.
 
-    The item the subject names if it is listed (the other mails of the order name that
-    one), else the first one; without its quantity, so the name fits theirs (``title_key``).
-    None if the first line is no item.
+    The subject names the item (often cut: "Beispiel-Maßband 5..."), the other mails of the
+    order name the same one; it is taken without its quantity, so the name fits theirs
+    (``title_key``). Only a line that begins like the subject is taken: a person's name or
+    an address never names a parcel. None if the subject names no item of the list
+    ("Zustellung heute: Ihr Amazon Paket wird zugestellt").
     """
-    items: list[str] = []
-    for line in below.strip().splitlines()[:20]:
-        line = line.strip()
-        if line.startswith("---") or (not items and not _PLAIN_ITEM.match(line)):
-            break
-        if line and _PLAIN_ITEM.match(line):
-            items.append(_QUANTITY.sub("", line))
-    if not items:
+    named = subj.split(":", 1)[1] if subject_status(subj) is not None else subj
+    wanted = title_key(_QUANTITY.sub("", _PLAIN_MORE.sub("", named.strip())))
+    if not wanted:
         return None
-    if subj:
-        named = subj.split(":", 1)[1] if subject_status(subj) is not None else subj
-        wanted = title_key(_QUANTITY.sub("", _PLAIN_MORE.sub("", named.strip())))
-        items.sort(key=lambda item: title_key(item) != wanted)  # (stable: else the first)
-    return items[0]
+    for line in below.strip().splitlines()[:20]:
+        line = _QUANTITY.sub("", line.strip())
+        if line.startswith("---"):
+            break
+        # (the subject's start may be shorter than the key: "WAGO 2773...")
+        if line and title_key(line).startswith(wanted):
+            return line
+    return None
 
 
 def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
@@ -242,7 +236,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         listed = item.group("title") or item.group("listed") if item else None
         if listed is None and match.group("plain"):
             # (the plain layout names the items on the lines below the number)
-            listed = _plain_title(subj if len(orders) == 1 else None, text[match.end() : end])
+            listed = _plain_title(subj, text[match.end() : end])
         title = from_subject or (shorten(listed) if listed else None)
         updates.append(
             MailUpdate(

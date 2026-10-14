@@ -238,11 +238,19 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         elif (
             old
             and update.status not in _DROP_ETA
-            and (not postponed or (old.eta_date and old.eta_date > update.sent_at.date()))
+            and (
+                not postponed
+                or (
+                    update.status_text != DELAY_TEXT
+                    and old.eta_date
+                    and old.eta_date > update.sent_at.date()
+                )
+            )
         ):
             # (a delivered parcel keeps its day: it is the day shown as delivered; a
             # postponed delivery that names no new day has none - but a day after the
-            # mail's own is not the one it takes back: the carrier named it already)
+            # mail's own is not the one an attempt takes back: the carrier named it
+            # already. A delay says that every day known so far is too early.)
             eta = (old.eta_date, old.eta_from, old.eta_to, old.eta_latest)
         else:
             eta = (None, None, None, None)

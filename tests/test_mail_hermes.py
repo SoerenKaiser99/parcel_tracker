@@ -214,6 +214,26 @@ def test_only_the_delivery_at_the_door_is_delivered():
     assert (u.status, u.delivered_at) == (None, None)
 
 
+def test_delivery_at_the_door_that_did_not_happen_is_not_delivered():
+    body = "Sendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg("Erfolgreiche Haustürzustellung nicht möglich", body)).updates
+    assert (u.status, u.delivered_at) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("subj", "status"),
+    [
+        ("Deine Hermes Sendung von Zalando wurde zugestellt", ParcelStatus.DELIVERED),
+        ("Deine Hermes Sendung von Zalando kommt heute", ParcelStatus.OUT_FOR_DELIVERY),
+    ],
+)
+def test_a_new_day_in_the_text_does_not_overrule_a_settled_subject(subj, status):
+    body = "Neuer Zustelltermin am\nDonnerstag, 08.10.2026\nSendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg(subj, body)).updates
+    assert (u.status, u.postponed) == (status, False)
+    assert u.eta_date != date(2026, 10, 8)
+
+
 def test_window_of_the_failed_attempt_is_not_the_new_days():
     body = (
         "wir haben dich heute zwischen 10:00 und 12:00 Uhr leider nicht angetroffen.\n"
