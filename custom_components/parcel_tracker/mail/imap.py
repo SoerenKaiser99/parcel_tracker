@@ -4,7 +4,9 @@ All methods block; the coordinator runs them in the executor.
 
 One folder is read: INBOX unless another one is set. Its name goes over the wire in
 modified UTF-7 (RFC 3501, 5.1.3) as a quoted string; imaplib does neither by itself.
-The two folders mails are filed into stay top-level and are never the folder read.
+The two folders mails are filed into are never the folder read. They go where the
+server keeps its own folders: top-level, or below INBOX on servers that say so with
+NAMESPACE (Courier, Dovecot with a prefix); see ``_Filing``.
 
 The connection is TLS from the first byte with a checked certificate unless the options
 say otherwise: TLS without checking the certificate (an own server at home with a
@@ -84,6 +86,41 @@ class ImapFolderNotFound(ImapUnavailable):
 _RESERVED = frozenset({FOLDER_PROCESSED.casefold(), FOLDER_UNRECOGNIZED.casefold()})
 # What servers use between the levels of a folder path.
 _DELIMITER = re.compile(r"[/.]")
+
+# An IMAP atom: printable ASCII without the atom-specials (RFC 3501, 9).
+_ATOM = re.compile(r"[!#$&'+,\-./0-9:;<=>?@A-Z\[^_`a-z|}~]+")
+_QUOTED = r'"(?:[^"\\]|\\.)*"'
+# NAMESPACE answer: (("<prefix>" "<delimiter>") ...) <others> <shared>; the first one.
+_NAMESPACE_PERSONAL = re.compile(rf"\s*\(\(\s*({_QUOTED})\s+({_QUOTED}|NIL)\s*\)", re.IGNORECASE)
+# LIST answer: (<flags>) "<delimiter>" <name>.
+_LIST_DELIMITER = re.compile(rf"\s*\([^)]*\)\s+({_QUOTED}|NIL)", re.IGNORECASE)
+
+# For the diagnostics: prefixes and delimiters servers use; any other is "other" (it
+# could hold a name). Filing folder keys there, never the folder read.
+_SAFE_PREFIX = re.compile(r"(?:INBOX)?[./]?", re.IGNORECASE)
+_SAFE_DELIMITERS = frozenset("./\\:")
+_FOLDER_KEYS = {FOLDER_PROCESSED: "processed", FOLDER_UNRECOGNIZED: "unrecognized"}
+
+# Filing problems, one warning per outage (codes for the diagnostics).
+_FILING_WARNINGS = {
+    "folder_unavailable": (
+        "Could not find or create the mail folder %s on the mail server; mails stay "
+        "in the folder read, marked as read. Create the folder in the mail client or "
+        "turn off moving mails in the options"
+    ),
+    "move_refused": (
+        "The mail server refused to move mails into %s; they stay in the folder read, "
+        "marked as read"
+    ),
+    "copy_refused": (
+        "The mail server refused to copy mails into %s; they stay in the folder read, "
+        "marked as read"
+    ),
+    "delete_refused": (
+        "The mail server copied mails into %s but refused to mark them as deleted; "
+        "they stay in the folder read as well"
+    ),
+}
 
 
 # Names that only resolve inside an own network (RFC 6762, RFC 8375, the usual router
@@ -205,6 +242,12 @@ def encode_mailbox(name: str) -> str:
     return "".join(parts)
 
 
+def _quote(wire: str) -> str:
+    """A name already in modified UTF-7 as an IMAP quoted string."""
+    escaped = wire.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
 def quote_mailbox(name: str) -> str:
     """The name as an IMAP quoted string in modified UTF-7.
 
@@ -213,13 +256,147 @@ def quote_mailbox(name: str) -> str:
     """
     if not name or any(char < " " or char == "\x7f" for char in name):
         raise ValueError("not a folder name")
-    escaped = encode_mailbox(name).replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    return _quote(encode_mailbox(name))
+
+
+def _astring(wire: str) -> str:
+    """A name already in modified UTF-7 as a command takes it.
+
+    Bare where IMAP allows an atom, so the filing folders go out exactly as they always
+    did; quoted otherwise (a prefix with a space, say).
+    """
+    return wire if _ATOM.fullmatch(wire) else _quote(wire)
+
+
+def _unquote(token: str) -> str:
+    """The text of an IMAP quoted string ("..." with backslash escapes)."""
+    return re.sub(r"\\(.)", r"\1", token[1:-1])
+
+
+def _text(data: Any) -> str | None:
+    """The first line of an untagged answer as text; None for none or a literal."""
+    line = (data or [None])[0]
+    if isinstance(line, bytes):
+        return line.decode("ascii", "replace")
+    return line if isinstance(line, str) else None
+
+
+def _printable(text: str) -> bool:
+    return all(" " <= char <= "~" for char in text)
+
+
+class _Filing:
+    """Where the two filing folders are on this server, worked out once per run.
+
+    A server that announces NAMESPACE (RFC 2342) says where an own folder belongs: at
+    the top (prefix "") or below INBOX ("INBOX." on Courier, Dovecot with a prefix).
+    A folder is looked up there first, then at the top (where it always was looked for);
+    only then is it created where the server says. Without NAMESPACE it is the top, as
+    up to v0.3.32. Whenever the prefix is "" (no NAMESPACE, or one that says "top") and
+    the server refuses to create the folder there, LIST "" "" tells the delimiter and the
+    folder is looked up and created below INBOX. Made only when the first mail of a run
+    needs a folder, after that mail is marked seen. Nothing is kept beyond the run: a
+    folder renamed or deleted in the mail client is found or created anew next time.
+    """
+
+    def __init__(self, conn: Any, caps: set[str]) -> None:
+        self.conn = conn
+        self.namespace = self._namespace(caps)
+        self.prefix, self.delimiter = self.namespace or ("", None)
+        self._listed_delimiter = False
+        # name -> (wire name or None, how it was found, where it is)
+        self.folders: dict[str, tuple[str | None, str, str | None]] = {}
+
+    def _namespace(self, caps: set[str]) -> tuple[str, str | None] | None:
+        """Prefix and delimiter of the first personal namespace; None if not told."""
+        if "NAMESPACE" not in caps:
+            return None
+        try:
+            status, data = self.conn.namespace()
+        except imaplib.IMAP4.abort:
+            raise
+        except imaplib.IMAP4.error:
+            return None
+        text = _text(data) if status == "OK" else None
+        match = _NAMESPACE_PERSONAL.match(text or "")
+        if match is None:
+            return None
+        prefix = _unquote(match.group(1))
+        delimiter = None if match.group(2).upper() == "NIL" else _unquote(match.group(2))
+        if not _printable(prefix):
+            return None
+        if delimiter is not None and (len(delimiter) != 1 or not _printable(delimiter)):
+            delimiter = None
+        if prefix and not (delimiter and prefix.endswith(delimiter)):
+            if delimiter is None:
+                return None  # ("INBOX" NIL): no way to tell where below it; the top
+            prefix += delimiter  # ("INBOX" "."): the folders go to INBOX.<name>
+        return prefix, delimiter
+
+    def _list_delimiter(self) -> str | None:
+        """The hierarchy delimiter as LIST "" "" tells it (RFC 3501, 6.3.8)."""
+        if not self._listed_delimiter:
+            self._listed_delimiter = True
+            status, data = self.conn.list('""', '""')
+            match = _LIST_DELIMITER.match((_text(data) if status == "OK" else None) or "")
+            if match and match.group(1).upper() != "NIL":
+                delimiter = _unquote(match.group(1))
+                if len(delimiter) == 1 and _printable(delimiter):
+                    self.delimiter = delimiter
+        return self.delimiter
+
+    def _exists(self, wire: str) -> bool:
+        status, data = self.conn.list('""', _astring(wire))
+        return status == "OK" and any(data or [])
+
+    def _create(self, wire: str) -> bool:
+        status, _ = self.conn.create(_astring(wire))
+        if status != "OK":
+            _LOGGER.debug("Could not create a mail folder (%s); mails stay in INBOX", status)
+            return False
+        self.conn.subscribe(_astring(wire))
+        return True
+
+    def resolve(self, name: str) -> str | None:
+        """The folder ``name`` as commands take it; None if it is neither there nor made."""
+        if name not in self.folders:
+            self.folders[name] = self._resolve(name)
+        wire = self.folders[name][0]
+        return None if wire is None else _astring(wire)
+
+    def _resolve(self, name: str) -> tuple[str | None, str, str | None]:
+        own = encode_mailbox(name)
+        primary = self.prefix + own
+        place = "namespace" if self.prefix else "top_level"
+        if self._exists(primary):
+            return primary, "found", place
+        if self.prefix and self._exists(own):
+            return own, "found", "top_level"
+        if self._create(primary):
+            return primary, "created", place
+        if not self.prefix and (delimiter := self._list_delimiter()):
+            below = f"{DEFAULT_IMAP_FOLDER}{delimiter}{own}"
+            if self._exists(below):
+                return below, "found", "below_inbox"
+            if self._create(below):
+                return below, "created", "below_inbox"
+        return None, "missing", None
 
 
 def _is_auth_error(err: Exception) -> bool:
     text = str(err).lower()
     return any(marker in text for marker in _AUTH_MARKERS)
+
+
+def _shown_prefix(prefix: str) -> str:
+    """The namespace prefix for the diagnostics: a fixed spelling as it is, else "other"."""
+    return prefix if _SAFE_PREFIX.fullmatch(prefix) else "other"
+
+
+def _shown_delimiter(delimiter: str | None) -> str | None:
+    if delimiter is None:
+        return None
+    return delimiter if delimiter in _SAFE_DELIMITERS else "other"
 
 
 class MailboxClient:
@@ -250,6 +427,36 @@ class MailboxClient:
         # executor, it loads certs).
         self._ssl_context = ssl_context
         self._told_no_expunge = False
+        # Filing folders in an outage (warned once each).
+        self._failing: set[str] = set()
+        # How filing went (diagnostics): kept across runs, the layout asked anew each run.
+        self._filing: dict[str, Any] = {
+            "has_move": None,
+            "has_uidplus": None,
+            "has_namespace": None,
+            "namespace_prefix": None,
+            "delimiter": None,
+            "folders": dict.fromkeys(_FOLDER_KEYS.values()),
+            # True while any folder fails (see failing_folders: one warning per folder
+            # outage, over once a mail is filed into that folder again).
+            "failing": False,
+            "failing_folders": [],
+            "last_error": None,
+        }
+
+    def filing_state(self) -> dict[str, Any]:
+        """How the last runs filed mails, for the diagnostics: flags and fixed words only.
+
+        Never the host, the user or a folder name; the namespace prefix only in one of
+        the spellings servers use ("", "INBOX.", "INBOX/"), any other as "other".
+        """
+        state = dict(self._filing)
+        state["failing_folders"] = list(self._filing["failing_folders"])
+        state["folders"] = {
+            key: dict(value) if isinstance(value, dict) else value
+            for key, value in self._filing["folders"].items()
+        }
+        return state
 
     @property
     def tls(self) -> bool:
@@ -358,19 +565,6 @@ class MailboxClient:
                     caps.update(item.upper().split())
         return caps
 
-    @staticmethod
-    def _ensure_folder(conn: Any, folder: str) -> bool:
-        """True when ``folder`` exists or could be created (and subscribed)."""
-        status, data = conn.list('""', folder)
-        if status == "OK" and any(data or []):
-            return True
-        status, _ = conn.create(folder)
-        if status != "OK":
-            _LOGGER.debug("Could not create a mail folder (%s); mails stay in INBOX", status)
-            return False
-        conn.subscribe(folder)
-        return True
-
     def check_login(self) -> None:
         """Log in and select the folder to read.
 
@@ -402,35 +596,59 @@ class MailboxClient:
         """Mark mails seen and, if ``move``, file them into their target folder.
 
         ``dispositions`` holds (uid, folder); folder None means "only mark seen".
-        A failed CREATE/COPY/MOVE leaves the mail where it is (marked seen).
+        A failed CREATE/COPY/MOVE leaves the mail where it is (marked seen); the first
+        such failure after a working run is a warning in the log (see ``filing_state``).
         """
         conn = self._connect()
         try:
             caps = self._capabilities(conn) if move else set()
             can_move = "MOVE" in caps
             uidplus = "UIDPLUS" in caps
-            ready: dict[str, bool] = {}
+            # Made when the first mail needs a folder, after it is marked seen: a server
+            # that drops the connection on NAMESPACE must never keep mails unseen.
+            filing: _Filing | None = None
+            problems: list[tuple[str, str]] = []
+            filed: list[str] = []
             deleted: list[str] = []
             for uid, folder in dispositions:
                 conn.uid("STORE", uid, "+FLAGS", "(\\Seen)")
                 if not move or folder is None:
                     continue
-                if folder not in ready:
-                    ready[folder] = self._ensure_folder(conn, folder)
-                if not ready[folder]:
+                if filing is None:
+                    filing = _Filing(conn, caps)
+                    self._filing.update(
+                        has_move=can_move,
+                        has_uidplus=uidplus,
+                        has_namespace=filing.namespace is not None,
+                        namespace_prefix=(
+                            _shown_prefix(filing.prefix) if filing.namespace is not None else None
+                        ),
+                        delimiter=_shown_delimiter(filing.delimiter),
+                    )
+                target = filing.resolve(folder)
+                self._note_folder(filing, folder)
+                if target is None:
+                    problems.append(("folder_unavailable", folder))
                     continue
                 if can_move:
-                    status, _ = conn.uid("MOVE", uid, folder)
+                    status, _ = conn.uid("MOVE", uid, target)
                     if status != "OK":
                         _LOGGER.debug("Could not move a mail (%s); it stays in INBOX", status)
+                        problems.append(("move_refused", folder))
+                    else:
+                        filed.append(folder)
                     continue
-                status, _ = conn.uid("COPY", uid, folder)
+                status, _ = conn.uid("COPY", uid, target)
                 if status != "OK":
                     _LOGGER.debug("Could not copy a mail (%s); it stays in INBOX", status)
+                    problems.append(("copy_refused", folder))
                     continue
                 status, _ = conn.uid("STORE", uid, "+FLAGS", "(\\Deleted)")
                 if status == "OK":
                     deleted.append(uid)
+                    filed.append(folder)
+                else:
+                    problems.append(("delete_refused", folder))
             if deleted:
                 if uidplus:
                     # Only our mails: a plain EXPUNGE would also purge what others marked.
@@ -441,7 +659,38 @@ class MailboxClient:
                         "Server has neither MOVE nor UIDPLUS; filed mails stay marked "
                         "as deleted in INBOX until the mail client expunges them"
                     )
+            if filing is not None:
+                self._filing["delimiter"] = _shown_delimiter(filing.delimiter)
+            self._filing_done(problems, filed)
         except (OSError, imaplib.IMAP4.error) as err:
+            if move:
+                self._filing["last_error"] = "connection"
             raise ImapUnavailable(type(err).__name__) from err
         finally:
             self._logout(conn)
+
+    def _note_folder(self, filing: _Filing, folder: str) -> None:
+        key = _FOLDER_KEYS.get(folder)
+        if key is not None:
+            _, state, place = filing.folders[folder]
+            self._filing["folders"][key] = {"state": state, "place": place}
+
+    def _filing_done(self, problems: list[tuple[str, str]], filed: list[str]) -> None:
+        """One warning when a folder starts failing; over once a mail lands in it again.
+
+        Per folder: a run that only files into the other one (that works) does not end
+        this one's outage. A folder with a problem in this run stays failing even if
+        another mail made it in.
+        """
+        failed = {folder for _, folder in problems}
+        for code, folder in problems:
+            if folder not in self._failing:
+                self._failing.add(folder)
+                _LOGGER.warning(_FILING_WARNINGS[code], folder)
+        self._failing -= set(filed) - failed
+        if problems:
+            self._filing["last_error"] = problems[-1][0]
+        self._filing["failing"] = bool(self._failing)
+        self._filing["failing_folders"] = sorted(
+            key for folder, key in _FOLDER_KEYS.items() if folder in self._failing
+        )
