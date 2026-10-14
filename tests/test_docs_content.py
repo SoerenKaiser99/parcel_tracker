@@ -6,6 +6,7 @@ live in docs/*.md now, and each test reads the page (and section) that carries t
 
 import json
 import re
+import textwrap
 from pathlib import Path
 from urllib.parse import quote
 
@@ -1169,3 +1170,95 @@ def test_docs_carry_the_community_mailbox_setup_with_credit_and_our_notes():
         "    systemctl enable --now paket-mail.timer >/dev/null",
     ])
     assert len(re.findall(r"^\d\. ", section, re.M)) == 4
+
+
+# ----- v0.3.34: number line on the card, DHL history without HTML, docs of the release ----
+HELPING = "mithelfen.md"
+RECIPES = "rezepte.md"
+
+
+def test_docs_explain_the_number_line_of_the_card():
+    section = _section(CARD, "Paket aufklappen")
+    _all_have(section, [
+        "**Sendungsnummer, Bestellnummer**",
+        "„Sendungsnummer: …“",
+        "„Bestellnummer: …“",
+        "`999-9999999-9999999`",
+        "markiert sie ganz",
+        "[Namen ausblenden](datenschutz.md#namen-ausblenden)",
+        "Die Option blendet nur Namen aus",
+        "auch wenn der Paketdienst einen Link mitschickt (seit v0.3.34)",
+    ])
+
+
+def test_recipe_eleven_subtracts_the_parcels_waiting_for_pickup():
+    section = _section(RECIPES, "11. Unterwegs ohne Abholbereite")
+    _all_have(section, [
+        '=== "Als Helfer (ohne YAML)"',
+        '=== "In der configuration.yaml"',
+        "{{ [states('sensor.pakete_unterwegs') | int(0) - states('sensor.pakete_abholbereit')"
+        " | int(0), 0] | max }}",
+        "{{ has_value('sensor.pakete_unterwegs') and has_value('sensor.pakete_abholbereit') }}",
+        "**Maßeinheit**: `Pakete`, **Zustandsklasse**: „Messung“",
+        "**Verfügbarkeitstemplate**",
+        "Abholbereite zählen bei `sensor.pakete_unterwegs` und bei `sensor.pakete_abholbereit` mit",
+        "`sensor.unterwegs_ohne_abholbereite`",
+    ])
+    yaml_block = section.split("```yaml\n", 1)[1].split("```", 1)[0]
+    sensor = yaml.safe_load(textwrap.dedent(yaml_block))["template"][0]["sensor"][0]
+    assert sensor["state_class"] == "measurement"
+    assert sensor["unit_of_measurement"] == "Pakete"
+    assert "has_value('sensor.pakete_unterwegs')" in sensor["availability"]
+    assert "has_value('sensor.pakete_abholbereit')" in sensor["availability"]
+    assert "| max" in sensor["state"]
+    assert TEXTS[RECIPES].startswith("# Rezepte\n\nElf fertige Beispiele zum Kopieren.")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "**Rezepte**: elf Beispiele für Automationen und Karten" in readme
+    assert "zehn Beispiele" not in readme and "Zehn fertige" not in TEXTS[RECIPES]
+
+
+def test_community_setup_names_the_harmless_message_before_the_first_filed_mail():
+    section = _section(MAIL, "Beispiel aus der Community: dovecot und imapfilter im Container")
+    pitfalls = section.split("**Stolperfallen, auf die er gestoßen ist:**")[1].split(
+        "Nützlich:")[0]
+    _all_have(pitfalls, [
+        "`NO [NONEXISTENT] Mailbox doesn't exist: Paket-Tracker-Verarbeitet`",
+        "harmlos",
+        "`doveadm mailbox create -u pakete Paket-Tracker-Verarbeitet`",
+    ])
+    # The script itself is unchanged: the folder is not created there.
+    script = section.split('??? example "paket-postfach-setup.sh"')[1]
+    assert "doveadm mailbox create" not in script
+
+
+def test_helping_page_is_at_this_version():
+    text = TEXTS[HELPING]
+    assert "*Stand: 14. Oktober 2026, Version 0.3.34." in text
+    _all_have(text, [
+        "`pickup-point@amazon.de` („Das Paket ist zur Abholung bereit“, Amazon Locker, Counter"
+        " oder Abholstation)",
+        "**DHL mit API-Key: Verlauf ohne HTML**",
+        "**DPD: die Mails nach der Ankündigung**",
+        "**eBay: „Update zur Bestellung“ und „Zustellversuch“**",
+        "**Hermes: „Deine Sendung kommt heute.“ und neuer Zustelltermin**",
+        "**Nicht erkannte Mails erneut einlesen**",
+        "**Sendungs- und Bestellnummer im aufgeklappten Paket**",
+    ])
+    # Sample mails PR #24 brought (fixtures 161-163, 167, 170, 173; 106 for eBay's
+    # delivery) are no longer asked for; the rest of each row stays.
+    missing = _section(HELPING, "2. Beispielmails: Diese fehlen uns")
+    assert "**DPD Deutschland**" not in missing and "**eBay**" not in missing
+    assert "Zustellversuch" not in missing and "Lieferung verspätet" not in missing
+    _all_have(missing, [
+        "| **Hermes** | im PaketShop abholbereit |",
+        "| **Amazon** | Bestellung storniert; Mails von Amazon in Österreich; ",
+        "**DPD Österreich**", "**DHL**", "**GLS**", "**UPS**", "**AliExpress**",
+        "**Eventim**", "**Österreichische Post, Schweizer Post**",
+    ])
+    # Confirmed by users: no longer asked for, listed as confirmed instead.
+    assert "**Eigener Ordner im Postfach**" not in text
+    assert "**Ablage-Ordner bei Postfächern mit INBOX-Präfix**" not in text
+    confirmed = _section(STATUS, "Von Testern bestätigt")
+    _all_have(confirmed, [
+        "Eigener Ordner im Postfach", "Ablage-Ordner bei Postfächern mit INBOX-Präfix",
+    ])

@@ -22,6 +22,7 @@ from .base import (
     NotFound,
     ParseError,
     RateLimited,
+    plain_text,
 )
 
 TRACK17_URL = "https://api.17track.net/track/v2.2"
@@ -72,7 +73,8 @@ def _time(value: Any) -> datetime | None:
 
 
 def _text(value: Any) -> str | None:
-    return (value.strip() or None) if isinstance(value, str) else None
+    """Plain text (17track passes on what the carrier sent, also HTML: issue #18)."""
+    return (plain_text(value) or None) if isinstance(value, str) else None
 
 
 def _event(raw: Any) -> TrackingEvent | None:

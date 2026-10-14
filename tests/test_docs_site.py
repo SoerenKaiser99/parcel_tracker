@@ -109,9 +109,9 @@ def test_recipes_are_automations_in_the_current_syntax_or_cards():
         for trigger in automation["triggers"]:
             assert "trigger" in trigger and "platform" not in trigger
             assert trigger["trigger"] != "device"  # device ids are picked in the editor
-    assert len(re.findall(r"^## \d+\. ", TEXTS["rezepte.md"], re.M)) == 10
-    assert TEXTS["rezepte.md"].count("**Anpassen:**") == 10
-    assert TEXTS["rezepte.md"].count("**Wofür:**") == 10
+    assert len(re.findall(r"^## \d+\. ", TEXTS["rezepte.md"], re.M)) == 11
+    assert TEXTS["rezepte.md"].count("**Anpassen:**") == 11
+    assert TEXTS["rezepte.md"].count("**Wofür:**") == 11
 
 
 def test_entities_services_and_the_event_exist_in_the_code():

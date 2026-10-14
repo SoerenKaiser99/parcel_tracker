@@ -495,6 +495,7 @@ weitere ...        ─┘
 - **Schlagwörter bei iCloud:** Eine frühere Version markierte kopierte Mails im Quellpostfach mit einem Schlagwort. iCloud speichert das, findet es bei der Suche aber nicht wieder, dadurch wurde dieselbe Mail alle 5 Minuten neu kopiert. Jetzt prüft das Skript lokal per Message-ID.
 - **Gelesene Mails:** Paket Tracker liest nur ungelesene Mails. imapfilter übernimmt beim Kopieren aber „gelesen“ aus dem Quellpostfach. Deshalb markiert das Skript kopierte Mails lokal wieder als ungelesen.
 - **Ordner `Paket-Tracker-Verarbeitet`:** Prüft man Doppelte nur im Posteingang, wird jede verarbeitete Mail bei jedem Lauf neu kopiert. Deshalb prüft das Skript in beiden Ordnern.
+- **`Mailbox doesn't exist` im Log** (Hinweis eines weiteren Nutzers): Bis Paket Tracker die erste Mail abgelegt hat, gibt es den Ordner `Paket-Tracker-Verarbeitet` noch nicht, und imapfilter meldet bei jedem Lauf `NO [NONEXISTENT] Mailbox doesn't exist: Paket-Tracker-Verarbeitet`. Das ist harmlos und verschwindet von selbst. Wer die Meldung gar nicht erst sehen will, legt den Ordner einmal im Container an: `doveadm mailbox create -u pakete Paket-Tracker-Verarbeitet`.
 - **Absendersuche bei iCloud:** Die IMAP-Suche von iCloud findet nur Wortanfänge, `myhermes.de` in `noreply@paketankuendigung.myhermes.de` also nicht. Das Skript holt deshalb die Absender der letzten Tage selbst und vergleicht lokal. Die Einträge der Absenderliste stehen ohne `@` davor, damit auch Subdomains passen.
 - **Absender fehlt?** In `/etc/imapfilter/config.lua` in der Liste `absender` ergänzen.
 

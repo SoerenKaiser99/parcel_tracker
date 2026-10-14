@@ -9,7 +9,6 @@ Only status, texts, times and the delivery day are read: ``signature``, ``refere
 
 from __future__ import annotations
 
-import html
 import logging
 import re
 import time
@@ -29,6 +28,7 @@ from .base import (
     NotFound,
     ParseError,
     RateLimited,
+    plain_text,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,8 +103,8 @@ def _list(value: Any) -> list[Any]:
 
 
 def _text(value: Any) -> str | None:
-    """Display text (GLS escapes umlauts as HTML entities)."""
-    return (html.unescape(value).strip() or None) if isinstance(value, str) else None
+    """Display text (GLS escapes umlauts as HTML entities; any tag is dropped)."""
+    return (plain_text(value) or None) if isinstance(value, str) else None
 
 
 def _retry_after(value: str | None) -> int | None:
