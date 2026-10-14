@@ -141,9 +141,14 @@ def test_event_fields_and_attributes_exist_in_the_code():
         assert f'"{attribute}": ' in SENSOR_PY, attribute
 
 
+# A user's script, quoted verbatim (mail-import.md, issue #26): its own words, not ours.
+CONTRIBUTED = re.compile(r'^\?\?\? example "paket-postfach-setup\.sh"\n(?:(?: {4}.*)?\n)+', re.M)
+
+
 def test_no_page_says_bitte_or_erfolgreich():
+    assert len(CONTRIBUTED.findall(TEXTS["mail-import.md"])) == 1
     for name, text in TEXTS.items():
-        found = re.findall(r"\b(bitte|erfolgreich\w*)\b", text, re.I)
+        found = re.findall(r"\b(bitte|erfolgreich\w*)\b", CONTRIBUTED.sub("", text), re.I)
         assert not found, f"{name}: {found}"
 
 

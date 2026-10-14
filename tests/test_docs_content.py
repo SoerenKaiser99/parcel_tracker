@@ -1134,3 +1134,38 @@ def test_docs_explain_hide_names():
 def test_docs_name_hide_names_where_notifications_are_explained():
     texts = _section(NOTIFY, "So sehen die Texte aus")
     assert "Mit [Namen ausblenden](datenschutz.md#namen-ausblenden) steht dort" in texts
+
+
+# ----- v0.3.33: filing folders below INBOX, a community setup for an own mailbox -----
+def test_docs_say_where_the_filing_folders_go_and_what_happens_when_it_fails():
+    section = _section(MAIL, "Was mit den Mails im Postfach passiert")
+    _all_have(section, [
+        "`INBOX.Paket-Tracker-Verarbeitet`",
+        "Seit v0.3.33 fragt der Import den Server",
+        "Hast du die Ordner selbst im Mailprogramm angelegt",
+        "je Ordner einmal eine Warnung im Protokoll",
+        "im Abschnitt `filing`",
+    ])
+    assert "liegen immer auf der obersten Ebene" not in TEXTS[MAIL]
+    _all_have(_section(SENSORS, "Diagnose"), ["`filing`", "MOVE und UIDPLUS", "NAMESPACE"])
+
+
+def test_docs_carry_the_community_mailbox_setup_with_credit_and_our_notes():
+    section = _section(MAIL, "Beispiel aus der Community: dovecot und imapfilter im Container")
+    _all_have(section, [
+        "Beitrag von Hanutawii ([Issue #26](https://github.com/SoerenKaiser99/parcel_tracker/issues/26))",
+        "von uns getestet ist er nicht",
+        "imapfilter (alle 5 Min)",
+        "**Voraussetzungen:**",
+        "**Einrichtung:**",
+        "**Stolperfallen, auf die er gestoßen ist:**",
+        "`options.starttls = false`",
+        "Port 143",
+        "`listen = *`",
+        "Port 993 mit „Verschlüsselt, Zertifikat nicht prüfen“",
+        "Modus 600",
+        '??? example "paket-postfach-setup.sh"',
+        "    #!/usr/bin/env bash",
+        "    systemctl enable --now paket-mail.timer >/dev/null",
+    ])
+    assert len(re.findall(r"^\d\. ", section, re.M)) == 4

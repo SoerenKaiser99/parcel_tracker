@@ -1602,6 +1602,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "amazon_misses": self._amazon_misses,
                 "known_message_ids": len(self.store.message_ids),
                 "last_unrecognized": [dict(item) for item in self.unrecognized_mails],
+                # How mails were filed: MOVE/UIDPLUS, the server's namespace prefix and
+                # delimiter (fixed words only), whether the two folders were found or
+                # created, the last filing problem. None without a mailbox.
+                "filing": (
+                    filing()
+                    if callable(filing := getattr(self.mailbox, "filing_state", None))
+                    else None
+                ),
             },
         }
 

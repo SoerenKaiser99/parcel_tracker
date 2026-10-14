@@ -59,7 +59,7 @@ Bei einem Mailanbieter im Internet musst du hier nichts ändern: Port 993 und �
 
 Gelesen wird genau ein Ordner des Postfachs, von Haus aus der Posteingang (`INBOX`). Mit dem Feld **Ordner** liest der Import stattdessen einen anderen.
 
-- Schreib den Ordner so, wie der Mailserver ihn führt: `Pakete`, `Bestellungen & Pakete`, einen Unterordner als `Pakete/DHL`, bei manchen Anbietern als `INBOX.Pakete`. Umlaute und Leerzeichen sind erlaubt.
+- Schreib den Ordner so, wie der Mailserver ihn führt: `Pakete`, `Bestellungen & Pakete`, einen Unterordner als `Pakete/DHL`, bei manchen Anbietern als `INBOX.Pakete`. Steht der Ordner im Mailprogramm unter dem Posteingang, heißt er auf manchen Servern `INBOX.Pakete` oder `INBOX/Pakete`. Umlaute und Leerzeichen sind erlaubt.
 - Alle anderen Ordner fasst der Import nicht an.
 - Gibt es den Ordner nicht, meldet das Formular „Diesen Ordner gibt es im Postfach nicht.“ und speichert nichts. Angelegt wird der Ordner nie.
 - Die beiden Ablage-Ordner `Paket-Tracker-Verarbeitet` und `Paket-Tracker-Nicht-erkannt` lassen sich nicht als Ordner zum Lesen eintragen.
@@ -196,7 +196,10 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
 - Erkannte Mails landen im Ordner `Paket-Tracker-Verarbeitet`, nicht erkannte im Ordner `Paket-Tracker-Nicht-erkannt`. Beide Ordner legt der Import bei Bedarf an.
 - Mit ausgeschalteter Option „Verarbeitete Mails in Ordner verschieben“ bleiben die Mails im gelesenen Ordner und werden nur als gelesen markiert.
-- Die beiden Ordner liegen immer auf der obersten Ebene des Postfachs, auch wenn ein eigener Ordner gelesen wird.
+- Wo die beiden Ordner liegen, bestimmt der Mailserver. Bei den meisten Anbietern liegen sie auf der obersten Ebene des Postfachs. Manche Server (oft Hosting-Postfächer, z. B. mit Courier oder dovecot mit Präfix) erlauben eigene Ordner nur unterhalb des Posteingangs. Dort heißen sie intern `INBOX.Paket-Tracker-Verarbeitet` oder `INBOX/Paket-Tracker-Verarbeitet`, im Mailprogramm stehen sie unter dem Posteingang. Seit v0.3.33 fragt der Import den Server, wo eigene Ordner hingehören, und legt sie dort an.
+- Hast du die Ordner selbst im Mailprogramm angelegt, nimmt der Import sie: dort, wo der Server eigene Ordner anlegt, oder auf der obersten Ebene. Lehnt der Server die oberste Ebene ab, sucht und legt der Import sie direkt unter dem Posteingang an.
+- In einem eigenen Ordner, der gelesen wird, liegen die beiden Ordner nie.
+- Kann der Import einen der Ordner weder finden noch anlegen, oder lehnt der Server das Verschieben ab, bleiben die Mails im gelesenen Ordner und sind als gelesen markiert. Dann steht je Ordner einmal eine Warnung im Protokoll von Home Assistant. Eine neue Warnung zu diesem Ordner kommt erst, wenn das Ablegen in ihn wieder geklappt hat und danach erneut scheitert. Was genau scheitert, steht in der [Diagnose](sensoren.md#diagnose) im Abschnitt `filing`. Abhilfe: die beiden Ordner im Mailprogramm anlegen oder „Verarbeitete Mails in Ordner verschieben“ ausschalten.
 - Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`) und alle Mails von Eventim, die keine Bestellung mit Postversand sind (Newsletter, Ticketalarm, Kundenservice, die Ticketshops der Vereine).
 - Jede Mail zählt nur einmal (erkannt an ihrer Message-ID).
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
@@ -431,6 +434,300 @@ Statt eines zusätzlichen Postfachs beim Mailanbieter kannst du das Paket-Postfa
 | **Verbindung** | „Verschlüsselt, Zertifikat nicht prüfen“ bei einem selbstsignierten Zertifikat. „Unverschlüsselt“ nur, wenn der Server kein TLS anbietet. |
 | **Benutzername**, **Passwort**, **Ordner** | die des lokalen Postfachs |
 
-Ein NAS mit einem Mailserver-Paket oder ein Docker-Host kann dasselbe. Eine Schritt-für-Schritt-Anleitung für bestimmte Geräte oder Programme gibt es hier nicht: Getestet ist bisher keine. Läuft so ein Aufbau bei dir, ist deine Konfiguration als [GitHub-Issue](https://github.com/SoerenKaiser99/parcel_tracker/issues) willkommen.
+Ein NAS mit einem Mailserver-Paket oder ein Docker-Host kann dasselbe. Von uns getestet ist bisher kein solcher Aufbau. Ein Beispiel aus der Community mit Einrichtungsskript steht [weiter unten](#beispiel-aus-der-community-dovecot-und-imapfilter-im-container). Läuft ein anderer Aufbau bei dir, ist deine Konfiguration als [GitHub-Issue](https://github.com/SoerenKaiser99/parcel_tracker/issues) willkommen.
 
 **Einfacher mit n8n oder Node-RED:** Läuft eines der beiden schon bei dir, brauchst du gar keinen Mailserver. Übergib die Mails per `POST /api/parcel_tracker/import_mail`, siehe [Ohne Postfach: Mail per HTTP übergeben](#ohne-postfach-mail-per-http-ubergeben).
+
+### Beispiel aus der Community: dovecot und imapfilter im Container
+
+!!! note "Von einem Nutzer beigesteuert"
+    Beitrag von Hanutawii ([Issue #26](https://github.com/SoerenKaiser99/parcel_tracker/issues/26)). Der Aufbau läuft bei ihm, von uns getestet ist er nicht. Fragen und Verbesserungen gern im Issue.
+
+**Die Idee:** Ein kleiner LXC-Container (bei ihm Debian 13 auf Proxmox) mit dovecot als lokalem Postfach. imapfilter schaut alle 5 Minuten in die echten Postfächer (bei ihm Posteo und iCloud) und kopiert nur die Paketmails hinein. Home Assistant kennt nur das lokale Postfach.
+
+```text
+Posteo-Posteingang ─┐
+iCloud-Posteingang ─┼─ imapfilter (alle 5 Min) ──► Dovecot "pakete" (nur LAN) ──► Paket Tracker
+weitere ...        ─┘
+```
+
+- Home Assistant kennt keine Zugangsdaten eines echten Postfachs.
+- Nach außen ist kein Port offen, alle Verbindungen gehen nur hinaus.
+- Doppelte erkennt das Skript an der Message-ID. Die Quellpostfächer bleiben unverändert.
+- Paket Tracker verschiebt verarbeitete Mails in `Paket-Tracker-Verarbeitet`. Die Prüfung auf Doppelte schaut deshalb in beide Ordner.
+- Im lokalen Postfach werden Mails nach 30 Tagen gelöscht, in beiden Ordnern.
+
+**Voraussetzungen:**
+
+- ein Host für LXC-Container, z. B. Proxmox,
+- ein Container mit Debian 12 oder 13; 1 Kern, 256 MB RAM und 2 GB Platte reichen,
+- am besten eine feste IP-Adresse für den Container,
+- für iCloud und Gmail je ein [App-Passwort](#app-passworter).
+
+**Einrichtung:**
+
+1. Den LXC-Container anlegen (Debian 12 oder 13) und ihm eine feste IP-Adresse geben.
+2. Das Skript (unten) in den Container kopieren und als root ausführen: `bash paket-postfach-setup.sh`.
+3. Das Skript fragt nach den Quellpostfächern (Server, Benutzer, Passwort) und nach einem neuen Passwort für das lokale Postfach `pakete`. Bei iCloud und Gmail braucht es ein App-Passwort.
+4. In Paket Tracker unter **Konfigurieren → E-Mail-Import** eintragen:
+
+    | Feld | Wert |
+    |---|---|
+    | **IMAP-Server** | die IP-Adresse des Containers |
+    | **Port** | `993` |
+    | **Verbindung** | „Verschlüsselt, Zertifikat nicht prüfen“ |
+    | **Benutzername** | `pakete` |
+    | **Passwort** | das eben vergebene lokale Passwort |
+    | **Ordner** | `INBOX` |
+
+**Stolperfallen, auf die er gestoßen ist:**
+
+- **imapfilter → lokales dovecot:** imapfilter schaltet von selbst auf STARTTLS und lehnt dann das selbstsignierte Zertifikat ab (`certificate verify failed`). Abhilfe im Skript: `options.starttls = false`. Die Quellpostfächer laufen trotzdem über SSL auf Port 993.
+- **Home Assistant → dovecot:** Mit Zertifikatsprüfung bricht die Verbindung mit `unknown ca` ab. Dafür gibt es die Verbindung „Verschlüsselt, Zertifikat nicht prüfen“.
+- **Nur der Posteingang:** Das Skript durchsucht in den Quellpostfächern nur den Posteingang. Wer Paketmails per Regel in andere Ordner verschiebt, ergänzt diese Ordner in der `config.lua`.
+- **Schlagwörter bei iCloud:** Eine frühere Version markierte kopierte Mails im Quellpostfach mit einem Schlagwort. iCloud speichert das, findet es bei der Suche aber nicht wieder, dadurch wurde dieselbe Mail alle 5 Minuten neu kopiert. Jetzt prüft das Skript lokal per Message-ID.
+- **Gelesene Mails:** Paket Tracker liest nur ungelesene Mails. imapfilter übernimmt beim Kopieren aber „gelesen“ aus dem Quellpostfach. Deshalb markiert das Skript kopierte Mails lokal wieder als ungelesen.
+- **Ordner `Paket-Tracker-Verarbeitet`:** Prüft man Doppelte nur im Posteingang, wird jede verarbeitete Mail bei jedem Lauf neu kopiert. Deshalb prüft das Skript in beiden Ordnern.
+- **Absendersuche bei iCloud:** Die IMAP-Suche von iCloud findet nur Wortanfänge, `myhermes.de` in `noreply@paketankuendigung.myhermes.de` also nicht. Das Skript holt deshalb die Absender der letzten Tage selbst und vergleicht lokal. Die Einträge der Absenderliste stehen ohne `@` davor, damit auch Subdomains passen.
+- **Absender fehlt?** In `/etc/imapfilter/config.lua` in der Liste `absender` ergänzen.
+
+Nützlich: die Logs mit `journalctl -u paket-mail.service -n 50`, sofort abholen mit `systemctl start paket-mail.service`.
+
+**Zwei Hinweise von uns:**
+
+- Im Container spricht imapfilter mit dovecot unverschlüsselt über Port 143. Das ist in Ordnung, solange es dabei bleibt: Die Verbindung geht nur an `127.0.0.1` und verlässt den Container nicht. dovecot lauscht aber auf allen Netzwerkschnittstellen (`listen = *`) und nimmt nach diesem Skript auch Anmeldungen ohne Verschlüsselung an. Home Assistant deshalb immer über Port 993 mit „Verschlüsselt, Zertifikat nicht prüfen“ verbinden, nie über Port 143 „Unverschlüsselt“.
+- Der Container hält die Passwörter deiner echten Postfächer (Dateien unter `/etc/imapfilter/`, nur für root lesbar, Modus 600). Home Assistant kennt nur das lokale Passwort. Schütze den Container entsprechend: keine weiteren Dienste darin, Updates einspielen, Zugang und Sicherungen so behandeln wie die Zugangsdaten selbst.
+
+??? example "paket-postfach-setup.sh"
+    ```bash
+    #!/usr/bin/env bash
+    # =============================================================================
+    # Paket-Postfach im Heimnetz für die HA-Integration "Paket Tracker"
+    #
+    # Echte Postfächer (Posteo, iCloud, GMX, ...) --imapfilter--> lokales Dovecot
+    # --> Home Assistant liest nur dieses lokale Postfach.
+    #
+    # - kopiert nur Paketmails (Absenderliste unten), alles andere bleibt, wo es ist
+    # - Doppelte werden über die Message-ID erkannt, die Quellpostfächer bleiben
+    #   unverändert (Schlagwörter funktionieren z. B. bei iCloud nicht zuverlässig)
+    # - kopierte Mails werden lokal als ungelesen markiert, damit Paket Tracker
+    #   sie verarbeitet, auch wenn sie im Quellpostfach schon gelesen sind
+    # - nur ausgehende Verbindungen, kein Port nach außen nötig
+    #
+    # Getestet auf Debian 13 (Dovecot 2.4) im Proxmox-LXC, läuft auch mit Dovecot 2.3.
+    # Als root im frischen Container ausführen: bash paket-postfach-setup.sh
+    # =============================================================================
+    set -euo pipefail
+    export LC_ALL=C.UTF-8 DEBIAN_FRONTEND=noninteractive
+
+    # ---- Einstellungen ----------------------------------------------------------
+    INTERVALL="5min"      # wie oft abgeholt wird
+    TAGE=3                # nur Mails der letzten X Tage berücksichtigen
+    AUFBEWAHRUNG=30       # Mails im lokalen Postfach nach X Tagen löschen
+    ABSENDER=(              # Teil der Absenderadresse, ohne @ davor (dann passen auch Subdomains)
+      'shipment-tracking@amazon.de'
+      'versandbestaetigung@amazon.de'
+      'order-update@amazon.de'
+      'dhl.de'
+      'myhermes.de'
+      'hermesworld.com'
+      'dpd.de'
+      'gls-pakete.de'
+      'ups.com'
+    )
+    # -----------------------------------------------------------------------------
+
+    [ "$(id -u)" -eq 0 ] || { echo "Bitte als root ausführen."; exit 1; }
+
+    echo ">> Pakete installieren"
+    apt-get update -qq
+    apt-get install -y -qq dovecot-imapd imapfilter >/dev/null
+
+    install -d -m 700 /etc/imapfilter
+
+    echo
+    echo "Quellpostfächer angeben, aus denen Paketmails geholt werden sollen."
+    echo "Beispiele: posteo.de, imap.mail.me.com (iCloud, App-Passwort nötig),"
+    echo "           imap.gmx.net, imap.web.de, imap.gmail.com (App-Passwort nötig)"
+    QUELLEN_LUA=""
+    N=0
+    while true; do
+      read -rp "IMAP-Server von Postfach $((N+1)) (leer = fertig): " SRV
+      [ -z "$SRV" ] && break
+      N=$((N+1))
+      read -rp  "  Benutzername / Adresse: " USR
+      read -rsp "  Passwort (bzw. App-Passwort): " PW; echo
+      printf '%s\n' "$PW" > "/etc/imapfilter/quelle${N}.pass"
+      QUELLEN_LUA+="  IMAP { server = '${SRV}', port = 993, username = '${USR}',
+             password = pw('/etc/imapfilter/quelle${N}.pass'), ssl = 'auto' },
+    "
+    done
+    [ "$N" -ge 1 ] || { echo "Kein Quellpostfach angegeben, Abbruch."; exit 1; }
+
+    read -rsp "Neues Passwort für das lokale Postfach 'pakete' (kommt in HA): " LOCAL_PASS; echo
+    printf '%s\n' "$LOCAL_PASS" > /etc/imapfilter/lokal.pass
+    chmod 600 /etc/imapfilter/*.pass
+
+    echo ">> Lokalen Mailnutzer 'pakete' anlegen"
+    id pakete &>/dev/null || useradd -m -s /usr/sbin/nologin pakete
+    echo "pakete:${LOCAL_PASS}" | chpasswd
+
+    echo ">> Dovecot konfigurieren"
+    DV=$(dovecot --version | awk '{print $1}')
+    if dpkg --compare-versions "$DV" ge 2.4; then
+      cat > /etc/dovecot/local.conf <<'EOF'
+    # Dovecot 2.4 – nur IMAP, Maildir im Home, Login per Linux-User
+    protocols = imap
+    listen = *
+    mail_driver = maildir
+    mail_path = ~/Maildir
+    mail_inbox_path =
+    auth_allow_cleartext = yes
+    EOF
+    else
+      cat > /etc/dovecot/local.conf <<'EOF'
+    # Dovecot 2.3 – nur IMAP, Maildir im Home, Login per Linux-User
+    protocols = imap
+    listen = *
+    mail_location = maildir:~/Maildir
+    disable_plaintext_auth = no
+    EOF
+    fi
+    systemctl restart dovecot
+
+    echo ">> imapfilter konfigurieren"
+    ABSENDER_LUA=$(printf "  '%s',\n" "${ABSENDER[@]}")
+
+    cat > /etc/imapfilter/config.lua <<EOF
+    options.timeout   = 120
+    options.subscribe = true
+    -- Lokale Verbindung ohne STARTTLS, sonst scheitert sie am selbstsignierten
+    -- Zertifikat. Die Quellpostfächer laufen trotzdem über SSL (Port 993).
+    options.starttls  = false
+    options.info      = false   -- keine "Fetched field"-Zeilen im Log
+
+    local function pw(datei)
+      local h = assert(io.open(datei))
+      local p = h:read('*l')
+      h:close()
+      return p
+    end
+
+    local quellen = {
+    ${QUELLEN_LUA}}
+
+    local lokal = IMAP {
+      server   = '127.0.0.1',
+      port     = 143,
+      username = 'pakete',
+      password = pw('/etc/imapfilter/lokal.pass'),
+    }
+
+    -- Teil des Absenders, hier ergänzen wenn etwas fehlt
+    local absender = {
+    ${ABSENDER_LUA}
+    }
+
+    -- Paket Tracker verschiebt verarbeitete Mails in diesen Ordner
+    local VERARBEITET = 'Paket-Tracker-Verarbeitet'
+
+    local function passt(from)
+      from = from:lower()
+      for _, a in ipairs(absender) do
+        if from:find(a:lower(), 1, true) then return true end
+      end
+      return false
+    end
+
+    -- Doppelte über die Message-ID erkennen, in beiden lokalen Ordnern
+    local function schon_da(mid)
+      if #lokal.INBOX:contain_field('Message-ID', mid) > 0 then return true end
+      local ok, n = pcall(function()
+        return #lokal[VERARBEITET]:contain_field('Message-ID', mid)
+      end)
+      return ok and n > 0
+    end
+
+    -- Absender selbst vergleichen statt per Server-Suche: iCloud findet z. B.
+    -- "myhermes.de" in "noreply@paketankuendigung.myhermes.de" nicht
+    local function abholen(konto)
+      for _, msg in ipairs(konto.INBOX:is_newer(${TAGE})) do
+        local mbox, uid = table.unpack(msg)
+        local from = mbox[uid]:fetch_field('From') or ''
+        if passt(from) then
+          local mid = (mbox[uid]:fetch_field('Message-ID') or ''):match('<[^>]+>')
+          if mid and not schon_da(mid) then
+            Set({ msg }):copy_messages(lokal.INBOX)
+            -- lokal als ungelesen markieren, damit Paket Tracker sie verarbeitet
+            lokal.INBOX:contain_field('Message-ID', mid):unmark_seen()
+            print('kopiert: ' .. from:gsub('^From:%s*', ''))
+          end
+        end
+      end
+    end
+
+    for _, konto in ipairs(quellen) do
+      abholen(konto)
+    end
+
+    lokal.INBOX:is_older(${AUFBEWAHRUNG}):delete_messages()
+    pcall(function() lokal[VERARBEITET]:is_older(${AUFBEWAHRUNG}):delete_messages() end)
+    EOF
+    chmod 600 /etc/imapfilter/config.lua
+
+    echo ">> systemd-Timer einrichten (alle ${INTERVALL})"
+    cat > /etc/systemd/system/paket-mail.service <<'EOF'
+    [Unit]
+    Description=Paketmails ins lokale Postfach kopieren
+    After=network-online.target dovecot.service
+    Wants=network-online.target
+
+    [Service]
+    Type=oneshot
+    Environment=HOME=/root
+    ExecStart=/usr/bin/imapfilter -c /etc/imapfilter/config.lua
+    EOF
+
+    cat > /etc/systemd/system/paket-mail.timer <<EOF
+    [Unit]
+    Description=Paketmails regelmäßig abholen
+
+    [Timer]
+    OnBootSec=2min
+    OnUnitActiveSec=${INTERVALL}
+    Persistent=true
+
+    [Install]
+    WantedBy=timers.target
+    EOF
+
+    systemctl daemon-reload
+    systemctl enable --now paket-mail.timer >/dev/null
+
+    echo ">> Erster Lauf"
+    if systemctl start paket-mail.service; then
+      journalctl -u paket-mail.service -n 20 --no-pager -o cat
+      echo
+      echo "Fertig."
+    else
+      echo "Erster Lauf fehlgeschlagen. Details mit:"
+      echo "  imapfilter -v -c /etc/imapfilter/config.lua"
+      exit 1
+    fi
+
+    IP=$(hostname -I | awk '{print $1}')
+    cat <<EOF
+
+    In Home Assistant (Paket Tracker) eintragen:
+      IMAP-Server:  ${IP}
+      Benutzer:     pakete
+      Passwort:     das eben vergebene lokale Passwort
+      Ordner:       INBOX
+      Verbindung:   verschlüsselt ohne Zertifikatsprüfung (Port 993)
+
+    Nützlich:
+      Logs:           journalctl -u paket-mail.service -n 50
+      Sofort abholen: systemctl start paket-mail.service
+      Absender:       /etc/imapfilter/config.lua
+    EOF
+    ```
