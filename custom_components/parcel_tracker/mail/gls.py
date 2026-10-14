@@ -86,7 +86,8 @@ def _status(subj: str, text: str) -> ParcelStatus | None:
     lower = subj.lower()
     if _NOT_DELIVERED.search(lower):
         return None  # the GLS lookup tells what happened
-    if "in wenigen tagen" in lower:
+    # ("Dein Paket hat Deutschland erreicht": from abroad, now on its way here)
+    if "in wenigen tagen" in lower or "deutschland erreicht" in lower:
         return ParcelStatus.IN_TRANSIT
     if "kommt heute" in lower:
         return ParcelStatus.OUT_FOR_DELIVERY

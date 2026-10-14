@@ -22,11 +22,16 @@ MONTHS = {
 }
 
 # Invisible marks Amazon/DHL put into mails: combining grapheme joiner, zero-width
-# chars, direction marks/embeddings (U+202B before the order number), soft hyphen.
-_INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­]")
+# chars, direction marks/embeddings (U+202B before the order number) and isolates
+# (around the count in "und 3 weitere Artikel"), soft hyphen.
+_INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­\u2066-\u2069]")
 _SPACES = re.compile("[ \t   ]+")
 _FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
 _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
+# Words a shop's mail about a postponed delivery brings (``MailUpdate.status_text``): nobody
+# was met, or it takes longer. They tell one moment, see ``apply._POSTPONED_TEXTS``.
+ATTEMPT_TEXT = "Zustellung versucht"
+DELAY_TEXT = "Lieferung verspätet"
 
 
 @dataclass
@@ -176,6 +181,11 @@ def body_text(msg: EmailMessage) -> str:
     part = msg.get_body(preferencelist=("plain",))
     if part is not None:
         return clean(_content(part))
+    return html_body_text(msg)
+
+
+def html_body_text(msg: EmailMessage) -> str:
+    """The text of the HTML body ('' if there is none)."""
     part = msg.get_body(preferencelist=("html",))
     return html_text(_content(part)) if part is not None else ""
 

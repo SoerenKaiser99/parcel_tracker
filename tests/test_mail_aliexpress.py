@@ -30,7 +30,7 @@ from custom_components.parcel_tracker.mail.apply import (
     close_unconfirmed,
     fold_delivered,
 )
-from custom_components.parcel_tracker.mail.base import sender, shop_of, unrelay
+from custom_components.parcel_tracker.mail.base import sender, sent_at, shop_of, unrelay
 from custom_components.parcel_tracker.models import (
     Parcel,
     ParcelStatus,
@@ -264,11 +264,60 @@ def test_offers_are_ignored_by_their_sender():
         ("teilweise versandt", ParcelStatus.IN_TRANSIT, "Teilweise versandt"),
         ("Vom Kurier abgeholt", ParcelStatus.IN_TRANSIT, "Vom Kurier abgeholt"),
         ("Neuer Lieferstatus", ParcelStatus.IN_TRANSIT, None),
+        # the mails of autumn 2024
+        ("verzollt", ParcelStatus.IN_TRANSIT, "Verzollt"),
+        ("im Lieferzentrum", ParcelStatus.IN_TRANSIT, "Im Lieferzentrum"),
+        ("Zur Auslieferung bereit", ParcelStatus.IN_TRANSIT, "Zur Auslieferung bereit"),
+        ("zugestellt", ParcelStatus.DELIVERED, None),
     ],
 )
 def test_steps_of_an_order(step, status, words):
-    [u] = parse_mail(_msg(f"Bestellung 9999999999990901: {step}")).updates
+    msg = _msg(f"Bestellung 9999999999990901: {step}")
+    [u] = parse_mail(msg).updates
     assert (u.number, u.status, u.status_text, u.title) == (ORDER, status, words, None)
+    assert u.delivered_at == (sent_at(msg) if status is ParcelStatus.DELIVERED else None)
+
+
+# ----- parcel mails of the last days: handed to the local courier, in the country -----
+def _parcel(subject: str) -> EmailMessage:
+    return _msg(subject, html=f'<p>Hallo Max Mustermann,</p><p><a href="{LINK}9999999999990901">'
+                              "Lieferung verfolgen</a></p>")
+
+
+@pytest.mark.parametrize(
+    ("subject", "status", "words"),
+    [
+        (f"Packstück {DHL}: mit lokalem Kurier", ParcelStatus.IN_TRANSIT,
+         "Dem lokalen Kurier übergeben"),
+        (f"Packstück {DHL}: im Zielland / in der Zielregion", ParcelStatus.IN_TRANSIT,
+         "Im Zielland angekommen"),
+    ],
+)
+def test_steps_of_a_parcel_on_the_last_mile(subject, status, words):
+    msg = _parcel(subject)
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status, u.status_text) == (ORDER, status, words)
+    assert (u.tracking_ref, u.tracking_carrier) == (DHL, "dhl")
+    # in delivery: the day of the mail; delivered: when it was sent
+    today = status is ParcelStatus.OUT_FOR_DELIVERY
+    assert u.eta_date == (sent_at(msg).date() if today else None)
+    assert u.delivered_at == (sent_at(msg) if status is ParcelStatus.DELIVERED else None)
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "3 Packstück(e) haben Lieferneuigkeiten",
+        "Ihr Verspätete-Lieferung-Coupon-Code",
+        "Your delayed delivery coupon code",
+        "Warte auf Ihr Feedback",
+        "Order 9999999999990901: Waiting for your return",
+        "Überprüfen Sie den Rückerstattungsantragsprozess",
+    ],
+)
+def test_mails_that_tell_nothing_about_a_parcel_are_ignored(subject):
+    result = parse_mail(_parcel(subject))
+    assert result.ignored and not result.updates
 
 
 def test_survey_without_the_confirmation_is_ignored():

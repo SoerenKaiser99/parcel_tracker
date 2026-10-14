@@ -1,0 +1,29 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the item and the order number are invented
+From: "Amazon.de" <order-update@amazon.de>
+To: max@example.org
+Subject: Lieferungsaktualisierung: Beispiel-Schleifscheibe...
+Date: Thu, 24 Apr 2025 13:05:03 +0000
+Message-ID: <fixture-173@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Amazon.com
+----------------------------------------------------------------------
+
+Guten Tag Max Mustermann,
+
+Ihr Paket ist unterwegs, verspätet sich aber. Bitte entschuldigen Sie die Verzögerung.
+
+Jetzt erwartet bis zum 26. April.Bitte nutzen Sie die Sendungsverfolgung, um die neuesten Informationen zu erhalten.
+
+Verfolgen Sie Ihre Lieferung:
+https://www.amazon.de/…
+
+Bestellung #999-0000173-0000173
+
+Beispiel-Schleifscheibe 125 mm, Körnung 320
+
+----------------------------------------------------------------------
+Diese E-Mail wurde von einer E-Mail-Adresse gesendet, die nicht für den Empfang von E-Mails eingerichtet ist.

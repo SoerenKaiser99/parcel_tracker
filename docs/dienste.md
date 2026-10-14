@@ -77,12 +77,13 @@ Den Status liest der Import nur aus dem Betreff der DHL-Mail:
 | „kommt morgen“ | „Unterwegs“ mit dem Tag nach der Mail |
 | „kommt heute“, „wird heute zugestellt“ | „In Zustellung“ für den Tag der Mail |
 | „wird gleich zugestellt“ | „In Zustellung“ für den Tag der Mail, mit der eigenen Zeile „Wird gleich zugestellt“ im Verlauf |
-| „wurde zugestellt“, auch „wurde an den gewünschten Ablageort zugestellt“ | „Zugestellt“ |
-| „Liegt zur Abholung bereit“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“ |
+| „wurde zugestellt“, auch „wurde an den gewünschten Ablageort zugestellt“, „liegt im Briefkasten“, „liegt nebenan“ | „Zugestellt“ |
+| „Liegt zur Abholung bereit“, „liegt seit … Tagen in der Filiale“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“ |
+| „wurde leider auf dem Transportweg beschädigt“ | „Unterwegs“, mit der eigenen Zeile „Verpackung beschädigt“ im Verlauf |
 | jede andere Mail, deren Betreff von einer „Sendung“ spricht (Zustellfoto, gescheiterter Zustellversuch, Neuigkeiten) | nur „Unterwegs“ ohne Tag; nie einen Status zurück |
 | Umfrage (Betreff mit Fragezeichen) oder Betreff ohne „Sendung“ | legt das Paket nur an |
 
-Abholcodes liest der Import nie.
+Abholcodes liest der Import nie. Steht im Textteil der Mail keine Sendungsnummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil.
 
 Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key auf der Karte „Kein Live-Status“ statt eines Termins. Aufgeklappt steht dort „Kein Live-Status: DHL-API-Key fehlt (unter „Konfigurieren“ eintragen).“ Die Integration kann eine solche Nummer nicht prüfen: Ob sie stimmt, vertippt oder längst zugestellt ist, erfährt sie ohne Key nicht. Erst mit Key meldet DHL bei einer unbekannten Nummer „Noch keine Daten vom Carrier“.
 
@@ -95,7 +96,7 @@ Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key
 - Abgefragt wird die öffentliche DPD-Sendungsverfolgung, nur mit der Sendungsnummer. Zugangsdaten brauchst du nicht.
 - DPD liefert den Status und die fünf Meilenstein-Termine, aber keinen Standort und kein Zeitfenster.
 - Die detailliertere DPD-Seite braucht eine Postleitzahl und ist durch ein Captcha geschützt. Deshalb nutzt die Integration sie nicht.
-- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung.
+- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung. Die Mails danach setzen den Status selbst: „Zwischen … und … Uhr kommt Ihr DPD Paket“ („In Zustellung“ mit Zeitfenster), „Ihr Paket ist da!“ („Zugestellt“) und „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ („Abholbereit“).
 
 ## GLS
 
@@ -196,7 +197,7 @@ Liefert der Paketdienst gar nichts (z. B. DHL ohne API-Key, UPS ohne API-Zugang)
 Diese vier kennt die Integration **nur aus Mails**. Eine Anmeldung beim Shop gibt es nicht. Abgefragt wird nur die Sendungsnummer des Paketdienstes, sobald eine Mail sie verrät.
 
 - **Amazon:** Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Amazon-Nummern (`TBA…`) lassen sich nicht direkt verfolgen.
-- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer. eBay-Mails enthalten keine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
+- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer. Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
 - **AliExpress:** Pro Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer. Nennt eine „Packstück“-Mail eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live beim Paketdienst abgefragt (DHL mit API-Key).
 
 - **Eventim:** Pro Ticketbestellung mit Postversand entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Die Versandbenachrichtigung setzt „Versendet“ und den Lieferzeitraum. Eventim nennt keine Sendungsnummer und schickt keine „Zugestellt“-Mail: Die Bestellung endet mit [„Erhalten“](karte.md#erhalten) auf der Karte oder von selbst nach dem Lieferzeitraum. Tickets zum Selbstausdrucken oder fürs Handy werden nicht angelegt.
