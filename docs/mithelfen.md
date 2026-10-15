@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 14. Oktober 2026, Version 0.3.34. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 15. Oktober 2026, Version 0.3.35. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -43,6 +43,8 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **eBay: „Update zur Bestellung“ und „Zustellversuch“** | Übernimmt die Bestellung die Sendungsnummer aus der Mail und wird danach live beim Paketdienst abgefragt? Neu seit v0.3.34 (Beitrag von benep). | im Forum |
 | **Hermes: „Deine Sendung kommt heute.“ und neuer Zustelltermin** | Steht das Paket mit Zeitfenster auf „In Zustellung“? Übernimmt es nach einem gescheiterten Zustellversuch den neuen Tag? Neu seit v0.3.34 (Beitrag von benep). | im Forum |
 | **Nicht erkannte Mails erneut einlesen** | Liest der Import eine Mail aus `Paket-Tracker-Nicht-erkannt` nach einem Update noch einmal, wenn du sie ungelesen zurück in den gelesenen Ordner schiebst ([so geht's](hilfe.md#eine-mail-wird-nicht-erkannt))? Gilt für Mails, die ab v0.3.34 gelesen wurden. Neu seit v0.3.34 (Beitrag von benep). | im Forum |
+| **eBay: „Paket zugestellt“** | Steht die Bestellung nach der Mail „📦PAKET ZUGESTELLT: …“ auf „Zugestellt“, mit dem Artikel aus dem Betreff als Namen? Neu seit v0.3.35. | [Issue #32](https://github.com/SoerenKaiser99/parcel_tracker/issues/32) |
+| **DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“** | Steht das Paket mit dieser Mail auf „In Zustellung“, heute mit dem Zeitfenster aus dem Betreff? Neu seit v0.3.35. | [Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31) |
 
 ### Karte, Benachrichtigungen, Automationen
 
@@ -63,7 +65,7 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 | Absender | Welche Mail |
 |---|---|
 | **DHL** | Paket liegt in der Packstation oder Filiale; Zustellung nicht möglich; beim Nachbarn abgegeben |
-| **DPD Österreich** | laufende Sendung mit Zustelltag oder Zeitfenster |
+| **DPD Österreich** | laufende Sendung mit Zustelltag, aber ohne Zeitfenster; zugestellt; im Pickup Paketshop abholbereit; Zustellung nicht möglich |
 | **GLS** | im PaketShop abholbereit; Zustellung verschoben |
 | **Hermes** | im PaketShop abholbereit |
 | **UPS** | jede Mail hilft, bisher gibt es nur wenige Beispiele |

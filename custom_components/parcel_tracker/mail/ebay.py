@@ -26,7 +26,10 @@ from .base import (
 
 EBAY_SENDER = "ebay@ebay.com"
 
-_DELIVERED = re.compile(r"BESTELLUNG ZUGESTELLT:\s*(?P<title>.+)$")
+# "📦BESTELLUNG ZUGESTELLT: …" and "📦PAKET ZUGESTELLT: …": anywhere in the subject (an emoji,
+# "[EXTERN]" or "*** SPAM ***" of a mail gateway may stand in front), but only in upper case
+# and with the colon, as eBay writes it ("Ihr Paket zugestellt: …" is no eBay subject)
+_DELIVERED = re.compile(r"(?<![^\W\d_])(?:BESTELLUNG|PAKET) ZUGESTELLT:\s*(?P<title>.+)$")
 # "Update zur Bestellung: …": the seller shipped (or is about to) and names the number.
 _UPDATE = re.compile(r"Update zur Bestellung:\s*(?P<title>.+)$")
 _TRACKING = re.compile(r"Sendungsnummer:[ \t]*\n?[ \t]*(?P<number>[0-9A-Z]{8,30})(?![0-9A-Z])")
@@ -34,8 +37,10 @@ _TRACKING = re.compile(r"Sendungsnummer:[ \t]*\n?[ \t]*(?P<number>[0-9A-Z]{8,30}
 # angetroffen."). On its way again, no longer today; it names the number as well.
 _ATTEMPT = re.compile(r"Zustellversuch:\s*(?P<title>.+)$")
 # (one layout puts "eBay-Käuferschutz", "Preis:" and the price between title and number)
+# ("Einzelheiten zum Kauf ansehen" is a link: the "PAKET ZUGESTELLT" mail may have no title)
 _ITEM = re.compile(
-    r"^(?P<title>[^\n]+)\n(?:eBay-Käuferschutz\nPreis:\n[^\n]+\n)?"
+    r"^(?!Einzelheiten zum Kauf ansehen\n)(?P<title>[^\n]+)\n"
+    r"(?:eBay-Käuferschutz\nPreis:\n[^\n]+\n)?"
     r"Artikelnr\.:[ \t]*\n?[ \t]*\d{6,}",
     re.M,
 )
@@ -94,7 +99,8 @@ def _hint(text: str) -> str | None:
 
 def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
     """'beim Versanddienstleister' / 'Update zur Bestellung' (in transit), 'Zustellversuch'
-    (in transit again, in its own words) or 'BESTELLUNG ZUGESTELLT' (delivered).
+    (in transit again, in its own words) or 'BESTELLUNG ZUGESTELLT' / 'PAKET ZUGESTELLT'
+    (delivered; without a title in the body the subject's is taken).
 
     The update and the attempt name the carrier's number. It goes with the order only if
     the number tells its carrier on its own (DHL "00340…"/"JJD…", UPS, Hermes "H…"): then

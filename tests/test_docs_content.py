@@ -1233,7 +1233,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 14. Oktober 2026, Version 0.3.34." in text
+    assert "*Stand: 15. Oktober 2026, Version 0.3.35." in text
     _all_have(text, [
         "`pickup-point@amazon.de` („Das Paket ist zur Abholung bereit“, Amazon Locker, Counter"
         " oder Abholstation)",
@@ -1262,3 +1262,33 @@ def test_helping_page_is_at_this_version():
     _all_have(confirmed, [
         "Eigener Ordner im Postfach", "Ablage-Ordner bei Postfächern mit INBOX-Präfix",
     ])
+
+
+# ----- v0.3.35: eBay "PAKET ZUGESTELLT", DPD Austria's window, anonymiser address blocks ----
+def test_helping_page_asks_to_confirm_the_v0335_mails():
+    text = TEXTS[HELPING]
+    _all_have(text, [
+        "**eBay: „Paket zugestellt“**",
+        "**DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“**",
+        "[Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31)",
+        "[Issue #32](https://github.com/SoerenKaiser99/parcel_tracker/issues/32)",
+    ])
+    missing = _section(HELPING, "2. Beispielmails: Diese fehlen uns")
+    assert "Zustelltag oder Zeitfenster" not in missing
+    assert (
+        "| **DPD Österreich** | laufende Sendung mit Zustelltag, aber ohne Zeitfenster;" in missing
+    )
+
+
+def test_docs_explain_dpd_austrias_window_and_ebays_parcel_delivered():
+    services = (ROOT / "docs" / "dienste.md").read_text(encoding="utf-8")
+    mail = TEXTS[MAIL]
+    assert "„Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“" in services
+    assert "„Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“" in mail
+    assert "„PAKET ZUGESTELLT“ (seit v0.3.35" in mail
+    assert "den Verkäufer übernimmt der Import nie" in mail
+    assert "Die Wörter zählen überall im Betreff" in mail and "„[EXTERN]“" in mail
+    assert "in jeder Schreibweise) setzen" not in mail
+    helping = (ROOT / "docs" / "hilfe.md").read_text(encoding="utf-8")
+    assert "österreichischer oder Schweizer Postleitzahl (vier Ziffern)" in helping
+    assert "„an folgende Adresse zugestellt:“ (seit v0.3.35)" in helping

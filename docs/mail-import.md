@@ -99,7 +99,7 @@ Nimm diese Absender in die Filterregel auf:
 | `zustellung@dhl.de` | DHL |
 | `sendungsupdate@dhl.de` | DHL (meldet einen verschobenen Zustelltag; der neue Tag wird übernommen) |
 | `noreply@service.dpd.de` | DPD |
-| `no_reply@dpd.at` | DPD Österreich |
+| `no_reply@dpd.at` | DPD Österreich (Ankündigung, „kommt zwischen … Uhr“ mit Zeitfenster, Zustellung) |
 | `pkginfo@ups.com` | UPS |
 | `noreply@paketankuendigung.myhermes.de` | Hermes |
 | `ebay@ebay.com` | eBay |
@@ -218,7 +218,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
     - Pro eBay-Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer, benannt nach dem Artikel.
     - Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
-    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum („Lieferung ca.: Mi, 28. Jan - Do, 29. Jan“), „BESTELLUNG ZUGESTELLT“ setzt „Zugestellt“. „Update zur Bestellung“ setzt „Versendet“ samt Lieferzeitraum und übernimmt die Sendungsnummer, wenn sie ihren Paketdienst selbst verrät (DHL `00340…` oder `JJD…`, UPS, Hermes `H…`): Die Bestellung wird dann live beim Paketdienst abgefragt. Eine Nummer aus 12 oder 14 Ziffern kann zu mehreren Paketdiensten gehören und bleibt unberührt. „Zustellversuch: …“ (niemand wurde angetroffen) nimmt die Bestellung zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag (ein späterer Tag, den der Paketdienst schon genannt hat, bleibt) und übernimmt die Sendungsnummer wie „Update zur Bestellung“. Andere eBay-Mails landen in „Nicht erkannt“.
+    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum („Lieferung ca.: Mi, 28. Jan - Do, 29. Jan“), „BESTELLUNG ZUGESTELLT“ und „PAKET ZUGESTELLT“ (seit v0.3.35) setzen „Zugestellt“. Die Wörter zählen überall im Betreff, so wie eBay sie schreibt (groß und mit Doppelpunkt) – auch hinter einem Symbol, „WG:“ oder einer Markierung des Mailservers wie „[EXTERN]“. Nennt die Mail den Artikel nicht, kommt der Name aus dem Betreff; den Verkäufer übernimmt der Import nie. „Update zur Bestellung“ setzt „Versendet“ samt Lieferzeitraum und übernimmt die Sendungsnummer, wenn sie ihren Paketdienst selbst verrät (DHL `00340…` oder `JJD…`, UPS, Hermes `H…`): Die Bestellung wird dann live beim Paketdienst abgefragt. Eine Nummer aus 12 oder 14 Ziffern kann zu mehreren Paketdiensten gehören und bleibt unberührt. „Zustellversuch: …“ (niemand wurde angetroffen) nimmt die Bestellung zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag (ein späterer Tag, den der Paketdienst schon genannt hat, bleibt) und übernimmt die Sendungsnummer wie „Update zur Bestellung“. Andere eBay-Mails landen in „Nicht erkannt“.
     - Nennt die Mail den Versanddienstleister, zeigt die Karte ihn an („eBay · Versendet · via Hermes“, Attribut `shipping_carrier_hint`).
 
 === "AliExpress"
@@ -276,7 +276,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Die Mails danach setzen den Status aus dem Betreff: „Zwischen 14:06 und 15:06 Uhr kommt Ihr DPD Paket“ setzt „In Zustellung“ für den Tag der Mail mit diesem Zeitfenster, „Ihr Paket ist da!“ setzt „Zugestellt“, „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ setzt „Abholbereit“.
     - Der Empfänger und der Paketshop aus der Mail werden nie gelesen.
     - Alle anderen Mails von DPD Deutschland legen nur das Paket an.
-    - DPD Österreich: siehe [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).
+    - DPD Österreich (`no_reply@dpd.at`): „Ein DPD Paket für dich“ legt das Paket an, „Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“ für den Tag der Mail mit diesem Zeitfenster (seit v0.3.35), „Neuigkeiten zu deinem Paket“ meldet die Zustellung. Mehr unter [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).
 
 === "GLS"
 

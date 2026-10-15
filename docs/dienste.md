@@ -226,9 +226,10 @@ Die Integration ist für Deutschland gebaut. Die Einstellung **Land** ist die Gr
 **DPD Österreich:**
 
 - Mails von `no_reply@dpd.at` legen das Paket an („Ein DPD Paket für dich“) und melden die Zustellung mit Uhrzeit („Neuigkeiten zu deinem Paket“).
+- „Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“ für den Tag der Mail mit dem Zeitfenster aus dem Betreff (seit v0.3.35). Der Versender aus „Ihr Paket … von … wird voraussichtlich …“ wird nur zum Namen, wenn es ein bekannter Shop ist oder der Name eine Rechtsform trägt – nie eine Privatperson. Die Zustelladresse aus der Mail liest der Import nie.
 - Als zugestellt gilt ein Paket nur, wenn es laut Mail „zugestellt“, „abgestellt“ oder am gewünschten Abstellort bzw. Wunschort „hinterlegt“ wurde. Auch „beim Nachbarn abgegeben“ gilt als zugestellt (wer der Nachbar ist, wird nicht gelesen).
 - „Abholbereit“ zeigt es nur, wenn die Mail einen Pickup Paketshop bzw. eine Abholstation nennt und das Paket dort liegt („hinterlegt“, „zugestellt“, „abholbereit“, „bereit“). „Auf dem Weg in den Paketshop“ oder „umgeleitet“ reicht nicht.
-- Jede andere Meldung (an DPD übergeben, im Depot, „wird morgen zugestellt“, nicht zugestellt) setzt keinen Status.
+- Jede andere Meldung (an DPD übergeben, im Depot, „wird morgen zugestellt“ ohne Zeitfenster im Betreff, nicht zugestellt) setzt keinen Status.
 - Gelesen werden nur die Sätze von `no_reply@dpd.at`. Mails anderer Absender bei dpd.at legen das Paket nur an.
 - Der Status kommt bei DPD Österreich derzeit nur aus diesen Mails. Die DPD-Abfrage bleibt die deutsche Seite.
 - mydpd.at hat zwar eine eigene offene Abfrage. Sie antwortet aber in einem anderen Format als die deutsche Seite und ließ sich nur mit einer ungültigen Nummer prüfen. Ohne echte Antwort wird daraus keine Abfrage gebaut.

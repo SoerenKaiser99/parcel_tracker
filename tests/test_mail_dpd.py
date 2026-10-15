@@ -448,3 +448,78 @@ def test_announcement_creates_the_parcel_with_name_and_window():
     assert (parcel.result.eta_date, parcel.result.eta_latest) == (
         date(2026, 8, 15), date(2026, 8, 17),
     )
+
+
+# ----- DPD Austria: "Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr" (issue 31) -----
+AT_WINDOW = "176_dpd_at_kommt_zwischen_uhr.eml"
+AT_WINDOW_BODY = (
+    "Liebe/r Paketempfänger/in,\n"
+    "Ihr Paket {number} von {shop} wird voraussichtlich\n"
+    "heute zwischen 13:00 und 14:00 Uhr\n"
+    "an folgende Adresse zugestellt:\n"
+    "Max Mustermann\nMusterstrasse 1\n9999 Musterstadt\n"
+    "Sie können das Paket nicht entgegennehmen? Dann wählen Sie eine andere Zustelloption.\n"
+)
+
+
+def test_at_window_mail_is_in_delivery_today_with_its_window():
+    msg = load_mail(AT_WINDOW)
+    [u] = parse_mail(msg).updates
+    day = sent_at(msg).date()
+    assert (u.number, u.carrier) == ("09999999999931", "dpd")
+    assert (u.status, u.eta_date, u.eta_latest) == (ParcelStatus.OUT_FOR_DELIVERY, day, None)
+    assert (u.eta_from, u.eta_to) == (
+        datetime(2026, 10, 14, 13, 0, tzinfo=BERLIN), datetime(2026, 10, 14, 14, 0, tzinfo=BERLIN),
+    )
+    assert u.delivered_at is None
+    # "Beispielshop" passes no naming gate (no legal form, no shop we know).
+    assert (u.title, u.shop) == (None, None)
+
+
+def test_at_window_mail_never_takes_the_address():
+    dump = repr([asdict(u) for u in parse_mail(load_mail(AT_WINDOW)).updates])
+    for secret in ("Mustermann", "Musterstrasse", "Musterstadt", "9999 ", "Max"):
+        assert secret not in dump, secret
+
+
+@pytest.mark.parametrize(
+    ("shop", "title", "key"),
+    [
+        ("Amazon", "Amazon", "amazon"),
+        ("Beispiel Handels GmbH", "Beispiel Handels GmbH", None),
+        ("Max Mustermann", None, None),  # a person never names the parcel
+        ("Beispielshop", None, None),
+    ],
+)
+def test_at_window_mail_names_the_shop_only_through_the_naming_gate(shop, title, key):
+    body = AT_WINDOW_BODY.format(number=NUMBER, shop=shop)
+    [u] = parse_mail(_msg("Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr", body)).updates
+    assert (u.number, u.status, u.title, u.shop) == (
+        NUMBER, ParcelStatus.OUT_FOR_DELIVERY, title, key,
+    )
+
+
+def test_at_window_with_an_impossible_time_is_today_without_a_window():
+    body = AT_WINDOW_BODY.format(number=NUMBER, shop="Amazon")
+    msg = _msg("Ihr DPD Paket kommt zwischen 25:00 und 26:00 Uhr", body)
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, sent_at(msg).date())
+    assert (u.eta_from, u.eta_to) == (None, None)
+
+
+def test_at_window_subject_from_another_sender_tells_no_status():
+    body = AT_WINDOW_BODY.format(number=NUMBER, shop="Amazon")
+    msg = _msg("Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr", body,
+               "info@dpd.at")
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status, u.eta_date, u.title) == (NUMBER, None, None, None)
+
+
+def test_at_window_creates_the_parcel_in_delivery():
+    parcels: dict = {}
+    msg = load_mail(AT_WINDOW)
+    [update] = parse_mail(msg).updates
+    change = apply_update(parcels, update, sent_at(msg))
+    parcel = parcels["09999999999931"]
+    assert change.created and parcel.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert parcel.result.eta_date == sent_at(msg).date()

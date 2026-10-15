@@ -1,0 +1,36 @@
+X-Fixture: synthetic, in the style of an HTML-only eBay mail (issue 32); the
+ item, the numbers and the seller are invented; the footer is cut
+From: eBay <ebay@ebay.com>
+To: max@example.org
+Subject: =?UTF-8?Q?=F0=9F=93=A6PAKET_ZUGESTELLT:_Beispiel_Thermostatkopf_M30x1,5_wei...?=
+Date: Tue, 13 Oct 2026 06:41:17 -0700
+Message-ID: <fixture-175@example.org>
+MIME-Version: 1.0
+Content-Type: text/html;charset=UTF-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html>
+<html>
+<head><title>eBay</title><style>p{margin:0}</style></head>
+<body>
+<p>=CD=8F=E2=80=8C =CD=8F=E2=80=8C =CD=8F=E2=80=8C =CD=8F=E2=80=8C =CD=8F=
+=E2=80=8C =CD=8F=E2=80=8C</p>
+<p>Ihre Sendung ist angekommen. Viel Spa=C3=9F beim Auspacken!</p>
+<p><a href=3D"https://www.ebay.de/">Einzelheiten zum Kauf ansehen</a></p>
+<p>Artikelnr.:</p>
+<p>999990000909</p>
+<p>999990000909</p>
+<p>Bestellnummer:</p>
+<p>99-09090-00909</p>
+<p>99-09090-00909</p>
+<p>Verk=C3=A4ufer:</p>
+<p>beispielverkaeufer</p>
+<p>beispielverkaeufer</p>
+<p>eBay-K=C3=A4uferschutz</p>
+<p>Bewertung abgeben</p>
+<p>Wie hilfreich ist diese E-Mail?</p>
+<p>E-Mail-Referenznr.: [#00000000000000000000000000000000]</p>
+<p>Bei Fragen kontaktieren Sie uns bitte.</p>
+<p>=C2=A9 1995-2026 eBay Inc. oder Tochtergesellschaften</p>
+</body>
+</html>

@@ -489,10 +489,19 @@ _T_BARE_POSTCODE = (
 )
 _T_ADDRESS_BLOCK = re.compile(
     rf"(?im)^([*_ \t]*{_T_RECIPIENT}[*_ \t]*:?[*_ \t]*\n)(?:[^\n]*\n){{0,5}}?"
-    rf"(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*)"
+    rf"(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*"
+    r"|[ \t]*(?:(?:A|CH|D)[- ])?\d{4}[ \t]+[^\W\d_][^\n]*)"
 )
 _T_ADDRESS_LINE = re.compile(
     rf"(?im)^([*_ \t]*{_T_RECIPIENT}[*_ \t]*:[ \t]*)(\S[^\n]*\b\d{{5}}\b[^\n]*)$"
+)
+# "… an folgende Adresse zugestellt:" (DPD Austria), also at the end of a sentence: the
+# lines below it up to the line with the postcode (four or five digits), at most four lines.
+_T_ADDRESS_INTRO = re.compile(
+    r"(?im)^([^\n]{0,80}?\b(?:an[ \t]+)?(?:die[ \t]+)?folgende[n]?[ \t]+(?:Adresse|Anschrift)"
+    r"(?:[ \t]+(?:zugestellt|geliefert|gesendet|versendet|verschickt))?[*_ \t]*:[*_ \t]*\n)"
+    rf"(?:[^\n]*\n){{0,3}}?(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*"
+    r"|[ \t]*(?:(?:A|CH|D)[- ])?\d{4}[ \t]+[^\W\d_][^\n]*)"
 )
 # AliExpress: "Versand nach", then place and street without a postcode; in most layouts the
 # name with the phone number "(+49) …" ends the block, in one it is a single line. The
@@ -541,7 +550,11 @@ _T_NOT_NAME = re.compile(
     r"|ablageort|wunschort|abstellort|zusteller\w*|bote\w*|fahrer\w*|besteller\w*"
     r"|k(?:ä|ae)ufer\w*|verk(?:ä|ae)ufer\w*|nutzer\w*|user|gast|mitglied|interessent\w*"
     r"|damen|herren|person|dritte\w*|angeh(?:ö|oe)rige\w*|ehepartner\w*|max|mustermann"
-    r"|beispielversender|beispielnachbar|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*)"
+    r"|beispielversender|beispielnachbar|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    # status words a mail may put above an address ("Abholbereit\nHauptstraße 1\n…")
+    r"|abholbereit|zugestellt|hinterlegt|abholort|abholung|abholstation|bereit|abgestellt"
+    r"|abgegeben|trafik|zustellung|zustellort|lieferung|lieferort|sendung|paket|status"
+    r"|adresse|anschrift|filiale|paketshop|hinweis)"
 )
 _T_NO_STREET = re.compile(r"(?i)packstation|postfiliale|filiale|paketshop|postfach|paketbox")
 # The name line below "Versender" / "Absender", with the address lines up to the postcode.
@@ -583,8 +596,19 @@ _T_AMAZON_LINE = re.compile(
 _T_STREET = (
     r"[^\W\d_][^\n\d:@,;|]{2,40}?[ \t.]\d{1,4}(?:[ \t]?[a-zA-Z]\b)?"
     r"(?:[ \t]?[-/+][ \t]?\d{1,4}(?:[ \t]?[a-zA-Z]\b)?)?"
+    # Austria: staircase and door ("12/3/7", "3/Top 5", "1/Stiege 2/Tür 4")
+    r"(?:[ \t]?/[ \t]?(?:(?:Top|Stiege|Stg\.?|Tür|Haus)[ \t]?)?\d{1,4}(?:[ \t]?[a-zA-Z]\b)?){0,3}"
 )
 _T_PLZ = r"(?:D[- ])?(?!12345[ \t]+Musterstadt|00000[ \t]+Beispielstadt)\d{5}"
+# Austria and Switzerland: four digits ("A-6789", "CH-8999"); only below a street line that
+# names a street (four digits alone are too often a year or an amount).
+_T_PLZ4 = r"(?:(?:A|CH)[- ])?\d{4}(?!\d)"
+# What names a street: "-straße", "-strasse", "-str.", "-gasse", "-weg", "-platz", … as the end
+# of a word or a word of its own ("Am Mühlendamm", "Hauptplatz", "Rheinufer").
+_T_STREET_WORD = re.compile(
+    r"(?i)(?:stra(?:ß|ss)e|str\.?|gasse|gässchen|gässli|weg|platz|allee|ring|damm|ufer"
+    r"|chaussee|steig|stieg|pfad|zeile|gürtel|kai|lände|promenade|markt|graben|hof)(?![^\W\d_])"
+)
 _T_CITY = (
     r"[A-ZÄÖÜ][^\W\d_]+\.?(?:[ \t-]+(?:[A-ZÄÖÜ][^\W\d_]*\.?|am|an|der|im|in|bei|ob|vor"
     r"|a\.|d\.|\([^)\n]{1,20}\))){0,3}"
@@ -593,11 +617,11 @@ _T_PLAIN_BLOCK = re.compile(
     r"(?m)^(?P<lead>[*_> \t]*)"
     r"(?:(?P<name>[^\W\d_][^\n\d:@,;|]{3,50}?)[ \t]*,?[ \t]*\n(?P<lead2>[*_> \t]*))?"
     rf"(?P<street>{_T_STREET})[ \t]*,?[ \t]*\n(?P<lead3>[*_> \t]*)"
-    rf"(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
+    rf"(?P<plz>{_T_PLZ}|{_T_PLZ4})[ \t]+(?P<city>{_T_CITY})"
 )
 _T_INLINE_ADDRESS = re.compile(
     rf"(?m)(?P<lead>^[*_> \t]*|[,:|·•][ \t]*)(?P<street>{_T_STREET})[ \t]*,[ \t]*"
-    rf"(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
+    rf"(?P<plz>{_T_PLZ}|{_T_PLZ4})[ \t]+(?P<city>{_T_CITY})"
 )
 _T_PLZ_CITY = re.compile(
     rf"(?m)(?P<lead>^[*_> \t]*|[,|·•][ \t]*)(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
@@ -837,12 +861,15 @@ def _t_address_parts(block):
     """(name, street, postcode, city) of the lines of an address; "" for what is not found."""
     lines = [" ".join(line.split()).strip("*_, ") for line in block.split("\n")]
     lines = [line for line in lines if line]
-    code = re.compile(r"(?<!\d)\d{5}(?!\d)")
+    # five digits anywhere, four (Austria, Switzerland) only in front of the place
+    code = re.compile(r"(?<!\d)\d{5}(?!\d)|^(?:(?:A|CH|D)[- ])?(?P<four>\d{4})(?=[ \t]+[^\W\d_])")
     at = next((i for i, line in enumerate(lines) if code.search(line)), None)
     name = re.split(r"[+\d]", lines[0])[0].strip("*_, ") if lines else ""
     if not at:  # no postcode, or nothing in front of it
         return ("" if at == 0 else name), "", "", ""
-    postcode = code.search(lines[at]).group(0)
+    found = code.search(lines[at])
+    postcode = found.group("four") or found.group(0)
+    lines[at] = re.sub(r"^(?:A|CH|D)[- ](?=\d{4}\b)", "", lines[at])
     region = re.compile(r"[A-Z]{2}|NRW")
     country = re.compile(rf"(?i){_T_COUNTRY}")
     rest = re.sub(r"\bD-|[,;]", " ", lines[at].replace(postcode, " ")).split()
@@ -863,6 +890,23 @@ def _t_address_parts(block):
     before = [line for line in before if re.search(r"[^\W\d_]{3}", line)]
     streets = [line for line in before if re.search(r"\d", line)] or before[-1:]
     return name, (streets[0] if streets else ""), postcode, city
+
+
+def _t_name_line(name):
+    """True for the line above a street that can only be a name: one to four capitalised
+    words (a title may stand in front), no company, no service, no common word."""
+    tokens = name.split()
+    return bool(
+        1 <= len(tokens) <= 4
+        and not name.rstrip("*_ \t").endswith(":")
+        and all(
+            _T_NAME_TOKEN.fullmatch(t) or _T_PARTICLE.fullmatch(t) or _T_TITLE.fullmatch(t)
+            for t in tokens
+        )
+        and not any(_T_NOT_NAME.fullmatch(t) for t in tokens)
+        and not _t_company(name) and not _T_SERVICE.search(name)
+        and not _T_STREET_WORD.search(name)
+    )
 
 
 def _t_person(name):
@@ -979,7 +1023,12 @@ class _TScrubber:
         if self._learnt is None:
             rules = [_t_street(street) for street in sorted(self.streets, key=len, reverse=True)]
             for postcode in sorted(self.postcodes):
-                rules.append((re.compile(rf"(?<!\d){postcode}(?!\d)"), "12345"))
+                # four digits only in front of a place: they may as well be a year or an amount
+                if len(postcode) >= 5:
+                    rules.append((re.compile(rf"(?<!\d){postcode}(?!\d)"), "12345"))
+                else:
+                    rules.append((re.compile(
+                        rf"(?<![\d.,:/]){postcode}(?=[ \t]+[^\W\d_])"), "12345"))
                 if postcode not in self.avoid:
                     self.avoid.append(postcode)
             for city in sorted(self.cities, key=len, reverse=True):
@@ -1025,7 +1074,10 @@ class _TScrubber:
         name = match.group(2)
         if not _t_company(name):
             if match.re is _T_SELLER:
-                self._note(name, "beispielshop", r"[-_.\d]")
+                # eBay writes the handle twice, one line below the other: then it is one
+                # even without a digit or a dash ("beispielverkaeufer")
+                again = match.string.startswith(f"\n{name.strip()}\n", match.end())
+                self._note(name, "beispielshop", r"." if again else r"[-_.\d]")
             else:
                 self._note(name, "Beispielversender")
             placeholder = "beispielshop" if match.re is _T_SELLER else "Beispielversender"
@@ -1039,16 +1091,28 @@ class _TScrubber:
         return f"{match.group(1)}Max{match.group(3)}Musterstadt{match.group(5)}"
 
     def _plain(self, match):
-        name = match.group("name")
+        name, street = match.group("name"), match.group("street")
+        postcode = re.sub(r"\D", "", match.group("plz"))
+        if len(postcode) == 4 and not _T_STREET_WORD.search(street):
+            return match.group(0)  # four digits below no street: no postcode
         if name is None:
             head = match.group("lead")
         else:
             if _t_person(name.strip()):
-                self._recipient(name.strip(), match.group("street"),
-                                match.group("plz")[-5:], match.group("city"))
+                self._recipient(name.strip(), street, postcode, match.group("city"))
+                name = "Max Mustermann"
+            elif _t_name_line(name.strip()):  # a single name, a name with a title
+                self._recipient("", street, postcode, match.group("city"))
                 name = "Max Mustermann"
             head = f"{match.group('lead')}{name}\n{match.group('lead2')}"
         return f"{head}Musterstraße 1\n{match.group('lead3')}12345 Musterstadt"
+
+    def _inline(self, match):
+        if len(re.sub(r"\D", "", match.group("plz"))) == 4 and not _T_STREET_WORD.search(
+            match.group("street")
+        ):
+            return match.group(0)
+        return f"{match.group('lead')}Musterstraße 1, 12345 Musterstadt"
 
     def _neighbour(self, match):
         name, label = match.group("name"), match.group("label").casefold()
@@ -1157,6 +1221,7 @@ class _TScrubber:
         visible, noted = _T_LINKS.sub(" ", text), set()
         text = _T_LINKS.sub(lambda m: self._link(m, keep, visible, noted), text)
         text = _T_ADDRESS_BLOCK.sub(self._block, text)
+        text = _T_ADDRESS_INTRO.sub(self._block, text)
         text = _T_ALI_SHIP_TO.sub(self._ali_ship_to, text)
         text = _T_ADDRESS_LINE.sub(self._line, text)
         text = _T_DELIVERED_TO.sub(self._delivered, text)
@@ -1168,14 +1233,19 @@ class _TScrubber:
             text = pattern.sub(self._sender, text)
         text = _T_AMAZON_LINE.sub(self._amazon, text)
         text = _T_PLAIN_BLOCK.sub(self._plain, text)
-        text = _T_INLINE_ADDRESS.sub("\\g<lead>Musterstraße 1, 12345 Musterstadt", text)
+        text = _T_INLINE_ADDRESS.sub(self._inline, text)
         text = _T_PLZ_CITY.sub("\\g<lead>12345 Musterstadt", text)
         text = _T_NEIGHBOUR.sub(self._neighbour, text)
         for pattern, replacement in self.rules:
             text = pattern.sub(replacement, text)
         if not self._learning:
             for found in sorted(self.learned, key=len, reverse=True):
-                text = re.sub(re.escape(found), self.learned[found], text, flags=re.I)
+                source = re.escape(found)
+                if self.learned[found] == "beispielshop":
+                    # a seller's handle only as a whole word ("versand" never in
+                    # "Versanddienstleister"; "shop.24" never in "myshop.24" or "shop.245")
+                    source = rf"(?<![\w.-]){source}(?![\w-]|\.\w)"
+                text = re.sub(source, self.learned[found], text, flags=re.I)
             for pattern, replacement in self._rules():
                 text = pattern.sub(replacement, text)
         text = _T_PLACE_NEXT.sub(self._place, text)

@@ -1,4 +1,4 @@
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import date, datetime, timedelta
 from email import policy
 from email.message import EmailMessage
@@ -223,3 +223,71 @@ def test_attempt_keeps_a_later_day_the_carrier_named_before():
     apply_update(parcels, replace(order, eta_date=now.date(), eta_latest=None), now)
     apply_update(parcels, attempt, now)
     assert parcel.result.eta_date is None
+
+
+# ----- "PAKET ZUGESTELLT": the HTML-only delivery mail (issue 32) -----
+PARCEL_DELIVERED = "175_ebay_paket_zugestellt.eml"
+
+
+def test_parcel_delivered_mail_delivers_the_order_with_the_subject_title():
+    msg = load_mail(PARCEL_DELIVERED)
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.carrier, u.status) == ("EBAY990909000909", "ebay", ParcelStatus.DELIVERED)
+    # The body names no title ("Einzelheiten zum Kauf ansehen" is a link): the subject's,
+    # without eBay's "...".
+    assert u.title == "Beispiel Thermostatkopf M30x1,5 wei"
+    assert u.delivered_at == datetime(2026, 10, 13, 15, 41, 17, tzinfo=BERLIN)
+    assert u.tracking_ref is None and u.shipping_carrier_hint is None
+
+
+def test_parcel_delivered_mail_never_takes_the_seller_or_the_item_number():
+    dump = repr([asdict(u) for u in parse_mail(load_mail(PARCEL_DELIVERED)).updates])
+    for secret in ("beispielverkaeufer", "999990000909", "Max"):
+        assert secret not in dump, secret
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "📦PAKET ZUGESTELLT: Kabel USB-C",
+        "✅ 📦 PAKET ZUGESTELLT: Kabel USB-C",
+        "WG: 📦BESTELLUNG ZUGESTELLT: Kabel USB-C",
+        "📦 WG: BESTELLUNG ZUGESTELLT: Kabel USB-C",
+        "[EXTERN] BESTELLUNG ZUGESTELLT: Kabel USB-C",
+        "[EXTERN] 📦PAKET ZUGESTELLT: Kabel USB-C",
+        "*** SPAM *** 📦BESTELLUNG ZUGESTELLT: Kabel USB-C",
+        "Weitergeleitet: 📦PAKET ZUGESTELLT: Kabel USB-C",
+        "TR: BESTELLUNG ZUGESTELLT: Kabel USB-C",
+        "Info von eBay – PAKET ZUGESTELLT: Kabel USB-C",
+    ],
+)
+def test_delivered_keyword_anywhere_in_the_subject_as_ebay_writes_it(subject):
+    [u] = parse_ebay(_msg(subject, "Bestellnummer:\n12-34567-89012\n"))
+    assert (u.number, u.status, u.title) == (
+        "EBAY123456789012", ParcelStatus.DELIVERED, "Kabel USB-C",
+    )
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Ihr Paket zugestellt: Kabel USB-C",
+        "Paket zugestellt: Kabel USB-C",
+        "Bestellung zugestellt: Kabel USB-C",
+        "PAKET ZUGESTELLT Kabel USB-C",  # no colon
+        "EXTRAPAKET ZUGESTELLT: Kabel USB-C",
+    ],
+)
+def test_delivered_keyword_only_in_upper_case_with_its_colon(subject):
+    assert parse_ebay(_msg(subject, "Bestellnummer:\n12-34567-89012\n")) == []
+
+
+def test_title_line_in_the_body_still_wins_over_the_cut_subject():
+    msg = _msg(
+        "📦PAKET ZUGESTELLT: Beispiel Thermostatkopf M30x...",
+        "Ihre Sendung ist angekommen. Viel Spaß beim Auspacken!\n"
+        "Einzelheiten zum Kauf ansehen\nBeispiel Thermostatkopf M30x1,5 weiß\n"
+        "Artikelnr.:\n999990000909\nBestellnummer:\n99-09090-00909\nVerkäufer:\nbeispielverkaeufer\n",
+    )
+    [u] = parse_ebay(msg)
+    assert (u.number, u.title) == ("EBAY990909000909", "Beispiel Thermostatkopf M30x1,5 weiß")

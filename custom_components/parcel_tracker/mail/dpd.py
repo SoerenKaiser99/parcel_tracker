@@ -1,7 +1,8 @@
 """DPD notification mails (no Home Assistant imports).
 
-Austria: only the parcel number, a delivery and its time or "waits in a shop" are taken. The
-drop-off place and the recipient's name are never read into an update.
+Austria: only the parcel number, a delivery and its time, "waits in a shop" and today's
+window (with the shipper, through the naming gate) are taken. The drop-off place, the
+recipient's name and address are never read into an update.
 
 Germany: the announcement ("Bald ist Ihr DPD Paket da") names the shipper and an estimate in
 working days; both are taken, the shipper only through the naming gate. The mails with
@@ -12,7 +13,7 @@ other German mail only names the number, the German lookup tells the status.
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from email.message import EmailMessage
 
 from ..models import ParcelStatus
@@ -51,6 +52,13 @@ _NEIGHBOUR = re.compile(r"\bnachbar\w*\b.*\babgegeben\b", re.IGNORECASE)
 _LEFT = re.compile(r"\bhinterlegt\b", re.IGNORECASE)
 _PLACE = re.compile(r"abstellort|wunschort|gewünschten\s+ort", re.IGNORECASE)
 _TIME = re.compile(r"\bheute\s+um\s+(\d{1,2})[:.](\d{2})\s*Uhr", re.IGNORECASE)
+# "Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr": today, in this window
+_AT_WINDOW = re.compile(
+    r"^Ihr\s+DPD\s+Paket\s+kommt\s+zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s+Uhr",
+    re.IGNORECASE,
+)
+# "Ihr Paket 0999… von Beispielshop wird voraussichtlich …": the shipper right after the number
+_AT_SHIPPER = re.compile(r"^\s*von\s+(?P<name>.{1,80}?)\s+wird\b", re.IGNORECASE)
 
 
 def _status(sentence: str) -> ParcelStatus | None:
@@ -69,9 +77,22 @@ def _status(sentence: str) -> ParcelStatus | None:
     return None
 
 
+def _today_window(update: MailUpdate, window: re.Match[str], sent: datetime) -> None:
+    """In delivery on the day the mail was sent, in the subject's window (start hour and
+    minute, end hour and minute); an impossible time leaves the window out."""
+    hours = [int(group) for group in window.groups()]
+    update.status = ParcelStatus.OUT_FOR_DELIVERY
+    update.eta_date, update.eta_latest = sent.date(), None
+    if hours[0] < 24 and hours[2] < 24 and hours[1] < 60 and hours[3] < 60:
+        update.eta_from = at(sent.date(), hours[0], hours[1])
+        update.eta_to = at(sent.date(), hours[2], hours[3])
+
+
 def parse_dpd_mail(msg: EmailMessage) -> list[MailUpdate]:
-    """'Ein DPD Paket für dich' (announced) and 'Neuigkeiten zu deinem Paket' (delivered or
-    waiting in a shop); every other sentence only names the parcel and the lookup decides.
+    """'Ein DPD Paket für dich' (announced), 'Ihr DPD Paket kommt zwischen 13:00 und 14:00
+    Uhr' (in delivery today, with this window; the shipper after the number names the parcel
+    only through the naming gate) and 'Neuigkeiten zu deinem Paket' (delivered or waiting in
+    a shop); every other sentence only names the parcel and the lookup decides.
 
     Only the notification sender's sentences are read: a mail of another sender at dpd.at
     just names the parcel.
@@ -89,6 +110,12 @@ def parse_dpd_mail(msg: EmailMessage) -> list[MailUpdate]:
     sentence = re.split(r"[.!?](?:\s|$)", sentence, maxsplit=1)[0]
     if _NEW in subj.lower():
         update.status = ParcelStatus.PRE_TRANSIT
+        return [update]
+    if window := _AT_WINDOW.match(subj):
+        _today_window(update, window, sent)
+        if shipper := _AT_SHIPPER.match(sentence):
+            update.title = company_name(shipper.group("name"))
+            update.shop = shop_of(shipper.group("name"))
         return [update]
     update.status = _status(sentence)
     if update.status is ParcelStatus.DELIVERED:
@@ -199,12 +226,7 @@ def parse_dpd_de_mail(msg: EmailMessage) -> list[MailUpdate]:
         target.status = ParcelStatus.PRE_TRANSIT
     subj = subject(msg)
     if window := _DE_WINDOW.match(subj):
-        hours = [int(group) for group in window.groups()]
-        target.status = ParcelStatus.OUT_FOR_DELIVERY
-        target.eta_date, target.eta_latest = sent.date(), None
-        if hours[0] < 24 and hours[2] < 24 and hours[1] < 60 and hours[3] < 60:
-            target.eta_from = at(sent.date(), hours[0], hours[1])
-            target.eta_to = at(sent.date(), hours[2], hours[3])
+        _today_window(target, window, sent)
     elif _DE_DELIVERED.match(subj):
         target.status = ParcelStatus.DELIVERED
         target.eta_date = target.eta_latest = None
