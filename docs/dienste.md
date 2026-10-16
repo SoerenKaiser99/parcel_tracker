@@ -236,7 +236,7 @@ Die Integration ist für Deutschland gebaut. Die Einstellung **Land** ist die Gr
 - Ein per Mail als zugestellt gemeldetes Paket wird nicht mehr abgefragt und bleibt zugestellt.
 - Den Abstellort übernimmt der Import nie.
 
-**DHL international:** Nummern internationaler DHL-Sendungen (zwei Buchstaben, neun Ziffern, „DE“, z. B. `CQ…DE`) erkennt „Automatisch“ als DHL (Live-Status mit DHL-API-Key), und der Mail-Import liest sie aus den DHL-Mails. Die Mail „… in den nächsten 2 Werktagen von der Österreichischen Post zugestellt“ ergibt „Unterwegs“ ohne Liefertag, weil sie keinen festen Tag nennt.
+**DHL international:** Nummern internationaler DHL-Sendungen (zwei Buchstaben, neun Ziffern, „DE“, z. B. `CQ…DE`) erkennt „Automatisch“ als DHL (Live-Status mit DHL-API-Key), und der Mail-Import liest sie aus den DHL-Mails. Bei Sendungen aus dem Ausland nennt die DHL-Mail oft die Nummer des Absenderlands, z. B. `LE…BE` (Belgien) oder `LW…NL` (Niederlande): Auch diese Nummern liest der Import aus den DHL-Mails (seit v0.3.37) und fragt sie mit dem DHL-API-Key bei DHL ab. Von Hand mit „Automatisch“ eingegeben, erkennt die Integration solche Nummern dagegen nicht als DHL, weil sie meist zur Post des jeweiligen Landes gehören (z. B. `…AT`, `…CH`, `…NL`, `…BE`): Mit DHL-Key fragt sie wie bei jeder unbekannten Nummer einmal bei DHL nach. Weißt du, dass DHL das Paket bringt, wähle „DHL“ von Hand. Die Mail „… in den nächsten 2 Werktagen von der Österreichischen Post zugestellt“ ergibt „Unterwegs“ ohne Liefertag, weil sie keinen festen Tag nennt.
 
 **Noch nicht:**
 

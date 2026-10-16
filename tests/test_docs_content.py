@@ -1234,7 +1234,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 16. Oktober 2026, Version 0.3.36." in text
+    assert "*Stand: 16. Oktober 2026, Version 0.3.37." in text
     _all_have(text, [
         "**DHL mit API-Key: Verlauf ohne HTML**",
         "**DPD: die Mails nach der Ankündigung**",
@@ -1346,3 +1346,29 @@ def test_community_setup_says_its_sender_list_is_not_complete():
     # The script itself is unchanged.
     script = section.split('??? example "paket-postfach-setup.sh"')[1]
     assert "pickup-point@amazon.de" not in script
+
+
+# ----- v0.3.37: DHL mails with an S10 number of another country (issue #34) -----
+def test_docs_say_dhl_mails_carry_numbers_of_other_countries():
+    services = TEXTS[SERVICES]
+    international = services.split("**DHL international:**")[1].split("\n\n")[0]
+    _all_have(international, [
+        "(seit v0.3.37)",
+        "`LE…BE`",
+        "`LW…NL`",
+        "mit dem DHL-API-Key",
+        "nicht als DHL",
+    ])
+    dhl = _tab(MAIL, "DHL")
+    _all_have(dhl, [
+        "Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37)",
+        "mit dem DHL-Key bei DHL ab",
+    ])
+
+
+def test_helping_page_asks_to_confirm_dhl_numbers_of_other_countries():
+    text = TEXTS[HELPING]
+    _all_have(text, [
+        "**DHL: Sendungsnummern aus anderen Ländern**",
+        "[Issue #34](https://github.com/SoerenKaiser99/parcel_tracker/issues/34)",
+    ])

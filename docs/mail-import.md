@@ -262,6 +262,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 === "DHL"
 
     - Den Status liest der Import nur aus dem Betreff, siehe die Tabelle unter [Kein Key? Dann die DHL-Mails](dienste.md#kein-key-dann-die-dhl-mails).
+    - Internationale Nummern liest er nicht nur mit „DE“ am Ende (`CQ…DE`), sondern auch Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37), wie DHL sie bei Sendungen aus dem Ausland nennt (`LE…BE`, `LW…NL`). Das Paket wird ein DHL-Paket, und die Integration fragt es mit dem DHL-Key bei DHL ab. Solche Nummern zählen nur in Mails von DHL.
     - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
     - Steht im Textteil der Mail keine Nummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil: dort auch die Nummer direkt unter „Sendungsstatus einsehen“ bzw. „Sendungsverlauf einsehen“, mit 12 Ziffern oder als Nummer aus dem Ausland (z. B. `LR…NL`, `JJATA…`).
     - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson. Der Name endet an der Rechtsform; was dahinter steht (ein Kürzel, eine Ansprechperson), wird nicht übernommen.

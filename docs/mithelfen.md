@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 16. Oktober 2026, Version 0.3.36. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 16. Oktober 2026, Version 0.3.37. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -46,6 +46,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **eBay: „Paket zugestellt“** | Steht die Bestellung nach der Mail „📦PAKET ZUGESTELLT: …“ auf „Zugestellt“, mit dem Artikel aus dem Betreff als Namen? Neu seit v0.3.35. | [Issue #32](https://github.com/SoerenKaiser99/parcel_tracker/issues/32) |
 | **DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“** | Steht das Paket mit dieser Mail auf „In Zustellung“, heute mit dem Zeitfenster aus dem Betreff? Neu seit v0.3.35. | [Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31) |
 | **Amazon: „Paket zur Abholung bereit“** | Steht die Bestellung nach der Mail von `pickup-point@amazon.de` auf „Abholbereit“, mit Abholort und letztem Abholtag auf der Karte und in der Benachrichtigung? Ist „Abholung am …“ in deiner Mail wirklich der letzte Abholtag? Gilt das auch für Amazon Locker und Counter? Neu seit v0.3.36. | [Issue #33](https://github.com/SoerenKaiser99/parcel_tracker/issues/33) |
+| **DHL: Sendungsnummern aus anderen Ländern** | Entsteht aus einer DHL-Mail mit einer Nummer des Absenderlands (z. B. `LE…BE`, `LW…NL`) ein Paket, und zeigt es mit DHL-Key den Live-Status? Neu seit v0.3.37. | [Issue #34](https://github.com/SoerenKaiser99/parcel_tracker/issues/34) |
 
 ### Karte, Benachrichtigungen, Automationen
 
