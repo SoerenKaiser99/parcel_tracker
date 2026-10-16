@@ -471,7 +471,7 @@ def test_sender_named_in_a_carrier_sentence(tmp_path):
 
 # ----- --salt: each mail gives the same file in every run, alone or with others -----
 
-SALT = "ein-eigenes-geheimnis-1234"
+SALT = "3f" * 32  # the form the script writes: 64 hex digits
 
 
 def _salted(tmp_path: Path, mails: dict, *args, salt: str = SALT):
@@ -511,7 +511,7 @@ def test_salt_gives_the_same_file_for_a_mail_alone_and_among_others(tmp_path):
     assert f"Message-ID: <beispiel-{tag}@example.org>".encode() in data
     assert b"00340434161094012343" not in data and b"3@paketflitzer" not in data
     # another salt: other numbers, another name
-    _, other = _salted(tmp_path / "c", {"mail3.eml": mails["mail3.eml"]}, salt="x" * 16)
+    _, other = _salted(tmp_path / "c", {"mail3.eml": mails["mail3.eml"]}, salt="a1" * 32)
     [(other_name, other_data)] = other.items()
     assert other_name != name
     assert re.findall(rb"00340\d{15}", other_data) != re.findall(rb"00340\d{15}", data)
@@ -530,18 +530,22 @@ def test_without_salt_every_run_has_its_own_secret(tmp_path):
     assert len(set(numbers[0])) == 1 and numbers[0] != numbers[1]
 
 
-def test_salt_writes_over_earlier_results_and_removes_nothing(tmp_path):
+def test_salt_clears_a_run_without_salt_and_names_older_results_with_salt(tmp_path):
+    """Nothing of an earlier run goes up by mistake: the ZIP and the NNN_*.eml of a run
+    without a salt are removed, a result with a salt that this run did not write is named."""
     raw = _two_parts("00340434161094012345", "<a@paketflitzer.example>")
-    _, first = _salted(tmp_path, {"a.eml": raw})
+    _, first = _salted(tmp_path, {"a.eml": raw, "b.eml": _two_parts("1", "<b@x.example>")})
+    (tmp_path / "mails" / "b.eml").unlink()
     out = tmp_path / "mails" / "anonymisiert"
-    [name] = first
-    (out / name).write_bytes(b"alt")
-    (out / "001_paketflitzer.example.eml").write_bytes(b"Message-ID: <beispiel-001@example.org>\n")
+    for name in first:
+        (out / name).write_bytes(b"alt\nMessage-ID: <beispiel-alt@example.org>\n")
+    (out / "001_paketflitzer.example.eml").write_bytes(b"\nMessage-ID: <beispiel-001@x.example>\n")
     (out / "paket-tracker-beispiele.zip").write_bytes(b"alt")
-    _, second = _salted(tmp_path, {"a.eml": raw})
-    assert second[name] == first[name]
-    assert second["001_paketflitzer.example.eml"].startswith(b"Message-ID: <beispiel-001")
-    assert second["paket-tracker-beispiele.zip"] == b"alt"
+    done, second = _salted(tmp_path, {"a.eml": raw})
+    [stale] = (name for name in first if second[name].startswith(b"alt"))
+    assert sorted(second) == sorted(first)  # the result of a.eml written over, no ZIP, no 001
+    assert f"früheren Lauf, nicht aus\ndiesem. Nicht mit hochladen: {stale}\n" in done.stdout
+    assert "Hochgeladen werden nur die Dateien dieses Laufs (oben aufgelistet)" in done.stdout
 
 
 def test_salt_learns_from_every_mail_of_the_run(tmp_path):
@@ -555,16 +559,37 @@ def test_salt_learns_from_every_mail_of_the_run(tmp_path):
     assert len(texts) == 2 and all("Holzer" not in _text(msg) for msg in texts)
 
 
-@pytest.mark.parametrize(
-    ("content", "message"),
-    [(None, "lässt sich nicht lesen"), ("zu-kurz\n", "mindestens 16 Zeichen")],
-)
-def test_salt_file_must_exist_and_be_long_enough(tmp_path, content, message):
+def test_a_missing_salt_file_is_written_by_the_script(tmp_path):
     src = tmp_path / "mails"
     src.mkdir()
     (src / "a.eml").write_bytes(_mail(SHOP, "Paket", "Unterwegs.\n"))
-    if content is not None:
-        (tmp_path / "salt.txt").write_text(content, encoding="utf-8")
-    done = _call(src, "--ohne-angaben", "--salt", tmp_path / "salt.txt")
+    salt = tmp_path / "salt.txt"
+    first = _call(src, "--ohne-angaben", "--salt", salt)
+    assert first.returncode == 0, first.stderr
+    assert re.fullmatch(r"[0-9a-f]{64}\n", salt.read_text(encoding="utf-8"))
+    assert f"Neuer Salt in {salt}" in first.stdout
+    second = _call(src, "--ohne-angaben", "--salt", salt)
+    assert second.returncode == 0 and "Neuer Salt" not in second.stdout
+
+
+@pytest.mark.parametrize(
+    ("place", "content", "message"),
+    [
+        # one of the tester's own could be found from a number whose original is public
+        ("salt.txt", "sommerurlaub2026\n", "stammt nicht von diesem Skript"),
+        ("salt.txt", "3F" * 32, "stammt nicht von diesem Skript"),
+        ("mails/anonymisiert/salt.txt", "3f" * 32, "darf nicht im Zielordner liegen"),
+    ],
+)
+def test_salt_file_of_ones_own_or_in_the_out_folder_is_refused(tmp_path, place, content, message):
+    src = tmp_path / "mails"
+    src.mkdir()
+    (src / "a.eml").write_bytes(_mail(SHOP, "Paket", "Unterwegs.\n"))
+    (tmp_path / place).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / place).write_text(content, encoding="utf-8")
+    done = _call(src, "--ohne-angaben", "--salt", tmp_path / place)
     assert done.returncode == 2 and message in done.stderr, done.stderr
-    assert done.stdout == "" and not (src / "anonymisiert").exists()
+    assert done.stdout == ""
+    assert sorted(p.name for p in (src / "anonymisiert").glob("*")) == (
+        ["salt.txt"] if "anonymisiert" in place else []
+    )

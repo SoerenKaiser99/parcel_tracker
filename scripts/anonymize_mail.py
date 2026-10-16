@@ -356,21 +356,23 @@ Macht aus gespeicherten Paketmails (.eml) anonymisierte Beispielmails für ein G
   --ohne-angaben        ausdrücklich ohne eigene Angaben arbeiten: Das Skript fragt nicht
                         und bereinigt nur allgemein. Namen und Orte können dann stehen
                         bleiben. Ohne diese Option braucht das Skript mindestens eine Angabe.
-  --salt DATEI          ein eigenes Geheimnis aus DATEI (mindestens 16 Zeichen): Erfundene
-                        Nummern und Dateinamen hängen dann nur an der Mail, nicht an ihrer
-                        Stelle im Lauf. Eine Mail ergibt so in jedem Lauf dieselbe Datei,
-                        solange das Skript aus den anderen Mails nichts Neues lernt (bei
-                        Eventim zählen Tag und Bestellnummer weiter die Mails des Laufs). Sie
-                        heißt <Datum>_<Absender>_<Kennung>.eml, und im Zielordner wird nichts
-                        gelöscht, nur überschrieben. Die DATEI nicht weitergeben: Mit ihr
-                        lassen sich die erfundenen Nummern zurückrechnen.
+  --salt DATEI          wiederholbare Ergebnisse: Fehlt DATEI, legt das Skript sie mit einem
+                        zufälligen Salt an (ein selbst ausgedachter ließe sich erraten und
+                        wird abgelehnt). Erfundene Nummern und Dateinamen hängen dann nur an
+                        der Mail, nicht an ihrer Stelle im Lauf. Eine Mail ergibt so in jedem
+                        Lauf dieselbe Datei, solange das Skript aus den anderen Mails nichts
+                        Neues lernt (bei Eventim zählen Tag und Bestellnummer weiter die Mails
+                        des Laufs). Sie heißt <Datum>_<Absender>_<Kennung>.eml und ersetzt ihr
+                        Ergebnis aus einem früheren Lauf; andere frühere Ergebnisse mit Salt
+                        bleiben liegen und werden am Ende genannt. Die DATEI nicht weitergeben
+                        und nicht in den Zielordner legen: Mit ihr lassen sich die erfundenen
+                        Nummern zurückrechnen.
 
 Ersetzt werden außerdem alle Mail-Adressen außer dem Absender, Telefonnummern, Links (nur
 der Servername bleibt), Sendungs-, Bestell- und andere lange Nummern (gleiche Form, erfundene
 Ziffern), Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort sowie Namen von
 Nachbarn, Empfängern und privaten Absendern. Technische Kopfzeilen und Anhänge entfallen.
-Frühere Ergebnisse im Zielordner (NNN_*.eml des Skripts und das ZIP) werden vorher gelöscht
-(nicht mit --salt).
+Frühere Ergebnisse im Zielordner (NNN_*.eml des Skripts und das ZIP) werden vorher gelöscht.
 Das Skript läuft nur lokal und baut keine Netzwerkverbindung auf.
 
 Die letzte Zeile der Aufruf-Übersicht ist der Entwickler-Aufruf für Test-Fixtures.
@@ -384,7 +386,9 @@ _T_OPTIONS = {
     "email": "Mail-Adresse",
 }
 _T_BARE = "--ohne-angaben"
-_T_SALT = 16  # characters a salt file needs at least
+# A salt file as the script writes it: 32 random bytes. One a tester thought of could be found
+# by trying, from a number in a mail whose original is public (a trade licence number).
+_T_SALT = re.compile(r"[0-9a-f]{64}")
 _T_ZIP = "paket-tracker-beispiele.zip"
 _T_MAIL = "max@example.org"
 _T_PHONE = "+49 000 0000000"
@@ -1638,22 +1642,39 @@ def _t_clear(out_dir):
             continue
         if name == _T_ZIP:
             os.remove(path)
-        elif re.fullmatch(r"\d{3}_[a-z0-9.-]+\.eml", name):
-            with open(path, "rb") as handle:
-                own = b"\nMessage-ID: <beispiel-" in handle.read(8192)
-            if own:  # a mail of someone else with such a name stays
-                os.remove(path)
+        elif re.fullmatch(r"\d{3}_[a-z0-9.-]+\.eml", name) and _t_own(path):
+            os.remove(path)  # (a mail of someone else with such a name stays)
 
 
-def _t_salt(path):
-    """The salt in the file a tester gave: its text without the whitespace around it."""
+def _t_own(path):
+    """A result of this script: its Message-ID is one the script invents."""
+    with open(path, "rb") as handle:
+        return b"\nMessage-ID: <beispiel-" in handle.read(8192)
+
+
+def _t_salt(path, out_dir):
+    """The salt in the file of --salt; a missing file is written with a random one."""
+    folder = os.path.normcase(os.path.dirname(os.path.abspath(path)))
+    if folder == os.path.normcase(os.path.abspath(out_dir)):
+        raise _TUsage("Die Datei zu --salt darf nicht im Zielordner liegen (sie würde mit"
+                      " hochgeladen).")
+    if not os.path.exists(path):
+        try:
+            with open(path, "x", encoding="utf-8") as handle:
+                handle.write(secrets.token_hex(32) + "\n")
+        except OSError:
+            raise _TUsage("Die Datei zu --salt lässt sich nicht anlegen.") from None
+        print(f"Neuer Salt in {os.path.abspath(path)}: behalten und nie weitergeben.")
     try:
         with open(path, encoding="utf-8") as handle:
             salt = handle.read().strip()
     except (OSError, UnicodeDecodeError):
         raise _TUsage("Die Datei zu --salt lässt sich nicht lesen.") from None
-    if len(salt) < _T_SALT:
-        raise _TUsage(f"In der Datei zu --salt müssen mindestens {_T_SALT} Zeichen stehen.")
+    if not _T_SALT.fullmatch(salt):
+        raise _TUsage(
+            "Die Datei zu --salt stammt nicht von diesem Skript. Einen Salt nicht selbst\n"
+            "ausdenken (er ließe sich erraten): Fehlt die Datei, legt das Skript sie selbst an."
+        )
     return salt
 
 
@@ -1665,8 +1686,6 @@ def _t_run(args):
     if not paths:
         raise _TUsage("Datei oder Ordner fehlt.")
     files = _t_files(paths)
-    if salt is not None:
-        salt = _t_salt(salt)
     first = os.path.abspath(paths[0])
     if out_dir is None:
         out_dir = os.path.join(first if os.path.isdir(first) else os.path.dirname(first),
@@ -1686,6 +1705,8 @@ def _t_run(args):
             " --postcode ... --city ...)\n"
             f"oder mit {_T_BARE} ausdrücklich darauf verzichten."
         )
+    if salt is not None:
+        salt = _t_salt(salt, out_dir)
     scrubber = _TScrubber(values, salt)
     if not any(values.values()):
         print("ACHTUNG: Ohne eigene Angaben werden die Mails nur allgemein bereinigt")
@@ -1709,8 +1730,7 @@ def _t_run(args):
             unreadable.append(os.path.basename(path))
     try:
         os.makedirs(out_dir, exist_ok=True)
-        if salt is None:  # with a salt every result is written over its own earlier one
-            _t_clear(out_dir)
+        _t_clear(out_dir)  # (a result with a salt is written over its own earlier one)
     except OSError:
         raise _TUsage("Der Zielordner lässt sich nicht anlegen oder leeren.") from None
     written, forwarded, doubtful, passed_on = [], 0, [], []
@@ -1751,12 +1771,24 @@ def _t_run(args):
     if doubtful:
         print("ACHTUNG: In diesen Dateien steht noch eine der eigenen Angaben, vielleicht als")
         print("Teil eines anderen Wortes. Besonders genau lesen: " + ", ".join(doubtful))
+    # Results of an earlier run that _t_clear leaves (those with a salt): named, not removed.
+    done = {name for name, _ in written}
+    stale = sorted(
+        name for name in os.listdir(out_dir)
+        if name.lower().endswith(".eml") and name not in done
+        and os.path.isfile(os.path.join(out_dir, name)) and _t_own(os.path.join(out_dir, name))
+    )
+    if stale:
+        print("ACHTUNG: Diese Dateien im Zielordner stammen aus einem früheren Lauf, nicht aus")
+        print("diesem. Nicht mit hochladen: " + ", ".join(stale))
     print()
     print("WICHTIG: Jede Datei vor dem Hochladen selbst öffnen und durchlesen (ein Texteditor")
     print("genügt). Das Skript erkennt nicht alles: Steht noch etwas Privates drin, die Stelle")
     print("von Hand ersetzen oder die Mail weglassen" + (", danach das ZIP neu packen." if pack
                                                           else "."))
-    print("Hochgeladen werden nur die Dateien aus diesem Ordner, nie die Original-Mails.")
+    print("Hochgeladen werden nur die Dateien " + ("dieses Laufs (oben aufgelistet)" if stale
+                                                    else "aus diesem Ordner")
+          + ", nie die Original-Mails.")
     return 0
 
 
