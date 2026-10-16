@@ -1,0 +1,25 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number and the shipper are invented; the opening hours
+ and the legal notice of the carrier are cut
+From: DPD <noreply@service.dpd.de>
+To: max@example.org
+Subject: Im Pickup Paketshop wartet Ihr DPD Paket auf Sie
+Date: Thu, 07 Apr 2022 13:01:00 +0200
+Message-ID: <fixture-163@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Guten Tag,</p>
+<p>Ihre Sendung haben wir</p>
+<p>in Ihrem Pickup Paketshop zugestellt.</p>
+<p>Versender &amp; Paketnummer:</p>
+<p>Beispiel Autoteile GmbH</p>
+<p>09999999999963</p>
+<p>Pickup Paketshop:</p>
+<p>Max Mustermann</p>
+<p>Musterstraße 1</p>
+<p>DE-12345 Musterstadt</p>
+<p>Pickup Paketshop anzeigen</p>
+</body></html>

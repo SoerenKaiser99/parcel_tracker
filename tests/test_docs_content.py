@@ -6,6 +6,7 @@ live in docs/*.md now, and each test reads the page (and section) that carries t
 
 import json
 import re
+import textwrap
 from pathlib import Path
 from urllib.parse import quote
 
@@ -22,6 +23,7 @@ SENDERS = [
     "versandbestaetigung@amazon.de",
     "shipment-tracking@amazon.de",
     "order-update@amazon.de",
+    "pickup-point@amazon.de",
     "noreply@dhl.de",
     "paketankuendigung@dhl.de",
     "zustellung@dhl.de",
@@ -1134,3 +1136,239 @@ def test_docs_explain_hide_names():
 def test_docs_name_hide_names_where_notifications_are_explained():
     texts = _section(NOTIFY, "So sehen die Texte aus")
     assert "Mit [Namen ausblenden](datenschutz.md#namen-ausblenden) steht dort" in texts
+
+
+# ----- v0.3.33: filing folders below INBOX, a community setup for an own mailbox -----
+def test_docs_say_where_the_filing_folders_go_and_what_happens_when_it_fails():
+    section = _section(MAIL, "Was mit den Mails im Postfach passiert")
+    _all_have(section, [
+        "`INBOX.Paket-Tracker-Verarbeitet`",
+        "Seit v0.3.33 fragt der Import den Server",
+        "Hast du die Ordner selbst im Mailprogramm angelegt",
+        "je Ordner einmal eine Warnung im Protokoll",
+        "im Abschnitt `filing`",
+    ])
+    assert "liegen immer auf der obersten Ebene" not in TEXTS[MAIL]
+    _all_have(_section(SENSORS, "Diagnose"), ["`filing`", "MOVE und UIDPLUS", "NAMESPACE"])
+
+
+def test_docs_carry_the_community_mailbox_setup_with_credit_and_our_notes():
+    section = _section(MAIL, "Beispiel aus der Community: dovecot und imapfilter im Container")
+    _all_have(section, [
+        "Beitrag von Hanutawii ([Issue #26](https://github.com/SoerenKaiser99/parcel_tracker/issues/26))",
+        "von uns getestet ist er nicht",
+        "imapfilter (alle 5 Min)",
+        "**Voraussetzungen:**",
+        "**Einrichtung:**",
+        "**Stolperfallen, auf die er gestoßen ist:**",
+        "`options.starttls = false`",
+        "Port 143",
+        "`listen = *`",
+        "Port 993 mit „Verschlüsselt, Zertifikat nicht prüfen“",
+        "Modus 600",
+        '??? example "paket-postfach-setup.sh"',
+        "    #!/usr/bin/env bash",
+        "    systemctl enable --now paket-mail.timer >/dev/null",
+    ])
+    assert len(re.findall(r"^\d\. ", section, re.M)) == 4
+
+
+# ----- v0.3.34: number line on the card, DHL history without HTML, docs of the release ----
+HELPING = "mithelfen.md"
+RECIPES = "rezepte.md"
+
+
+def test_docs_explain_the_number_line_of_the_card():
+    section = _section(CARD, "Paket aufklappen")
+    _all_have(section, [
+        "**Sendungsnummer, Bestellnummer**",
+        "„Sendungsnummer: …“",
+        "„Bestellnummer: …“",
+        "`999-9999999-9999999`",
+        "markiert sie ganz",
+        "[Namen ausblenden](datenschutz.md#namen-ausblenden)",
+        "Die Option blendet nur Namen aus",
+        "auch wenn der Paketdienst einen Link mitschickt (seit v0.3.34)",
+    ])
+
+
+def test_recipe_eleven_subtracts_the_parcels_waiting_for_pickup():
+    section = _section(RECIPES, "11. Unterwegs ohne Abholbereite")
+    _all_have(section, [
+        '=== "Als Helfer (ohne YAML)"',
+        '=== "In der configuration.yaml"',
+        "{{ [states('sensor.pakete_unterwegs') | int(0) - states('sensor.pakete_abholbereit')"
+        " | int(0), 0] | max }}",
+        "{{ has_value('sensor.pakete_unterwegs') and has_value('sensor.pakete_abholbereit') }}",
+        "**Maßeinheit**: `Pakete`, **Zustandsklasse**: „Messung“",
+        "**Verfügbarkeitstemplate**",
+        "Abholbereite zählen bei `sensor.pakete_unterwegs` und bei `sensor.pakete_abholbereit` mit",
+        "`sensor.unterwegs_ohne_abholbereite`",
+    ])
+    yaml_block = section.split("```yaml\n", 1)[1].split("```", 1)[0]
+    sensor = yaml.safe_load(textwrap.dedent(yaml_block))["template"][0]["sensor"][0]
+    assert sensor["state_class"] == "measurement"
+    assert sensor["unit_of_measurement"] == "Pakete"
+    assert "has_value('sensor.pakete_unterwegs')" in sensor["availability"]
+    assert "has_value('sensor.pakete_abholbereit')" in sensor["availability"]
+    assert "| max" in sensor["state"]
+    assert TEXTS[RECIPES].startswith("# Rezepte\n\nElf fertige Beispiele zum Kopieren.")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "**Rezepte**: elf Beispiele für Automationen und Karten" in readme
+    assert "zehn Beispiele" not in readme and "Zehn fertige" not in TEXTS[RECIPES]
+
+
+def test_community_setup_names_the_harmless_message_before_the_first_filed_mail():
+    section = _section(MAIL, "Beispiel aus der Community: dovecot und imapfilter im Container")
+    pitfalls = section.split("**Stolperfallen, auf die er gestoßen ist:**")[1].split(
+        "Nützlich:")[0]
+    _all_have(pitfalls, [
+        "`NO [NONEXISTENT] Mailbox doesn't exist: Paket-Tracker-Verarbeitet`",
+        "harmlos",
+        "`doveadm mailbox create -u pakete Paket-Tracker-Verarbeitet`",
+    ])
+    # The script itself is unchanged: the folder is not created there.
+    script = section.split('??? example "paket-postfach-setup.sh"')[1]
+    assert "doveadm mailbox create" not in script
+
+
+def test_helping_page_is_at_this_version():
+    text = TEXTS[HELPING]
+    assert "*Stand: 16. Oktober 2026, Version 0.3.37." in text
+    _all_have(text, [
+        "**DHL mit API-Key: Verlauf ohne HTML**",
+        "**DPD: die Mails nach der Ankündigung**",
+        "**eBay: „Update zur Bestellung“ und „Zustellversuch“**",
+        "**Hermes: „Deine Sendung kommt heute.“ und neuer Zustelltermin**",
+        "**Nicht erkannte Mails erneut einlesen**",
+        "**Sendungs- und Bestellnummer im aufgeklappten Paket**",
+    ])
+    # Sample mails PR #24 brought (fixtures 161-163, 167, 170, 173; 106 for eBay's
+    # delivery) are no longer asked for; the rest of each row stays.
+    missing = _section(HELPING, "2. Beispielmails: Diese fehlen uns")
+    assert "**DPD Deutschland**" not in missing and "**eBay**" not in missing
+    assert "Zustellversuch" not in missing and "Lieferung verspätet" not in missing
+    _all_have(missing, [
+        "| **Hermes** | im PaketShop abholbereit |",
+        "| **Amazon** | Bestellung storniert; Mails von Amazon in Österreich |",
+        "**DPD Österreich**", "**DHL**", "**GLS**", "**UPS**", "**AliExpress**",
+        "**Eventim**", "**Österreichische Post, Schweizer Post**",
+    ])
+    # Confirmed by users: no longer asked for, listed as confirmed instead.
+    assert "**Eigener Ordner im Postfach**" not in text
+    assert "**Ablage-Ordner bei Postfächern mit INBOX-Präfix**" not in text
+    confirmed = _section(STATUS, "Von Testern bestätigt")
+    _all_have(confirmed, [
+        "Eigener Ordner im Postfach", "Ablage-Ordner bei Postfächern mit INBOX-Präfix",
+    ])
+
+
+# ----- v0.3.35: eBay "PAKET ZUGESTELLT", DPD Austria's window, anonymiser address blocks ----
+def test_helping_page_asks_to_confirm_the_v0335_mails():
+    text = TEXTS[HELPING]
+    _all_have(text, [
+        "**eBay: „Paket zugestellt“**",
+        "**DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“**",
+        "[Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31)",
+        "[Issue #32](https://github.com/SoerenKaiser99/parcel_tracker/issues/32)",
+    ])
+    missing = _section(HELPING, "2. Beispielmails: Diese fehlen uns")
+    assert "Zustelltag oder Zeitfenster" not in missing
+    assert (
+        "| **DPD Österreich** | laufende Sendung mit Zustelltag, aber ohne Zeitfenster;" in missing
+    )
+
+
+def test_docs_explain_dpd_austrias_window_and_ebays_parcel_delivered():
+    services = (ROOT / "docs" / "dienste.md").read_text(encoding="utf-8")
+    mail = TEXTS[MAIL]
+    assert "„Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“" in services
+    assert "„Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“" in mail
+    assert "„PAKET ZUGESTELLT“ (seit v0.3.35" in mail
+    assert "den Verkäufer übernimmt der Import nie" in mail
+    assert "Die Wörter zählen überall im Betreff" in mail and "„[EXTERN]“" in mail
+    assert "in jeder Schreibweise) setzen" not in mail
+    helping = (ROOT / "docs" / "hilfe.md").read_text(encoding="utf-8")
+    assert "österreichischer oder Schweizer Postleitzahl (vier Ziffern)" in helping
+    assert "„an folgende Adresse zugestellt:“ (seit v0.3.35)" in helping
+
+
+# ----- v0.3.36: Amazon's pickup mail ("Paket zur Abholung bereit", issue #33) -----
+def test_docs_explain_amazons_pickup_mail():
+    amazon = _tab(MAIL, "Amazon")
+    _all_have(amazon, [
+        "„Paket zur Abholung bereit: …“ von `pickup-point@amazon.de` (seit v0.3.36)",
+        "„Abholbereit“",
+        "ohne die interne Nummer des Shops („HPS#…“), Postleitzahl und Ort",
+        "`pickup_point`",
+        "`pickup_until`",
+        "nie nach dem Preis",
+    ])
+    senders = _section(MAIL, "Filterregel anlegen")
+    assert "| `pickup-point@amazon.de` | Amazon (Paket liegt zur Abholung bereit" in senders
+    privacy = _section(PRIVACY, "Was aus Mails übernommen wird – und was nie")
+    assert "Name und Straße der Abholstelle (ohne Postleitzahl, Ort" in privacy
+
+
+def test_helping_page_asks_to_confirm_amazons_pickup_mail():
+    text = TEXTS[HELPING]
+    _all_have(text, [
+        "**Amazon: „Paket zur Abholung bereit“**",
+        "[Issue #33](https://github.com/SoerenKaiser99/parcel_tracker/issues/33)",
+    ])
+    missing = _section(HELPING, "2. Beispielmails: Diese fehlen uns")
+    assert "pickup-point@amazon.de" not in missing
+
+
+def test_the_anonymiser_keeps_the_pickup_sender_in_fixture_mode():
+    script = (ROOT / "scripts" / "anonymize_mail.py").read_text(encoding="utf-8")
+    keep = script.split("KEEP = {")[1].split("}")[0]
+    assert '"pickup-point@amazon.de"' in keep
+
+
+def test_docs_say_the_notification_names_the_pickup_mails_place():
+    notify = TEXTS[NOTIFY]
+    assert "Ort der Filiale und letzter Abholtag stehen nur da, wenn der Paketdienst" not in notify
+    assert "Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder" in notify
+    amazon = _tab(MAIL, "Amazon")
+    assert "„… – Hermes PaketShop - Beispielkiosk Muster… bis 24.10.“" in amazon
+
+
+def test_community_setup_says_its_sender_list_is_not_complete():
+    section = _section(MAIL, "Beispiel aus der Community: dovecot und imapfilter im Container")
+    notes = section.split("**Drei Hinweise von uns:**")[1]
+    _all_have(notes, [
+        "nicht jeden Absender, den Paket Tracker liest",
+        "`pickup-point@amazon.de`",
+        "`/etc/imapfilter/config.lua`",
+        "[Filterregel anlegen](#filterregel-anlegen)",
+    ])
+    # The script itself is unchanged.
+    script = section.split('??? example "paket-postfach-setup.sh"')[1]
+    assert "pickup-point@amazon.de" not in script
+
+
+# ----- v0.3.37: DHL mails with an S10 number of another country (issue #34) -----
+def test_docs_say_dhl_mails_carry_numbers_of_other_countries():
+    services = TEXTS[SERVICES]
+    international = services.split("**DHL international:**")[1].split("\n\n")[0]
+    _all_have(international, [
+        "(seit v0.3.37)",
+        "`LE…BE`",
+        "`LW…NL`",
+        "mit dem DHL-API-Key",
+        "nicht als DHL",
+    ])
+    dhl = _tab(MAIL, "DHL")
+    _all_have(dhl, [
+        "Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37)",
+        "mit dem DHL-Key bei DHL ab",
+    ])
+
+
+def test_helping_page_asks_to_confirm_dhl_numbers_of_other_countries():
+    text = TEXTS[HELPING]
+    _all_have(text, [
+        "**DHL: Sendungsnummern aus anderen Ländern**",
+        "[Issue #34](https://github.com/SoerenKaiser99/parcel_tracker/issues/34)",
+    ])

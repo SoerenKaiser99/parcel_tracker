@@ -1,0 +1,23 @@
+X-Fixture: synthetic, in the style of DPD Austria's mails (issue 31); the parcel
+ number, the shop, the recipient and the address are invented; the legal notice is cut
+From: DPD Versandinfo <no_reply@dpd.at>
+To: max@example.org
+Subject: Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr
+Date: Wed, 14 Oct 2026 08:12:40 +0200
+Message-ID: <fixture-176@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Liebe/r Paketempfänger/in,</p>
+<p>Ihr Paket 09999999999931 von Beispielshop wird voraussichtlich<br>
+heute zwischen 13:00 und 14:00 Uhr<br>
+an folgende Adresse zugestellt:</p>
+<p>Max Mustermann<br>
+Musterstrasse 1<br>
+9999 Musterstadt</p>
+<p>Sie können das Paket nicht entgegennehmen? Dann wählen Sie einfach eine andere Zustelloption.</p>
+<p>Ihr DPD Team</p>
+<p>dpd.at</p>
+</body></html>

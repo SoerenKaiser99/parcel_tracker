@@ -865,6 +865,21 @@ def test_an_attempted_delivery_is_never_a_further_shipment():
     assert [e.text for e in result.events] == ["Zustellung versucht"]
 
 
+def test_a_delay_without_a_new_day_drops_the_later_day_an_attempt_would_keep():
+    # "Versendet" named tomorrow; the delay names no day it can be read from: tomorrow is
+    # too early, it must not count as "sicher heute" then.
+    tomorrow = date.fromordinal(TODAY.toordinal() + 1)
+    delay = replace(_attempt(), status_text="Lieferung verspätet")
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", tomorrow)}
+    apply_update(parcels, delay, NOW)
+    result = parcels[ORDER].result
+    assert (result.status_text, result.eta_date) == ("Lieferung verspätet", None)
+    # (an attempt keeps it: the day after the mail's own is the carrier's next one)
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", tomorrow)}
+    apply_update(parcels, _attempt(), NOW)
+    assert parcels[ORDER].result.eta_date == tomorrow
+
+
 @pytest.mark.parametrize("final", [ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP])
 def test_an_attempted_delivery_never_reopens_an_order_that_arrived(final):
     parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", TODAY, status=final)}

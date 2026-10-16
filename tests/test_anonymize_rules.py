@@ -278,6 +278,27 @@ def test_without_values_the_flag_is_required(tmp_path):
     assert "ACHTUNG" not in done.stdout
 
 
+def test_without_a_stdin_nothing_is_asked(tmp_path):
+    """Started without a console (pythonw, a service), a script has no stdin: it is None."""
+    src = tmp_path / "mails"
+    src.mkdir()
+    (src / "mail0.eml").write_bytes(_mail(SHOP, "Ihre Bestellung", "Hallo Jörg,\ndanke.\n"))
+    code = (
+        "import runpy, sys\n"
+        "sys.stdin, sys.argv = None, sys.argv[1:]\n"
+        "runpy.run_path(sys.argv[0], run_name='__main__')\n"
+    )
+    done = subprocess.run(
+        [sys.executable, "-c", code, str(SCRIPT), str(src)],
+        capture_output=True, text=True, encoding="utf-8",
+        env={**os.environ, "PYTHONUTF8": "1"},
+    )
+    assert done.returncode == 2
+    assert done.stdout == ""
+    assert "Ohne eigene Angaben" in done.stderr
+    assert not (src / "anonymisiert").exists()
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="needs a pseudo terminal")
 def test_terminal_with_only_empty_answers_needs_the_flag_too(tmp_path):
     import pty

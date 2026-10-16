@@ -1,17 +1,19 @@
 """DPD notification mails (no Home Assistant imports).
 
-Austria: only the parcel number, a delivery and its time or "waits in a shop" are taken. The
-drop-off place and the recipient's name are never read into an update.
+Austria: only the parcel number, a delivery and its time, "waits in a shop" and today's
+window (with the shipper, through the naming gate) are taken. The drop-off place, the
+recipient's name and address are never read into an update.
 
 Germany: the announcement ("Bald ist Ihr DPD Paket da") names the shipper and an estimate in
-working days; both are taken, the shipper only through the naming gate. Every other German
-mail only names the number, the German lookup tells the status.
+working days; both are taken, the shipper only through the naming gate. The mails with
+today's window, the delivery and the parcel waiting in a Pickup shop tell the status. Every
+other German mail only names the number, the German lookup tells the status.
 """
 
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from email.message import EmailMessage
 
 from ..models import ParcelStatus
@@ -50,6 +52,13 @@ _NEIGHBOUR = re.compile(r"\bnachbar\w*\b.*\babgegeben\b", re.IGNORECASE)
 _LEFT = re.compile(r"\bhinterlegt\b", re.IGNORECASE)
 _PLACE = re.compile(r"abstellort|wunschort|gewünschten\s+ort", re.IGNORECASE)
 _TIME = re.compile(r"\bheute\s+um\s+(\d{1,2})[:.](\d{2})\s*Uhr", re.IGNORECASE)
+# "Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr": today, in this window
+_AT_WINDOW = re.compile(
+    r"^Ihr\s+DPD\s+Paket\s+kommt\s+zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s+Uhr",
+    re.IGNORECASE,
+)
+# "Ihr Paket 0999… von Beispielshop wird voraussichtlich …": the shipper right after the number
+_AT_SHIPPER = re.compile(r"^\s*von\s+(?P<name>.{1,80}?)\s+wird\b", re.IGNORECASE)
 
 
 def _status(sentence: str) -> ParcelStatus | None:
@@ -68,9 +77,22 @@ def _status(sentence: str) -> ParcelStatus | None:
     return None
 
 
+def _today_window(update: MailUpdate, window: re.Match[str], sent: datetime) -> None:
+    """In delivery on the day the mail was sent, in the subject's window (start hour and
+    minute, end hour and minute); an impossible time leaves the window out."""
+    hours = [int(group) for group in window.groups()]
+    update.status = ParcelStatus.OUT_FOR_DELIVERY
+    update.eta_date, update.eta_latest = sent.date(), None
+    if hours[0] < 24 and hours[2] < 24 and hours[1] < 60 and hours[3] < 60:
+        update.eta_from = at(sent.date(), hours[0], hours[1])
+        update.eta_to = at(sent.date(), hours[2], hours[3])
+
+
 def parse_dpd_mail(msg: EmailMessage) -> list[MailUpdate]:
-    """'Ein DPD Paket für dich' (announced) and 'Neuigkeiten zu deinem Paket' (delivered or
-    waiting in a shop); every other sentence only names the parcel and the lookup decides.
+    """'Ein DPD Paket für dich' (announced), 'Ihr DPD Paket kommt zwischen 13:00 und 14:00
+    Uhr' (in delivery today, with this window; the shipper after the number names the parcel
+    only through the naming gate) and 'Neuigkeiten zu deinem Paket' (delivered or waiting in
+    a shop); every other sentence only names the parcel and the lookup decides.
 
     Only the notification sender's sentences are read: a mail of another sender at dpd.at
     just names the parcel.
@@ -88,6 +110,12 @@ def parse_dpd_mail(msg: EmailMessage) -> list[MailUpdate]:
     sentence = re.split(r"[.!?](?:\s|$)", sentence, maxsplit=1)[0]
     if _NEW in subj.lower():
         update.status = ParcelStatus.PRE_TRANSIT
+        return [update]
+    if window := _AT_WINDOW.match(subj):
+        _today_window(update, window, sent)
+        if shipper := _AT_SHIPPER.match(sentence):
+            update.title = company_name(shipper.group("name"))
+            update.shop = shop_of(shipper.group("name"))
         return [update]
     update.status = _status(sentence)
     if update.status is ParcelStatus.DELIVERED:
@@ -112,8 +140,20 @@ _DE_NUMBER = re.compile(r"(?<!\d)\d{14}(?!\d)")
 _DE_ESTIMATE = re.compile(
     r"\bin\s+(\d{1,2})(?:\s*(?:-|–|bis)\s*(\d{1,2}))?\s+Werktag(?:en)?\b", re.IGNORECASE
 )
+# "Ihre Sendung stellen wir am nächsten Werktag zu."
+_DE_NEXT_DAY = re.compile(r"\bam\s+nächsten\s+Werktag\b", re.IGNORECASE)
 _DE_DELIVERY = re.compile(r"stell", re.IGNORECASE)  # stellen … zu, zugestellt, Zustellung
 _DE_MAX_WORKDAYS = 14
+# The mails after the announcement tell the status in their subject.
+# "Zwischen 14:06 und 15:06 Uhr kommt Ihr DPD Paket": today, in this window
+_DE_WINDOW = re.compile(
+    r"^Zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s+Uhr\s+kommt\s+Ihr\s+DPD\s+Paket",
+    re.IGNORECASE,
+)
+_DE_DELIVERED = re.compile(r"^Ihr\s+Paket\s+ist\s+da\b", re.IGNORECASE)
+# "Im Pickup Paketshop wartet Ihr DPD Paket auf Sie" ("Der Pickup Paketshop erhält in Kürze
+# Ihr DPD Paket" is not there yet)
+_DE_IN_SHOP = re.compile(r"^Im\s+Pickup\s+Paketshop\s+wartet\b", re.IGNORECASE)
 
 
 def _de_shipper(text: str) -> tuple[str | None, str | None]:
@@ -131,11 +171,15 @@ def _de_shipper(text: str) -> tuple[str | None, str | None]:
 
 def _de_estimate(text: str, sent: date) -> tuple[date | None, date | None]:
     """(first, last) day of "in N-M Werktagen" counted from the day the mail was sent;
-    ``last`` is None for a single number. Only a sentence about the delivery counts, and
-    none that says what will not happen."""
+    ``last`` is None for a single number and for "am nächsten Werktag". Only a sentence
+    about the delivery counts, and none that says what will not happen."""
     for sentence in re.split(r"[.!?](?:\s|$)", " ".join(text.split())):
+        if not _DE_DELIVERY.search(sentence) or _NOT.search(sentence):
+            continue
+        if _DE_NEXT_DAY.search(sentence):
+            return add_workdays(sent, 1), None
         found = _DE_ESTIMATE.search(sentence)
-        if not found or not _DE_DELIVERY.search(sentence) or _NOT.search(sentence):
+        if not found:
             continue
         first = int(found.group(1))
         last = int(found.group(2)) if found.group(2) else first
@@ -153,9 +197,12 @@ def parse_dpd_de_mail(msg: EmailMessage) -> list[MailUpdate]:
     gate (a company or a shop we know, never a person). "Ihre Sendung stellen wir in 1-2
     Werktagen zu." gives the first and the last day, counted from the day the mail was sent
     (for a forwarded mail the day of the original); only such a mail is an announcement and
-    tells "announced", like DPD Austria's. Both belong to the number of the shipper block,
-    without that block to the only number of the mail. A mail of any other sender is not
-    read here.
+    tells "announced", like DPD Austria's. The mails after it tell the status in their
+    subject: "Zwischen 14:06 und 15:06 Uhr kommt Ihr DPD Paket" (in delivery today, with
+    this window), "Ihr Paket ist da!" (delivered when the mail was sent), "Im Pickup
+    Paketshop wartet Ihr DPD Paket auf Sie" (ready for pickup). All of it belongs to the
+    number of the shipper block, without that block to the only number of the mail. A mail
+    of any other sender is not read here.
     """
     if domain_of(sender(msg)[0]) not in DPD_DOMAINS:
         return []
@@ -177,4 +224,14 @@ def parse_dpd_de_mail(msg: EmailMessage) -> list[MailUpdate]:
     target.eta_date, target.eta_latest = _de_estimate(text, sent.date())
     if target.eta_date:
         target.status = ParcelStatus.PRE_TRANSIT
+    subj = subject(msg)
+    if window := _DE_WINDOW.match(subj):
+        _today_window(target, window, sent)
+    elif _DE_DELIVERED.match(subj):
+        target.status = ParcelStatus.DELIVERED
+        target.eta_date = target.eta_latest = None
+        target.delivered_at = sent
+    elif _DE_IN_SHOP.match(subj):
+        target.status = ParcelStatus.AWAITING_PICKUP
+        target.eta_date = target.eta_latest = None
     return updates

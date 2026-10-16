@@ -59,7 +59,7 @@ Bei einem Mailanbieter im Internet musst du hier nichts ändern: Port 993 und �
 
 Gelesen wird genau ein Ordner des Postfachs, von Haus aus der Posteingang (`INBOX`). Mit dem Feld **Ordner** liest der Import stattdessen einen anderen.
 
-- Schreib den Ordner so, wie der Mailserver ihn führt: `Pakete`, `Bestellungen & Pakete`, einen Unterordner als `Pakete/DHL`, bei manchen Anbietern als `INBOX.Pakete`. Umlaute und Leerzeichen sind erlaubt.
+- Schreib den Ordner so, wie der Mailserver ihn führt: `Pakete`, `Bestellungen & Pakete`, einen Unterordner als `Pakete/DHL`, bei manchen Anbietern als `INBOX.Pakete`. Steht der Ordner im Mailprogramm unter dem Posteingang, heißt er auf manchen Servern `INBOX.Pakete` oder `INBOX/Pakete`. Umlaute und Leerzeichen sind erlaubt.
 - Alle anderen Ordner fasst der Import nicht an.
 - Gibt es den Ordner nicht, meldet das Formular „Diesen Ordner gibt es im Postfach nicht.“ und speichert nichts. Angelegt wird der Ordner nie.
 - Die beiden Ablage-Ordner `Paket-Tracker-Verarbeitet` und `Paket-Tracker-Nicht-erkannt` lassen sich nicht als Ordner zum Lesen eintragen.
@@ -94,12 +94,13 @@ Nimm diese Absender in die Filterregel auf:
 | `versandbestaetigung@amazon.de` | Amazon |
 | `shipment-tracking@amazon.de` | Amazon |
 | `order-update@amazon.de` | Amazon |
+| `pickup-point@amazon.de` | Amazon (Paket liegt zur Abholung bereit: Hermes PaketShop, Amazon Locker oder Counter) |
 | `noreply@dhl.de` | DHL |
 | `paketankuendigung@dhl.de` | DHL |
 | `zustellung@dhl.de` | DHL |
 | `sendungsupdate@dhl.de` | DHL (meldet einen verschobenen Zustelltag; der neue Tag wird übernommen) |
 | `noreply@service.dpd.de` | DPD |
-| `no_reply@dpd.at` | DPD Österreich |
+| `no_reply@dpd.at` | DPD Österreich (Ankündigung, „kommt zwischen … Uhr“ mit Zeitfenster, Zustellung) |
 | `pkginfo@ups.com` | UPS |
 | `noreply@paketankuendigung.myhermes.de` | Hermes |
 | `ebay@ebay.com` | eBay |
@@ -120,6 +121,7 @@ require ["copy"];
 if address :is "from" [
   "bestellbestaetigung@amazon.de", "versandbestaetigung@amazon.de",
   "shipment-tracking@amazon.de", "order-update@amazon.de",
+  "pickup-point@amazon.de",
   "noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de",
   "sendungsupdate@dhl.de",
   "noreply@service.dpd.de", "pkginfo@ups.com",
@@ -153,7 +155,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
@@ -196,9 +198,12 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
 - Erkannte Mails landen im Ordner `Paket-Tracker-Verarbeitet`, nicht erkannte im Ordner `Paket-Tracker-Nicht-erkannt`. Beide Ordner legt der Import bei Bedarf an.
 - Mit ausgeschalteter Option „Verarbeitete Mails in Ordner verschieben“ bleiben die Mails im gelesenen Ordner und werden nur als gelesen markiert.
-- Die beiden Ordner liegen immer auf der obersten Ebene des Postfachs, auch wenn ein eigener Ordner gelesen wird.
+- Wo die beiden Ordner liegen, bestimmt der Mailserver. Bei den meisten Anbietern liegen sie auf der obersten Ebene des Postfachs. Manche Server (oft Hosting-Postfächer, z. B. mit Courier oder dovecot mit Präfix) erlauben eigene Ordner nur unterhalb des Posteingangs. Dort heißen sie intern `INBOX.Paket-Tracker-Verarbeitet` oder `INBOX/Paket-Tracker-Verarbeitet`, im Mailprogramm stehen sie unter dem Posteingang. Seit v0.3.33 fragt der Import den Server, wo eigene Ordner hingehören, und legt sie dort an.
+- Hast du die Ordner selbst im Mailprogramm angelegt, nimmt der Import sie: dort, wo der Server eigene Ordner anlegt, oder auf der obersten Ebene. Lehnt der Server die oberste Ebene ab, sucht und legt der Import sie direkt unter dem Posteingang an.
+- In einem eigenen Ordner, der gelesen wird, liegen die beiden Ordner nie.
+- Kann der Import einen der Ordner weder finden noch anlegen, oder lehnt der Server das Verschieben ab, bleiben die Mails im gelesenen Ordner und sind als gelesen markiert. Dann steht je Ordner einmal eine Warnung im Protokoll von Home Assistant. Eine neue Warnung zu diesem Ordner kommt erst, wenn das Ablegen in ihn wieder geklappt hat und danach erneut scheitert. Was genau scheitert, steht in der [Diagnose](sensoren.md#diagnose) im Abschnitt `filing`. Abhilfe: die beiden Ordner im Mailprogramm anlegen oder „Verarbeitete Mails in Ordner verschieben“ ausschalten.
 - Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`) und alle Mails von Eventim, die keine Bestellung mit Postversand sind (Newsletter, Ticketalarm, Kundenservice, die Ticketshops der Vereine).
-- Jede Mail zählt nur einmal (erkannt an ihrer Message-ID).
+- Jede erkannte Mail zählt nur einmal (erkannt an ihrer Message-ID). Eine Mail, die nicht erkannt wurde, liest der Import noch einmal, sobald sie wieder ungelesen in dem Ordner liegt, den er liest, z. B. nach einem Update. Das gilt für Mails, die ab v0.3.34 gelesen wurden: Bis v0.3.33 hat sich der Import jede Mail gemerkt, auch eine nicht erkannte.
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
 
 ## Was aus welcher Mail wird
@@ -208,13 +213,15 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Kommt eine Bestellung in mehreren Sendungen, heißt das nächste Paket „… (2)“.
     - Der Status geht nur vorwärts: Eine ältere Mail setzt ein Paket nie zurück.
     - Eine Ausnahme ist die Mail „Versuchte Zustellung“ (niemand wurde angetroffen): Sie nimmt eine Bestellung von „In Zustellung“ zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag. Die Bestellung zählt dann nicht mehr als heute. Was schon zugestellt oder abholbereit ist, bleibt, wie es ist.
+    - Gelesen werden auch die Mails im schlichten Layout mit „Bestellung #…“: „Ihr Paket mit … wird zugestellt“ (der Betreff nennt dort nur den Artikel) setzt „In Zustellung“, „Lieferungsaktualisierung: …“ lässt die Bestellung auf „Versendet“ und übernimmt den neuen Tag aus „Jetzt erwartet bis zum …“; nennt die Mail eine Verspätung, steht dazu der Text „Lieferung verspätet“. Den Namen nimmt die Bestellung aus der Zeile unter „Bestellung #…“, die so beginnt wie der Artikel im Betreff; nennt der Betreff keinen Artikel, kommt der Name aus den anderen Mails der Bestellung. Die Betreffs „Unterwegs zur Zustellung: …“ und „Zur Auslieferung: …“ zählen wie „In Zustellung“, „Zustellversuch: …“ wie „Versuchte Zustellung“. Die Versandmail „Deine Amazon.de-Bestellung mit … wurde versandt!“ setzt „Versendet“ samt Liefertag; nennt sie eine DHL-, UPS- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann dort abgefragt.
+    - „Paket zur Abholung bereit: …“ von `pickup-point@amazon.de` (seit v0.3.36) setzt die Bestellung auf „Abholbereit“: Das Paket liegt in einem Hermes PaketShop, einem Amazon Locker oder Counter oder einem anderen Abholshop. Gibt es die Bestellung noch nicht, legt die Mail sie an, benannt nach dem ersten Artikel der Mail (nie nach dem Preis). Den Abholort übernimmt sie nur mit Namen und Straße der Abholstelle („Hermes PaketShop - Beispielkiosk Musterweg 1“), ohne die interne Nummer des Shops („HPS#…“), Postleitzahl und Ort. Er steht auf der Karte, im Attribut `pickup_point` und in der Benachrichtigung. „Abholung am 24. Oktober“ wird der letzte Abholtag (Attribut `pickup_until`), in der Benachrichtigung steht dann „… – Hermes PaketShop - Beispielkiosk Muster… bis 24.10.“ (der Ort höchstens 40 Zeichen lang). Fragt die Integration die Bestellung über eine Sendungsnummer beim Paketdienst ab, bleiben Ort und Tag, solange das Paket dort abholbereit ist und der Paketdienst keine eigenen nennt; nennt die Mail ihren eigenen Tag, gilt er nicht als letzter Abholtag. Eine spätere „Zugestellt“-Mail von Amazon oder dem Paketdienst schließt die Bestellung wie gewohnt.
     - Kündigt DHL eine „Amazon Sendung“ an und passt genau ein offenes Amazon-Paket dazu (gleicher Liefertag), übernimmt das Amazon-Paket die DHL-Nummer und fragt ab dann DHL ab. Ist die Zuordnung nicht eindeutig, entsteht ein eigenes Paket „Amazon-Sendung (DHL)“.
 
 === "eBay"
 
     - Pro eBay-Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer, benannt nach dem Artikel.
-    - eBay-Mails enthalten keine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
-    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum („Lieferung ca.: Mi, 28. Jan - Do, 29. Jan“), „BESTELLUNG ZUGESTELLT“ setzt „Zugestellt“. Andere eBay-Mails landen in „Nicht erkannt“.
+    - Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
+    - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum („Lieferung ca.: Mi, 28. Jan - Do, 29. Jan“), „BESTELLUNG ZUGESTELLT“ und „PAKET ZUGESTELLT“ (seit v0.3.35) setzen „Zugestellt“. Die Wörter zählen überall im Betreff, so wie eBay sie schreibt (groß und mit Doppelpunkt) – auch hinter einem Symbol, „WG:“ oder einer Markierung des Mailservers wie „[EXTERN]“. Nennt die Mail den Artikel nicht, kommt der Name aus dem Betreff; den Verkäufer übernimmt der Import nie. „Update zur Bestellung“ setzt „Versendet“ samt Lieferzeitraum und übernimmt die Sendungsnummer, wenn sie ihren Paketdienst selbst verrät (DHL `00340…` oder `JJD…`, UPS, Hermes `H…`): Die Bestellung wird dann live beim Paketdienst abgefragt. Eine Nummer aus 12 oder 14 Ziffern kann zu mehreren Paketdiensten gehören und bleibt unberührt. „Zustellversuch: …“ (niemand wurde angetroffen) nimmt die Bestellung zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag (ein späterer Tag, den der Paketdienst schon genannt hat, bleibt) und übernimmt die Sendungsnummer wie „Update zur Bestellung“. Andere eBay-Mails landen in „Nicht erkannt“.
     - Nennt die Mail den Versanddienstleister, zeigt die Karte ihn an („eBay · Versendet · via Hermes“, Attribut `shipping_carrier_hint`).
 
 === "AliExpress"
@@ -229,6 +236,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Liegen mehrere Bestellungen im selben Paket, bekommt jede die Nummer. Der Paketdienst wird für dieses Paket nur einmal gefragt, es gibt eine Benachrichtigung für das Paket (sie nennt die erste Bestellung), und bei `sensor.pakete_heute`, `sensor.pakete_moeglich` und `sensor.pakete_zugestellt_heute` zählt es einmal. Das Event `parcel_tracker_status_changed` feuert für jede Bestellung.
     - Nennt eine spätere Mail zu einer Bestellung eine zweite, andere Nummer, entsteht dafür ein eigenes Paket „AliExpress-Sendung“.
     - Steht die Nummer schon als eigenes Paket in der Liste? Ist es aus einer Mail entstanden, geht es in der Bestellung auf. Hast du es von Hand eingetragen oder als erhalten markiert, bleibt es, und die Bestellung übernimmt die Nummer nicht.
+    - Gelesen werden auch „Packstück …: mit lokalem Kurier“ und „Packstück …: im Zielland / in der Zielregion“ (beide „Versendet“ mit dem Schritt als Text) und „Bestellung …: zugestellt“ („Zugestellt“). Aus den Mails vom Herbst 2024 kennt der Import außerdem „verzollt“, „im Lieferzentrum“ und „Zur Auslieferung bereit“ (alle „Versendet“). Mails ohne Neuigkeit zu einem Paket (Lieferneuigkeiten ohne Nummer, Coupon nach einer Verspätung, Rücksendung und Rückerstattung) werden nur als gelesen markiert.
     - Auch die Mails der letzten Meile werden gelesen: „Paket … ist versandbereit“ setzt „Bestellt“, „Paket … wird zugestellt“ setzt „In Zustellung“ für den Tag der Mail (anders als „Bestellung …: wird zugestellt“), „Paket … wurde zugestellt“ setzt „Zugestellt“. „Lieferprobleme für Packstück …“ setzt die Bestellung (auch aus „In Zustellung“ zurück) auf „Versendet“ mit dem Text „Lieferprobleme“.
     - „wie ist es gelaufen?“ mit dem Satz „Wir haben die Lieferung Ihrer Bestellung … bestätigt“ (mit der Bestellnummer aus dem Betreff) schließt die Bestellung mit dem Text „Lieferung bestätigt (laut AliExpress)“ – so wie eine [Bestellung ohne Zustellmail](#bestellungen-ohne-zustellmail): `assumed_delivered` ist `true`, keine Benachrichtigung, nicht „heute zugestellt“. Die Mail kommt oft erst Tage später und beweist keine Ankunft, sie fragt selbst, ob der Artikel schon da ist. Hat der Paketdienst die Zustellung schon gemeldet, ändert die Mail nichts: Dessen Zeitpunkt bleibt stehen. Dasselbe gilt, solange die Bestellung bei ihm abgefragt wird und sich dort in den letzten 3 Tagen etwas getan hat; steht sie länger unverändert, schließt die Mail sie.
     - Nur als gelesen markiert werden die Aufforderung zur Bewertung („Wie war Ihr Einkaufserlebnis?“), die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“ (die Mail sagt nicht, ob die Bestellung abgeschlossen oder storniert wurde). Andere AliExpress-Mails landen in „Nicht erkannt“.
@@ -255,7 +263,9 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 === "DHL"
 
     - Den Status liest der Import nur aus dem Betreff, siehe die Tabelle unter [Kein Key? Dann die DHL-Mails](dienste.md#kein-key-dann-die-dhl-mails).
+    - Internationale Nummern liest er nicht nur mit „DE“ am Ende (`CQ…DE`), sondern auch Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37), wie DHL sie bei Sendungen aus dem Ausland nennt (`LE…BE`, `LW…NL`). Das Paket wird ein DHL-Paket, und die Integration fragt es mit dem DHL-Key bei DHL ab. Solche Nummern zählen nur in Mails von DHL.
     - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
+    - Steht im Textteil der Mail keine Nummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil: dort auch die Nummer direkt unter „Sendungsstatus einsehen“ bzw. „Sendungsverlauf einsehen“, mit 12 Ziffern oder als Nummer aus dem Ausland (z. B. `LR…NL`, `JJATA…`).
     - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson. Der Name endet an der Rechtsform; was dahinter steht (ein Kürzel, eine Ansprechperson), wird nicht übernommen.
     - Der Anzeigename eines Paketdienstes („DHL Paketankündigung“, „DHL Zustell-Update“) wird nie zum Namen: Ohne Shop heißt das Paket `DHL <Nummer>`. Nennt der Betreff eine Firma des Paketdienstes selbst („Ihre DHL Paket (Austria) GmbH c/o … Sendung“), gibt es ebenfalls keinen Namen.
     - Trägt ein Paket aus einer älteren Version noch so einen Namen, ersetzt ihn die nächste Mail, die einen Shop nennt – aber nur, wenn der Name aus einem Paketdienst (DHL, DPD, GLS, Hermes, UPS, Deutsche Post) und Wörtern einer Benachrichtigung besteht und sonst nichts enthält („DHL Paketankündigung“, „DHL Zustell-Update“, „DPD Versandinfo“, „DHL Paket“). Jeder andere Name bleibt, auch „Hermes“, „DHL Express“ oder „Paket“: Er kann selbst vergeben sein.
@@ -266,14 +276,16 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
     - DPD Deutschland (`noreply@service.dpd.de`): Die Ankündigung „Bald ist Ihr DPD Paket da“ liefert neben der Paketnummer den Versender als Namen des Pakets – nur eine Firma mit Rechtsform oder einen bekannten Shop, nie eine Privatperson – und die Lieferschätzung.
     - Aus „Ihre Sendung stellen wir in 1-2 Werktagen zu“ wird eine Lieferspanne, gerechnet ab dem Tag der Mail. Werktage sind Montag bis Samstag; Feiertage kennt der Import nicht.
+    - „Ihre Sendung stellen wir am nächsten Werktag zu“ zählt als ein Werktag.
     - Das Paket steht damit auf „Angekündigt“, bis die DPD-Abfrage den Status liefert. Die Schätzung bleibt, bis die DPD-Abfrage selbst einen Tag nennt oder das Paket zugestellt bzw. abholbereit ist.
-    - Der Empfänger aus der Mail wird nie gelesen.
+    - Die Mails danach setzen den Status aus dem Betreff: „Zwischen 14:06 und 15:06 Uhr kommt Ihr DPD Paket“ setzt „In Zustellung“ für den Tag der Mail mit diesem Zeitfenster, „Ihr Paket ist da!“ setzt „Zugestellt“, „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ setzt „Abholbereit“.
+    - Der Empfänger und der Paketshop aus der Mail werden nie gelesen.
     - Alle anderen Mails von DPD Deutschland legen nur das Paket an.
-    - DPD Österreich: siehe [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).
+    - DPD Österreich (`no_reply@dpd.at`): „Ein DPD Paket für dich“ legt das Paket an, „Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“ für den Tag der Mail mit diesem Zeitfenster (seit v0.3.35), „Neuigkeiten zu deinem Paket“ meldet die Zustellung. Mehr unter [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).
 
 === "GLS"
 
-    - „Dein Paket wird in wenigen Tagen zugestellt“ setzt „Unterwegs“ samt Liefertag und Zeitfenster.
+    - „Dein Paket wird in wenigen Tagen zugestellt“ setzt „Unterwegs“ samt Liefertag und Zeitfenster, „Dein Paket hat Deutschland erreicht“ setzt „Unterwegs“.
     - „Dein GLS Paket kommt heute!“ setzt „In Zustellung“ für den Tag der Mail.
     - „Dein Paket wurde … zugestellt“ setzt „Zugestellt“ – liegt das Paket im PaketShop zur Abholung bereit, „Abholbereit“.
     - „Dein Paket wird an dem gewünschten Ort abgestellt“ legt das Paket nur an („Angekündigt“) und setzt nie einen Status zurück.
@@ -286,8 +298,10 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
     - „Information zur Zustellung an den gebuchten WunschAblageort“ (die Sendung wurde gerade angekündigt) setzt „Angekündigt“.
     - „Ihre Hermes Sendung ist auf dem Weg“ setzt „Unterwegs“ samt Liefertag und Zeitfenster.
+    - „Deine Sendung kommt heute.“ setzt „In Zustellung“ mit dem Zeitfenster, „… Haustürzustellung“ setzt „Zugestellt“.
+    - Nennt eine Mail einen neuen Tag („Neuer Zustelltermin am …“, „Neuer Zustellversuch am …“), steht das Paket wieder auf „Unterwegs“ mit diesem Tag und, wenn genannt, dem Zeitfenster. Sagt der Betreff „zugestellt“ oder „kommt heute“, gilt der Betreff.
     - „… wurde an deinen WunschAblageort zugestellt“ setzt „Zugestellt“.
-    - Mails über einen gescheiterten Zustellversuch („… konnte nicht zugestellt werden“, „nicht zugestellt“, „Zustellversuch“) setzen keinen Status. Den liefert dann die Hermes-Abfrage.
+    - Mails über einen gescheiterten Zustellversuch („… konnte nicht zugestellt werden“, „nicht zugestellt“, „Zustellversuch“) setzen keinen Status, solange sie keinen neuen Tag nennen (siehe oben). Den liefert dann die Hermes-Abfrage.
     - Der Shop aus der Mail wird nur dann zum Namen, wenn es ein bekannter Shop ist (z. B. Amazon, eBay, Otto, Zalando) und das Paket noch keinen Namen hat – Namen privater Absender übernimmt die Integration nie.
     - Den Text des Wunsch-Ablageorts übernimmt die Integration nie – weder in Attribute noch ins Log.
     - Alte Amazon-Versandmails mit Hermes-Nummer hängen die Nummer an das Amazon-Paket; ab dann fragt es Hermes ab.
@@ -355,7 +369,7 @@ Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdiens
 
 Für Fortgeschrittene. Hast du Paketmails schon in einem eigenen Werkzeug (n8n, Node-RED, ein Skript), kannst du sie einzeln an Home Assistant übergeben. Ein Paket-Postfach brauchst du dafür nicht.
 
-Der Import liest die Mail genau wie eine aus dem Postfach: Sie zählt nur einmal (Message-ID) und wird nicht gelesen, wenn sie älter als 14 Tage ist.
+Der Import liest die Mail genau wie eine aus dem Postfach: Eine erkannte Mail zählt nur einmal (Message-ID), und eine Mail, die älter als 14 Tage ist, wird nicht gelesen. Eine nicht erkannte Mail kannst du nach einem Update noch einmal übergeben, wenn sie ab v0.3.34 übergeben wurde.
 
 1. In Home Assistant unter **Profil → Sicherheit** ein **langlebiges Zugriffstoken** anlegen.
 2. Die komplette Mail als Quelltext (RFC 822, `.eml`) per `POST` an `/api/parcel_tracker/import_mail` schicken – unverändert als Inhalt der Anfrage und mit dem Token in der Kopfzeile `Authorization`.
@@ -383,7 +397,7 @@ Die Antwort ist JSON, z. B.:
 | `unrecognized` | keine Sendung erkannt |
 | `ignored` | Werbung oder Konto-Mail |
 | `stale` | älter als 14 Tage |
-| `duplicate` | diese Mail wurde schon gelesen |
+| `duplicate` | diese Mail wurde schon gelesen und angewendet |
 
 Fehler erkennst du am Statuscode:
 
@@ -432,6 +446,302 @@ Statt eines zusätzlichen Postfachs beim Mailanbieter kannst du das Paket-Postfa
 | **Verbindung** | „Verschlüsselt, Zertifikat nicht prüfen“ bei einem selbstsignierten Zertifikat. „Unverschlüsselt“ nur, wenn der Server kein TLS anbietet. |
 | **Benutzername**, **Passwort**, **Ordner** | die des lokalen Postfachs |
 
-Ein NAS mit einem Mailserver-Paket oder ein Docker-Host kann dasselbe. Eine Schritt-für-Schritt-Anleitung für bestimmte Geräte oder Programme gibt es hier nicht: Getestet ist bisher keine. Läuft so ein Aufbau bei dir, ist deine Konfiguration als [GitHub-Issue](https://github.com/SoerenKaiser99/parcel_tracker/issues) willkommen.
+Ein NAS mit einem Mailserver-Paket oder ein Docker-Host kann dasselbe. Von uns getestet ist bisher kein solcher Aufbau. Ein Beispiel aus der Community mit Einrichtungsskript steht [weiter unten](#beispiel-aus-der-community-dovecot-und-imapfilter-im-container). Läuft ein anderer Aufbau bei dir, ist deine Konfiguration als [GitHub-Issue](https://github.com/SoerenKaiser99/parcel_tracker/issues) willkommen.
 
 **Einfacher mit n8n oder Node-RED:** Läuft eines der beiden schon bei dir, brauchst du gar keinen Mailserver. Übergib die Mails per `POST /api/parcel_tracker/import_mail`, siehe [Ohne Postfach: Mail per HTTP übergeben](#ohne-postfach-mail-per-http-ubergeben).
+
+### Beispiel aus der Community: dovecot und imapfilter im Container
+
+!!! note "Von einem Nutzer beigesteuert"
+    Beitrag von Hanutawii ([Issue #26](https://github.com/SoerenKaiser99/parcel_tracker/issues/26)). Der Aufbau läuft bei ihm, von uns getestet ist er nicht. Fragen und Verbesserungen gern im Issue.
+
+**Die Idee:** Ein kleiner LXC-Container (bei ihm Debian 13 auf Proxmox) mit dovecot als lokalem Postfach. imapfilter schaut alle 5 Minuten in die echten Postfächer (bei ihm Posteo und iCloud) und kopiert nur die Paketmails hinein. Home Assistant kennt nur das lokale Postfach.
+
+```text
+Posteo-Posteingang ─┐
+iCloud-Posteingang ─┼─ imapfilter (alle 5 Min) ──► Dovecot "pakete" (nur LAN) ──► Paket Tracker
+weitere ...        ─┘
+```
+
+- Home Assistant kennt keine Zugangsdaten eines echten Postfachs.
+- Nach außen ist kein Port offen, alle Verbindungen gehen nur hinaus.
+- Doppelte erkennt das Skript an der Message-ID. Die Quellpostfächer bleiben unverändert.
+- Paket Tracker verschiebt verarbeitete Mails in `Paket-Tracker-Verarbeitet`. Die Prüfung auf Doppelte schaut deshalb in beide Ordner.
+- Im lokalen Postfach werden Mails nach 30 Tagen gelöscht, in beiden Ordnern.
+
+**Voraussetzungen:**
+
+- ein Host für LXC-Container, z. B. Proxmox,
+- ein Container mit Debian 12 oder 13; 1 Kern, 256 MB RAM und 2 GB Platte reichen,
+- am besten eine feste IP-Adresse für den Container,
+- für iCloud und Gmail je ein [App-Passwort](#app-passworter).
+
+**Einrichtung:**
+
+1. Den LXC-Container anlegen (Debian 12 oder 13) und ihm eine feste IP-Adresse geben.
+2. Das Skript (unten) in den Container kopieren und als root ausführen: `bash paket-postfach-setup.sh`.
+3. Das Skript fragt nach den Quellpostfächern (Server, Benutzer, Passwort) und nach einem neuen Passwort für das lokale Postfach `pakete`. Bei iCloud und Gmail braucht es ein App-Passwort.
+4. In Paket Tracker unter **Konfigurieren → E-Mail-Import** eintragen:
+
+    | Feld | Wert |
+    |---|---|
+    | **IMAP-Server** | die IP-Adresse des Containers |
+    | **Port** | `993` |
+    | **Verbindung** | „Verschlüsselt, Zertifikat nicht prüfen“ |
+    | **Benutzername** | `pakete` |
+    | **Passwort** | das eben vergebene lokale Passwort |
+    | **Ordner** | `INBOX` |
+
+**Stolperfallen, auf die er gestoßen ist:**
+
+- **imapfilter → lokales dovecot:** imapfilter schaltet von selbst auf STARTTLS und lehnt dann das selbstsignierte Zertifikat ab (`certificate verify failed`). Abhilfe im Skript: `options.starttls = false`. Die Quellpostfächer laufen trotzdem über SSL auf Port 993.
+- **Home Assistant → dovecot:** Mit Zertifikatsprüfung bricht die Verbindung mit `unknown ca` ab. Dafür gibt es die Verbindung „Verschlüsselt, Zertifikat nicht prüfen“.
+- **Nur der Posteingang:** Das Skript durchsucht in den Quellpostfächern nur den Posteingang. Wer Paketmails per Regel in andere Ordner verschiebt, ergänzt diese Ordner in der `config.lua`.
+- **Schlagwörter bei iCloud:** Eine frühere Version markierte kopierte Mails im Quellpostfach mit einem Schlagwort. iCloud speichert das, findet es bei der Suche aber nicht wieder, dadurch wurde dieselbe Mail alle 5 Minuten neu kopiert. Jetzt prüft das Skript lokal per Message-ID.
+- **Gelesene Mails:** Paket Tracker liest nur ungelesene Mails. imapfilter übernimmt beim Kopieren aber „gelesen“ aus dem Quellpostfach. Deshalb markiert das Skript kopierte Mails lokal wieder als ungelesen.
+- **Ordner `Paket-Tracker-Verarbeitet`:** Prüft man Doppelte nur im Posteingang, wird jede verarbeitete Mail bei jedem Lauf neu kopiert. Deshalb prüft das Skript in beiden Ordnern.
+- **`Mailbox doesn't exist` im Log** (Hinweis eines weiteren Nutzers): Bis Paket Tracker die erste Mail abgelegt hat, gibt es den Ordner `Paket-Tracker-Verarbeitet` noch nicht, und imapfilter meldet bei jedem Lauf `NO [NONEXISTENT] Mailbox doesn't exist: Paket-Tracker-Verarbeitet`. Das ist harmlos und verschwindet von selbst. Wer die Meldung gar nicht erst sehen will, legt den Ordner einmal im Container an: `doveadm mailbox create -u pakete Paket-Tracker-Verarbeitet`.
+- **Absendersuche bei iCloud:** Die IMAP-Suche von iCloud findet nur Wortanfänge, `myhermes.de` in `noreply@paketankuendigung.myhermes.de` also nicht. Das Skript holt deshalb die Absender der letzten Tage selbst und vergleicht lokal. Die Einträge der Absenderliste stehen ohne `@` davor, damit auch Subdomains passen.
+- **Absender fehlt?** In `/etc/imapfilter/config.lua` in der Liste `absender` ergänzen.
+
+Nützlich: die Logs mit `journalctl -u paket-mail.service -n 50`, sofort abholen mit `systemctl start paket-mail.service`.
+
+**Drei Hinweise von uns:**
+
+- Die Absenderliste des Skripts enthält nicht jeden Absender, den Paket Tracker liest (es fehlt z. B. `pickup-point@amazon.de`): Ergänze die Liste `absender` in `/etc/imapfilter/config.lua` um alle Absender aus der Tabelle unter [Filterregel anlegen](#filterregel-anlegen).
+- Im Container spricht imapfilter mit dovecot unverschlüsselt über Port 143. Das ist in Ordnung, solange es dabei bleibt: Die Verbindung geht nur an `127.0.0.1` und verlässt den Container nicht. dovecot lauscht aber auf allen Netzwerkschnittstellen (`listen = *`) und nimmt nach diesem Skript auch Anmeldungen ohne Verschlüsselung an. Home Assistant deshalb immer über Port 993 mit „Verschlüsselt, Zertifikat nicht prüfen“ verbinden, nie über Port 143 „Unverschlüsselt“.
+- Der Container hält die Passwörter deiner echten Postfächer (Dateien unter `/etc/imapfilter/`, nur für root lesbar, Modus 600). Home Assistant kennt nur das lokale Passwort. Schütze den Container entsprechend: keine weiteren Dienste darin, Updates einspielen, Zugang und Sicherungen so behandeln wie die Zugangsdaten selbst.
+
+??? example "paket-postfach-setup.sh"
+    ```bash
+    #!/usr/bin/env bash
+    # =============================================================================
+    # Paket-Postfach im Heimnetz für die HA-Integration "Paket Tracker"
+    #
+    # Echte Postfächer (Posteo, iCloud, GMX, ...) --imapfilter--> lokales Dovecot
+    # --> Home Assistant liest nur dieses lokale Postfach.
+    #
+    # - kopiert nur Paketmails (Absenderliste unten), alles andere bleibt, wo es ist
+    # - Doppelte werden über die Message-ID erkannt, die Quellpostfächer bleiben
+    #   unverändert (Schlagwörter funktionieren z. B. bei iCloud nicht zuverlässig)
+    # - kopierte Mails werden lokal als ungelesen markiert, damit Paket Tracker
+    #   sie verarbeitet, auch wenn sie im Quellpostfach schon gelesen sind
+    # - nur ausgehende Verbindungen, kein Port nach außen nötig
+    #
+    # Getestet auf Debian 13 (Dovecot 2.4) im Proxmox-LXC, läuft auch mit Dovecot 2.3.
+    # Als root im frischen Container ausführen: bash paket-postfach-setup.sh
+    # =============================================================================
+    set -euo pipefail
+    export LC_ALL=C.UTF-8 DEBIAN_FRONTEND=noninteractive
+
+    # ---- Einstellungen ----------------------------------------------------------
+    INTERVALL="5min"      # wie oft abgeholt wird
+    TAGE=3                # nur Mails der letzten X Tage berücksichtigen
+    AUFBEWAHRUNG=30       # Mails im lokalen Postfach nach X Tagen löschen
+    ABSENDER=(              # Teil der Absenderadresse, ohne @ davor (dann passen auch Subdomains)
+      'shipment-tracking@amazon.de'
+      'versandbestaetigung@amazon.de'
+      'order-update@amazon.de'
+      'dhl.de'
+      'myhermes.de'
+      'hermesworld.com'
+      'dpd.de'
+      'gls-pakete.de'
+      'ups.com'
+    )
+    # -----------------------------------------------------------------------------
+
+    [ "$(id -u)" -eq 0 ] || { echo "Bitte als root ausführen."; exit 1; }
+
+    echo ">> Pakete installieren"
+    apt-get update -qq
+    apt-get install -y -qq dovecot-imapd imapfilter >/dev/null
+
+    install -d -m 700 /etc/imapfilter
+
+    echo
+    echo "Quellpostfächer angeben, aus denen Paketmails geholt werden sollen."
+    echo "Beispiele: posteo.de, imap.mail.me.com (iCloud, App-Passwort nötig),"
+    echo "           imap.gmx.net, imap.web.de, imap.gmail.com (App-Passwort nötig)"
+    QUELLEN_LUA=""
+    N=0
+    while true; do
+      read -rp "IMAP-Server von Postfach $((N+1)) (leer = fertig): " SRV
+      [ -z "$SRV" ] && break
+      N=$((N+1))
+      read -rp  "  Benutzername / Adresse: " USR
+      read -rsp "  Passwort (bzw. App-Passwort): " PW; echo
+      printf '%s\n' "$PW" > "/etc/imapfilter/quelle${N}.pass"
+      QUELLEN_LUA+="  IMAP { server = '${SRV}', port = 993, username = '${USR}',
+             password = pw('/etc/imapfilter/quelle${N}.pass'), ssl = 'auto' },
+    "
+    done
+    [ "$N" -ge 1 ] || { echo "Kein Quellpostfach angegeben, Abbruch."; exit 1; }
+
+    read -rsp "Neues Passwort für das lokale Postfach 'pakete' (kommt in HA): " LOCAL_PASS; echo
+    printf '%s\n' "$LOCAL_PASS" > /etc/imapfilter/lokal.pass
+    chmod 600 /etc/imapfilter/*.pass
+
+    echo ">> Lokalen Mailnutzer 'pakete' anlegen"
+    id pakete &>/dev/null || useradd -m -s /usr/sbin/nologin pakete
+    echo "pakete:${LOCAL_PASS}" | chpasswd
+
+    echo ">> Dovecot konfigurieren"
+    DV=$(dovecot --version | awk '{print $1}')
+    if dpkg --compare-versions "$DV" ge 2.4; then
+      cat > /etc/dovecot/local.conf <<'EOF'
+    # Dovecot 2.4 – nur IMAP, Maildir im Home, Login per Linux-User
+    protocols = imap
+    listen = *
+    mail_driver = maildir
+    mail_path = ~/Maildir
+    mail_inbox_path =
+    auth_allow_cleartext = yes
+    EOF
+    else
+      cat > /etc/dovecot/local.conf <<'EOF'
+    # Dovecot 2.3 – nur IMAP, Maildir im Home, Login per Linux-User
+    protocols = imap
+    listen = *
+    mail_location = maildir:~/Maildir
+    disable_plaintext_auth = no
+    EOF
+    fi
+    systemctl restart dovecot
+
+    echo ">> imapfilter konfigurieren"
+    ABSENDER_LUA=$(printf "  '%s',\n" "${ABSENDER[@]}")
+
+    cat > /etc/imapfilter/config.lua <<EOF
+    options.timeout   = 120
+    options.subscribe = true
+    -- Lokale Verbindung ohne STARTTLS, sonst scheitert sie am selbstsignierten
+    -- Zertifikat. Die Quellpostfächer laufen trotzdem über SSL (Port 993).
+    options.starttls  = false
+    options.info      = false   -- keine "Fetched field"-Zeilen im Log
+
+    local function pw(datei)
+      local h = assert(io.open(datei))
+      local p = h:read('*l')
+      h:close()
+      return p
+    end
+
+    local quellen = {
+    ${QUELLEN_LUA}}
+
+    local lokal = IMAP {
+      server   = '127.0.0.1',
+      port     = 143,
+      username = 'pakete',
+      password = pw('/etc/imapfilter/lokal.pass'),
+    }
+
+    -- Teil des Absenders, hier ergänzen wenn etwas fehlt
+    local absender = {
+    ${ABSENDER_LUA}
+    }
+
+    -- Paket Tracker verschiebt verarbeitete Mails in diesen Ordner
+    local VERARBEITET = 'Paket-Tracker-Verarbeitet'
+
+    local function passt(from)
+      from = from:lower()
+      for _, a in ipairs(absender) do
+        if from:find(a:lower(), 1, true) then return true end
+      end
+      return false
+    end
+
+    -- Doppelte über die Message-ID erkennen, in beiden lokalen Ordnern
+    local function schon_da(mid)
+      if #lokal.INBOX:contain_field('Message-ID', mid) > 0 then return true end
+      local ok, n = pcall(function()
+        return #lokal[VERARBEITET]:contain_field('Message-ID', mid)
+      end)
+      return ok and n > 0
+    end
+
+    -- Absender selbst vergleichen statt per Server-Suche: iCloud findet z. B.
+    -- "myhermes.de" in "noreply@paketankuendigung.myhermes.de" nicht
+    local function abholen(konto)
+      for _, msg in ipairs(konto.INBOX:is_newer(${TAGE})) do
+        local mbox, uid = table.unpack(msg)
+        local from = mbox[uid]:fetch_field('From') or ''
+        if passt(from) then
+          local mid = (mbox[uid]:fetch_field('Message-ID') or ''):match('<[^>]+>')
+          if mid and not schon_da(mid) then
+            Set({ msg }):copy_messages(lokal.INBOX)
+            -- lokal als ungelesen markieren, damit Paket Tracker sie verarbeitet
+            lokal.INBOX:contain_field('Message-ID', mid):unmark_seen()
+            print('kopiert: ' .. from:gsub('^From:%s*', ''))
+          end
+        end
+      end
+    end
+
+    for _, konto in ipairs(quellen) do
+      abholen(konto)
+    end
+
+    lokal.INBOX:is_older(${AUFBEWAHRUNG}):delete_messages()
+    pcall(function() lokal[VERARBEITET]:is_older(${AUFBEWAHRUNG}):delete_messages() end)
+    EOF
+    chmod 600 /etc/imapfilter/config.lua
+
+    echo ">> systemd-Timer einrichten (alle ${INTERVALL})"
+    cat > /etc/systemd/system/paket-mail.service <<'EOF'
+    [Unit]
+    Description=Paketmails ins lokale Postfach kopieren
+    After=network-online.target dovecot.service
+    Wants=network-online.target
+
+    [Service]
+    Type=oneshot
+    Environment=HOME=/root
+    ExecStart=/usr/bin/imapfilter -c /etc/imapfilter/config.lua
+    EOF
+
+    cat > /etc/systemd/system/paket-mail.timer <<EOF
+    [Unit]
+    Description=Paketmails regelmäßig abholen
+
+    [Timer]
+    OnBootSec=2min
+    OnUnitActiveSec=${INTERVALL}
+    Persistent=true
+
+    [Install]
+    WantedBy=timers.target
+    EOF
+
+    systemctl daemon-reload
+    systemctl enable --now paket-mail.timer >/dev/null
+
+    echo ">> Erster Lauf"
+    if systemctl start paket-mail.service; then
+      journalctl -u paket-mail.service -n 20 --no-pager -o cat
+      echo
+      echo "Fertig."
+    else
+      echo "Erster Lauf fehlgeschlagen. Details mit:"
+      echo "  imapfilter -v -c /etc/imapfilter/config.lua"
+      exit 1
+    fi
+
+    IP=$(hostname -I | awk '{print $1}')
+    cat <<EOF
+
+    In Home Assistant (Paket Tracker) eintragen:
+      IMAP-Server:  ${IP}
+      Benutzer:     pakete
+      Passwort:     das eben vergebene lokale Passwort
+      Ordner:       INBOX
+      Verbindung:   verschlüsselt ohne Zertifikatsprüfung (Port 993)
+
+    Nützlich:
+      Logs:           journalctl -u paket-mail.service -n 50
+      Sofort abholen: systemctl start paket-mail.service
+      Absender:       /etc/imapfilter/config.lua
+    EOF
+    ```

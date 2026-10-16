@@ -15,6 +15,8 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | GLS-Live-Abfrage | umgesetzt; von einem Tester mit einem echten Paket bestätigt |
 | 17track | umgesetzt; Abfrage von einem Tester bestätigt (das Kontingent wird einmal belastet, die Karte füllt sich) |
 | Von Hand weitergeleitete Mails | umgesetzt; von einem Tester bestätigt |
+| Eigener Ordner im Postfach (Mail-Import liest genau den eingetragenen Ordner) | umgesetzt (v0.3.29); von einem Tester bestätigt ([Issue #18](https://github.com/SoerenKaiser99/parcel_tracker/issues/18)) |
+| Ablage-Ordner bei Postfächern mit INBOX-Präfix (Hosting-Postfächer) | umgesetzt (v0.3.33); von einem Tester bestätigt ([Issue #25](https://github.com/SoerenKaiser99/parcel_tracker/issues/25)) |
 
 ## Umgesetzt
 

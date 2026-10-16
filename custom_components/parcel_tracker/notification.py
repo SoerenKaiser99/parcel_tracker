@@ -103,11 +103,12 @@ def _window_today(parcel: Parcel, now: datetime) -> str:
 
 
 def _pickup(parcel: Parcel) -> str:
-    """' – <branch>' if the carrier itself named it, ' bis <day>' if known."""
+    """' – <place>' and ' bis <day>' if known: named by the carrier or by a shop's pickup
+    mail (Amazon "Paket zur Abholung bereit"). A result that is 17track's alone names no
+    place of ours."""
     result = parcel.result
     text = ""
-    from_carrier = parcel.poll_target is not None and "status" not in result.enriched
-    if from_carrier and (place := _short(result.pickup_point)):
+    if "status" not in result.enriched and (place := _short(result.pickup_point)):
         text += f" – {place}"
     if result.pickup_until is not None:
         text += f" bis {result.pickup_until:%d.%m.}"

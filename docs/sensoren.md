@@ -256,6 +256,7 @@ Die Diagnose lädst du unter **Einstellungen → Geräte & Dienste → Paket Tra
 - den Zustand des Mail-Imports: Zeitpunkt des letzten Laufs, Wartezeit nach Fehlern, Zähler für erkannte und nicht erkannte Mails,
 - ob ein eigener Ordner statt des Posteingangs gelesen wird – nie seinen Namen,
 - ob ein anderer Port als 993 eingestellt ist – nie den Port selbst – und die gewählte Verbindung zum Mailserver,
+- wie der Mail-Import Mails ablegt (Abschnitt `filing`): ob der Server MOVE und UIDPLUS kann, ob er NAMESPACE meldet, sein Präfix für eigene Ordner und das Trennzeichen (nur in den üblichen Schreibweisen wie `INBOX.` oder `INBOX/`, jede andere als `other`), ob die beiden Ablage-Ordner gefunden oder angelegt wurden und wo (oberste Ebene oder unter dem Posteingang), ob das Ablegen gerade scheitert und in welchem der beiden Ordner, welcher Fehler zuletzt auftrat (z. B. `folder_unavailable`, `move_refused`) – nie Ordnernamen oder Inhalte,
 - zu den letzten zehn nicht erkannten Mails nur die Absender-Domain (bei unbekannten Absendern nur `other`; bei einer Weiterleitung die Domain des ursprünglichen Absenders, wenn der Import ihn kennt) und ob die Mail weitergeleitet war,
 - den IMAP-Server nur, wenn er zu einem öffentlichen Mailanbieter gehört (z. B. mailbox.org, GMX, Gmail); ein eigener Server steht nur als `custom` drin,
 - bei Benachrichtigungen nur die Anzahl der Ziele (getrennt nach Entitäten und klassischen Diensten, nie ihre Namen) und die gewählten Ereignisse.

@@ -3,93 +3,19 @@
 Runs locally with the Python standard library only (Python 3.9 or newer), as a single file,
 without network access.
 
-Tester mode (messages in German):
+Tester mode, the default (messages in German, --help lists the options):
 
-    python3 anonymize_mail.py <file.eml | folder> [--zip] [--out DIR] [--ohne-angaben]
-        [--name "First Last"] [--street ...] [--postcode ...] [--city ...] [--phone ...]
-        [--email ...]
+    python3 anonymize_mail.py <file.eml | folder> [--zip] [--out DIR] [--ohne-angaben] ...
 
-Takes the mails of every sender and writes them to "anonymisiert/" next to the mails as
-001_<sender domain>.eml, with --zip also as paket-tracker-beispiele.zip; results of an earlier
-run in that folder (the ZIP and the NNN_*.eml files this script wrote) are removed first. A
-value that no option gives is asked for on a terminal (an empty answer skips it). Without any
-value the call is refused (exit code 2) unless --ohne-angaben says that this is intended; then
-nothing is asked, only the generic scrubbing runs and a warning says that names and places may
-remain. Replaced are the given values in every spelling (case, ae/oe/ue, name parts, street
-with any or no house number), every mail address but the sender's (the sender of a forwarded
-or answered mail is a person and is replaced too, as is a sender address that carries another
-address in its local part; a sender address of Apple's relay "E-Mail-Adresse verbergen",
-"<sender>_at_<domain>_<id>_<id>@privaterelay.appleid.com", keeps its shape and gets invented
-ids: everything behind the sender's domain is replaced, whatever it looks like, also in the
-quoted sender line of a forwarded mail; of a forwarded mail with a quoted header block
-"Von: … / Gesendet: … / An: … / Betreff: …" only that block and the mail below it are taken,
-the lines above it are dropped, the quoted sender address stays and the quoted recipients are
-replaced), phone
-numbers, links (cut to the host), tracking, order and other
-long numbers (same length and structure, invented digits, the same number becomes the same
-replacement in every mail of a run, a number of ten digits or more written in groups with
-spaces, tabs, dots or dashes keeps its groups, as does an international number, and a
-tracking number that stands only in a link or in the text of an image is kept as a marked
-line "[Nummer nur im Link oder Bildtext: ...]"), drop-off places and permissions, salutations, recipient
-address blocks ("PLZ Ort", "Ort, PLZ", "ORT BUNDESLAND PLZ"), AliExpress's block below
-"Versand nach" (every line up to the one with the name and the phone number, at most twelve;
-one line where no such line follows), addresses without a label
-(street line above a postcode and city, lines with postcode and city), Amazon's "first name –
-place" line above the order number, the names of neighbours and of the person that took the
-parcel, and senders or sellers that are no company (in the text, in the From display name and
-in the subject). What the rules find in one mail (the recipient's name with each of its words,
-street, postcode and place, private senders, drop-off places, also the display name of the To
-header) is replaced in every mail of the run. Only From, Subject and Date are kept of the
-headers; HTML parts are reduced to their text (one <p> per line, no attributes, no comments)
-and every other attachment is dropped. The replaced values are never printed. Exit codes:
-0 done, 2 wrong call.
+Fixture mode, for the developer and only with the explicit flag (see "fixture mode" below):
 
-Fixture mode (for the developer, only with the explicit flag):
+    python3 anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME
+        [MAILDOMAIN ...]
 
-usage: anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME [MAILDOMAIN ...]
+The replaced values are never printed. Exit codes: 0 done, 1 aborted or failed, 2 wrong call.
 
-Personal values come only from the command line; there are no other options (an argument
-starting with "-" is an error, so a mistyped call never runs with half the values). Mails with a
-text/plain part are written as text/plain; HTML-only mails (eBay, older Hermes) are converted
-to text, scrubbed and written back as simple text/html (one <p> per line), so the parser's
-HTML fallback is exercised by the fixtures. Numbering continues after the highest fixture in
-DST_DIR; mails with an already written Message-ID are skipped.
-
-GLS mails (no-reply@gls-pakete.de): the recipient blocks ("*Zustelladresse*", "*Empfänger*",
-"*an NAME*" of the delivery mail) and the sender block ("*Versender*") are replaced as a
-whole, whatever they contain; phone numbers, parcel numbers (99999999901, 99999999902, ... in
-order of appearance), references and the drop-off place ("Ablageort: Garage") are replaced in
-the text and in the subject (and so in the file name), and the legal footer is cut. Recipient
-and company names learnt from these blocks are replaced in every mail.
-
-AliExpress mails (transaction@notice.aliexpress.com and every other sender at aliexpress.com,
-also passed on by Apple's relay): nothing of the buyer or the purchase stays. The text ends
-in front of the offers and the footer; the greeting, the block below "Versand nach", the day
-of the order, the shop's name, item names (invented ones, cut where the real one was cut),
-variants, quantities and prices are replaced; order numbers and the carrier's number become
-99…0001, 99…0002, … in order of appearance (a prefix of letters and DHL's 00340 stay, so the
-carrier is still told). The links of a mail about a parcel name its orders: each is kept as
-one invented link with the replaced number, all other links are cut to the host. The ids in a
-relay address are replaced by invented ones of the same length.
-
-Eventim mails (every sender at eventim.de and eventimpresents.com, also passed on by Apple's
-relay; in both modes, in the tester mode also when such a mail was forwarded by hand: then
-the quoted header block stays in front, with its sender, subject and day replaced the same
-way): nothing of the buyer, the purchase or the event stays. Of the order sender's mails
-(bestellstatus@eventim.de: order confirmation and shipping notice) only lines the script knows
-are written, every other line is dropped: headings, Eventim's own sentences, the labels of
-the order ("Bestellnummer:", "Liefermethode:" with its value, ...). Replaced in them: the
-greeting, the address blocks, every date (also the Date header: invented days, one after the
-other from Mon, 5 Jan 2026), the payment method, prices, the event (name, day, venue,
-organiser: invented ones, the same name for the same event) and its tickets; order numbers
-become 99…01, 99…02, … in order of appearance. The text ends with the heading "HINWEISE":
-hints, legal texts and the imprint are cut. Of every other Eventim mail (newsletter, ticket
-alarm, customer service, a club's ticket shop) only the sender address is kept, with the
-club's name in "kundenservice-<club>@" replaced; the display name is "EVENTIM", subject and
-text are one fixed line each. In the tester mode the general rules above run afterwards.
-
-Mails of other senders (shops) are never taken: a shop mail needed as a fixture is written by
-hand with invented content and marked with an "X-Fixture: synthetic" header.
+What each rule replaces is told by the tests (tests/test_anonymize_*.py); the instructions for
+testers are in docs/hilfe.md ("Beispielmails einreichen").
 """
 import email
 import email.utils
@@ -207,6 +133,26 @@ def relay_original(address):
 
 
 # ----- Eventim (both modes) -----
+# Senders: every sender at eventim.de and eventimpresents.com, also passed on by Apple's relay.
+# Nothing of the buyer, the purchase or the event stays.
+#
+# Order sender (bestellstatus@eventim.de: order confirmation and shipping notice):
+# - Only lines the script knows are written, every other line is dropped: headings, Eventim's
+#   own sentences, the labels of the order ("Bestellnummer:", "Liefermethode:" with its
+#   value, ...).
+# - Replaced in them: the greeting, the address blocks, every date (also the Date header:
+#   invented days, one after the other from Mon, 5 Jan 2026), the payment method, prices, the
+#   event (name, day, venue, organiser: invented ones, the same name for the same event) and
+#   its tickets.
+# - Order numbers become 99…01, 99…02, … in order of appearance.
+# - The text ends with the heading "HINWEISE": hints, legal texts and the imprint are cut.
+#
+# Every other Eventim mail (newsletter, ticket alarm, customer service, a club's ticket shop):
+# - Only the sender address is kept, with the club's name in "kundenservice-<club>@" replaced.
+# - The display name is "EVENTIM", subject and text are one fixed line each.
+#
+# Tester mode: also a mail forwarded by hand; its quoted header block stays in front, with
+# its sender, subject and day replaced the same way. The general rules run afterwards.
 EVT_DOMAINS = ("eventim.de", "eventimpresents.com")
 EVT_ORDER_SENDER = "bestellstatus@eventim.de"
 
@@ -543,10 +489,19 @@ _T_BARE_POSTCODE = (
 )
 _T_ADDRESS_BLOCK = re.compile(
     rf"(?im)^([*_ \t]*{_T_RECIPIENT}[*_ \t]*:?[*_ \t]*\n)(?:[^\n]*\n){{0,5}}?"
-    rf"(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*)"
+    rf"(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*"
+    r"|[ \t]*(?:(?:A|CH|D)[- ])?\d{4}[ \t]+[^\W\d_][^\n]*)"
 )
 _T_ADDRESS_LINE = re.compile(
     rf"(?im)^([*_ \t]*{_T_RECIPIENT}[*_ \t]*:[ \t]*)(\S[^\n]*\b\d{{5}}\b[^\n]*)$"
+)
+# "… an folgende Adresse zugestellt:" (DPD Austria), also at the end of a sentence: the
+# lines below it up to the line with the postcode (four or five digits), at most four lines.
+_T_ADDRESS_INTRO = re.compile(
+    r"(?im)^([^\n]{0,80}?\b(?:an[ \t]+)?(?:die[ \t]+)?folgende[n]?[ \t]+(?:Adresse|Anschrift)"
+    r"(?:[ \t]+(?:zugestellt|geliefert|gesendet|versendet|verschickt))?[*_ \t]*:[*_ \t]*\n)"
+    rf"(?:[^\n]*\n){{0,3}}?(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*"
+    r"|[ \t]*(?:(?:A|CH|D)[- ])?\d{4}[ \t]+[^\W\d_][^\n]*)"
 )
 # AliExpress: "Versand nach", then place and street without a postcode; in most layouts the
 # name with the phone number "(+49) …" ends the block, in one it is a single line. The
@@ -595,7 +550,11 @@ _T_NOT_NAME = re.compile(
     r"|ablageort|wunschort|abstellort|zusteller\w*|bote\w*|fahrer\w*|besteller\w*"
     r"|k(?:ä|ae)ufer\w*|verk(?:ä|ae)ufer\w*|nutzer\w*|user|gast|mitglied|interessent\w*"
     r"|damen|herren|person|dritte\w*|angeh(?:ö|oe)rige\w*|ehepartner\w*|max|mustermann"
-    r"|beispielversender|beispielnachbar|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*)"
+    r"|beispielversender|beispielnachbar|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    # status words a mail may put above an address ("Abholbereit\nHauptstraße 1\n…")
+    r"|abholbereit|zugestellt|hinterlegt|abholort|abholung|abholstation|bereit|abgestellt"
+    r"|abgegeben|trafik|zustellung|zustellort|lieferung|lieferort|sendung|paket|status"
+    r"|adresse|anschrift|filiale|paketshop|hinweis)"
 )
 _T_NO_STREET = re.compile(r"(?i)packstation|postfiliale|filiale|paketshop|postfach|paketbox")
 # The name line below "Versender" / "Absender", with the address lines up to the postcode.
@@ -637,8 +596,19 @@ _T_AMAZON_LINE = re.compile(
 _T_STREET = (
     r"[^\W\d_][^\n\d:@,;|]{2,40}?[ \t.]\d{1,4}(?:[ \t]?[a-zA-Z]\b)?"
     r"(?:[ \t]?[-/+][ \t]?\d{1,4}(?:[ \t]?[a-zA-Z]\b)?)?"
+    # Austria: staircase and door ("12/3/7", "3/Top 5", "1/Stiege 2/Tür 4")
+    r"(?:[ \t]?/[ \t]?(?:(?:Top|Stiege|Stg\.?|Tür|Haus)[ \t]?)?\d{1,4}(?:[ \t]?[a-zA-Z]\b)?){0,3}"
 )
 _T_PLZ = r"(?:D[- ])?(?!12345[ \t]+Musterstadt|00000[ \t]+Beispielstadt)\d{5}"
+# Austria and Switzerland: four digits ("A-6789", "CH-8999"); only below a street line that
+# names a street (four digits alone are too often a year or an amount).
+_T_PLZ4 = r"(?:(?:A|CH)[- ])?\d{4}(?!\d)"
+# What names a street: "-straße", "-strasse", "-str.", "-gasse", "-weg", "-platz", … as the end
+# of a word or a word of its own ("Am Mühlendamm", "Hauptplatz", "Rheinufer").
+_T_STREET_WORD = re.compile(
+    r"(?i)(?:stra(?:ß|ss)e|str\.?|gasse|gässchen|gässli|weg|platz|allee|ring|damm|ufer"
+    r"|chaussee|steig|stieg|pfad|zeile|gürtel|kai|lände|promenade|markt|graben|hof)(?![^\W\d_])"
+)
 _T_CITY = (
     r"[A-ZÄÖÜ][^\W\d_]+\.?(?:[ \t-]+(?:[A-ZÄÖÜ][^\W\d_]*\.?|am|an|der|im|in|bei|ob|vor"
     r"|a\.|d\.|\([^)\n]{1,20}\))){0,3}"
@@ -647,11 +617,11 @@ _T_PLAIN_BLOCK = re.compile(
     r"(?m)^(?P<lead>[*_> \t]*)"
     r"(?:(?P<name>[^\W\d_][^\n\d:@,;|]{3,50}?)[ \t]*,?[ \t]*\n(?P<lead2>[*_> \t]*))?"
     rf"(?P<street>{_T_STREET})[ \t]*,?[ \t]*\n(?P<lead3>[*_> \t]*)"
-    rf"(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
+    rf"(?P<plz>{_T_PLZ}|{_T_PLZ4})[ \t]+(?P<city>{_T_CITY})"
 )
 _T_INLINE_ADDRESS = re.compile(
     rf"(?m)(?P<lead>^[*_> \t]*|[,:|·•][ \t]*)(?P<street>{_T_STREET})[ \t]*,[ \t]*"
-    rf"(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
+    rf"(?P<plz>{_T_PLZ}|{_T_PLZ4})[ \t]+(?P<city>{_T_CITY})"
 )
 _T_PLZ_CITY = re.compile(
     rf"(?m)(?P<lead>^[*_> \t]*|[,|·•][ \t]*)(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
@@ -891,12 +861,15 @@ def _t_address_parts(block):
     """(name, street, postcode, city) of the lines of an address; "" for what is not found."""
     lines = [" ".join(line.split()).strip("*_, ") for line in block.split("\n")]
     lines = [line for line in lines if line]
-    code = re.compile(r"(?<!\d)\d{5}(?!\d)")
+    # five digits anywhere, four (Austria, Switzerland) only in front of the place
+    code = re.compile(r"(?<!\d)\d{5}(?!\d)|^(?:(?:A|CH|D)[- ])?(?P<four>\d{4})(?=[ \t]+[^\W\d_])")
     at = next((i for i, line in enumerate(lines) if code.search(line)), None)
     name = re.split(r"[+\d]", lines[0])[0].strip("*_, ") if lines else ""
     if not at:  # no postcode, or nothing in front of it
         return ("" if at == 0 else name), "", "", ""
-    postcode = code.search(lines[at]).group(0)
+    found = code.search(lines[at])
+    postcode = found.group("four") or found.group(0)
+    lines[at] = re.sub(r"^(?:A|CH|D)[- ](?=\d{4}\b)", "", lines[at])
     region = re.compile(r"[A-Z]{2}|NRW")
     country = re.compile(rf"(?i){_T_COUNTRY}")
     rest = re.sub(r"\bD-|[,;]", " ", lines[at].replace(postcode, " ")).split()
@@ -917,6 +890,23 @@ def _t_address_parts(block):
     before = [line for line in before if re.search(r"[^\W\d_]{3}", line)]
     streets = [line for line in before if re.search(r"\d", line)] or before[-1:]
     return name, (streets[0] if streets else ""), postcode, city
+
+
+def _t_name_line(name):
+    """True for the line above a street that can only be a name: one to four capitalised
+    words (a title may stand in front), no company, no service, no common word."""
+    tokens = name.split()
+    return bool(
+        1 <= len(tokens) <= 4
+        and not name.rstrip("*_ \t").endswith(":")
+        and all(
+            _T_NAME_TOKEN.fullmatch(t) or _T_PARTICLE.fullmatch(t) or _T_TITLE.fullmatch(t)
+            for t in tokens
+        )
+        and not any(_T_NOT_NAME.fullmatch(t) for t in tokens)
+        and not _t_company(name) and not _T_SERVICE.search(name)
+        and not _T_STREET_WORD.search(name)
+    )
 
 
 def _t_person(name):
@@ -1033,7 +1023,12 @@ class _TScrubber:
         if self._learnt is None:
             rules = [_t_street(street) for street in sorted(self.streets, key=len, reverse=True)]
             for postcode in sorted(self.postcodes):
-                rules.append((re.compile(rf"(?<!\d){postcode}(?!\d)"), "12345"))
+                # four digits only in front of a place: they may as well be a year or an amount
+                if len(postcode) >= 5:
+                    rules.append((re.compile(rf"(?<!\d){postcode}(?!\d)"), "12345"))
+                else:
+                    rules.append((re.compile(
+                        rf"(?<![\d.,:/]){postcode}(?=[ \t]+[^\W\d_])"), "12345"))
                 if postcode not in self.avoid:
                     self.avoid.append(postcode)
             for city in sorted(self.cities, key=len, reverse=True):
@@ -1079,7 +1074,10 @@ class _TScrubber:
         name = match.group(2)
         if not _t_company(name):
             if match.re is _T_SELLER:
-                self._note(name, "beispielshop", r"[-_.\d]")
+                # eBay writes the handle twice, one line below the other: then it is one
+                # even without a digit or a dash ("beispielverkaeufer")
+                again = match.string.startswith(f"\n{name.strip()}\n", match.end())
+                self._note(name, "beispielshop", r"." if again else r"[-_.\d]")
             else:
                 self._note(name, "Beispielversender")
             placeholder = "beispielshop" if match.re is _T_SELLER else "Beispielversender"
@@ -1093,16 +1091,28 @@ class _TScrubber:
         return f"{match.group(1)}Max{match.group(3)}Musterstadt{match.group(5)}"
 
     def _plain(self, match):
-        name = match.group("name")
+        name, street = match.group("name"), match.group("street")
+        postcode = re.sub(r"\D", "", match.group("plz"))
+        if len(postcode) == 4 and not _T_STREET_WORD.search(street):
+            return match.group(0)  # four digits below no street: no postcode
         if name is None:
             head = match.group("lead")
         else:
             if _t_person(name.strip()):
-                self._recipient(name.strip(), match.group("street"),
-                                match.group("plz")[-5:], match.group("city"))
+                self._recipient(name.strip(), street, postcode, match.group("city"))
+                name = "Max Mustermann"
+            elif _t_name_line(name.strip()):  # a single name, a name with a title
+                self._recipient("", street, postcode, match.group("city"))
                 name = "Max Mustermann"
             head = f"{match.group('lead')}{name}\n{match.group('lead2')}"
         return f"{head}Musterstraße 1\n{match.group('lead3')}12345 Musterstadt"
+
+    def _inline(self, match):
+        if len(re.sub(r"\D", "", match.group("plz"))) == 4 and not _T_STREET_WORD.search(
+            match.group("street")
+        ):
+            return match.group(0)
+        return f"{match.group('lead')}Musterstraße 1, 12345 Musterstadt"
 
     def _neighbour(self, match):
         name, label = match.group("name"), match.group("label").casefold()
@@ -1211,6 +1221,7 @@ class _TScrubber:
         visible, noted = _T_LINKS.sub(" ", text), set()
         text = _T_LINKS.sub(lambda m: self._link(m, keep, visible, noted), text)
         text = _T_ADDRESS_BLOCK.sub(self._block, text)
+        text = _T_ADDRESS_INTRO.sub(self._block, text)
         text = _T_ALI_SHIP_TO.sub(self._ali_ship_to, text)
         text = _T_ADDRESS_LINE.sub(self._line, text)
         text = _T_DELIVERED_TO.sub(self._delivered, text)
@@ -1222,14 +1233,19 @@ class _TScrubber:
             text = pattern.sub(self._sender, text)
         text = _T_AMAZON_LINE.sub(self._amazon, text)
         text = _T_PLAIN_BLOCK.sub(self._plain, text)
-        text = _T_INLINE_ADDRESS.sub("\\g<lead>Musterstraße 1, 12345 Musterstadt", text)
+        text = _T_INLINE_ADDRESS.sub(self._inline, text)
         text = _T_PLZ_CITY.sub("\\g<lead>12345 Musterstadt", text)
         text = _T_NEIGHBOUR.sub(self._neighbour, text)
         for pattern, replacement in self.rules:
             text = pattern.sub(replacement, text)
         if not self._learning:
             for found in sorted(self.learned, key=len, reverse=True):
-                text = re.sub(re.escape(found), self.learned[found], text, flags=re.I)
+                source = re.escape(found)
+                if self.learned[found] == "beispielshop":
+                    # a seller's handle only as a whole word ("versand" never in
+                    # "Versanddienstleister"; "shop.24" never in "myshop.24" or "shop.245")
+                    source = rf"(?<![\w.-]){source}(?![\w-]|\.\w)"
+                text = re.sub(source, self.learned[found], text, flags=re.I)
             for pattern, replacement in self._rules():
                 text = pattern.sub(replacement, text)
         text = _T_PLACE_NEXT.sub(self._place, text)
@@ -1528,6 +1544,20 @@ def _t_build(msg, number, scrubber):
     return out, "privat" if private else domain or "unbekannt", private, left
 
 
+def _t_terminal():
+    """True if somebody can answer on stdin. In some development environments the null
+    device (subprocess.DEVNULL, "< NUL") says it is a terminal too; there Python reads a
+    real console only through its console reader."""
+    try:
+        if sys.stdin is None or not sys.stdin.isatty():
+            return False
+        if os.name != "nt":
+            return True
+        return type(sys.stdin.buffer.raw).__name__ == "_WindowsConsoleIO"
+    except Exception:  # a replaced stdin without these parts: nobody is asked
+        return False
+
+
 def _t_ask(values):
     """Ask on the terminal for every value that no option gave; an empty answer skips it."""
     missing = [key for key in _T_OPTIONS if not values[key]]
@@ -1591,7 +1621,7 @@ def _t_run(args):
                                "anonymisiert")
     if any(os.path.abspath(out_dir) == os.path.dirname(os.path.abspath(f)) for f in files):
         raise _TUsage("Der Zielordner darf nicht der Ordner mit den Original-Mails sein.")
-    if not bare and sys.stdin is not None and sys.stdin.isatty():
+    if not bare and _t_terminal():
         _t_ask(values)
     values = {
         key: [unicodedata.normalize("NFC", v.strip()) for v in found if v.strip()]
@@ -1705,6 +1735,15 @@ if "--fixtures" not in _ARGS:
 _ARGS.remove("--fixtures")
 
 # ----- fixture mode -----
+# - Personal values come only from the command line, there are no other options: an argument
+#   starting with "-" is an error, so a mistyped call never runs with half the values.
+# - Mails with a text/plain part are written as text/plain. HTML-only mails (eBay, older
+#   Hermes) are converted to text, scrubbed and written back as simple text/html (one <p> per
+#   line), so the parser's HTML fallback is exercised by the fixtures.
+# - Numbering continues after the highest fixture in DST_DIR; mails with an already written
+#   Message-ID are skipped.
+# - Mails of other senders (shops) are never taken: a shop mail needed as a fixture is written
+#   by hand with invented content and marked with an "X-Fixture: synthetic" header.
 _USAGE = (
     "usage: anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME"
     " [MAILDOMAIN ...]"
@@ -1720,8 +1759,8 @@ GLS_SENDER = "no-reply@gls-pakete.de"
 KEEP = {
     GLS_SENDER,
     "bestellbestaetigung@amazon.de", "versandbestaetigung@amazon.de",
-    "shipment-tracking@amazon.de", "order-update@amazon.de", "noreply@dhl.de",
-    "pkginfo@ups.com", "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
+    "shipment-tracking@amazon.de", "order-update@amazon.de", "pickup-point@amazon.de",
+    "noreply@dhl.de", "pkginfo@ups.com", "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
 }
 ALI_DOMAIN = "aliexpress.com"
 
@@ -1764,7 +1803,19 @@ _REGION = re.compile(
     r"|Mecklenburg-Vorpommern)[ \t]*\n"
 )
 _SHIP_TO = re.compile(r"(Geliefert an:)[ \t]*\n(?:[^\n]*\n){1,6}?(Deutschland)")
-# GLS: "*Zustelladresse*" / "*Empfänger*" + name line (+ address lines) up to the next
+
+
+# ----- GLS -----
+# Sender: no-reply@gls-pakete.de.
+# - Replaced as a whole, whatever they contain: the recipient blocks ("*Zustelladresse*",
+#   "*Empfänger*", "*an NAME*" of the delivery mail) and the sender block ("*Versender*").
+# - Replaced in the text and in the subject (and so in the file name): phone numbers, parcel
+#   numbers (99999999901, 99999999902, ... in order of appearance), references and the
+#   drop-off place ("Ablageort: Garage").
+# - The legal footer is cut.
+# - Recipient and company names learnt from these blocks are replaced in every mail.
+
+# GLS:"*Zustelladresse*" / "*Empfänger*" + name line (+ address lines) up to the next
 # empty line; "*Versender*" + company line (+ address lines) likewise.
 _GLS_RECIPIENT_BLOCK = re.compile(
     r"(\*(?:Zustelladresse|Empfänger)\*[ \t]*\n)((?:[ \t]*[^\s][^\n]*\n)+)"
@@ -1867,6 +1918,17 @@ def scrub_gls(t):
 
 
 # ----- AliExpress -----
+# Senders: transaction@notice.aliexpress.com and every other sender at aliexpress.com, also
+# passed on by Apple's relay. Nothing of the buyer or the purchase stays:
+# - The text ends in front of the offers and the footer.
+# - Replaced: the greeting, the block below "Versand nach", the day of the order, the shop's
+#   name, item names (invented ones, cut where the real one was cut), variants, quantities
+#   and prices.
+# - Order numbers and the carrier's number become 99…0001, 99…0002, … in order of appearance.
+#   A prefix of letters and DHL's 00340 stay, so the carrier is still told.
+# - The links of a mail about a parcel name its orders: each is kept as one invented link
+#   with the replaced number. All other links are cut to the host.
+# - The ids in a relay address are replaced by invented ones of the same length.
 _ALI_ITEMS = (
     "Beispiel-Kabel USB-C auf USB-A geflochten 2 m schwarz",
     "Beispiel-Sensor für Temperatur und Luftfeuchte weiß",

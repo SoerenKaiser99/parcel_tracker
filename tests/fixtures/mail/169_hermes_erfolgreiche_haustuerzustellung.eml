@@ -1,0 +1,19 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number is invented; the footer is cut
+From: Hermes Zustellbenachrichtigung <noreply@paketankuendigung.myhermes.de>
+To: max@example.org
+Subject: =?utf-8?q?Erfolgreiche_Haust=C3=BCrzustellung?=
+Date: Fri, 11 Jul 2025 12:40:56 +0200
+Message-ID: <fixture-169@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Deine Sendung von Amazon wurde erfolgreich an der Haustür zugestellt.</p>
+<p>Hallo,</p>
+<p>deine Sendung von Amazon wurde erfolgreich an der Haustür zugestellt.</p>
+<p>Sendungsverfolgung</p>
+<p>Sendungsnummer H1000999999999990168</p>
+<p>Hast du noch Fragen?</p>
+</body></html>

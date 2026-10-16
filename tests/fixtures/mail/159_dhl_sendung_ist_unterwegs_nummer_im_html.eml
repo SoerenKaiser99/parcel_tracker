@@ -1,0 +1,64 @@
+X-Fixture: derived from an original mail; the name, the parcel number, the
+ company and the token in the link are replaced; the language menu, the
+ buttons' links and the footer are cut
+From: "DHL Paket" <noreply@dhl.de>
+To: max@example.org
+Subject: Ihre Beispiel GmbH Sendung ist unterwegs
+Date: Wed, 15 Apr 2026 19:55:27 +0200
+Message-ID: <fixture-159@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="fixture-159"
+
+--fixture-159
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+[Sendung wird verladen]
+
+Hallo Max Mustermann,
+
+Ihre **Beispiel GmbH** Sendung wurde von uns bearbeitet und wird Ihnen voraussichtlich
+
+**
+am Donnerstag, den 16.04.
+**
+
+zugestellt.
+
+[Logo vom Versender]
+
+<span>Wie gewünscht versuchen wir, Ihre Sendung nebenan zuzustellen, sollten wir Sie nicht antreffen.</span>
+
+**Jetzt Zustelloption wählen**
+
+**Sendungsstatus einsehen**
+
+[{PACKAGE_IDENTIFIER}](
+https://custcomm.dhl.de/go/10/XXXX-XXXXXXXX-XXXXXXXX-XXXXXX.html?piececode=999999990159
+)
+
+--fixture-159
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Wichtige Informationen zu Ihrer Sendung</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihre Beispiel GmbH Sendung wurde von uns bearbeitet und wird Ihnen voraussichtlich</p>
+<p>am Donnerstag, den 16.04.</p>
+<p>zugestellt.</p>
+<p>Wie gewünscht versuchen wir, Ihre Sendung nebenan zuzustellen, sollten wir Sie nicht antreffen.</p>
+<p>Jetzt Zustelloption wählen</p>
+<p>Ablageort buchen</p>
+<p>Nachbar:in ändern</p>
+<p>Liefertag ändern</p>
+<p>Paketmitnahme buchen</p>
+<p>Annahme verweigern</p>
+<p>Sendungsstatus einsehen</p>
+<p>999999990159</p>
+<p>Wir kompensieren CO2e-Emissionen.</p>
+<p>Der nachhaltige Paketversand wurde vom Versender für diese Sendung gebucht.</p>
+<p>Sie möchten keine oder nur noch bestimmte Informationen zu Ihrer Sendung erhalten?</p>
+</body></html>
+
+--fixture-159--
