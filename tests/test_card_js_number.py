@@ -56,7 +56,12 @@ const entities = {};
   // "Namen ausblenden" gives a neutral name; the number is shown all the same.
   ["in_transit", { number: "00340999999999999911", name: "DHL-Paket …9911", carrier: "dhl" }],
   ["in_transit", { number: "AMZ99990000000000001P2", name: "Schuhe", carrier: "amazon",
-                   tracking_ref: "00340999999999999922", tracking_carrier: "dhl" }],
+                   tracking_ref: "00340999999999999922", tracking_carrier: "dhl",
+                   amazon_shipment: "UhIjKl9mN" }],
+  ["in_transit", { number: "AMZ99990000000000002", name: "Mütze", carrier: "amazon",
+                   amazon_shipment: "TAbCdE9fG" }],
+  ["in_transit", { number: "AMZ99990000000000003", name: "Schal", carrier: "amazon",
+                   amazon_shipment: 42 }],
   ["pre_transit", { number: "EBAY990000000001", name: "Lampe", carrier: "ebay" }],
   ["in_transit", { number: "ALI9999999999990001", name: "Kabel", carrier: "aliexpress",
                    tracking_ref: "LP00999999999999" }],
@@ -113,9 +118,21 @@ def test_a_carrier_parcel_shows_its_tracking_number(card):
 
 def test_an_amazon_order_shows_the_order_number_as_amazon_writes_it_and_the_carrier_number(card):
     # A further shipment ("P2") belongs to the same order.
+    # The carrier's number comes instead of Amazon's id of the shipment.
     assert _lines(card["open"]["AMZ99990000000000001P2"]) == [
         ("Bestellnummer", "999-9000000-0000001"),
         ("Sendungsnummer", "00340999999999999922"),
+    ]
+
+
+def test_an_amazon_order_without_a_carrier_number_shows_amazons_shipment(card):
+    assert _lines(card["open"]["AMZ99990000000000002"]) == [
+        ("Bestellnummer", "999-9000000-0000002"),
+        ("Amazon-Sendung", "TAbCdE9fG"),
+    ]
+    # Anything but a text is no id.
+    assert _lines(card["open"]["AMZ99990000000000003"]) == [
+        ("Bestellnummer", "999-9000000-0000003"),
     ]
 
 

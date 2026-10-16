@@ -47,9 +47,12 @@ _DHL_NEW_DAY = re.compile(
     r"neuer\s+voraussichtlicher\s+Zustelltag\s+ist[\s*_–—-]*\w+,\s+de[rn]\s+"
     r"(\d{1,2})\.(?:(\d{1,2})\.)?"
 )
-# International shipments carry a UPU S10 number issued in Germany ("CQ…DE"). Read only
-# in DHL's own mails: two letters, nine digits and "DE" say too little anywhere else.
-_DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}DE)(?![A-Za-z0-9])")
+# International shipments carry a UPU S10 number: issued in Germany ("CQ…DE") or, for an
+# import, in the sending country ("LE…BE", "LW…NL"; issue #34). DHL tracks them all. Read
+# only in DHL's own mails: two letters, nine digits and a country say too little anywhere
+# else (and "Automatisch" leaves the other countries' numbers to their posts). The check
+# digit is not checked: DHL decides whether it knows the number.
+_DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}[A-Z]{2})(?![A-Za-z0-9])")
 # Some shipments carry a 12-digit number. 12 digits alone say nothing (eBay item numbers
 # look like that): read only in DHL's own mails and only right behind its label, which may
 # stand in the table cell or on the line before the number.
@@ -57,7 +60,7 @@ _DHL_SHORT = re.compile(r"\bSendungsnummer\s*:?\s*(\d{12})(?!\d)")
 # The text part of some mails is empty, or names the number only in a link (the text of the
 # link is a placeholder nobody filled in). The HTML part shows the number on a line of its
 # own below the button. Read there are only the forms seen there that the patterns above do
-# not find: 12 digits, a UPU S10 number of any country ("LR…NL"), five letters and 16
+# not find: 12 digits, a UPU S10 number (found above already), five letters and 16
 # digits ("JJATA…" from Austria), "JJD" with up to 24 digits. Anything else on that line
 # (an invoice number, 15 digits) is no number of DHL's.
 _DHL_SHOWN = re.compile(

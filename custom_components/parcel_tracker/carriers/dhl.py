@@ -159,7 +159,10 @@ def parse_dhl(data: dict[str, Any]) -> TrackingResult:
 
 
 # International shipments: a UPU S10 number issued in Germany ("CQ…DE", "RR…DE"). No other
-# carrier's rule takes 13 characters, so it is a sure match.
+# carrier's rule takes 13 characters, so it is a sure match. This rule only serves
+# "Automatisch" for a number typed in: one of another country ("…AT", "…CH", "…NL", "…BE")
+# belongs to that country's post and stays no match. A parcel a DHL mail creates with such
+# a number carries "dhl" and is asked at DHL without this rule (issue #34).
 _S10 = re.compile(r"[A-Z]{2}\d{9}DE")
 
 

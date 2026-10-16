@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from email.message import EmailMessage
+from urllib.parse import parse_qsl, urlsplit
 
 from ..models import ParcelStatus
 from .base import (
@@ -15,6 +16,7 @@ from .base import (
     at,
     body_text,
     carrier_for,
+    part_links,
     relative_day,
     resolve_dates,
     sent_at,
@@ -138,6 +140,14 @@ _PLACE_END = re.compile(
     rf"|\s+{_DAY_TEXT}\s*$).*$"
 )
 _QUANTITY_LINE = re.compile(r"^Menge:\s*\d+\s*$", re.MULTILINE)
+# The link to a shipment's tracking page, in every mail from "Versendet" on (since autumn
+# 2025): https://www.amazon.de/progress-tracker/package?orderId=…&shipmentId=…, behind
+# Amazon's own redirect (https://www.amazon.de/gp/r.html?…&U=<the page>).
+_LINK_HOSTS = frozenset({"www.amazon.de", "amazon.de"})
+_REDIRECT_PATH = "/gp/r.html"
+_TRACKER_PATH = "/progress-tracker/package"
+_ORDER_ID = re.compile(r"\d{3}-\d{7}-\d{7}")
+_SHIPMENT_ID = re.compile(r"[A-Za-z0-9]{5,20}")
 
 
 def order_number(order: str) -> str:
@@ -215,6 +225,46 @@ def _plain_title(subj: str, below: str) -> str | None:
         if line and title_key(line).startswith(wanted):
             return line
     return None
+
+
+def _tracker_params(link: str, redirect: bool = True) -> dict[str, str] | None:
+    """The parameters of a link to Amazon's tracking page, None for any other link.
+
+    Only https links to amazon.de count; Amazon's redirect counts for the page it names,
+    which must be the page itself (no redirect inside a redirect).
+    """
+    try:
+        url = urlsplit(link.strip())
+    except ValueError:
+        return None
+    if url.scheme != "https" or (url.hostname or "").lower() not in _LINK_HOSTS:
+        return None
+    params = dict(parse_qsl(url.query))
+    if url.path == _TRACKER_PATH or url.path.startswith(f"{_TRACKER_PATH}/"):
+        return params
+    if redirect and url.path == _REDIRECT_PATH and params.get("U"):
+        return _tracker_params(params["U"], redirect=False)
+    return None
+
+
+def _shipments(msg: EmailMessage) -> dict[str, str]:
+    """Amazon's shipment id per order number, as the mail's links name them.
+
+    Read from the links to the tracking page only (never followed); an order and an id
+    count only as a whole. The first id of an order counts.
+    """
+    found: dict[str, str] = {}
+    for part in msg.walk():
+        if part.get_content_type() not in ("text/plain", "text/html"):
+            continue
+        for link in part_links(part):
+            params = _tracker_params(link)
+            if params is None:
+                continue
+            order, shipment = params.get("orderId", ""), params.get("shipmentId", "")
+            if _ORDER_ID.fullmatch(order) and _SHIPMENT_ID.fullmatch(shipment):
+                found.setdefault(order, shipment)
+    return found
 
 
 def _place(text: str) -> str | None:
@@ -324,6 +374,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         code = otp.group(1)
 
     from_subject = subject_title(subj) if len(orders) == 1 else None
+    shipments = _shipments(msg)
     updates = []
     above = 0
     for index, match in enumerate(orders):
@@ -350,6 +401,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 delivery_code=code,
                 postponed=attempt or delay,
                 status_text=ATTEMPT_TEXT if attempt else DELAY_TEXT if delay else None,
+                shipment_id=shipments.get(match.group(2)),
                 **eta,
             )
         )

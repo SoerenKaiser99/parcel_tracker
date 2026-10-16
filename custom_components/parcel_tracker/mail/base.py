@@ -74,6 +74,9 @@ class MailUpdate:
     # name and street, never a person, a postcode or the shop's internal id.
     pickup_point: str | None = None
     pickup_until: date | None = None
+    # Amazon's own id of a shipment, from the link to its tracking page ("shipmentId"): each
+    # mail from "Versendet" on names it, the same in every mail about that box.
+    shipment_id: str | None = None
 
 
 @dataclass
@@ -179,6 +182,35 @@ def _content(part: EmailMessage) -> str:
         return part.get_content()
     except (LookupError, ValueError):
         return (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
+
+
+_PLAIN_LINK = re.compile(r"https?://[^\s<>\"'\[\]()]+")
+
+
+class _Hrefs(HTMLParser):
+    """The targets of the links (``<a href>``) of an HTML text."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.found: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "a":
+            self.found += [value for name, value in attrs if name == "href" and value]
+
+
+def part_links(part: EmailMessage) -> list[str]:
+    """The links of one text part: ``href`` of an HTML part, the addresses in a text."""
+    content = _content(part)
+    if part.get_content_type() == "text/plain":
+        return _PLAIN_LINK.findall(content)
+    parser = _Hrefs()
+    try:
+        parser.feed(content)
+        parser.close()
+    except (AssertionError, ValueError):  # broken markup: what was read so far
+        pass
+    return parser.found
 
 
 def body_text(msg: EmailMessage) -> str:
