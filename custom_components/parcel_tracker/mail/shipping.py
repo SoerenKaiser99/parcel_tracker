@@ -24,7 +24,7 @@ from .base import (
     subject,
     upcoming_date,
 )
-from .forward import _MONTHS as _SHORT_MONTHS
+from .forward import MONTHS_ABBR
 
 DHL_SENDER = "noreply@dhl.de"
 DHL_DOMAIN = "dhl.de"  # every sender there (also paketankuendigung@dhl.de) is DHL
@@ -233,21 +233,27 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
 # zugestellt." The subject is always "DHL On Demand Delivery".
 # Only these three sentences, word for word up to the full stop: "wurde … nicht zugestellt",
 # "wird heute nicht mehr ausgeliefert" or a Service Point never fit, and with no open gap a
-# long line is read in linear time.
+# long line is read in linear time. Between the words any white space (a wrapped line).
+# The shipper ends before the sentence goes on: no negation fits in between.
+_EXPRESS_DATE = r"\d{1,2}\.?\s+[A-Za-zÄä]{3}\w{0,10}\.?\s+\d{4}"
 _EXPRESS = re.compile(
-    r"Ihre DHL Express Sendung mit (?:der )?Sendungsn(?:r\.|ummer) (?P<number>\d{10})(?!\d)"
-    r"(?: von (?P<shipper>\S[^\n]{0,60}?))? (?:(?P<way>ist unterwegs)"
-    r"|wird voraussichtlich (?P<soon>\w{1,20})(?: bis Tagesende)? ausgeliefert"
-    r"|wurde (?:wie gewünscht )?am (?P<day>\d{1,2} [A-Za-zä]{3}\w{0,10} \d{4})"
-    r" um (?P<hour>\d{1,2}):(?P<minute>\d{2}) zugestellt)\."
+    r"Ihre\s+DHL\s+Express\s+Sendung\s+mit\s+(?:der\s+)?Sendungsn(?:r\.|ummer)\s+"
+    r"(?P<number>\d{10})(?!\d)"
+    r"(?:\s+von\s+(?P<shipper>(?:(?!\s(?:ist|wird|wurde)\s)[\s\S]){1,150}?))?\s+"
+    r"(?:ist\s+unterwegs"
+    r"|wird\s+voraussichtlich\s+(?P<soon>\w{1,20})(?:\s+bis\s+Tagesende)?\s+ausgeliefert"
+    rf"|wurde\s+(?:wie\s+gewünscht\s+)?am\s+(?P<day>{_EXPRESS_DATE})"
+    r"\s+um\s+(?P<hour>\d{1,2}):(?P<minute>\d{2})\s+zugestellt)\."
 )
-_EXPRESS_DAY = re.compile(r"voraussichtliche Zustelldatum (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4})")
+_EXPRESS_DAY = re.compile(rf"voraussichtliche\s+Zustelldatum\s+({_EXPRESS_DATE})")
+_EXPRESS_DATE_PARTS = re.compile(r"(\d{1,2})\.?\s+([A-Za-zÄä]{3})\w*\.?\s+(\d{4})")
 
 
-def _express_day(day: str, month: str, year: str) -> date | None:
+def _express_day(told: str) -> date | None:
+    """The day of ``_EXPRESS_DATE`` (the month in English or German, three letters)."""
+    day, month, year = _EXPRESS_DATE_PARTS.match(told).groups()
     try:
-        # (the month stands in English or German, three letters)
-        return date(int(year), _SHORT_MONTHS[month.lower()], int(day))
+        return date(int(year), MONTHS_ABBR[month.lower()], int(day))
     except (KeyError, ValueError):
         return None
 
@@ -257,14 +263,17 @@ def parse_dhl_express_mail(msg: EmailMessage) -> list[MailUpdate]:
 
     The sentence about the shipment tells the status ("ist unterwegs", "wird voraussichtlich
     HEUTE … ausgeliefert", "wurde … am <day> um <time> zugestellt"), the shipper names the
-    parcel through the naming gate. Any other sentence is no Express mail we know.
+    parcel through the naming gate. Any other sentence is no Express mail we know. A later
+    day than the mail's own takes back an earlier "HEUTE" (``MailUpdate.postponed``).
     """
     text = body_text(msg)
+    if not (told := _EXPRESS.search(text)):
+        # (like DHL's own mails: a text part may be empty while the HTML part tells it)
+        text = html_body_text(msg)
+        if not (told := _EXPRESS.search(text)):
+            return []
     sent = sent_at(msg)
-    told = _EXPRESS.search(text)
-    if not told:
-        return []
-    shipper = told.group("shipper") or ""
+    shipper = " ".join((told.group("shipper") or "").split())
     shop_name = shop_of(shipper)
     update = MailUpdate(
         told.group("number"), "dhl", ParcelStatus.IN_TRANSIT, sent,
@@ -273,17 +282,20 @@ def parse_dhl_express_mail(msg: EmailMessage) -> list[MailUpdate]:
     )
     if told.group("day"):
         update.status, update.delivered_at = ParcelStatus.DELIVERED, sent
-        of_month, month, year = told.group("day").split()
-        day = _express_day(of_month, month[:3], year)
+        day = _express_day(told.group("day"))
         hour, minute = int(told.group("hour")), int(told.group("minute"))
         if day and hour < 24 and minute < 60:
             update.delivered_at = at(day, hour, minute)
-    elif told.group("soon"):
-        # (only "heute" is the day of the mail; any other day stays "on its way")
-        if told.group("soon").lower() == "heute":
-            update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
-    elif day := _EXPRESS_DAY.search(text):
-        update.eta_date = _express_day(*day.groups())
+        return [update]
+    soon = (told.group("soon") or "").lower()
+    if soon == "heute":
+        update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
+    elif soon == "morgen":
+        update.eta_date = sent.date() + timedelta(days=1)
+    elif not soon and (day := _EXPRESS_DAY.search(text)):
+        update.eta_date = _express_day(day.group(1))
+    # (any other word for the day leaves it open)
+    update.postponed = update.eta_date is not None and update.eta_date > sent.date()
     return [update]
 
 

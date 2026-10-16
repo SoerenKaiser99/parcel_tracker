@@ -7,6 +7,7 @@ import pytest
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
 from custom_components.parcel_tracker.mail import known_sender_domain, parse_mail
+from custom_components.parcel_tracker.mail.apply import apply_update
 from custom_components.parcel_tracker.mail.base import sent_at
 from custom_components.parcel_tracker.mail.shipping import (
     AMAZON_DHL_NAME,
@@ -14,9 +15,11 @@ from custom_components.parcel_tracker.mail.shipping import (
     parse_generic,
     parse_ups_mail,
 )
-from custom_components.parcel_tracker.models import ParcelStatus
+from custom_components.parcel_tracker.models import Parcel, ParcelStatus
 
 from .conftest import load_mail
+
+NOW = datetime(2026, 10, 1, 12, 0, tzinfo=BERLIN)
 
 
 def _msg(subject: str, body: str, from_: str) -> EmailMessage:
@@ -719,7 +722,61 @@ def test_dhl_express_delivery_on_another_day_is_not_in_delivery_today():
     msg = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON wird "
                    "voraussichtlich MORGEN bis Tagesende ausgeliefert.")
     [u] = parse_mail(msg).updates
-    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, None)
+    tomorrow = sent_at(msg).date() + timedelta(days=1)
+    assert (u.status, u.eta_date, u.postponed) == (ParcelStatus.IN_TRANSIT, tomorrow, True)
+    msg = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON wird "
+                   "voraussichtlich MONTAG bis Tagesende ausgeliefert.")
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.eta_date, u.postponed) == (ParcelStatus.IN_TRANSIT, None, False)
+
+
+def test_dhl_express_a_later_day_takes_back_an_earlier_heute():
+    parcels: dict[str, Parcel] = {}
+    today = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON wird "
+                     "voraussichtlich HEUTE bis Tagesende ausgeliefert.")
+    apply_update(parcels, parse_mail(today).updates[0], NOW)
+    later = _express("Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON ist "
+                     "unterwegs.\nZur Zeit ist das voraussichtliche Zustelldatum 02 Oct 2026.")
+    later.replace_header("Date", "Thu, 01 Oct 2026 08:00:00 +0000")
+    apply_update(parcels, parse_mail(later).updates[0], NOW)
+    p = parcels["9999990166"]
+    assert (p.status, p.result.eta_date) == (ParcelStatus.IN_TRANSIT, date(2026, 10, 2))
+
+
+@pytest.mark.parametrize("sentence", [
+    "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON ist\nunterwegs.",
+    "Ihre DHL Express Sendung mit der\nSendungsnummer 9999990166 von AMAZON wurde wie\n"
+    "gewünscht am 11 Jun 2025 um 15:45 zugestellt.",
+])
+def test_dhl_express_sentence_wrapped_over_lines(sentence):
+    [u] = parse_mail(_express(sentence)).updates
+    assert (u.number, u.shop) == ("9999990166", "amazon")
+
+
+def test_dhl_express_html_part_when_the_text_part_is_empty():
+    msg = _express("")
+    msg.add_alternative(
+        "<html><body><p>Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON\n"
+        "ist unterwegs.</p></body></html>", subtype="html")
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status) == ("9999990166", ParcelStatus.IN_TRANSIT)
+
+
+def test_dhl_express_long_shipper_name():
+    shipper = "MUSTERFIRMA HANDELSGESELLSCHAFT FUER ELEKTRONIK UND ZUBEHOER MBH & CO. KG"
+    msg = _express(f"Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von {shipper} "
+                   "ist unterwegs.")
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status) == ("9999990166", ParcelStatus.IN_TRANSIT)
+
+
+@pytest.mark.parametrize("day", ["11 Jun 2025", "11. Jun 2025", "11 JUNI 2025", "11 MÄR 2025"])
+def test_dhl_express_delivery_day_in_other_spellings(day):
+    msg = _express(f"Ihre DHL Express Sendung mit der Sendungsnummer 9999990166 von AMAZON "
+                   f"wurde wie gewünscht am {day} um 15:45 zugestellt.")
+    [u] = parse_mail(msg).updates
+    month = 3 if "MÄR" in day else 6
+    assert u.delivered_at == datetime(2025, month, 11, 15, 45, tzinfo=BERLIN)
 
 
 @pytest.mark.parametrize("told", [
@@ -730,6 +787,9 @@ def test_dhl_express_delivery_on_another_day_is_not_in_delivery_today():
     "wurde an den DHL Service Point Musterstadt zugestellt und liegt zur Abholung bereit.",
     "wurde am 11 Jun 2025 um 15:45 an den DHL Service Point zugestellt.",
     "ist nicht unterwegs.",
+    # (a negation in front of a sentence that would fit is no shipper's name)
+    "ist nicht unterwegs, sie wird voraussichtlich HEUTE bis Tagesende ausgeliefert.",
+    "wurde heute nicht zugestellt. Sie ist unterwegs.",
 ])
 def test_dhl_express_reads_only_its_three_sentences(told):
     msg = _express(f"Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON {told}")
@@ -744,7 +804,7 @@ def test_dhl_express_long_line_is_read_in_linear_time():
         assert time.perf_counter() - begin < 5
 
 
-def test_dhl_express_sender_is_known_so_a_forward_is_read_as_the_original():
+def test_dhl_express_sender_is_known():
     assert known_sender_domain("noreply.odd@dhl.com") == "dhl.com"
 
 
