@@ -893,3 +893,22 @@ def test_delivered_after_a_delivery_problem():
     order = parcels[ORDER]
     assert order.status is ParcelStatus.DELIVERED
     assert order.result.delivered_at == datetime(2026, 10, 8, 12, 0, tzinfo=BERLIN)
+
+
+@pytest.mark.parametrize("aliexpress_first", [False, True])
+def test_delivered_keeps_the_carriers_earlier_time(aliexpress_first):
+    # AliExpress tells the delivery two to three hours after DHL: whichever mail is read
+    # first, the time is DHL's, and it is the one in the history.
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Paket {DHL} wird zugestellt"))
+    dhl = _msg("Ihre AliExpress Sendung liegt im Briefkasten",
+               body=f"Ihre Sendung {DHL} liegt im Briefkasten.",
+               sender_="noreply@dhl.de", when="Wed, 07 Oct 2026 14:45:00 +0200")
+    ali = _at(_parcel(f"Paket {DHL} wurde zugestellt"), "Wed, 07 Oct 2026 17:00:00 +0200")
+    for msg in (ali, dhl) if aliexpress_first else (dhl, ali):
+        _apply(parcels, msg)
+    [order] = parcels.values()
+    assert order.status is ParcelStatus.DELIVERED
+    dhl_time = datetime(2026, 10, 7, 14, 45, tzinfo=BERLIN)
+    assert order.result.delivered_at == dhl_time
+    assert order.result.events[0].timestamp == dhl_time

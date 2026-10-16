@@ -90,9 +90,10 @@ _PARCEL_STEPS: dict[str, str | None] = {
     "hat eine aktualisierung": None,
 }
 CUSTOMS_TEXT = "Zollabfertigung beendet"
-# "Paket <number> ist versandbereit" / "… wird zugestellt" (on the last mile: in nine of
-# ten mails seen "… wurde zugestellt" followed two to five hours later, once the day
-# after) / "… wurde zugestellt": (status, own words).
+# "Paket <number> ist versandbereit" / "… wird zugestellt" (on the last mile: it comes
+# with the carrier's "kommt heute", and in nine of ten mails seen "… wurde zugestellt"
+# followed one and a half to five hours later, once the day after) / "… wurde zugestellt"
+# (two to three hours after the carrier told it): (status, own words).
 _PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "ist versandbereit": (_PRE, "Versandbereit"),
     "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),
