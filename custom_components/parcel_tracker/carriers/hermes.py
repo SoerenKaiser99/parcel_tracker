@@ -21,7 +21,15 @@ import aiohttp
 
 from ..const import MAX_EVENTS
 from ..models import ParcelStatus, TrackingEvent, TrackingResult
-from .base import Carrier, CarrierUnavailable, Match, NotFound, ParseError, RateLimited
+from .base import (
+    Carrier,
+    CarrierUnavailable,
+    Match,
+    NotFound,
+    ParseError,
+    RateLimited,
+    plain_text,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +109,8 @@ def _label(event: dict[str, Any]) -> str | None:
         return _FIXED_TEXT[code]
     if code.startswith("EDL_"):
         return _EDL_TEXT
-    return event.get("historyText") or code or None
+    raw = event.get("historyText")
+    return (plain_text(raw) if isinstance(raw, str) else raw) or code or None
 
 
 def _ts(value: Any) -> datetime | None:

@@ -72,6 +72,7 @@ from .const import (
     GLS_PROBE_TRIES,
     IMAP_SECURITIES,
     KEEP_ETA_UNTIL_DAY_CARRIERS,
+    MAIL_DEDUP_KEEP,
     MAIL_ETA_CARRIERS,
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
@@ -222,6 +223,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # Sender domain (known shop/carrier or "other") and forwarded flag of the last
         # unrecognised mails; nothing else of a mail is kept.
         self.unrecognized_mails: deque[dict[str, Any]] = deque(maxlen=UNRECOGNIZED_KEEP)
+        # Message-IDs of the mails since the start that changed nothing: one that is read
+        # again (see ``_handle_mail``) is counted and logged once. Memory only, so a new
+        # version reads it afresh.
+        self._mail_missed: deque[str] = deque(maxlen=MAIL_DEDUP_KEEP)
         self._amazon_misses = 0
         self.track17 = track17
         self.track17_quota: Quota | None = None
@@ -575,7 +580,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 mailbox.finish, dispositions, self._move_processed
             )
         except (ImapAuthError, ImapUnavailable) as err:
-            # Mails were fetched with PEEK and stay unseen; Message-ID dedup skips them next time.
+            # Mails were fetched with PEEK and stay unseen. The next fetch skips the applied
+            # ones (Message-ID) and reads the others again; they changed nothing and are
+            # counted and logged only once (``_unrecognized``).
             _LOGGER.debug("Could not file processed mails: %s", err)
 
     def _mail_failed(self, now: datetime, code: str) -> None:
@@ -585,9 +592,16 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_next = now + delay
 
     def _handle_mail(self, item: _ParsedMail, now: datetime) -> str | None:
-        """Apply one parsed mail; return its target folder (None = only mark seen)."""
+        """Apply one parsed mail; return its target folder (None = only mark seen).
+
+        Only a mail that is applied is remembered by its Message-ID, before its first
+        update: it must not change a parcel twice, also when applying fails halfway. A
+        mail that told nothing (not recognised, ignored, too old, not readable) changed
+        nothing and is read again when it comes back, so a later version can read what
+        this one could not.
+        """
         try:
-            if item.message_id and not self.store.remember_message(item.message_id):
+            if item.message_id and item.message_id in self.store.message_ids:
                 return FOLDER_PROCESSED
             if item.stale:
                 return None  # too old to say anything about today's parcels
@@ -596,22 +610,24 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             result = item.result
             if result is None or result.ignored:
                 return None
-            if result.amazon:
-                self._count_amazon(recognized=bool(result.updates))
             if not result.updates:
-                self._unrecognized(item)
+                self._unrecognized(item, amazon=result.amazon)
                 return FOLDER_UNRECOGNIZED
+            if result.amazon:
+                self._count_amazon(recognized=True)
+            if item.message_id:
+                self.store.remember_message(item.message_id)
             for update in result.updates:
                 if change := apply_update(self.store.parcels, update, now):
                     self._mail_changed(change)
         except Exception as err:  # noqa: BLE001 - one odd mail must not stop the import
-            # Only the error type: mail contents never go into the log.
-            _LOGGER.warning(
-                "Could not read a mail (%s); moved it to %s",
-                type(err).__name__,
-                FOLDER_UNRECOGNIZED,
-            )
-            self._unrecognized(item)
+            if self._unrecognized(item):
+                # Only the error type: mail contents never go into the log.
+                _LOGGER.warning(
+                    "Could not read a mail (%s); moved it to %s",
+                    type(err).__name__,
+                    FOLDER_UNRECOGNIZED,
+                )
             return FOLDER_UNRECOGNIZED
         self._mail_recognized += 1
         return FOLDER_PROCESSED
@@ -649,10 +665,20 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcels = sorted(number for number in after if before.get(number) != after[number])
         return {"result": result, "parcels": parcels}
 
-    def _unrecognized(self, item: _ParsedMail) -> None:
-        """Count an unrecognised mail; keep only its sender domain class and forwarded flag."""
+    def _unrecognized(self, item: _ParsedMail, amazon: bool = False) -> bool:
+        """Count an unrecognised mail; keep only its sender domain class and forwarded flag.
+
+        False for a mail counted before: read again, it is neither counted nor logged.
+        """
+        if item.message_id:
+            if item.message_id in self._mail_missed:
+                return False
+            self._mail_missed.append(item.message_id)
         self._mail_unrecognized += 1
         self.unrecognized_mails.append({"domain": item.domain, "forwarded": item.forwarded})
+        if amazon:
+            self._count_amazon(recognized=False)
+        return True
 
     def _count_amazon(self, recognized: bool) -> None:
         if recognized:
@@ -1072,6 +1098,19 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 eta_latest=known.eta_latest,
                 eta_from=known.eta_from,
                 eta_to=known.eta_to,
+            )
+        if (
+            result.status is ParcelStatus.AWAITING_PICKUP
+            and known is not None
+            and known.status is ParcelStatus.AWAITING_PICKUP
+        ):
+            # Still waiting at the pickup point: the place and the last day a mail or an
+            # earlier lookup named stay, as long as the carrier names none of its own
+            # (Hermes names neither; Amazon's pickup mail does). Any other status drops them.
+            result = replace(
+                result,
+                pickup_point=result.pickup_point or known.pickup_point,
+                pickup_until=result.pickup_until or known.pickup_until,
             )
         # 17track only fills what the carrier left empty (place, day/window, history).
         result = with_track17(result, parcel.track17_result)

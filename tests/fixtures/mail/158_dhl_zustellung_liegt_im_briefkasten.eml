@@ -1,0 +1,27 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number and the company name are invented; the language menu and the
+ footer are cut
+From: "DHL Paket" <noreply@dhl.de>
+To: max@example.org
+Subject: Ihre Beispiel GmbH Sendung liegt im Briefkasten
+Date: Tue, 04 Nov 2025 13:57:48 +0100
+Message-ID: <fixture-158@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+[Zustellung an Ablageort]
+
+Hallo Max Mustermann,
+
+Ihre **Beispiel GmbH** Sendung ist angekommen.
+
+Wir haben sie in Ihrem Briefkasten zugestellt.
+
+**Sendungsverlauf einsehen**
+
+[{PACKAGE_IDENTIFIER}](
+https://custcomm.dhl.de/… [Nummer nur im Link oder Bildtext: 00340999999999990158]
+)
+
+Wir freuen uns auf Ihren nächsten Sendungsempfang mit uns!

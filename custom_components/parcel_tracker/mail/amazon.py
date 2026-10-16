@@ -8,6 +8,8 @@ from email.message import EmailMessage
 
 from ..models import ParcelStatus
 from .base import (
+    ATTEMPT_TEXT,
+    DELAY_TEXT,
     MONTHS,
     MailUpdate,
     at,
@@ -18,31 +20,53 @@ from .base import (
     sent_at,
     shorten,
     subject,
+    title_key,
     upcoming_date,
 )
 
+SHIPPING_SENDER = "versandbestaetigung@amazon.de"
+# "Paket zur Abholung bereit: …": the order waits at a pickup point (a Hermes PaketShop, an
+# Amazon Locker or Counter, another partner shop). See ``parse_amazon_pickup``.
+PICKUP_SENDER = "pickup-point@amazon.de"
 AMAZON_SENDERS = frozenset(
     {
         "bestellbestaetigung@amazon.de",
-        "versandbestaetigung@amazon.de",
+        SHIPPING_SENDER,
         "shipment-tracking@amazon.de",
         "order-update@amazon.de",
+        PICKUP_SENDER,
     }
 )
 # Old "… wurde versandt!" subjects (before ~2021), in two wordings.
 LEGACY_PREFIXES = ("Ihre Amazon.de Bestellung von", "Ihre Amazon.de-Bestellung mit")
+# The same layout came back later ("Deine Amazon.de-Bestellung mit … wurde versandt!", up
+# to 2025; "Versendet: Für diese Amazon Lieferung ist ein Einmalpasswort erforderlich"):
+# a mail of SHIPPING_SENDER the current parser finds no order in is read this way.
 # "Versuchte Zustellung: …": nobody was met. The order is on its way again and no longer
-# comes today; a later mail tells the next attempt or where the parcel waits.
+# comes today; a later mail tells the next attempt or where the parcel waits. ("Zustellversuch:
+# …" is the same mail in the wording of 2026.)
 _ATTEMPT = "versuchte zustellung"
-ATTEMPT_TEXT = "Zustellung versucht"
+_ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
+# "Lieferungsaktualisierung: …": on its way, with a new day ("Jetzt erwartet bis zum 26.
+# April."). Only a mail that says so is a delay ("… verspätet sich aber. Bitte entschuldigen
+# Sie die Verzögerung."): the subject and a new day alone would also fit an earlier arrival.
+# ("… ist nicht verspätet" is none.)
+_DELAY = "lieferungsaktualisierung"
+_DELAYED = re.compile(r"(?<!nicht )\b(?:verspät|verzöger)\w*", re.IGNORECASE)
+_PICKUP = "paket zur abholung bereit"
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
     "versendet": ParcelStatus.IN_TRANSIT,
     "versandt": ParcelStatus.IN_TRANSIT,
     _ATTEMPT: ParcelStatus.IN_TRANSIT,
+    "zustellversuch": ParcelStatus.IN_TRANSIT,
+    _DELAY: ParcelStatus.IN_TRANSIT,
     "in zustellung": ParcelStatus.OUT_FOR_DELIVERY,
+    "unterwegs zur zustellung": ParcelStatus.OUT_FOR_DELIVERY,
+    "zur auslieferung": ParcelStatus.OUT_FOR_DELIVERY,
     "zustellung heute": ParcelStatus.OUT_FOR_DELIVERY,
+    _PICKUP: ParcelStatus.AWAITING_PICKUP,
     "geliefert": ParcelStatus.DELIVERED,
     "zugestellt": ParcelStatus.DELIVERED,
 }
@@ -58,7 +82,21 @@ _QUOTED = re.compile(
     r"^[^:]+:\s*(?:\d+\s*)?[„\"“](?P<title>(?:[^“\"”]|\"(?=[^“”]*[“”]))+)[“\"”]"
     r"(?:\s*und\s+(?P<more>\d+)\s+(?:weitere[r]?|mehr)\s+Artikel)?"
 )
-_ORDER = re.compile(r"^Bestellnr\.\s*(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE)
+# ("Bestellung #…" in the plain layout of the delivery, delay and password mails)
+_ORDER = re.compile(
+    r"^(?:Bestellnr\.\s*|(?P<plain>Bestellung #))(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE
+)
+# The plain layout: "Ihr Paket mit <item> wird zugestellt." / "Ihr Amazon Paket wird
+# zugestellt." tells the status (the subject is the item's name, or "Zustellung heute: …").
+_ON_THE_ROUTE = re.compile(
+    r"^Ihr (?:Amazon )?Paket(?: mit \S.*)? wird zugestellt\.?$", re.MULTILINE
+)
+_LATER = re.compile(r"Jetzt erwartet bis zum (\d{1,2}\.\s*[A-Za-zä]+)")
+# The plain layout names an item with its quantity before it ("2 x …", "2-mal …"), below
+# the number and, without quotes, in the subject ("2 x Beispiel... und 2 weiteren
+# Artikeln"). The other mails of the order name it without the quantity.
+_QUANTITY = re.compile(r"^\d+\s*(?:x|-mal)\s+", re.IGNORECASE)
+_PLAIN_MORE = re.compile(r"\s+und\s+\d+\s+weiteren?\s+Artikeln?\s*$")
 # An item below its order number: "[title]<link>" in a mail whose text was made from the
 # HTML, "* title" in the text part Amazon writes itself.
 _ITEM = re.compile(r"^(?:\[(?P<title>[^\]]+)\]<https?://|\* (?P<listed>\S.*)$)", re.MULTILINE)
@@ -75,7 +113,31 @@ _LEGACY_NUMBER = re.compile(r"Paketverfolgungsnummern?:\s*([0-9A-Z]{10,30})")
 _LEGACY_ETA = re.compile(r"^Zustellung:\s*\n\w+,\s*(\d{1,2})\.?\s*([A-Za-zä]+)", re.MULTILINE)
 _LEGACY_MORE = re.compile(r"\"\s*und\s+(\d+)\s+weiteren\s+Artikel")
 _LEGACY_HERMES = re.compile(r"mit Hermes versandt")
+# The sentence of the old layout: "… dass wir deine Bestellung versandt haben." / "… dass
+# <seller> deine Bestellung verschickt hat." / "… einen Teil deiner Bestellung verschicken
+# konnten." / "… die letzte Lieferung aus deiner Bestellung nun versandt haben."
+_LEGACY_SHIPPED = re.compile(
+    r"\b(?:deiner?|Ihrer?) Bestellung\b[^.\n]{0,20}?"
+    r"\b(?:versandt haben|verschickt hat|verschicken konnten)\b"
+)
 _HERMES_14 = re.compile(r"\d{14}")
+# The pickup mail: "Abholung am 24. Oktober", on the next line the pickup point ("Hermes
+# PaketShop - Beispielkiosk Musterweg 1 HPS#909090 , 99999"). The subject names the same
+# place behind "Paket zur Abholung bereit:", with the town and the day at its end.
+_PICKUP_DAY = re.compile(
+    r"^Abholung am\s+(?P<day>\d{1,2}\.\s*[A-Za-zä]+)\.?[ \t]*\n(?P<place>.*)$", re.MULTILINE
+)
+_DAY_TEXT = r"\d{1,2}\.\s*[A-Za-zä]+\.?"
+# (a subject without a place is nothing but the day)
+_SUBJECT_DAY = re.compile(rf"(?:^|\s+)(?P<day>{_DAY_TEXT})\s*$")
+# What follows the place's own name and street, and everything after it: the shop's
+# internal id ("HPS#909090"), the postcode (behind a comma, or before the town or at the
+# end of the line), or a day ("24. Oktober").
+_PLACE_END = re.compile(
+    r"(?:\s+[A-Za-z]{2,6}#|\s*,\s*\d{4,5}\b|\s+\d{4,5}(?:\s+[^\W\d_]|\s*$)"
+    rf"|\s+{_DAY_TEXT}\s*$).*$"
+)
+_QUANTITY_LINE = re.compile(r"^Menge:\s*\d+\s*$", re.MULTILINE)
 
 
 def order_number(order: str) -> str:
@@ -110,6 +172,8 @@ def stage_status(text: str) -> ParcelStatus | None:
         return _STAGES.get(done)
     if "Dein Paket wurde zugestellt" in text:
         return ParcelStatus.DELIVERED
+    if _ON_THE_ROUTE.search(text):
+        return ParcelStatus.OUT_FOR_DELIVERY
     return None
 
 
@@ -130,18 +194,131 @@ def _eta(text: str, sent: datetime) -> dict[str, date | datetime | None]:
     return {}
 
 
-def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
-    """Parse a current-format Amazon mail; one update per order number."""
+def _plain_title(subj: str, below: str) -> str | None:
+    """Name of an order in the plain layout: the line below its number the subject names.
+
+    The subject names the item (often cut: "Beispiel-Maßband 5..."), the other mails of the
+    order name the same one; it is taken without its quantity, so the name fits theirs
+    (``title_key``). Only a line that begins like the subject is taken: a person's name or
+    an address never names a parcel. None if the subject names no item of the list
+    ("Zustellung heute: Ihr Amazon Paket wird zugestellt").
+    """
+    named = subj.split(":", 1)[1] if subject_status(subj) is not None else subj
+    wanted = title_key(_QUANTITY.sub("", _PLAIN_MORE.sub("", named.strip())))
+    if not wanted:
+        return None
+    for line in below.strip().splitlines()[:20]:
+        line = _QUANTITY.sub("", line.strip())
+        if line.startswith("---"):
+            break
+        # (the subject's start may be shorter than the key: "WAGO 2773...")
+        if line and title_key(line).startswith(wanted):
+            return line
+    return None
+
+
+def _place(text: str) -> str | None:
+    """A pickup point's name and street: without the shop's id, postcode and town."""
+    place = _PLACE_END.sub("", text.strip()).strip(" ,;-")
+    if re.fullmatch(_DAY_TEXT, place):
+        return None  # only a day: no place
+    if not place or "@" in place or not re.search(r"[^\W\d_]{2}", place):
+        return None
+    return shorten(place)
+
+
+def _pickup_item(text: str, start: int, end: int) -> str | None:
+    """The first item of the order: a listed one ("* …"), else the line above its quantity
+    ("Menge: 1"). Never the price, which stands below the quantity."""
+    if item := _ITEM.search(text, start, end):
+        return item.group("title") or item.group("listed")
+    if quantity := _QUANTITY_LINE.search(text, start, end):
+        above = text[start : quantity.start()].strip().splitlines()
+        line = above[-1].strip() if above else ""
+        if line and not line.startswith(("Paket nachverfolgen", "http")):
+            return line
+    return None
+
+
+def parse_amazon_pickup(msg: EmailMessage) -> list[MailUpdate]:
+    """"Paket zur Abholung bereit: <place> <day>": the order waits at a pickup point.
+
+    The place is taken from the line below "Abholung am …" (else from the subject): its
+    name and street, without the shop's id, the postcode and the town. Nothing else of
+    the mail's text becomes the place, so a greeting with a name never does. The day is
+    the last day for the pickup; a day that is not after the mail's own only tells when
+    the parcel got there and is no last day. Its year is found like every Amazon day.
+    """
     subj = subject(msg)
     text = body_text(msg)
     sent = sent_at(msg)
-    status = subject_status(subj) or stage_status(text)
     orders = list(_ORDER.finditer(text))
+    if not orders:
+        return []
+    named = subj.split(":", 1)[1].strip() if ":" in subj else ""
+    subject_day = _SUBJECT_DAY.search(named)
+    if subject_day:
+        named = named[: subject_day.start()]
+    line = _PICKUP_DAY.search(text)
+    in_subject = _place(named)
+    below = line.group("place") if line else ""
+    in_body = None if below.startswith(("Bestellnr", "Bestellung")) else _place(below)
+    # (the line below the day counts if the subject names no place, or the same one)
+    place = in_subject
+    if in_body and (
+        in_subject is None
+        or in_body.startswith(in_subject.rstrip("…"))
+        or in_subject.startswith(in_body)
+    ):
+        place = in_body
+    day = line.group("day") if line else subject_day.group("day") if subject_day else None
+    until = None
+    if day and (resolved := resolve_dates(day, sent.date())):
+        until = resolved[0] if resolved[0] > sent.date() else None
+    updates = []
+    for index, match in enumerate(orders):
+        end = orders[index + 1].start() if index + 1 < len(orders) else len(text)
+        item = _pickup_item(text, match.end(), end)
+        updates.append(
+            MailUpdate(
+                number=order_number(match.group(2)),
+                carrier="amazon",
+                status=ParcelStatus.AWAITING_PICKUP,
+                sent_at=sent,
+                title=shorten(item) if item else None,
+                pickup_point=place,
+                pickup_until=until,
+            )
+        )
+    return updates
+
+
+def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
+    """Parse a current-format Amazon mail; one update per order number."""
+    subj = subject(msg)
+    if subj.lower().startswith(f"{_PICKUP}:"):
+        return parse_amazon_pickup(msg)
+    text = body_text(msg)
+    sent = sent_at(msg)
+    status = subject_status(subj) or stage_status(text)
+    # In the plain layout an order named again is the same one (in the head and again above
+    # the items): its last mention counts. In the usual layout a number that comes again is
+    # a further shipment with its own day and items.
+    mentions = list(_ORDER.finditer(text))
+    last = {match.group(2): match for match in mentions if match.group("plain")}
+    orders = [m for m in mentions if not m.group("plain") or last[m.group(2)] is m]
     if status is None or not orders:
         return []
 
-    attempt = subj.strip().lower().startswith(f"{_ATTEMPT}:")
+    attempt = subj.strip().lower().startswith(_ATTEMPTS)
+    news = subj.strip().lower().startswith(f"{_DELAY}:")
+    delay = news and bool(_DELAYED.search(text))
     eta = _eta(text, sent)
+    if not eta and status is ParcelStatus.OUT_FOR_DELIVERY and _ON_THE_ROUTE.search(text):
+        eta = {"eta_date": sent.date()}  # (the plain mail names no day: it is today)
+    if news and (later := _LATER.search(text)):
+        if resolved := resolve_dates(later.group(1), sent.date()):
+            eta = {"eta_date": resolved[0]}
     code = None
     if read_otp and (otp := _OTP.search(text)):
         code = otp.group(1)
@@ -158,22 +335,31 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         end = orders[index + 1].start() if index + 1 < len(orders) else len(text)
         item = _ITEM.search(text, match.end(), end)
         listed = item.group("title") or item.group("listed") if item else None
+        if listed is None and match.group("plain"):
+            # (the plain layout names the items on the lines below the number)
+            listed = _plain_title(subj, text[match.end() : end])
         title = from_subject or (shorten(listed) if listed else None)
         updates.append(
             MailUpdate(
-                number=order_number(match.group(1)),
+                number=order_number(match.group(2)),
                 carrier="amazon",
                 status=status,
                 sent_at=sent,
                 title=title,
                 delivered_at=sent if status is ParcelStatus.DELIVERED else None,
                 delivery_code=code,
-                postponed=attempt,
-                status_text=ATTEMPT_TEXT if attempt else None,
+                postponed=attempt or delay,
+                status_text=ATTEMPT_TEXT if attempt else DELAY_TEXT if delay else None,
                 **eta,
             )
         )
     return updates
+
+
+def old_shipping_layout(msg: EmailMessage) -> bool:
+    """Tell whether a mail is a shipping mail in the old layout (see SHIPPING_SENDER)."""
+    text = body_text(msg)
+    return bool(_LEGACY_ORDER.search(text) and _LEGACY_SHIPPED.search(text))
 
 
 def _legacy_title(subj: str) -> str | None:
@@ -190,11 +376,13 @@ def _legacy_title(subj: str) -> str | None:
     return shorten(title)
 
 
-def parse_amazon_legacy(msg: EmailMessage) -> list[MailUpdate]:
+def parse_amazon_legacy(msg: EmailMessage, with_order: bool = False) -> list[MailUpdate]:
     """Old '… wurde versandt!' mails (carrier number inside).
 
     UPS/DHL numbers become their own parcel (as before); a Hermes number stays with the
-    Amazon order as ``tracking_ref`` so the order is followed via Hermes.
+    Amazon order as ``tracking_ref`` so the order is followed via Hermes. ``with_order``
+    (the later mails in this layout: their order has its own "Bestellt" mail) keeps every
+    carrier's number with the order, so no second parcel appears.
     """
     subj = subject(msg)
     text = body_text(msg)
@@ -213,7 +401,7 @@ def parse_amazon_legacy(msg: EmailMessage) -> list[MailUpdate]:
             carrier = "hermes"
     order = _LEGACY_ORDER.search(text)
     tracking_ref = tracking_carrier = None
-    if raw_number and carrier == "hermes" and order:
+    if raw_number and carrier and order and (carrier == "hermes" or with_order):
         number, tracking_ref, tracking_carrier = order_number(order.group(1)), raw_number, carrier
         carrier = "amazon"
     elif raw_number and carrier:

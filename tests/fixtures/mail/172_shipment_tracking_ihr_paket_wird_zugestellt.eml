@@ -1,0 +1,30 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the item and the order number are invented
+From: "Amazon.de" <shipment-tracking@amazon.de>
+To: max@example.org
+Subject: Beispiel-Rasensamen...
+Date: Mon, 22 Sep 2025 09:30:13 +0000
+Message-ID: <fixture-172@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Amazon.de
+----------------------------------------------------------------------
+
+Hallo,
+
+Ihr Paket mit Beispiel-Rasensamen... wird zugestellt.
+
+Wenn Sie damit einverstanden sind, dass Ihr Paket unbeaufsichtigt bleibt, hinterlassen Sie bitte Lieferanweisungen für den Fahrer.
+https://www.amazon.de/…
+
+Ihr Paket verfolgen:
+https://www.amazon.de/…
+
+Bestellung #999-0000172-0000172
+
+Beispiel-Rasensamen zur Rasensanierung für 25 m², für alle Rasentypen geeignet
+
+----------------------------------------------------------------------
+Dies ist eine automatisch versendete E-Mail.

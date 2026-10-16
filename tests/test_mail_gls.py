@@ -142,6 +142,8 @@ def test_routing_of_all_gls_mails():
         ("Dein Paket konnte nicht zugestellt werden", "", None),
         ("Dein Paket wurde nicht zugestellt", "", None),
         ("Neuigkeiten zu deinem Paket", "", None),
+        # from abroad: in the country, on its way here
+        ("📦 Dein Paket hat Deutschland erreicht", "", ParcelStatus.IN_TRANSIT),
         # "übergeben" alone is the shop handing the parcel to GLS: only a neighbour delivers.
         ("Dein Paket wurde GLS übergeben", "", None),
         ("Dein Paket wurde an GLS übergeben", "", None),

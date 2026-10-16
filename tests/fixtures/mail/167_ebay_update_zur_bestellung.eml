@@ -1,0 +1,37 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the item, the numbers, the seller and the price are invented; the footer is cut
+From: eBay <ebay@ebay.com>
+To: max@example.org
+Subject: =?utf-8?q?=F0=9F=9A=9A?= Update zur Bestellung: Beispiel Akku-LED-Baustrahler
+ blau IP55
+Date: Fri, 27 Jun 2025 04:18:47 -0700
+Message-ID: <fixture-167@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Lieferung ca.: Di, 01. Jul - Mi, 09. Jul</p>
+<p>Hallo Max Mustermann, verfolgen Sie den Sendungsstatus Ihrer Bestellung!</p>
+<p>Sendungsnummer: 00340999999999990167</p>
+<p>Bestellung nachverfolgen</p>
+<p>Einzelheiten zu Ihrem Kauf</p>
+<p>Beispiel Akku-LED-Baustrahler blau IP55</p>
+<p>eBay-Käuferschutz</p>
+<p>Preis:</p>
+<p>EUR 1,99</p>
+<p>Artikelnr.:</p>
+<p>999999990167</p>
+<p>Bestellnummer:</p>
+<p>99-00000-00167</p>
+<p>Verkäufer:</p>
+<p>beispielshop</p>
+<p>Status prüfen</p>
+<p>Ihre Bestellung wird verschickt an:</p>
+<p>Max Mustermann</p>
+<p>Musterstraße 1</p>
+<p>12345 Musterstadt</p>
+<p>Deutschland</p>
+<p>Lieferung ca.:</p>
+<p>Di, 01. Jul - Mi, 09. Jul</p>
+</body></html>

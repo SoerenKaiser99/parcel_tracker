@@ -138,7 +138,7 @@ Das prüfst du der Reihe nach:
 6. **Apple „E-Mail-Adresse verbergen“?** Die Filterregel braucht die Relay-Adresse, so wie sie in der Mail steht.
 7. **Werbung oder Konto-Mail?** Solche Mails markiert der Import absichtlich nur als gelesen.
 
-Liegt eine echte Paketmail in `Paket-Tracker-Nicht-erkannt`, lässt sich das nur mit einer Beispielmail beheben: [Beispielmails einreichen](#beispielmails-einreichen).
+Liegt eine echte Paketmail in `Paket-Tracker-Nicht-erkannt`, lässt sich das nur mit einer Beispielmail beheben: [Beispielmails einreichen](#beispielmails-einreichen). Kann ein Update die Mail lesen, schieb sie danach zurück in den Ordner, den der Import liest, und markier sie als ungelesen: Dann liest er sie noch einmal (solange sie nicht älter als 14 Tage ist). Das gilt für Mails, die ab v0.3.34 gelesen wurden; eine Mail, die eine ältere Version gelesen hat, kennt der Import noch und legt sie gleich nach `Paket-Tracker-Verarbeitet`.
 
 ### Reparatur-Hinweis „Amazon-Mails nicht erkannt“
 
@@ -247,6 +247,7 @@ Dazu gibt es `--phone` und `--email`. Ganz ohne Angaben arbeitet das Skript nur 
     - Links (nur der Servername bleibt),
     - Sendungs- und Bestellnummern (gleiche Form, erfundene Ziffern),
     - Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort,
+    - Adressblöcke auch mit österreichischer oder Schweizer Postleitzahl (vier Ziffern) und Straßen in jeder Schreibweise („-straße“, „-strasse“, „-str.“, „-gasse“, „-weg“, „-platz“ …), dazu die Namenszeile über der Straße und Blöcke unter „an folgende Adresse zugestellt:“ (seit v0.3.35),
     - Namen von Nachbarn, Empfängern und privaten Absendern.
 
     Technische Kopfzeilen und Anhänge entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus (Betreff mit „WG:“, „Fwd:“ oder „Fw:“ oder ein zitierter Kopfzeilenblock „Von: … Gesendet: …“), nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.

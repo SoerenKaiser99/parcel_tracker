@@ -1,0 +1,42 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the item, the seller and the numbers are invented
+From: "Amazon.de" <versandbestaetigung@amazon.de>
+To: max@example.org
+Subject: Deine Amazon.de-Bestellung mit "Beispiel-Felgenreiniger..." wurde
+ versandt!
+Date: Sat, 21 Sep 2024 06:36:57 +0000
+Message-ID: <fixture-174@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Amazon.de Musterstadt
+Bestellnummer: #999-0000174-0000174
+https://www.amazon.de/…
+___________________________________________________________________________
+
+Guten Tag,
+
+wir möchten dir hiermit mitteilen, dass beispielshop deine Bestellung verschickt hat.
+Deine Sendung befindet sich nun auf dem Versandweg; eine Änderung durch dich oder unseren Kundenservice ist nicht mehr möglich.
+
+Zustellung:
+Mittwoch, 25 September
+
+Verfolge deine(n) Artikel:https://www.amazon.de/…
+
+Die Sendung geht an:
+Max
+Musterstadt
+
+Gesamtbetrag der Bestellung: EUR 1,99
+
+Die Sendung wurde mit DHL_PAKET versandt. Wenn du diese Sendungen verfolgen möchtest, benutze bitte diese Paketverfolgungsnummern: 00340999999999990174
+
+============================================================================
+Bestellübersicht
+
+1 x Beispiel-Felgenreiniger 500 ml
+Verkauft von: beispielshop
+EUR 1,99
+Zustand: Neu
