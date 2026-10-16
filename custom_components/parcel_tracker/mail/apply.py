@@ -255,6 +255,12 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         else:
             eta = (None, None, None, None)
         delivered = update.status is ParcelStatus.DELIVERED
+        # Where a parcel ready for pickup waits: what this mail names, else (it is still
+        # there) what an earlier mail named. Any other status has no pickup point.
+        pickup = update.status is ParcelStatus.AWAITING_PICKUP
+        still = pickup and old is not None and old.status is ParcelStatus.AWAITING_PICKUP
+        pickup_point = update.pickup_point or (old.pickup_point if still else None)
+        pickup_until = update.pickup_until or (old.pickup_until if still else None)
         result = TrackingResult(
             status=update.status,
             status_text=text,
@@ -263,8 +269,8 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             eta_to=eta[2],
             eta_latest=eta[3],
             location=old.location if old else None,
-            pickup_point=None,
-            pickup_until=None,
+            pickup_point=pickup_point if pickup else None,
+            pickup_until=pickup_until if pickup else None,
             delivered_at=(update.delivered_at or update.sent_at) if delivered else None,
             events=events[:MAX_EVENTS],
         )

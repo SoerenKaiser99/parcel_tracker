@@ -1745,8 +1745,8 @@ GLS_SENDER = "no-reply@gls-pakete.de"
 KEEP = {
     GLS_SENDER,
     "bestellbestaetigung@amazon.de", "versandbestaetigung@amazon.de",
-    "shipment-tracking@amazon.de", "order-update@amazon.de", "noreply@dhl.de",
-    "pkginfo@ups.com", "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
+    "shipment-tracking@amazon.de", "order-update@amazon.de", "pickup-point@amazon.de",
+    "noreply@dhl.de", "pkginfo@ups.com", "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
 }
 ALI_DOMAIN = "aliexpress.com"
 

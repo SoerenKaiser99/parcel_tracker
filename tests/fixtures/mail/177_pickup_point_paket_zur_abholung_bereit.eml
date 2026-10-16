@@ -1,0 +1,32 @@
+X-Fixture: synthetic, in the style of an HTML-only Amazon pickup mail (issue 33); the
+ pickup point, the order number and the item are invented; the footer is cut
+From: "Amazon.de" <pickup-point@amazon.de>
+To: max@example.org
+Subject: =?UTF-8?Q?Paket_zur_Abholung_bereit:_Hermes_PaketShop_-_Beispielkiosk_Mu?=
+ =?UTF-8?Q?sterweg_1_HPS#909090_,_99999_Musterstadt_24._Oktober?=
+Date: Fri, 16 Oct 2026 07:12:44 +0000
+Message-ID: <fixture-177@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html>
+<html>
+<head><title>Amazon.de</title><style>td{font-family:Arial,sans-serif}</style></head>
+<body>
+<table role="presentation" width="100%">
+<tr><td><img src="https://m.media-amazon.com/images/G/03/logo.png" alt="Amazon.de"></td></tr>
+<tr><td><h2>Das Paket ist zur Abholung bereit</h2></td></tr>
+<tr><td><b>Abholung am 24. Oktober</b></td></tr>
+<tr><td>Hermes PaketShop - Beispielkiosk Musterweg 1 HPS#909090 , 99999</td></tr>
+<tr><td>Bestellnr.</td></tr>
+<tr><td>999-9999999-9999999</td></tr>
+<tr><td><a href="https://www.amazon.de/gp/your-account/ship-track">Paket nachverfolgen</a></td></tr>
+<tr><td><ul><li>* Beispiel Kaffeebohnen, 1KG</li></ul></td></tr>
+<tr><td>Menge: 1</td></tr>
+<tr><td>19.99 EUR</td></tr>
+<tr><td>Wenn du dein Paket nicht abholen kannst, wird es gegen eine vollständige Rückerstattung zurückgesandt.</td></tr>
+<tr><td>©2026 Amazon.com, Inc. oder Tochtergesellschaften. Alle Rechte vorbehalten.</td></tr>
+</table>
+</body>
+</html>

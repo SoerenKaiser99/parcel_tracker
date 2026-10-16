@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 15. Oktober 2026, Version 0.3.35. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 16. Oktober 2026, Version 0.3.36. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -45,6 +45,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **Nicht erkannte Mails erneut einlesen** | Liest der Import eine Mail aus `Paket-Tracker-Nicht-erkannt` nach einem Update noch einmal, wenn du sie ungelesen zurück in den gelesenen Ordner schiebst ([so geht's](hilfe.md#eine-mail-wird-nicht-erkannt))? Gilt für Mails, die ab v0.3.34 gelesen wurden. Neu seit v0.3.34 (Beitrag von benep). | im Forum |
 | **eBay: „Paket zugestellt“** | Steht die Bestellung nach der Mail „📦PAKET ZUGESTELLT: …“ auf „Zugestellt“, mit dem Artikel aus dem Betreff als Namen? Neu seit v0.3.35. | [Issue #32](https://github.com/SoerenKaiser99/parcel_tracker/issues/32) |
 | **DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“** | Steht das Paket mit dieser Mail auf „In Zustellung“, heute mit dem Zeitfenster aus dem Betreff? Neu seit v0.3.35. | [Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31) |
+| **Amazon: „Paket zur Abholung bereit“** | Steht die Bestellung nach der Mail von `pickup-point@amazon.de` auf „Abholbereit“, mit Abholort und letztem Abholtag auf der Karte und in der Benachrichtigung? Ist „Abholung am …“ in deiner Mail wirklich der letzte Abholtag? Gilt das auch für Amazon Locker und Counter? Neu seit v0.3.36. | [Issue #33](https://github.com/SoerenKaiser99/parcel_tracker/issues/33) |
 
 ### Karte, Benachrichtigungen, Automationen
 
@@ -69,7 +70,7 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 | **GLS** | im PaketShop abholbereit; Zustellung verschoben |
 | **Hermes** | im PaketShop abholbereit |
 | **UPS** | jede Mail hilft, bisher gibt es nur wenige Beispiele |
-| **Amazon** | Bestellung storniert; Mails von Amazon in Österreich; Mails von `pickup-point@amazon.de` („Das Paket ist zur Abholung bereit“, Amazon Locker, Counter oder Abholstation) |
+| **Amazon** | Bestellung storniert; Mails von Amazon in Österreich |
 | **AliExpress** | englische Mails; Mails, die bei dir unter „Nicht erkannt“ landen |
 | **Eventim** | Versandbenachrichtigungen und Bestellbestätigungen mit einer anderen Liefermethode als „Standardversand (Deutschland)“, z. B. Einschreiben oder Express; Mails von `bestellstatus@eventim.de`, die bei dir unter „Nicht erkannt“ landen |
 | **Österreichische Post, Schweizer Post** | Ankündigung, in Zustellung, zugestellt – damit diese Dienste überhaupt dazukommen können |

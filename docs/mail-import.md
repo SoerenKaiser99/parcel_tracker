@@ -94,6 +94,7 @@ Nimm diese Absender in die Filterregel auf:
 | `versandbestaetigung@amazon.de` | Amazon |
 | `shipment-tracking@amazon.de` | Amazon |
 | `order-update@amazon.de` | Amazon |
+| `pickup-point@amazon.de` | Amazon (Paket liegt zur Abholung bereit: Hermes PaketShop, Amazon Locker oder Counter) |
 | `noreply@dhl.de` | DHL |
 | `paketankuendigung@dhl.de` | DHL |
 | `zustellung@dhl.de` | DHL |
@@ -120,6 +121,7 @@ require ["copy"];
 if address :is "from" [
   "bestellbestaetigung@amazon.de", "versandbestaetigung@amazon.de",
   "shipment-tracking@amazon.de", "order-update@amazon.de",
+  "pickup-point@amazon.de",
   "noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de",
   "sendungsupdate@dhl.de",
   "noreply@service.dpd.de", "pkginfo@ups.com",
@@ -153,7 +155,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
@@ -212,6 +214,7 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
     - Der Status geht nur vorwärts: Eine ältere Mail setzt ein Paket nie zurück.
     - Eine Ausnahme ist die Mail „Versuchte Zustellung“ (niemand wurde angetroffen): Sie nimmt eine Bestellung von „In Zustellung“ zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag. Die Bestellung zählt dann nicht mehr als heute. Was schon zugestellt oder abholbereit ist, bleibt, wie es ist.
     - Gelesen werden auch die Mails im schlichten Layout mit „Bestellung #…“: „Ihr Paket mit … wird zugestellt“ (der Betreff nennt dort nur den Artikel) setzt „In Zustellung“, „Lieferungsaktualisierung: …“ lässt die Bestellung auf „Versendet“ und übernimmt den neuen Tag aus „Jetzt erwartet bis zum …“; nennt die Mail eine Verspätung, steht dazu der Text „Lieferung verspätet“. Den Namen nimmt die Bestellung aus der Zeile unter „Bestellung #…“, die so beginnt wie der Artikel im Betreff; nennt der Betreff keinen Artikel, kommt der Name aus den anderen Mails der Bestellung. Die Betreffs „Unterwegs zur Zustellung: …“ und „Zur Auslieferung: …“ zählen wie „In Zustellung“, „Zustellversuch: …“ wie „Versuchte Zustellung“. Die Versandmail „Deine Amazon.de-Bestellung mit … wurde versandt!“ setzt „Versendet“ samt Liefertag; nennt sie eine DHL-, UPS- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann dort abgefragt.
+    - „Paket zur Abholung bereit: …“ von `pickup-point@amazon.de` (seit v0.3.36) setzt die Bestellung auf „Abholbereit“: Das Paket liegt in einem Hermes PaketShop, einem Amazon Locker oder Counter oder einem anderen Abholshop. Gibt es die Bestellung noch nicht, legt die Mail sie an, benannt nach dem ersten Artikel der Mail (nie nach dem Preis). Den Abholort übernimmt sie nur mit Namen und Straße der Abholstelle („Hermes PaketShop - Beispielkiosk Musterweg 1“), ohne die interne Nummer des Shops („HPS#…“), Postleitzahl und Ort. Er steht auf der Karte, im Attribut `pickup_point` und in der Benachrichtigung. „Abholung am 24. Oktober“ wird der letzte Abholtag (Attribut `pickup_until`), in der Benachrichtigung steht dann „… – Hermes PaketShop - Beispielkiosk Muster… bis 24.10.“ (der Ort höchstens 40 Zeichen lang). Fragt die Integration die Bestellung über eine Sendungsnummer beim Paketdienst ab, bleiben Ort und Tag, solange das Paket dort abholbereit ist und der Paketdienst keine eigenen nennt; nennt die Mail ihren eigenen Tag, gilt er nicht als letzter Abholtag. Eine spätere „Zugestellt“-Mail von Amazon oder dem Paketdienst schließt die Bestellung wie gewohnt.
     - Kündigt DHL eine „Amazon Sendung“ an und passt genau ein offenes Amazon-Paket dazu (gleicher Liefertag), übernimmt das Amazon-Paket die DHL-Nummer und fragt ab dann DHL ab. Ist die Zuordnung nicht eindeutig, entsteht ein eigenes Paket „Amazon-Sendung (DHL)“.
 
 === "eBay"
@@ -501,8 +504,9 @@ weitere ...        ─┘
 
 Nützlich: die Logs mit `journalctl -u paket-mail.service -n 50`, sofort abholen mit `systemctl start paket-mail.service`.
 
-**Zwei Hinweise von uns:**
+**Drei Hinweise von uns:**
 
+- Die Absenderliste des Skripts enthält nicht jeden Absender, den Paket Tracker liest (es fehlt z. B. `pickup-point@amazon.de`): Ergänze die Liste `absender` in `/etc/imapfilter/config.lua` um alle Absender aus der Tabelle unter [Filterregel anlegen](#filterregel-anlegen).
 - Im Container spricht imapfilter mit dovecot unverschlüsselt über Port 143. Das ist in Ordnung, solange es dabei bleibt: Die Verbindung geht nur an `127.0.0.1` und verlässt den Container nicht. dovecot lauscht aber auf allen Netzwerkschnittstellen (`listen = *`) und nimmt nach diesem Skript auch Anmeldungen ohne Verschlüsselung an. Home Assistant deshalb immer über Port 993 mit „Verschlüsselt, Zertifikat nicht prüfen“ verbinden, nie über Port 143 „Unverschlüsselt“.
 - Der Container hält die Passwörter deiner echten Postfächer (Dateien unter `/etc/imapfilter/`, nur für root lesbar, Modus 600). Home Assistant kennt nur das lokale Passwort. Schütze den Container entsprechend: keine weiteren Dienste darin, Updates einspielen, Zugang und Sicherungen so behandeln wie die Zugangsdaten selbst.
 

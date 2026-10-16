@@ -25,12 +25,16 @@ from .base import (
 )
 
 SHIPPING_SENDER = "versandbestaetigung@amazon.de"
+# "Paket zur Abholung bereit: …": the order waits at a pickup point (a Hermes PaketShop, an
+# Amazon Locker or Counter, another partner shop). See ``parse_amazon_pickup``.
+PICKUP_SENDER = "pickup-point@amazon.de"
 AMAZON_SENDERS = frozenset(
     {
         "bestellbestaetigung@amazon.de",
         SHIPPING_SENDER,
         "shipment-tracking@amazon.de",
         "order-update@amazon.de",
+        PICKUP_SENDER,
     }
 )
 # Old "… wurde versandt!" subjects (before ~2021), in two wordings.
@@ -49,6 +53,7 @@ _ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
 # ("… ist nicht verspätet" is none.)
 _DELAY = "lieferungsaktualisierung"
 _DELAYED = re.compile(r"(?<!nicht )\b(?:verspät|verzöger)\w*", re.IGNORECASE)
+_PICKUP = "paket zur abholung bereit"
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
@@ -61,6 +66,7 @@ _PREFIXES = {
     "unterwegs zur zustellung": ParcelStatus.OUT_FOR_DELIVERY,
     "zur auslieferung": ParcelStatus.OUT_FOR_DELIVERY,
     "zustellung heute": ParcelStatus.OUT_FOR_DELIVERY,
+    _PICKUP: ParcelStatus.AWAITING_PICKUP,
     "geliefert": ParcelStatus.DELIVERED,
     "zugestellt": ParcelStatus.DELIVERED,
 }
@@ -115,6 +121,23 @@ _LEGACY_SHIPPED = re.compile(
     r"\b(?:versandt haben|verschickt hat|verschicken konnten)\b"
 )
 _HERMES_14 = re.compile(r"\d{14}")
+# The pickup mail: "Abholung am 24. Oktober", on the next line the pickup point ("Hermes
+# PaketShop - Beispielkiosk Musterweg 1 HPS#909090 , 99999"). The subject names the same
+# place behind "Paket zur Abholung bereit:", with the town and the day at its end.
+_PICKUP_DAY = re.compile(
+    r"^Abholung am\s+(?P<day>\d{1,2}\.\s*[A-Za-zä]+)\.?[ \t]*\n(?P<place>.*)$", re.MULTILINE
+)
+_DAY_TEXT = r"\d{1,2}\.\s*[A-Za-zä]+\.?"
+# (a subject without a place is nothing but the day)
+_SUBJECT_DAY = re.compile(rf"(?:^|\s+)(?P<day>{_DAY_TEXT})\s*$")
+# What follows the place's own name and street, and everything after it: the shop's
+# internal id ("HPS#909090"), the postcode (behind a comma, or before the town or at the
+# end of the line), or a day ("24. Oktober").
+_PLACE_END = re.compile(
+    r"(?:\s+[A-Za-z]{2,6}#|\s*,\s*\d{4,5}\b|\s+\d{4,5}(?:\s+[^\W\d_]|\s*$)"
+    rf"|\s+{_DAY_TEXT}\s*$).*$"
+)
+_QUANTITY_LINE = re.compile(r"^Menge:\s*\d+\s*$", re.MULTILINE)
 
 
 def order_number(order: str) -> str:
@@ -194,9 +217,87 @@ def _plain_title(subj: str, below: str) -> str | None:
     return None
 
 
+def _place(text: str) -> str | None:
+    """A pickup point's name and street: without the shop's id, postcode and town."""
+    place = _PLACE_END.sub("", text.strip()).strip(" ,;-")
+    if re.fullmatch(_DAY_TEXT, place):
+        return None  # only a day: no place
+    if not place or "@" in place or not re.search(r"[^\W\d_]{2}", place):
+        return None
+    return shorten(place)
+
+
+def _pickup_item(text: str, start: int, end: int) -> str | None:
+    """The first item of the order: a listed one ("* …"), else the line above its quantity
+    ("Menge: 1"). Never the price, which stands below the quantity."""
+    if item := _ITEM.search(text, start, end):
+        return item.group("title") or item.group("listed")
+    if quantity := _QUANTITY_LINE.search(text, start, end):
+        above = text[start : quantity.start()].strip().splitlines()
+        line = above[-1].strip() if above else ""
+        if line and not line.startswith(("Paket nachverfolgen", "http")):
+            return line
+    return None
+
+
+def parse_amazon_pickup(msg: EmailMessage) -> list[MailUpdate]:
+    """"Paket zur Abholung bereit: <place> <day>": the order waits at a pickup point.
+
+    The place is taken from the line below "Abholung am …" (else from the subject): its
+    name and street, without the shop's id, the postcode and the town. Nothing else of
+    the mail's text becomes the place, so a greeting with a name never does. The day is
+    the last day for the pickup; a day that is not after the mail's own only tells when
+    the parcel got there and is no last day. Its year is found like every Amazon day.
+    """
+    subj = subject(msg)
+    text = body_text(msg)
+    sent = sent_at(msg)
+    orders = list(_ORDER.finditer(text))
+    if not orders:
+        return []
+    named = subj.split(":", 1)[1].strip() if ":" in subj else ""
+    subject_day = _SUBJECT_DAY.search(named)
+    if subject_day:
+        named = named[: subject_day.start()]
+    line = _PICKUP_DAY.search(text)
+    in_subject = _place(named)
+    below = line.group("place") if line else ""
+    in_body = None if below.startswith(("Bestellnr", "Bestellung")) else _place(below)
+    # (the line below the day counts if the subject names no place, or the same one)
+    place = in_subject
+    if in_body and (
+        in_subject is None
+        or in_body.startswith(in_subject.rstrip("…"))
+        or in_subject.startswith(in_body)
+    ):
+        place = in_body
+    day = line.group("day") if line else subject_day.group("day") if subject_day else None
+    until = None
+    if day and (resolved := resolve_dates(day, sent.date())):
+        until = resolved[0] if resolved[0] > sent.date() else None
+    updates = []
+    for index, match in enumerate(orders):
+        end = orders[index + 1].start() if index + 1 < len(orders) else len(text)
+        item = _pickup_item(text, match.end(), end)
+        updates.append(
+            MailUpdate(
+                number=order_number(match.group(2)),
+                carrier="amazon",
+                status=ParcelStatus.AWAITING_PICKUP,
+                sent_at=sent,
+                title=shorten(item) if item else None,
+                pickup_point=place,
+                pickup_until=until,
+            )
+        )
+    return updates
+
+
 def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     """Parse a current-format Amazon mail; one update per order number."""
     subj = subject(msg)
+    if subj.lower().startswith(f"{_PICKUP}:"):
+        return parse_amazon_pickup(msg)
     text = body_text(msg)
     sent = sent_at(msg)
     status = subject_status(subj) or stage_status(text)

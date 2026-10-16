@@ -1099,6 +1099,19 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 eta_from=known.eta_from,
                 eta_to=known.eta_to,
             )
+        if (
+            result.status is ParcelStatus.AWAITING_PICKUP
+            and known is not None
+            and known.status is ParcelStatus.AWAITING_PICKUP
+        ):
+            # Still waiting at the pickup point: the place and the last day a mail or an
+            # earlier lookup named stay, as long as the carrier names none of its own
+            # (Hermes names neither; Amazon's pickup mail does). Any other status drops them.
+            result = replace(
+                result,
+                pickup_point=result.pickup_point or known.pickup_point,
+                pickup_until=result.pickup_until or known.pickup_until,
+            )
         # 17track only fills what the carrier left empty (place, day/window, history).
         result = with_track17(result, parcel.track17_result)
         if result.status is ParcelStatus.DELIVERED:

@@ -23,6 +23,7 @@ SENDERS = [
     "versandbestaetigung@amazon.de",
     "shipment-tracking@amazon.de",
     "order-update@amazon.de",
+    "pickup-point@amazon.de",
     "noreply@dhl.de",
     "paketankuendigung@dhl.de",
     "zustellung@dhl.de",
@@ -1233,10 +1234,8 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 15. Oktober 2026, Version 0.3.35." in text
+    assert "*Stand: 16. Oktober 2026, Version 0.3.36." in text
     _all_have(text, [
-        "`pickup-point@amazon.de` („Das Paket ist zur Abholung bereit“, Amazon Locker, Counter"
-        " oder Abholstation)",
         "**DHL mit API-Key: Verlauf ohne HTML**",
         "**DPD: die Mails nach der Ankündigung**",
         "**eBay: „Update zur Bestellung“ und „Zustellversuch“**",
@@ -1251,7 +1250,7 @@ def test_helping_page_is_at_this_version():
     assert "Zustellversuch" not in missing and "Lieferung verspätet" not in missing
     _all_have(missing, [
         "| **Hermes** | im PaketShop abholbereit |",
-        "| **Amazon** | Bestellung storniert; Mails von Amazon in Österreich; ",
+        "| **Amazon** | Bestellung storniert; Mails von Amazon in Österreich |",
         "**DPD Österreich**", "**DHL**", "**GLS**", "**UPS**", "**AliExpress**",
         "**Eventim**", "**Österreichische Post, Schweizer Post**",
     ])
@@ -1292,3 +1291,58 @@ def test_docs_explain_dpd_austrias_window_and_ebays_parcel_delivered():
     helping = (ROOT / "docs" / "hilfe.md").read_text(encoding="utf-8")
     assert "österreichischer oder Schweizer Postleitzahl (vier Ziffern)" in helping
     assert "„an folgende Adresse zugestellt:“ (seit v0.3.35)" in helping
+
+
+# ----- v0.3.36: Amazon's pickup mail ("Paket zur Abholung bereit", issue #33) -----
+def test_docs_explain_amazons_pickup_mail():
+    amazon = _tab(MAIL, "Amazon")
+    _all_have(amazon, [
+        "„Paket zur Abholung bereit: …“ von `pickup-point@amazon.de` (seit v0.3.36)",
+        "„Abholbereit“",
+        "ohne die interne Nummer des Shops („HPS#…“), Postleitzahl und Ort",
+        "`pickup_point`",
+        "`pickup_until`",
+        "nie nach dem Preis",
+    ])
+    senders = _section(MAIL, "Filterregel anlegen")
+    assert "| `pickup-point@amazon.de` | Amazon (Paket liegt zur Abholung bereit" in senders
+    privacy = _section(PRIVACY, "Was aus Mails übernommen wird – und was nie")
+    assert "Name und Straße der Abholstelle (ohne Postleitzahl, Ort" in privacy
+
+
+def test_helping_page_asks_to_confirm_amazons_pickup_mail():
+    text = TEXTS[HELPING]
+    _all_have(text, [
+        "**Amazon: „Paket zur Abholung bereit“**",
+        "[Issue #33](https://github.com/SoerenKaiser99/parcel_tracker/issues/33)",
+    ])
+    missing = _section(HELPING, "2. Beispielmails: Diese fehlen uns")
+    assert "pickup-point@amazon.de" not in missing
+
+
+def test_the_anonymiser_keeps_the_pickup_sender_in_fixture_mode():
+    script = (ROOT / "scripts" / "anonymize_mail.py").read_text(encoding="utf-8")
+    keep = script.split("KEEP = {")[1].split("}")[0]
+    assert '"pickup-point@amazon.de"' in keep
+
+
+def test_docs_say_the_notification_names_the_pickup_mails_place():
+    notify = TEXTS[NOTIFY]
+    assert "Ort der Filiale und letzter Abholtag stehen nur da, wenn der Paketdienst" not in notify
+    assert "Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder" in notify
+    amazon = _tab(MAIL, "Amazon")
+    assert "„… – Hermes PaketShop - Beispielkiosk Muster… bis 24.10.“" in amazon
+
+
+def test_community_setup_says_its_sender_list_is_not_complete():
+    section = _section(MAIL, "Beispiel aus der Community: dovecot und imapfilter im Container")
+    notes = section.split("**Drei Hinweise von uns:**")[1]
+    _all_have(notes, [
+        "nicht jeden Absender, den Paket Tracker liest",
+        "`pickup-point@amazon.de`",
+        "`/etc/imapfilter/config.lua`",
+        "[Filterregel anlegen](#filterregel-anlegen)",
+    ])
+    # The script itself is unchanged.
+    script = section.split('??? example "paket-postfach-setup.sh"')[1]
+    assert "pickup-point@amazon.de" not in script

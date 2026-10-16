@@ -45,6 +45,7 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 - ein auf 60 Zeichen gekürzter Artikeltitel,
 - der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
 - Status, Liefertag und Zeitfenster,
+- bei einem abholbereiten Paket aus der Amazon-Mail „Paket zur Abholung bereit“: Name und Straße der Abholstelle (ohne Postleitzahl, Ort und interne Nummer des Shops) und der letzte Abholtag,
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
 
@@ -69,9 +70,9 @@ Benachrichtigungen gehen an die gewählten Ziele und damit an deren Dienst (bei 
 - den Namen bzw. Artikeltitel des Pakets (ohne Namen die letzten vier Stellen der Nummer),
 - den Paketdienst,
 - den Status,
-- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Filiale.
+- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Abholstelle (bei der Amazon-Abholmail Name und Straße des Shops).
 
-**Nie enthalten:** der Zustell-Code, die vollständige Sendungsnummer, eine Adresse, ein Ablageort.
+**Nie enthalten:** der Zustell-Code, die vollständige Sendungsnummer, deine Adresse, ein Ablageort.
 
 Das Kennzeichen zum Ersetzen einer früheren Meldung (`data.tag`) ist ein Hash der Sendungsnummer, nie die Nummer selbst.
 

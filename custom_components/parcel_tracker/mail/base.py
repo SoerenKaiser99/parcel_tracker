@@ -69,6 +69,11 @@ class MailUpdate:
     # (``Parcel.assumed_delivered``): nobody saw it arrive, so nothing is pushed and it
     # never counts as delivered today. See ``apply._confirm``.
     confirmation: bool = False
+    # Where a parcel that is ready for pickup waits and the last day it may be picked up,
+    # as a shop's mail names them (Amazon "Paket zur Abholung bereit"): the place's own
+    # name and street, never a person, a postcode or the shop's internal id.
+    pickup_point: str | None = None
+    pickup_until: date | None = None
 
 
 @dataclass
