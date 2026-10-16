@@ -18,6 +18,7 @@ from urllib.parse import parse_qsl, urlsplit
 
 from ..models import ParcelStatus
 from .base import (
+    PROBLEM_TEXT,
     MailResult,
     MailUpdate,
     body_text,
@@ -97,9 +98,8 @@ _PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),
     "wurde zugestellt": (ParcelStatus.DELIVERED, None),
 }
-# "Lieferprobleme für Packstück <number>": it could not be delivered; what follows is told
-# by the next mail.
-PROBLEM_TEXT = "Lieferprobleme"
+# "Lieferprobleme für Packstück <number>": it could not be delivered ("konnte … nicht
+# zugestellt werden"); what follows is told by the next mail (see ``PROBLEM_TEXT``).
 # Mails that tell nothing about a parcel on its way: a note that there is news (the links
 # name the parcels), a coupon for a late delivery, returns and refunds.
 _NO_NEWS_SUBJECT = re.compile(
@@ -414,7 +414,9 @@ def _parcel_mail(
     an unknown format (AliExpress's own, Cainiao) is dropped: no order may wait for a
     carrier nobody can ask. Without an order in the links the mail is a carrier's mail
     about an AliExpress shipment: merged into the one order that fits, else a parcel of
-    its own; with an unknown number only the status is left, for the one order that fits.
+    its own; with an unknown number only the status is left, for the one order that fits,
+    and only "on the way": any other step would go to whatever order is the one on its way
+    (every mail of the last mile seen names its orders).
     "In delivery" is the day of the mail, "delivered" the time it was sent. A mail without
     an order names no day: it has to find its order by the status alone. ``postponed``: the
     mail may take its order back from "in Zustellung" (a failed delivery).
@@ -428,6 +430,8 @@ def _parcel_mail(
     carrier = carrier_for(number)
     orders = _link_orders(msg)
     names = _item_names(_lines(body_text(msg)))
+    if not orders and not carrier and (status is not _ON_WAY or postponed):
+        return MailResult()
     if not orders:
         when.pop("eta_date", None)
         return MailResult(

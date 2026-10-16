@@ -21,6 +21,7 @@ from custom_components.parcel_tracker.mail.aliexpress import (
     CUSTOMS_TEXT,
     HANDED_OVER_TEXT,
     PARCEL_NAME,
+    PROBLEM_TEXT,
     order_number,
     parse_aliexpress,
 )
@@ -294,7 +295,7 @@ def _parcel(subject: str) -> EmailMessage:
         (f"Paket {DHL} wird zugestellt", ParcelStatus.OUT_FOR_DELIVERY, None),
         (f"Paket {DHL} wurde zugestellt", ParcelStatus.DELIVERED, None),
         (f"Paket {DHL} ist versandbereit", ParcelStatus.PRE_TRANSIT, "Versandbereit"),
-        (f"Lieferprobleme für Packstück {DHL}", ParcelStatus.IN_TRANSIT, "Lieferprobleme"),
+        (f"Lieferprobleme für Packstück {DHL}", ParcelStatus.IN_TRANSIT, PROBLEM_TEXT),
     ],
 )
 def test_steps_of_a_parcel_on_the_last_mile(subject, status, words):
@@ -840,3 +841,55 @@ def test_last_mile_mail_without_an_order_names_no_day():
     [u] = parse_mail(_msg(f"Paket {DHL} wird zugestellt")).updates
     assert (u.number, u.carrier, u.status) == (DHL, "dhl", ParcelStatus.OUT_FOR_DELIVERY)
     assert u.eta_date is None
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Paket LP00999999990904 wird zugestellt",
+        "Paket LP00999999990904 wurde zugestellt",
+        "Paket LP00999999990904 ist versandbereit",
+        "Lieferprobleme für Packstück LP00999999990904",
+    ],
+)
+def test_last_mile_mail_without_an_order_and_an_unknown_number_sets_nothing(subject):
+    # Every such mail seen names its orders in the links. Without them and without a
+    # carrier to ask, "in Zustellung" or "zugestellt" would go to whatever order is the
+    # one on its way, on no day at all (and "zugestellt" is pushed).
+    result = parse_mail(_msg(subject))
+    assert not result.ignored and result.updates == []
+
+
+def _at(msg: EmailMessage, when: str) -> EmailMessage:
+    msg.replace_header("Date", when)
+    return msg
+
+
+def test_ready_for_shipping_read_late_does_not_take_the_order_back():
+    parcels: dict = {}
+    _apply(parcels, _parcel("Bestellung 9999999999990901: Bestellung versandt"))
+    _apply(parcels, _at(_parcel(f"Paket {DHL} ist versandbereit"),
+                        "Tue, 06 Oct 2026 08:00:00 +0200"))
+    assert parcels[ORDER].status is ParcelStatus.IN_TRANSIT
+
+
+def test_delivery_problem_is_one_moment():
+    # The next mail that only says "on the way" drops the words, like "Zustellung versucht".
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Lieferprobleme für Packstück {DHL}"))
+    assert parcels[ORDER].result.status_text == PROBLEM_TEXT
+    _apply(parcels, _at(_parcel("Bestellung 9999999999990901: Neuer Lieferstatus"),
+                        "Thu, 08 Oct 2026 09:00:00 +0200"))
+    assert parcels[ORDER].result.status_text == "Versendet"
+
+
+def test_delivered_after_a_delivery_problem():
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Paket {DHL} wird zugestellt"))
+    _apply(parcels, _at(_parcel(f"Lieferprobleme für Packstück {DHL}"),
+                        "Wed, 07 Oct 2026 13:00:00 +0200"))
+    _apply(parcels, _at(_parcel(f"Paket {DHL} wurde zugestellt"),
+                        "Thu, 08 Oct 2026 12:00:00 +0200"))
+    order = parcels[ORDER]
+    assert order.status is ParcelStatus.DELIVERED
+    assert order.result.delivered_at == datetime(2026, 10, 8, 12, 0, tzinfo=BERLIN)

@@ -29,9 +29,11 @@ _SPACES = re.compile("[ \t   ]+")
 _FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
 _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
 # Words a shop's mail about a postponed delivery brings (``MailUpdate.status_text``): nobody
-# was met, or it takes longer. They tell one moment, see ``apply._POSTPONED_TEXTS``.
+# was met, it takes longer, or it could not be delivered for a reason not told (AliExpress
+# "Lieferprobleme für Packstück …"). They tell one moment, see ``apply._POSTPONED_TEXTS``.
 ATTEMPT_TEXT = "Zustellung versucht"
 DELAY_TEXT = "Lieferung verspätet"
+PROBLEM_TEXT = "Lieferprobleme"
 
 
 @dataclass
