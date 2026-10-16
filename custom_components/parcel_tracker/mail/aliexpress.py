@@ -13,7 +13,6 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 from email.message import EmailMessage
-from html.parser import HTMLParser
 from urllib.parse import parse_qsl, urlsplit
 
 from ..models import ParcelStatus
@@ -22,6 +21,7 @@ from .base import (
     MailUpdate,
     body_text,
     carrier_for,
+    part_links,
     sent_at,
     shorten,
     subject,
@@ -152,7 +152,6 @@ _TRACKING = re.compile(r"Sendungsverfolgungsnummer lautet ([0-9A-Z]{8,30})\b")
 # parameters of a link to AliExpress itself.
 _LINK_HOST = "aliexpress.com"
 _LINK_PARAMS = frozenset({"tradeorderid", "o_ids", "orderid"})
-_PLAIN_LINK = re.compile(r"https?://[^\s<>\"'\[\]()]+")
 # More orders than this in one mail are no parcel's orders: the mail is told like one
 # that names none.
 MAX_LINK_ORDERS = 20
@@ -325,35 +324,6 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
     )
 
 
-class _Hrefs(HTMLParser):
-    """The targets of the links (``<a href>``) of an HTML text."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.found: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag == "a":
-            self.found += [value for name, value in attrs if name == "href" and value]
-
-
-def _links(part: EmailMessage) -> list[str]:
-    """The links of one text part: ``href`` of an HTML part, the addresses in a text."""
-    try:
-        content = part.get_content()
-    except (LookupError, ValueError):
-        content = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
-    if part.get_content_type() == "text/plain":
-        return _PLAIN_LINK.findall(content)
-    parser = _Hrefs()
-    try:
-        parser.feed(content)
-        parser.close()
-    except (AssertionError, ValueError):  # broken markup: what was read so far
-        pass
-    return parser.found
-
-
 def _link_orders(msg: EmailMessage) -> list[str]:
     """The order numbers the links of a mail name, first occurrence first.
 
@@ -367,7 +337,7 @@ def _link_orders(msg: EmailMessage) -> list[str]:
     for part in msg.walk():
         if part.get_content_type() not in ("text/plain", "text/html"):
             continue
-        for link in _links(part):
+        for link in part_links(part):
             try:
                 url = urlsplit(link.strip())
                 host = (url.hostname or "").lower()

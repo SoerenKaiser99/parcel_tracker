@@ -145,6 +145,7 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
         Parcel(
             "AMZ99991565342587125", "amazon", "mail", None, now, now,
             delivery_code="999999", delivery_code_day=today - timedelta(days=1),
+            shipment_ids=["TAbCdE9fG", "UhIjKl9mN"],
         )
     )
     coordinator.async_set_updated_data(dict(coordinator.store.parcels))
@@ -156,8 +157,11 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     assert state.attributes["tracking_ref"] == "JJD000012978217606560"
     assert state.attributes["tracking_carrier"] == "dhl"
     assert state.attributes["delivery_code"] == "123456"
+    assert state.attributes["amazon_shipment"] is None
     expired = hass.states.get("sensor.paket_amz99991565342587125")
     assert expired.attributes["delivery_code"] is None
+    # The newest of Amazon's shipments of the order.
+    assert expired.attributes["amazon_shipment"] == "UhIjKl9mN"
     assert "delivery_code" in ParcelSensor._unrecorded_attributes
 
 
