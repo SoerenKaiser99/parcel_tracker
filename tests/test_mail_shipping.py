@@ -798,7 +798,9 @@ def test_dhl_express_reads_only_its_three_sentences(told):
 
 def test_dhl_express_long_line_is_read_in_linear_time():
     start = "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON "
-    for gap in ("wurde " + "x " * 150_000, "wird " + "x" * 300_000, start * 5_000):
+    # (blank lines and white space of any kind: the text part keeps them, they are no gap)
+    for gap in ("wurde " + "x " * 150_000, "wird " + "x" * 300_000, start * 5_000,
+                "\n" * 300_000, " \n\t\xa0" * 75_000):
         begin = time.perf_counter()
         assert parse_mail(_express(start + gap)).updates == []
         assert time.perf_counter() - begin < 5

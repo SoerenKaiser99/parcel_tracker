@@ -236,20 +236,22 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
 # zugestellt." The subject is always "DHL On Demand Delivery".
 # Only these three sentences, word for word up to the full stop: "wurde … nicht zugestellt",
 # "wird heute nicht mehr ausgeliefert" or a Service Point never fit, and with no open gap a
-# long line is read in linear time. Between the words any white space (a wrapped line).
-# The shipper ends before the sentence goes on: no negation fits in between.
-_EXPRESS_DATE = r"\d{1,2}\.?\s+[A-Za-zÄä]{3}\w{0,10}\.?\s+\d{4}"
+# long line is read in linear time. The text is folded into one line first (a wrapped
+# line, blank lines): between the words is exactly one space, so no run of white space can
+# be split between a gap and the shipper. The shipper ends before the sentence goes on: no
+# negation fits in between.
+_EXPRESS_DATE = r"\d{1,2}\.? [A-Za-zÄä]{3}\w{0,10}\.? \d{4}"
 _EXPRESS = re.compile(
-    r"Ihre\s+DHL\s+Express\s+Sendung\s+mit\s+(?:der\s+)?Sendungsn(?:r\.|ummer)\s+"
+    r"Ihre DHL Express Sendung mit (?:der )?Sendungsn(?:r\.|ummer) "
     r"(?P<number>\d{10})(?!\d)"
-    r"(?:\s+von\s+(?P<shipper>(?:(?!\s(?:ist|wird|wurde)\s)[\s\S]){1,150}?))?\s+"
-    r"(?:ist\s+unterwegs"
-    r"|wird\s+voraussichtlich\s+(?P<soon>\w{1,20})(?:\s+bis\s+Tagesende)?\s+ausgeliefert"
-    rf"|wurde\s+(?:wie\s+gewünscht\s+)?am\s+(?P<day>{_EXPRESS_DATE})"
-    r"\s+um\s+(?P<hour>\d{1,2}):(?P<minute>\d{2})\s+zugestellt)\."
+    r"(?: von (?P<shipper>(?:(?! (?:ist|wird|wurde) ).){1,150}?))? "
+    r"(?:ist unterwegs"
+    r"|wird voraussichtlich (?P<soon>\w{1,20})(?: bis Tagesende)? ausgeliefert"
+    rf"|wurde (?:wie gewünscht )?am (?P<day>{_EXPRESS_DATE})"
+    r" um (?P<hour>\d{1,2}):(?P<minute>\d{2}) zugestellt)\."
 )
-_EXPRESS_DAY = re.compile(rf"voraussichtliche\s+Zustelldatum\s+({_EXPRESS_DATE})")
-_EXPRESS_DATE_PARTS = re.compile(r"(\d{1,2})\.?\s+([A-Za-zÄä]{3})\w*\.?\s+(\d{4})")
+_EXPRESS_DAY = re.compile(rf"voraussichtliche Zustelldatum ({_EXPRESS_DATE})")
+_EXPRESS_DATE_PARTS = re.compile(r"(\d{1,2})\.? ([A-Za-zÄä]{3})\w*\.? (\d{4})")
 
 
 def _express_day(told: str) -> date | None:
@@ -269,14 +271,14 @@ def parse_dhl_express_mail(msg: EmailMessage) -> list[MailUpdate]:
     parcel through the naming gate. Any other sentence is no Express mail we know. A later
     day than the mail's own takes back an earlier "HEUTE" (``MailUpdate.postponed``).
     """
-    text = body_text(msg)
+    text = " ".join(body_text(msg).split())
     if not (told := _EXPRESS.search(text)):
         # (like DHL's own mails: a text part may be empty while the HTML part tells it)
-        text = html_body_text(msg)
+        text = " ".join(html_body_text(msg).split())
         if not (told := _EXPRESS.search(text)):
             return []
     sent = sent_at(msg)
-    shipper = " ".join((told.group("shipper") or "").split())
+    shipper = told.group("shipper") or ""
     shop_name = shop_of(shipper)
     update = MailUpdate(
         told.group("number"), "dhl", ParcelStatus.IN_TRANSIT, sent,
