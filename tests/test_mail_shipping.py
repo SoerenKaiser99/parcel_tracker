@@ -1,3 +1,4 @@
+import time
 from datetime import date, datetime, timedelta
 from email import policy
 from email.message import EmailMessage
@@ -719,6 +720,28 @@ def test_dhl_express_delivery_on_another_day_is_not_in_delivery_today():
                    "voraussichtlich MORGEN bis Tagesende ausgeliefert.")
     [u] = parse_mail(msg).updates
     assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, None)
+
+
+@pytest.mark.parametrize("told", [
+    "wurde heute leider nicht zugestellt.",
+    "wurde am 11 Jun 2025 um 15:45 nicht zugestellt.",
+    "wird heute leider nicht mehr ausgeliefert.",
+    "wird voraussichtlich HEUTE nicht mehr ausgeliefert.",
+    "wurde an den DHL Service Point Musterstadt zugestellt und liegt zur Abholung bereit.",
+    "wurde am 11 Jun 2025 um 15:45 an den DHL Service Point zugestellt.",
+    "ist nicht unterwegs.",
+])
+def test_dhl_express_reads_only_its_three_sentences(told):
+    msg = _express(f"Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON {told}")
+    assert parse_mail(msg).updates == [], told
+
+
+def test_dhl_express_long_line_is_read_in_linear_time():
+    start = "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON "
+    for gap in ("wurde " + "x " * 150_000, "wird " + "x" * 300_000, start * 5_000):
+        begin = time.perf_counter()
+        assert parse_mail(_express(start + gap)).updates == []
+        assert time.perf_counter() - begin < 5
 
 
 def test_dhl_express_sender_is_known_so_a_forward_is_read_as_the_original():

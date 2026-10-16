@@ -231,14 +231,17 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
 # voraussichtlich HEUTE bis Tagesende ausgeliefert." / "Ihre DHL Express Sendung mit der
 # Sendungsnummer 9999990166 von AMAZON wurde wie gewünscht am 11 Jun 2025 um 15:45
 # zugestellt." The subject is always "DHL On Demand Delivery".
+# Only these three sentences, word for word up to the full stop: "wurde … nicht zugestellt",
+# "wird heute nicht mehr ausgeliefert" or a Service Point never fit, and with no open gap a
+# long line is read in linear time.
 _EXPRESS = re.compile(
     r"Ihre DHL Express Sendung mit (?:der )?Sendungsn(?:r\.|ummer) (?P<number>\d{10})(?!\d)"
-    r"(?: von (?P<shipper>\S.*?))? (?P<told>ist unterwegs|wird\b.*?\bausgeliefert"
-    r"|wurde\b.*?\bzugestellt)\b"
+    r"(?: von (?P<shipper>\S[^\n]{0,60}?))? (?:(?P<way>ist unterwegs)"
+    r"|wird voraussichtlich (?P<soon>\w{1,20})(?: bis Tagesende)? ausgeliefert"
+    r"|wurde (?:wie gewünscht )?am (?P<day>\d{1,2} [A-Za-zä]{3}\w{0,10} \d{4})"
+    r" um (?P<hour>\d{1,2}):(?P<minute>\d{2}) zugestellt)\."
 )
 _EXPRESS_DAY = re.compile(r"voraussichtliche Zustelldatum (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4})")
-_EXPRESS_TIME = re.compile(r"\bam (\d{1,2}) ([A-Za-zä]{3})\w* (\d{4}) um (\d{1,2}):(\d{2})\b")
-_EXPRESS_TODAY = re.compile(r"\bheute\b", re.IGNORECASE)
 
 
 def _express_day(day: str, month: str, year: str) -> date | None:
@@ -252,9 +255,9 @@ def _express_day(day: str, month: str, year: str) -> date | None:
 def parse_dhl_express_mail(msg: EmailMessage) -> list[MailUpdate]:
     """DHL Express ("On Demand Delivery", from dhl.com).
 
-    The sentence about the shipment tells the status ("ist unterwegs", "wird … HEUTE …
-    ausgeliefert", "wurde … zugestellt" with day and time), the shipper names the parcel
-    through the naming gate.
+    The sentence about the shipment tells the status ("ist unterwegs", "wird voraussichtlich
+    HEUTE … ausgeliefert", "wurde … am <day> um <time> zugestellt"), the shipper names the
+    parcel through the naming gate. Any other sentence is no Express mail we know.
     """
     text = body_text(msg)
     sent = sent_at(msg)
@@ -268,16 +271,16 @@ def parse_dhl_express_mail(msg: EmailMessage) -> list[MailUpdate]:
         title=AMAZON_DHL_NAME if shop_name == "amazon" else company_name(shipper),
         shop=shop_name,
     )
-    words = told.group("told")
-    if words.startswith("wurde"):
+    if told.group("day"):
         update.status, update.delivered_at = ParcelStatus.DELIVERED, sent
-        when = _EXPRESS_TIME.search(words)
-        day = _express_day(*when.groups()[:3]) if when else None
-        if day and int(when.group(4)) < 24 and int(when.group(5)) < 60:
-            update.delivered_at = at(day, int(when.group(4)), int(when.group(5)))
-    elif words.startswith("wird"):
+        of_month, month, year = told.group("day").split()
+        day = _express_day(of_month, month[:3], year)
+        hour, minute = int(told.group("hour")), int(told.group("minute"))
+        if day and hour < 24 and minute < 60:
+            update.delivered_at = at(day, hour, minute)
+    elif told.group("soon"):
         # (only "heute" is the day of the mail; any other day stays "on its way")
-        if _EXPRESS_TODAY.search(words):
+        if told.group("soon").lower() == "heute":
             update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
     elif day := _EXPRESS_DAY.search(text):
         update.eta_date = _express_day(*day.groups())
