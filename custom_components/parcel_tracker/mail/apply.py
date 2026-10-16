@@ -385,6 +385,19 @@ def _take_shop_facts(
     return changed
 
 
+def _remember_shipment(parcel: Parcel, update: MailUpdate) -> None:
+    """Keep Amazon's id of the shipment a mail names with the order it went to.
+
+    Kept for the link to Amazon's tracking page (``links.tracking_url``), never told: no
+    change of the order, no news. Nothing for an order the user marked as received, like
+    ``_take_shop_facts``.
+    """
+    if parcel.manual_delivered:
+        return
+    if update.shipment_id and update.shipment_id not in parcel.shipment_ids:
+        parcel.shipment_ids.append(update.shipment_id)
+
+
 def _further_parcel(
     parcels: dict[str, Parcel], order: Parcel, update: MailUpdate, now: datetime
 ) -> None:
@@ -438,6 +451,7 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
         target = Parcel(number, update.carrier, "mail", name, now, now, mail_title=update.title)
         parcels[number] = target
         _take_shop_facts(parcels, target, update, now)
+        _remember_shipment(target, update)
         _forward(target, update, now)
         return Change(target, None, True)
     if target.mail_title is None and update.title:
@@ -446,6 +460,7 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
     old = target.status
     own = parcels.get(update.tracking_ref) if update.tracking_ref else None
     facts = _take_shop_facts(parcels, target, update, now)
+    _remember_shipment(target, update)
     # A carrier's parcel of that number was folded into the order just now. If it was
     # delivered, its delivery was announced (``_delivery_told``) and nothing about it
     # waits to be announced, the box's delivery is told: known from what is stored, so

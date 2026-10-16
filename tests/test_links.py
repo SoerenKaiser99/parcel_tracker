@@ -78,6 +78,45 @@ def test_a_shop_order_with_a_gls_number_links_with_eleven_digits():
     assert tracking_url(order) == "https://www.gls-pakete.de/sendungsverfolgung?match=99999999901"
 
 
+AMAZON_URL = (
+    "https://www.amazon.de/progress-tracker/package?orderId=999-9156534-2587125"
+    "&packageIndex=0&shipmentId="
+)
+
+
+def test_an_amazon_order_links_to_amazons_page_of_its_newest_shipment():
+    order = _parcel("AMZ99991565342587125", "amazon", shipment_ids=["TAbCdE9fG", "UhIjKl9mN"])
+    assert tracking_url(order) == AMAZON_URL + "UhIjKl9mN"
+
+
+def test_a_further_shipment_of_an_amazon_order_links_with_the_order_as_well():
+    order = _parcel("AMZ99991565342587125P2", "amazon", shipment_ids=["TAbCdE9fG"])
+    assert tracking_url(order) == AMAZON_URL + "TAbCdE9fG"
+
+
+def test_the_carriers_page_comes_before_amazons():
+    order = _parcel(
+        "AMZ99991565342587125",
+        "amazon",
+        tracking_ref=DHL,
+        tracking_carrier="dhl",
+        shipment_ids=["TAbCdE9fG"],
+    )
+    assert tracking_url(order) == DHL_URL
+
+
+def test_amazons_page_stands_in_for_a_carrier_without_a_page():
+    order = _parcel(
+        "AMZ99991565342587125", "amazon", tracking_ref=DHL, shipment_ids=["TAbCdE9fG"]
+    )
+    assert tracking_url(order) == AMAZON_URL + "TAbCdE9fG"
+
+
+def test_the_shipment_id_is_url_encoded():
+    order = _parcel("AMZ99991565342587125", "amazon", shipment_ids=["T9&x=1#<b>"])
+    assert tracking_url(order) == AMAZON_URL + "T9%26x%3D1%23%3Cb%3E"
+
+
 @pytest.mark.parametrize(
     "parcel",
     [
@@ -89,6 +128,10 @@ def test_a_shop_order_with_a_gls_number_links_with_eleven_digits():
         _parcel("AMZ99991565342587125", "amazon", tracking_ref=DHL),
         _parcel("AMZ99991565342587125", "amazon", tracking_ref=DHL, tracking_carrier="other"),
         _parcel("AMZ99991565342587125", "amazon", tracking_ref=DHL, tracking_carrier="amazon"),
+        # Amazon's page only for an Amazon order with a shipment id, named as Amazon names it.
+        _parcel("AMZ9999156534258712", "amazon", shipment_ids=["TAbCdE9fG"]),
+        _parcel("EBAY990000000001", "ebay", shipment_ids=["TAbCdE9fG"]),
+        _parcel("999999999901", "fedex", shipment_ids=["TAbCdE9fG"]),
         # 17track only, also when 17track recognised one of our carriers.
         _parcel("999999999901", "other"),
         _parcel("999999999901", "other", track17=True, track17_carrier=101070),
