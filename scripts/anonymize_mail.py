@@ -339,7 +339,7 @@ def _evt_known(line):
 _T_USAGE = (
     'usage: anonymize_mail.py <Datei.eml | Ordner> [--zip] [--out ORDNER] [--ohne-angaben]\n'
     '           [--name "Vorname Nachname"] [--street "Straße Hausnummer"] [--postcode PLZ]\n'
-    '           [--city ORT] [--phone TELEFON] [--email MAILADRESSE]\n'
+    '           [--city ORT] [--phone TELEFON] [--email MAILADRESSE] [--salt DATEI]\n'
     '       anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME'
     ' [MAILDOMAIN ...]'
 )
@@ -356,12 +356,21 @@ Macht aus gespeicherten Paketmails (.eml) anonymisierte Beispielmails für ein G
   --ohne-angaben        ausdrücklich ohne eigene Angaben arbeiten: Das Skript fragt nicht
                         und bereinigt nur allgemein. Namen und Orte können dann stehen
                         bleiben. Ohne diese Option braucht das Skript mindestens eine Angabe.
+  --salt DATEI          ein eigenes Geheimnis aus DATEI (mindestens 16 Zeichen): Erfundene
+                        Nummern und Dateinamen hängen dann nur an der Mail, nicht an ihrer
+                        Stelle im Lauf. Eine Mail ergibt so in jedem Lauf dieselbe Datei,
+                        solange das Skript aus den anderen Mails nichts Neues lernt (bei
+                        Eventim zählen Tag und Bestellnummer weiter die Mails des Laufs). Sie
+                        heißt <Datum>_<Absender>_<Kennung>.eml, und im Zielordner wird nichts
+                        gelöscht, nur überschrieben. Die DATEI nicht weitergeben: Mit ihr
+                        lassen sich die erfundenen Nummern zurückrechnen.
 
 Ersetzt werden außerdem alle Mail-Adressen außer dem Absender, Telefonnummern, Links (nur
 der Servername bleibt), Sendungs-, Bestell- und andere lange Nummern (gleiche Form, erfundene
 Ziffern), Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort sowie Namen von
 Nachbarn, Empfängern und privaten Absendern. Technische Kopfzeilen und Anhänge entfallen.
-Frühere Ergebnisse im Zielordner (NNN_*.eml des Skripts und das ZIP) werden vorher gelöscht.
+Frühere Ergebnisse im Zielordner (NNN_*.eml des Skripts und das ZIP) werden vorher gelöscht
+(nicht mit --salt).
 Das Skript läuft nur lokal und baut keine Netzwerkverbindung auf.
 
 Die letzte Zeile der Aufruf-Übersicht ist der Entwickler-Aufruf für Test-Fixtures.
@@ -375,6 +384,7 @@ _T_OPTIONS = {
     "email": "Mail-Adresse",
 }
 _T_BARE = "--ohne-angaben"
+_T_SALT = 16  # characters a salt file needs at least
 _T_ZIP = "paket-tracker-beispiele.zip"
 _T_MAIL = "max@example.org"
 _T_PHONE = "+49 000 0000000"
@@ -715,9 +725,10 @@ class _TUsage(Exception):
 
 
 def _t_parse(args):
-    """(paths, out dir or None, zip?, help?, without values?, {option: [values]})."""
+    """(paths, out dir or None, zip?, help?, without values?, salt file or None,
+    {option: [values]})."""
     paths, out, pack, usage, values = [], None, False, False, {key: [] for key in _T_OPTIONS}
-    bare, i = False, 0
+    bare, salt, i = False, None, 0
     while i < len(args):
         arg = args[i]
         i += 1
@@ -735,7 +746,7 @@ def _t_parse(args):
             pack = True
         elif name == _T_BARE and not equals:
             bare = True
-        elif name.startswith("--") and (key == "out" or key in _T_OPTIONS):
+        elif name.startswith("--") and (key in ("out", "salt") or key in _T_OPTIONS):
             if not equals:
                 if i >= len(args) or args[i].startswith("--"):
                     raise _TUsage(f"Option {name} braucht einen Wert.")
@@ -743,11 +754,13 @@ def _t_parse(args):
                 i += 1
             if key == "out":
                 out = value
+            elif key == "salt":
+                salt = value
             else:
                 values[key].extend(value.split(";"))
         else:
             raise _TUsage(f"Unbekannte Option {name}")
-    return paths, out, pack, usage, bare, values
+    return paths, out, pack, usage, bare, salt, values
 
 
 def _t_variants(value, gap=r"[\s._-]*"):
@@ -929,14 +942,17 @@ class _TScrubber:
     drop-off places), the second pass replaces these in every mail of the run.
     """
 
-    def __init__(self, values):
+    def __init__(self, values, salt=None):
         self.rules, self.short, self.avoid = _t_given(values)
         self.learned = {}  # text found in one mail -> its replacement in every mail
         self.words = {}  # single word of a recipient's name (lower case) -> replacement
         self.streets, self.postcodes, self.cities = set(), set(), set()
         self._learning = False
         self._learnt = None  # compiled rules of what was learnt
-        self._salt = secrets.token_hex(16)
+        # The tester's own salt invents the same numbers in every run; without a secret an
+        # invented number could be traced back by trying.
+        self.fixed = salt is not None
+        self._salt = secrets.token_hex(16) if salt is None else salt
         self._runs = {}
         # what must not be readable in a result: every value and every part of a name
         self._check = {v.casefold() for key in values for v in values[key] if len(v) >= 3}
@@ -1131,6 +1147,15 @@ class _TScrubber:
         return (match.group(1) if match.re is _T_PLACE_NEXT else "") + "Ablageort: Garage"
 
     # ----- numbers, links -----
+    def label(self, msg, number):
+        """What stands for a mail in its file name, Message-ID and MIME boundary: its number in
+        the run, or with the tester's salt a hash of the mail (of its Message-ID if it has
+        one) that every run gives again."""
+        if not self.fixed:
+            return f"{number:03d}"
+        source = _t_header(msg, "Message-ID").encode() or bytes(msg)
+        return hashlib.sha256(self._salt.encode() + b"\0" + source).hexdigest()[:12]
+
     def _run(self, run):
         """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays."""
         if run not in self._runs:
@@ -1483,7 +1508,7 @@ def _t_eventim(text, order_mail, count):
 
 
 def _t_build(msg, number, scrubber):
-    """(anonymised mail, domain for the file name, private sender?, value left?)."""
+    """(anonymised mail, file name, private sender?, value left?)."""
     display, address = _t_sender(msg)
     plain, markup, has_plain, has_html = _t_texts(msg)
     raw_subject = _t_header(msg, "Subject")
@@ -1533,15 +1558,28 @@ def _t_build(msg, number, scrubber):
         out["Date"] = evt_date(number)  # (the real one tells the day of the order)
     elif _t_header(msg, "Date"):
         _t_set(out, "Date", _t_header(msg, "Date"))
-    out["Message-ID"] = f"<beispiel-{number:03d}@example.org>"
+    label = scrubber.label(msg, number)
+    out["Message-ID"] = f"<beispiel-{label}@example.org>"
     plain, markup = scrubber.scrub(plain, keep), scrubber.scrub(markup, keep)
     if has_plain or not has_html:
         _t_body(out, plain if plain.endswith("\n") or not plain else plain + "\n", "plain")
     if has_html:
         _t_body(out, as_html(markup), "html", alternative=has_plain)
+    if scrubber.fixed and out.is_multipart():
+        out.set_boundary(f"===============beispiel-{label}==")  # else a random one
     domain = re.sub(r"[^a-z0-9.-]", "", address.rsplit("@", 1)[-1])
+    domain = "privat" if private else domain or "unbekannt"
+    name = f"{_t_day(out)}_{domain}_{label}" if scrubber.fixed else f"{label}_{domain}"
     left = scrubber.left(f"{out['From']}\n{subject}\n{plain}\n{markup}")
-    return out, "privat" if private else domain or "unbekannt", private, left
+    return out, f"{name}.eml", private, left
+
+
+def _t_day(out):
+    """The day of the Date header of a result, for its file name."""
+    try:
+        return email.utils.parsedate_to_datetime(str(out["Date"])).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, IndexError):
+        return "ohne-datum"
 
 
 def _t_terminal():
@@ -1607,14 +1645,28 @@ def _t_clear(out_dir):
                 os.remove(path)
 
 
+def _t_salt(path):
+    """The salt in the file a tester gave: its text without the whitespace around it."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            salt = handle.read().strip()
+    except (OSError, UnicodeDecodeError):
+        raise _TUsage("Die Datei zu --salt lässt sich nicht lesen.") from None
+    if len(salt) < _T_SALT:
+        raise _TUsage(f"In der Datei zu --salt müssen mindestens {_T_SALT} Zeichen stehen.")
+    return salt
+
+
 def _t_run(args):
-    paths, out_dir, pack, usage, bare, values = _t_parse(args)
+    paths, out_dir, pack, usage, bare, salt, values = _t_parse(args)
     if usage:
         print(_T_USAGE + "\n" + _T_HELP)
         return 0
     if not paths:
         raise _TUsage("Datei oder Ordner fehlt.")
     files = _t_files(paths)
+    if salt is not None:
+        salt = _t_salt(salt)
     first = os.path.abspath(paths[0])
     if out_dir is None:
         out_dir = os.path.join(first if os.path.isdir(first) else os.path.dirname(first),
@@ -1634,7 +1686,7 @@ def _t_run(args):
             " --postcode ... --city ...)\n"
             f"oder mit {_T_BARE} ausdrücklich darauf verzichten."
         )
-    scrubber = _TScrubber(values)
+    scrubber = _TScrubber(values, salt)
     if not any(values.values()):
         print("ACHTUNG: Ohne eigene Angaben werden die Mails nur allgemein bereinigt")
         print("(Mail-Adressen, Telefonnummern, Links, Nummern, Ablageorte, Anreden, Adressblöcke")
@@ -1657,19 +1709,19 @@ def _t_run(args):
             unreadable.append(os.path.basename(path))
     try:
         os.makedirs(out_dir, exist_ok=True)
-        _t_clear(out_dir)
+        if salt is None:  # with a salt every result is written over its own earlier one
+            _t_clear(out_dir)
     except OSError:
         raise _TUsage("Der Zielordner lässt sich nicht anlegen oder leeren.") from None
     written, forwarded, doubtful, passed_on = [], 0, [], []
     for source, mail in mails:
         number = len(written) + 1
         try:
-            out, domain, private, left = _t_build(mail, number, scrubber)
+            out, name, private, left = _t_build(mail, number, scrubber)
             data = bytes(out)
         except Exception:  # no traceback: it could show a part of a mail
             unreadable.append(source)
             continue
-        name = f"{number:03d}_{domain}.eml"
         with open(os.path.join(out_dir, name), "wb") as handle:
             handle.write(data)
         written.append((name, data))

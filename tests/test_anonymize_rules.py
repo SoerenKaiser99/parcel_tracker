@@ -467,3 +467,104 @@ def test_sender_named_in_a_carrier_sentence(tmp_path):
     assert "Auf Antrag von Holzwurm Möbel GmbH , um Sie zu informieren.\n" in text
     assert "Von: Beispielversender\n" in text
     _absent(msg, "kirschbaum", "ballermann", "donnerwetter")
+
+
+# ----- --salt: each mail gives the same file in every run, alone or with others -----
+
+SALT = "ein-eigenes-geheimnis-1234"
+
+
+def _salted(tmp_path: Path, mails: dict, *args, salt: str = SALT):
+    """Anonymise ``mails`` ({file name: bytes}) with a salt: (process, {name: bytes})."""
+    src = tmp_path / "mails"
+    src.mkdir(parents=True, exist_ok=True)
+    for name, raw in mails.items():
+        (src / name).write_bytes(raw)
+    (tmp_path / "salt.txt").write_text(f"{salt}\n", encoding="utf-8")
+    done = _call(src, "--salt", tmp_path / "salt.txt", *(args or ("--ohne-angaben",)))
+    assert done.returncode == 0, done.stderr
+    out = src / "anonymisiert"
+    return done, {p.name: p.read_bytes() for p in out.iterdir()}
+
+
+def _two_parts(number: str, message_id: str) -> bytes:
+    msg = EmailMessage()
+    msg["From"], msg["To"], msg["Subject"], msg["Date"] = SHOP, "jp@postfach.example", "Paket", DATE
+    msg["Message-ID"] = message_id
+    msg.set_content(f"Ihre Sendungsnummer {number} ist unterwegs.\n")
+    msg.add_alternative(f"<p>Ihre Sendungsnummer {number} ist unterwegs.</p>", subtype="html")
+    return bytes(msg)
+
+
+def test_salt_gives_the_same_file_for_a_mail_alone_and_among_others(tmp_path):
+    mails = {
+        f"mail{i}.eml": _two_parts(f"0034043416109401234{i}", f"<{i}@paketflitzer.example>")
+        for i in range(5)
+    }
+    _, alone = _salted(tmp_path / "a", {"mail3.eml": mails["mail3.eml"]})
+    _, together = _salted(tmp_path / "b", mails)
+    [(name, data)] = alone.items()
+    assert together[name] == data
+    assert re.fullmatch(r"2023-07-18_paketflitzer\.example_[0-9a-f]{12}\.eml", name)
+    tag = name[-16:-4]
+    assert data.count(f"--===============beispiel-{tag}==".encode()) == 3
+    assert f"Message-ID: <beispiel-{tag}@example.org>".encode() in data
+    assert b"00340434161094012343" not in data and b"3@paketflitzer" not in data
+    # another salt: other numbers, another name
+    _, other = _salted(tmp_path / "c", {"mail3.eml": mails["mail3.eml"]}, salt="x" * 16)
+    [(other_name, other_data)] = other.items()
+    assert other_name != name
+    assert re.findall(rb"00340\d{15}", other_data) != re.findall(rb"00340\d{15}", data)
+
+
+def test_without_salt_every_run_has_its_own_secret(tmp_path):
+    src = tmp_path / "mails"
+    src.mkdir()
+    (src / "a.eml").write_bytes(_two_parts("00340434161094012345", "<a@paketflitzer.example>"))
+    numbers = []
+    for _ in range(2):
+        assert _call(src, "--ohne-angaben").returncode == 0
+        [written] = (src / "anonymisiert").glob("*.eml")
+        assert written.name == "001_paketflitzer.example.eml"
+        numbers.append(re.findall(rb"00340\d{15}", written.read_bytes()))
+    assert len(set(numbers[0])) == 1 and numbers[0] != numbers[1]
+
+
+def test_salt_writes_over_earlier_results_and_removes_nothing(tmp_path):
+    raw = _two_parts("00340434161094012345", "<a@paketflitzer.example>")
+    _, first = _salted(tmp_path, {"a.eml": raw})
+    out = tmp_path / "mails" / "anonymisiert"
+    [name] = first
+    (out / name).write_bytes(b"alt")
+    (out / "001_paketflitzer.example.eml").write_bytes(b"Message-ID: <beispiel-001@example.org>\n")
+    (out / "paket-tracker-beispiele.zip").write_bytes(b"alt")
+    _, second = _salted(tmp_path, {"a.eml": raw})
+    assert second[name] == first[name]
+    assert second["001_paketflitzer.example.eml"].startswith(b"Message-ID: <beispiel-001")
+    assert second["paket-tracker-beispiele.zip"] == b"alt"
+
+
+def test_salt_learns_from_every_mail_of_the_run(tmp_path):
+    """A neighbour named in one mail is looked for in the others, as without a salt."""
+    mails = {
+        "a.eml": _mail(SHOP, "Zugestellt", "Ihr Paket liegt bei Ihrem Nachbarn Lena Holzer.\n"),
+        "b.eml": _mail(SHOP, "Danke", "Lena Holzer hat für Sie unterschrieben.\n"),
+    }
+    _, salted = _salted(tmp_path, mails)
+    texts = [email.message_from_bytes(data, policy=policy.default) for data in salted.values()]
+    assert len(texts) == 2 and all("Holzer" not in _text(msg) for msg in texts)
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [(None, "lässt sich nicht lesen"), ("zu-kurz\n", "mindestens 16 Zeichen")],
+)
+def test_salt_file_must_exist_and_be_long_enough(tmp_path, content, message):
+    src = tmp_path / "mails"
+    src.mkdir()
+    (src / "a.eml").write_bytes(_mail(SHOP, "Paket", "Unterwegs.\n"))
+    if content is not None:
+        (tmp_path / "salt.txt").write_text(content, encoding="utf-8")
+    done = _call(src, "--ohne-angaben", "--salt", tmp_path / "salt.txt")
+    assert done.returncode == 2 and message in done.stderr, done.stderr
+    assert done.stdout == "" and not (src / "anonymisiert").exists()
