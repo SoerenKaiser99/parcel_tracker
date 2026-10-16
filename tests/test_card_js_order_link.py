@@ -24,14 +24,15 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(
-  fs.readFileSync(process.argv[1], "utf8") + "\n;globalThis.__url = orderUrl;",
+  fs.readFileSync(process.argv[1], "utf8")
+    + "\n;globalThis.__url = orderUrl; globalThis.__numbers = numbersHtml;",
   sandbox,
 );
 const Card = defined["parcel-tracker-card"];
 const card = new Card();
 card.setConfig({});
 card._hass = { states: {}, entities: {} };
-const order = { number: "AMZ99991565342587125" };
+const order = { number: "AMZ99991565342587125", carrier: "amazon" };
 const out = {
   url: {
     amazon: sandbox.__url("AMZ99991565342587125"),
@@ -44,16 +45,15 @@ const out = {
     short: sandbox.__url("AMZ1"),
     missing: sandbox.__url(undefined),
   },
-  order: card._actionsHtml(order),
-  carrier: card._actionsHtml({ number: "00340999999999999911" }),
-  aliexpressOrder: card._actionsHtml({ number: "ALI9999999999990001" }),
+  order: sandbox.__numbers(order),
+  actions: card._actionsHtml(order),
+  carrier: sandbox.__numbers({ number: "00340999999999999911", carrier: "dhl" }),
+  aliexpressOrder: sandbox.__numbers({ number: "ALI9999999999990001", carrier: "aliexpress" }),
   aliexpressIcon: card._icon("aliexpress"),
   eventimUrl: [sandbox.__url("EVT999999901"), sandbox.__url("EVT9999999901")],
-  eventimOrder: card._actionsHtml({ number: "EVT999999901", carrier: "eventim" }),
+  eventimOrder: sandbox.__numbers({ number: "EVT999999901", carrier: "eventim" }),
   eventimIcon: card._icon("eventim"),
 };
-card._renaming.set(order.number, "Neu");
-out.renaming = card._actionsHtml(order);
 console.log(JSON.stringify(out));
 """
 
@@ -79,7 +79,7 @@ def test_aliexpress_order_links_to_its_page_and_has_its_own_dot(card):
     assert card["url"]["aliexpress"] == ALIEXPRESS
     # The number is "ALI" + the order's digits and nothing else (one parcel per order).
     assert card["url"]["aliexpressOdd"] == [None, None, None]
-    assert f'<a href="{ALIEXPRESS}" target="_blank"' in card["aliexpressOrder"]
+    assert f'<a class="go" href="{ALIEXPRESS}" target="_blank"' in card["aliexpressOrder"]
     assert 'aria-label="aliexpress"' in card["aliexpressIcon"]
     assert 'fill="#E43225"' in card["aliexpressIcon"] and ">A</text>" in card["aliexpressIcon"]
 
@@ -99,12 +99,18 @@ def test_other_parcels_have_no_order_link(card):
     assert "<a " not in card["carrier"]
 
 
-def test_the_link_stands_before_the_other_actions(card):
-    link = f'<a href="{AMAZON}" target="_blank" rel="noopener noreferrer">Bestellung</a>'
-    assert card["order"].startswith(f'<div class="actions">{link}<button')
-    assert 'data-a="rename"' in card["order"] and 'data-a="remove"' in card["order"]
+def test_the_link_is_a_symbol_behind_the_order_number(card):
+    link = (
+        f'<a class="go" href="{AMAZON}" target="_blank" rel="noopener noreferrer"'
+        ' title="Bestellung öffnen" aria-label="Bestellung öffnen">'
+        '<ha-icon icon="mdi:receipt-text-outline"></ha-icon></a>'
+    )
+    assert card["order"] == (
+        '<div class="detail ids"><div>Bestellnummer: '
+        f'<span class="num">999-9156534-2587125</span>{link}</div></div>'
+    )
 
 
-def test_no_link_while_the_parcel_is_renamed(card):
-    assert "<a " not in card["renaming"]
-    assert 'data-a="rename-save"' in card["renaming"]
+def test_the_action_row_has_no_link(card):
+    assert "<a " not in card["actions"]
+    assert 'data-a="rename"' in card["actions"] and 'data-a="remove"' in card["actions"]
