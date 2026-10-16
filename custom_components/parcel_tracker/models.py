@@ -72,6 +72,11 @@ def _count(value: Any) -> int:
     return value if type(value) is int and value > 0 else 0
 
 
+def _texts(value: Any) -> list[str]:
+    """A stored list of texts; anything else in it (or no list at all) is dropped."""
+    return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
+
 @dataclass(frozen=True)
 class TrackingEvent:
     """One scan event."""
@@ -209,6 +214,9 @@ class Parcel:
     # Persisted: what an answer about an order closed on its own is compared with (see
     # the coordinator's ``_keeps_closing``), also after a restart.
     carrier_status: ParcelStatus | None = None
+    # Amazon's ids of the shipments of an order its mails named (``MailUpdate.shipment_id``),
+    # oldest first, each once. Persisted; an order stored by an older version has none.
+    shipment_ids: list[str] = field(default_factory=list)
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -270,6 +278,7 @@ class Parcel:
             "last_mail_at": _iso(self.last_mail_at),
             "delivery_announced": self.delivery_announced,
             "carrier_status": self.carrier_status.value if self.carrier_status else None,
+            "shipment_ids": list(self.shipment_ids),
         }
 
     @classmethod
@@ -310,6 +319,7 @@ class Parcel:
                 mark if isinstance(mark := data.get("delivery_announced"), bool) else None
             ),
             carrier_status=_status(data.get("carrier_status")),
+            shipment_ids=_texts(data.get("shipment_ids")),
         )
 
 

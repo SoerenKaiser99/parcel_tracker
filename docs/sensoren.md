@@ -63,7 +63,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `events` | Verlauf: Liste aus `timestamp`, `text` und `location` |
 | `tracking_ref` | Sendungsnummer des Paketdienstes, die eine Shop-Bestellung übernommen hat |
 | `tracking_carrier` | Paketdienst zu `tracking_ref` |
-| `tracking_url` | Adresse der Sendungsverfolgung beim Paketdienst; leer, wenn es keine gibt |
+| `tracking_url` | Adresse der Sendungsverfolgung beim Paketdienst, bei einer Amazon-Bestellung ohne dessen Nummer bei Amazon; leer, wenn es keine gibt |
 | `shipping_carrier_hint` | Versanddienstleister, den eine Shop-Mail genannt hat |
 | `delivery_code` | Zustell-Code, nur mit eingeschalteter Option und nur bis zum Liefertag |
 | `track17` | `true`, wenn das Paket bei 17track angemeldet ist |

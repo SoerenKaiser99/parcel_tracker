@@ -106,7 +106,7 @@ Was im Paket ist und von wem es kommt, nennt die Integration dann nirgends mehr.
 
 - Der Paketdienst (auch der, den eine Shop-Mail nennt, z. B. „via Hermes“), die Nummer (auf der Karte aufgeklappt als Sendungs- oder Bestellnummer), Status, Liefertag, Ort und der Verlauf des Paketdienstes. Darin steht kein Artikel.
 - Der Knopf „Bestellung“ auf der Karte öffnet weiterhin die Bestellseite beim Shop. Die zeigt den Artikel nur dem, der dort angemeldet ist.
-- „Sendung verfolgen“ und das Attribut `tracking_url`: Darin steht nur die Nummer.
+- „Sendung verfolgen“ und das Attribut `tracking_url`: Darin steht nur die Nummer, bei Amazon die Bestellnummer und Amazons Kennung der Sendung.
 
 ### Selbst eingetippte Namen bleiben sichtbar
 
