@@ -290,11 +290,15 @@ function orderNumber(number) {
 
 // The numbers in a parcel's details, to be read off or copied: a carrier's parcel has its
 // tracking number; a shop order its order number and, once a mail named it, the carrier's
-// tracking number. Numbers are shown also with "Namen ausblenden" (that hides names only).
+// tracking number, else an Amazon order Amazon's id of its newest shipment (attribute
+// amazon_shipment). Numbers are shown also with "Namen ausblenden" (that hides names only).
 function numberLines(a) {
   if (SHOPS.includes(a.carrier)) {
     const lines = [["Bestellnummer", orderNumber(a.number) || a.number]];
     if (a.tracking_ref) lines.push(["Sendungsnummer", a.tracking_ref]);
+    else if (typeof a.amazon_shipment === "string" && a.amazon_shipment) {
+      lines.push(["Amazon-Sendung", a.amazon_shipment]);
+    }
     return lines;
   }
   return a.number ? [["Sendungsnummer", a.number]] : [];

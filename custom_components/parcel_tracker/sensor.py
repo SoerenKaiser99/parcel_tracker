@@ -165,6 +165,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             # The carrier's public tracking page (None: shop order without a carrier
             # number, 17track only, carrier unknown); the card links to it.
             "tracking_url": tracking_url(p),
+            # Amazon's id of the order's newest shipment (from its mails); the card shows it.
+            "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids else None,
             "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
             "track17": p.track17,
