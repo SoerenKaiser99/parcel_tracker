@@ -56,7 +56,7 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 | Problem | `⚠️ Kopfhörer (DHL): Problem bei der Zustellung` |
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
-- Ort der Filiale und letzter Abholtag stehen nur da, wenn der Paketdienst sie nennt.
+- Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder die Abholmail des Shops (Amazon „Paket zur Abholung bereit“) sie nennt. Der Ort ist höchstens 40 Zeichen lang.
 - Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen).
 - Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.
 - Mit [Namen ausblenden](datenschutz.md#namen-ausblenden) steht dort statt eines Namens aus einer Mail `DHL-Paket …2557`, ohne den Paketdienst dahinter.

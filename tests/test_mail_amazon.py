@@ -3,6 +3,7 @@ from datetime import date, datetime
 import pytest
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
+from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.amazon import (
     order_number,
     parse_amazon,
@@ -333,3 +334,213 @@ def test_legacy_14_digits_without_hermes_stay_an_order():
 def test_legacy_ups_numbers_keep_their_own_parcel():
     [u] = parse_amazon_legacy(load_mail("046_versandbestaetigung_ihre_amazon_de_beste.eml"))
     assert (u.carrier, u.tracking_ref) == ("ups", None)
+
+
+# ----- the plain layout ("Bestellung #…"): in delivery, a delay -----
+ON_THE_ROUTE = "172_shipment_tracking_ihr_paket_wird_zugestellt.eml"
+DELAYED = "173_order_update_lieferungsaktualisierung.eml"
+SHIPPED_LATER_LAYOUT = "174_versandbestaetigung_deine_amazon_de_beste.eml"
+
+
+def test_plain_mail_named_after_its_item_is_in_delivery():
+    # The subject is only the item's name: the sentence in the text tells the status.
+    [u] = parse_mail(load_mail(ON_THE_ROUTE)).updates
+    assert (u.number, u.carrier) == ("AMZ99900001720000172", "amazon")
+    assert (u.status, u.status_text, u.postponed) == (ParcelStatus.OUT_FOR_DELIVERY, None, False)
+    # The first item below the order number names the order.
+    assert u.title == "Beispiel-Rasensamen zur Rasensanierung für 25 m², für alle…"
+    # The mail names no day: in delivery is the day it was sent.
+    assert (u.eta_date, u.delivered_at) == (date(2025, 9, 22), None)
+
+
+def test_plain_mail_tells_the_order_once_however_often_it_names_it():
+    msg = load_mail(ON_THE_ROUTE)
+    text = msg.get_content()
+    msg.set_content(f"Bestellung #999-0000172-0000172\n\n{text}")
+    assert [u.number for u in parse_mail(msg).updates] == ["AMZ99900001720000172"]
+
+
+def test_plain_mail_without_the_sentence_tells_nothing():
+    msg = load_mail(ON_THE_ROUTE)
+    msg.set_content(msg.get_content().replace("wird zugestellt.", "ist angekündigt."))
+    assert parse_mail(msg).updates == []
+
+
+def test_delay_keeps_the_order_on_its_way_with_the_new_day():
+    [u] = parse_mail(load_mail(DELAYED)).updates
+    assert (u.number, u.status) == ("AMZ99900001730000173", ParcelStatus.IN_TRANSIT)
+    assert (u.status_text, u.postponed) == ("Lieferung verspätet", True)
+    assert u.eta_date == date(2025, 4, 26)
+    assert u.title == "Beispiel-Schleifscheibe 125 mm, Körnung 320"
+
+
+@pytest.mark.parametrize(
+    ("subj", "status"),
+    [
+        ("Unterwegs zur Zustellung: 6 „x“", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Zur Auslieferung: „x“ und ⁦3⁩ weitere Artikel", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Zustellversuch: „x“ und ⁦4⁩ weitere Artikel", ParcelStatus.IN_TRANSIT),
+        ("Lieferungsaktualisierung: Beispiel...", ParcelStatus.IN_TRANSIT),
+    ],
+)
+def test_subject_status_of_the_newer_wordings(subj, status):
+    assert subject_status(subj) is status
+
+
+def test_title_counts_further_items_between_direction_marks():
+    # (the marks are dropped with the other invisible ones when the subject is read)
+    msg = load_mail(ON_THE_ROUTE)
+    count = f"{chr(0x2066)}3{chr(0x2069)}"
+    msg.replace_header("Subject", f"Zur Auslieferung: „Beispiel...“ und {count} weitere Artikel")
+    msg.set_content("Ankunft heute\nBestellnr.\n999-0000172-0000172\n")
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.title) == (
+        ParcelStatus.OUT_FOR_DELIVERY, "Beispiel… und 3 weitere Artikel",
+    )
+
+
+def test_plain_mail_that_names_the_order_in_its_head_is_still_named_after_the_item():
+    msg = load_mail(ON_THE_ROUTE)
+    head = "Amazon.de Lieferung\nBestellung #999-0000172-0000172\nhttps://www.amazon.de/…\n\n"
+    msg.set_content(head + msg.get_content())
+    [u] = parse_mail(msg).updates
+    assert u.title == "Beispiel-Rasensamen zur Rasensanierung für 25 m², für alle…"
+    # A label or a date below the number is no item.
+    msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+                    "Aufgegeben am 4. November 2025\n")
+    assert parse_mail(msg).updates[0].title is None
+
+
+def test_attempt_in_the_wording_of_2026_takes_the_order_back_like_the_older_one():
+    msg = load_mail("125_order_update_versuchte_zustellung.eml")
+    older = parse_amazon(msg, False)
+    subj = str(msg["Subject"]).replace("Versuchte Zustellung:", "Zustellversuch:")
+    msg.replace_header("Subject", subj)
+    assert subj.startswith("Zustellversuch:") and parse_amazon(msg, False) == older
+    assert older[0].postponed and older[0].status_text == "Zustellung versucht"
+
+
+# ----- the layout of the old shipping mail, sent again until 2025 -----
+def test_shipping_mail_in_the_old_layout_keeps_the_dhl_number_with_the_order():
+    [u] = parse_mail(load_mail(SHIPPED_LATER_LAYOUT)).updates
+    assert (u.number, u.carrier, u.status) == (
+        "AMZ99900001740000174", "amazon", ParcelStatus.IN_TRANSIT,
+    )
+    assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990174", "dhl")
+    assert (u.title, u.eta_date) == ("Beispiel-Felgenreiniger…", date(2024, 9, 25))
+
+
+def test_old_layout_is_only_read_for_the_shipping_sender():
+    msg = load_mail(SHIPPED_LATER_LAYOUT)
+    msg.replace_header("From", '"Amazon.de" <order-update@amazon.de>')
+    assert parse_mail(msg).updates == []
+
+
+def test_the_first_old_wording_still_makes_a_parcel_of_the_carrier_number():
+    # (as before: only the later mails keep the number with the order)
+    msg = load_mail(SHIPPED_LATER_LAYOUT)
+    assert [u.number for u in parse_amazon_legacy(msg)] == ["00340999999999990174"]
+
+
+def test_another_mail_of_the_shipping_sender_is_not_read_as_shipped():
+    # (only the sentence of the old layout makes it a shipping mail)
+    msg = load_mail(SHIPPED_LATER_LAYOUT)
+    text = msg.get_content().replace("deine Bestellung verschickt hat", "sich gemeldet hat")
+    msg.set_content(text)
+    result = parse_mail(msg)
+    assert result.updates == [] and result.amazon  # it counts as an Amazon mail nobody knows
+
+
+# ----- review: a recipient's line is no item, an update that tells no delay -----
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Lieferung an Erika Musterfrau", "lieferung an Erika Musterfrau",
+        "LIEFERUNG AN ERIKA MUSTERFRAU", "Versand an Erika Musterfrau",
+        "Lieferadresse Erika Musterfrau", "Ihre Lieferadresse: Erika Musterfrau",
+        "Lieferanschrift Erika Musterfrau", "Empfänger Erika Musterfrau",
+        "Empfängerin: Erika Musterfrau", "Erika Musterfrau", "An Erika Musterfrau",
+        "Musterstraße 1", "12345 Musterstadt", "Packstation 123",
+    ],
+)
+def test_plain_mail_never_takes_a_line_the_subject_does_not_name_as_the_title(line):
+    # (the subject of 172 names "Beispiel-Rasensamen...")
+    msg = load_mail(ON_THE_ROUTE)
+    msg.set_content(f"Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n{line}\n")
+    [u] = parse_mail(msg).updates
+    assert u.title is None
+    # Above the item it names, the line is passed over.
+    msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+                    f"{line}\nBeispiel-Rasensamen für 25 m²\n")
+    assert parse_mail(msg).updates[0].title == "Beispiel-Rasensamen für 25 m²"
+
+
+def test_plain_mail_takes_the_item_a_short_subject_begins():
+    # (shorter than the 15 characters ``title_key`` compares)
+    msg = load_mail(ON_THE_ROUTE)
+    msg.replace_header("Subject", "WAGO 2773...")
+    msg.set_content("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+                    "    WAGO 2773 Spleißverbinder-Set\n")
+    assert parse_mail(msg).updates[0].title == "WAGO 2773 Spleißverbinder-Set"
+
+
+def test_delivery_update_that_tells_no_delay_just_stays_on_its_way():
+    msg = load_mail(DELAYED)
+    text = msg.get_content()
+    late = "Ihr Paket ist unterwegs, verspätet sich aber. Bitte entschuldigen Sie die Verzögerung."
+    assert late in text and "Jetzt erwartet bis zum 26. April." in text
+    # A new day alone is no delay (it may be an earlier one): the day is taken, no more.
+    msg.set_content(text.replace(late, "Ihr Paket ist unterwegs."))
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status) == ("AMZ99900001730000173", ParcelStatus.IN_TRANSIT)
+    assert (u.status_text, u.postponed, u.eta_date) == (None, False, date(2025, 4, 26))
+
+
+@pytest.mark.parametrize(
+    ("sentence", "delayed"),
+    [
+        ("Verspätete Lieferung.", True),
+        ("Es kommt zu Verzögerungen.", True),
+        ("IHR PAKET VERSPÄTET SICH.", True),
+        ("Ihr Paket ist nicht verspätet.", False),
+        ("Ihr Paket ist unterwegs.", False),
+    ],
+)
+def test_delivery_update_reads_the_delay_in_any_wording(sentence, delayed):
+    msg = load_mail(DELAYED)
+    late = "Ihr Paket ist unterwegs, verspätet sich aber. Bitte entschuldigen Sie die Verzögerung."
+    msg.set_content(msg.get_content().replace(late, sentence))
+    [u] = parse_mail(msg).updates
+    assert (u.postponed, u.status_text) == (
+        (True, "Lieferung verspätet") if delayed else (False, None)
+    )
+
+
+def test_plain_mail_is_named_after_the_item_of_its_subject_without_the_quantity():
+    msg = load_mail(ON_THE_ROUTE)
+    body = ("Ihr Paket mit x wird zugestellt.\nBestellung #999-0000172-0000172\n"
+            "2 x Beispiel-Riegel Kokos 200 g\n\n3-mal Beispiel-Maßband 5 m\n\n"
+            "----------\nIhr Paket verfolgen:\n")
+    # The subject is the item's name: the other mails of the order name that one.
+    msg.replace_header("Subject", "Beispiel-Maßband 5... und 1 weiteren Artikel")
+    msg.set_content(body)
+    assert parse_mail(msg).updates[0].title == "Beispiel-Maßband 5 m"
+    msg.replace_header("Subject", "Lieferungsaktualisierung: Beispiel-Riegel Kokos...")
+    assert parse_mail(msg).updates[0].title == "Beispiel-Riegel Kokos 200 g"
+    # A subject that names no item of the list names nothing: the other mails of the order
+    # name it.
+    msg.replace_header("Subject", "Zustellung heute: Ihr Amazon Paket wird zugestellt")
+    assert parse_mail(msg).updates[0].title is None
+
+
+def test_usual_layout_keeps_an_order_named_twice_as_two_shipments():
+    # (only the plain layout names its order twice for one shipment)
+    body = ("Ankunft morgen\nBestellnr.\n999-0000172-0000172\n* Beispiel-Alpha\n\n"
+            "Ankunft: Freitag\nBestellnr.\n999-0000172-0000172\n* Beispiel-Beta\n")
+    msg = load_mail(ON_THE_ROUTE)
+    msg.replace_header("Subject", "Versendet: 2 Lieferungen")
+    msg.set_content(body)
+    first, second = parse_mail(msg).updates
+    assert first.number == second.number == "AMZ99900001720000172"
+    assert (first.title, second.title) == ("Beispiel-Alpha", "Beispiel-Beta")
+    assert first.eta_date != second.eta_date

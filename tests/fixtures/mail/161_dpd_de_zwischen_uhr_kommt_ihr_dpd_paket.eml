@@ -1,0 +1,23 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number is invented; the buttons and the legal
+ notice of the carrier are cut
+From: DPD <noreply@service.dpd.de>
+To: max@example.org
+Subject: Zwischen 14:06 und 15:06 Uhr kommt Ihr DPD Paket
+Date: Fri, 10 Oct 2025 10:53:56 +0200
+Message-ID: <fixture-161@example.org>
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Guten Tag,</p>
+<p>Ihr Paket kommt heute zwischen 14:06 und 15:06 Uhr.</p>
+<p>Versender &amp; Paketnummer:</p>
+<p>Amazon EU Sarl</p>
+<p>09999999999961</p>
+<p>Empfänger:</p>
+<p>Max Mustermann</p>
+<p>Paket live verfolgen</p>
+<p>Wählen Sie Abstell-Okay oder Paketshop und profitieren Sie von einer flexiblen Zustellung.</p>
+</body></html>

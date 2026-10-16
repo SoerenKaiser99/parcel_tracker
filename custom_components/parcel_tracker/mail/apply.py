@@ -27,8 +27,9 @@ from ..models import (
     TrackingEvent,
     TrackingResult,
 )
-from .amazon import ATTEMPT_TEXT
 from .base import (
+    ATTEMPT_TEXT,
+    DELAY_TEXT,
     MailUpdate,
     brand_of,
     carrier_key,
@@ -43,7 +44,7 @@ _DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
 _ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
 # Words a shop's mail about a postponed delivery brings. They tell one moment: a later
 # mail that only repeats the status does not keep them (see ``_forward``).
-_POSTPONED_TEXTS = frozenset({ATTEMPT_TEXT})
+_POSTPONED_TEXTS = frozenset({ATTEMPT_TEXT, DELAY_TEXT})
 
 SHOP_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Bestellt",
@@ -234,13 +235,32 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             events.insert(0, TrackingEvent(update.sent_at, text, None))
         if update.eta_date:
             eta = (update.eta_date, update.eta_from, update.eta_to, update.eta_latest)
-        elif old and update.status not in _DROP_ETA and not postponed:
+        elif (
+            old
+            and update.status not in _DROP_ETA
+            and (
+                not postponed
+                or (
+                    update.status_text != DELAY_TEXT
+                    and old.eta_date
+                    and old.eta_date > update.sent_at.date()
+                )
+            )
+        ):
             # (a delivered parcel keeps its day: it is the day shown as delivered; a
-            # postponed delivery that names no new day has none)
+            # postponed delivery that names no new day has none - but a day after the
+            # mail's own is not the one an attempt takes back: the carrier named it
+            # already. A delay says that every day known so far is too early.)
             eta = (old.eta_date, old.eta_from, old.eta_to, old.eta_latest)
         else:
             eta = (None, None, None, None)
         delivered = update.status is ParcelStatus.DELIVERED
+        # Where a parcel ready for pickup waits: what this mail names, else (it is still
+        # there) what an earlier mail named. Any other status has no pickup point.
+        pickup = update.status is ParcelStatus.AWAITING_PICKUP
+        still = pickup and old is not None and old.status is ParcelStatus.AWAITING_PICKUP
+        pickup_point = update.pickup_point or (old.pickup_point if still else None)
+        pickup_until = update.pickup_until or (old.pickup_until if still else None)
         result = TrackingResult(
             status=update.status,
             status_text=text,
@@ -249,8 +269,8 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             eta_to=eta[2],
             eta_latest=eta[3],
             location=old.location if old else None,
-            pickup_point=None,
-            pickup_until=None,
+            pickup_point=pickup_point if pickup else None,
+            pickup_until=pickup_until if pickup else None,
             delivered_at=(update.delivered_at or update.sent_at) if delivered else None,
             events=events[:MAX_EVENTS],
         )

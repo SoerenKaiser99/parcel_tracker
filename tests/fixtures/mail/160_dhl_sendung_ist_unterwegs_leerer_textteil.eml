@@ -1,0 +1,35 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number and the company name are invented; the buttons and the
+ footer are cut
+From: "DHL Paket" <noreply@dhl.de>
+To: max@example.org
+Subject: Ihre Beispiel GmbH Sendung ist unterwegs
+Date: Tue, 15 Oct 2024 16:27:26 +0200
+Message-ID: <fixture-160@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="fixture-160"
+
+--fixture-160
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+
+
+--fixture-160
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Wichtige Information zu Ihrer Sendung</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihre Beispiel GmbH Sendung wurde von uns bearbeitet und wird Ihnen voraussichtlich</p>
+<p>am Mittwoch, den 16.10.</p>
+<p>zugestellt.</p>
+<p>Jetzt Zustelloption wählen</p>
+<p>Ablageort buchen</p>
+<p>Sendungsstatus einsehen</p>
+<p>00340999999999990160</p>
+<p>Sie möchten keine Informationen zu Ihren Sendungen erhalten?</p>
+</body></html>
+
+--fixture-160--

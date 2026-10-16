@@ -28,15 +28,26 @@ from .base import (
 HERMES_SENDER = "noreply@paketankuendigung.myhermes.de"
 
 _LABELLED = re.compile(r"Sendungsnummer\s*:?\s*(\d{14})\b")
-_SHOP = re.compile(r"(?:Sendung|Paket) von (?P<shop>[^\n]+?)(?: wurde| kommt| ist|\.?$)", re.M)
+# ("… Sendung von <shop>. Wo möchtest du sie empfangen?": the question is no part of it)
+_SHOP = re.compile(
+    r"(?:Sendung|Paket) von (?P<shop>[^\n]+?)(?: wurde| kommt| ist|\. Wo |\.?$)", re.M
+)
 _ETA_LABEL = re.compile(r"Voraussichtliche Zustellung:?")
 _FULL_DATE = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(\d{4})\b")
 _DAY_MONTH = re.compile(r"\b(\d{1,2})\.(\d{1,2})\.(?!\d)")
 _WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s*Uhr")
 
 
-_DELIVERED = re.compile(r"\bwurde\b.*\bzugestellt\b")
-_NOT_DELIVERED = re.compile(r"nicht zugestellt|konnte nicht|zustellversuch")
+# "… wurde zugestellt", "Erfolgreiche Haustürzustellung" (only at the door: a parcel in a
+# PaketShop waits for its recipient)
+_DELIVERED = re.compile(r"\bwurde\b.*\bzugestellt\b|\berfolgreiche\s+haustürzustellung\b")
+# "Deine Sendung kommt heute." (not "… kommt heute leider nicht mehr")
+_TODAY = re.compile(r"\bkommt\s+heute\b(?!.*\bnicht\b)")
+# "Neuer Zustelltermin am" (it takes longer) / "Neuer Zustellversuch am" (nobody was met):
+# the day below it, the second one with a window.
+_NEW_DAY = re.compile(r"Neuer Zustell(?:termin|versuch) am")
+# ("… nicht zugestellt", "… konnte nicht …", "Erfolgreiche Haustürzustellung nicht möglich")
+_NOT_DELIVERED = re.compile(r"\bnicht\b|zustellversuch")
 
 
 def _status(subj: str, text: str) -> ParcelStatus | None:
@@ -47,6 +58,8 @@ def _status(subj: str, text: str) -> ParcelStatus | None:
         return None
     if _DELIVERED.search(lower):
         return ParcelStatus.DELIVERED
+    if _TODAY.search(lower):
+        return ParcelStatus.OUT_FOR_DELIVERY
     if "auf dem weg" in lower:
         return ParcelStatus.IN_TRANSIT
     if "angekündigt" in text or "information zur zustellung" in lower:
@@ -54,8 +67,8 @@ def _status(subj: str, text: str) -> ParcelStatus | None:
     return None
 
 
-def _eta(text: str, ref: date) -> date | None:
-    label = _ETA_LABEL.search(text)
+def _eta(text: str, ref: date, labelled: re.Pattern[str] = _ETA_LABEL) -> date | None:
+    label = labelled.search(text)
     if not label:
         return None
     segment = text[label.end() : label.end() + 200]
@@ -73,7 +86,12 @@ def _eta(text: str, ref: date) -> date | None:
 
 
 def parse_hermes_mail(msg: EmailMessage) -> list[MailUpdate]:
-    """Announcement, 'auf dem Weg' (day + window) or 'zugestellt'."""
+    """Announcement, 'auf dem Weg' (day + window), 'kommt heute' (window) or 'zugestellt'.
+
+    A mail that names a new day ("Neuer Zustelltermin am", "Neuer Zustellversuch am") puts
+    the parcel back on its way for that day - unless its subject says it was delivered or
+    comes today: that is the newer news.
+    """
     subj = subject(msg)
     text = body_text(msg)
     sent = sent_at(msg)
@@ -94,9 +112,19 @@ def parse_hermes_mail(msg: EmailMessage) -> list[MailUpdate]:
         title=company_name(shop) if shop and known_shop(shop) else None,
         shop=shop_of(shop) if shop else None,
     )
-    if status is ParcelStatus.DELIVERED:
+    day = None
+    settled = status in (ParcelStatus.DELIVERED, ParcelStatus.OUT_FOR_DELIVERY)
+    if not settled and (new_day := _eta(text, sent.date(), _NEW_DAY)):
+        update.status, update.postponed, day = ParcelStatus.IN_TRANSIT, True, new_day
+        # (its window stands below the label; one above it is the failed attempt's)
+        text = text[_NEW_DAY.search(text).end() :][:200]
+    elif status is ParcelStatus.DELIVERED:
         update.delivered_at = sent
-    elif status is ParcelStatus.IN_TRANSIT and (day := _eta(text, sent.date())):
+    elif status is ParcelStatus.OUT_FOR_DELIVERY:
+        day = sent.date()
+    elif status is ParcelStatus.IN_TRANSIT:
+        day = _eta(text, sent.date())
+    if day:
         update.eta_date = day
         if window := _WINDOW.search(text):
             update.eta_from = at(day, int(window.group(1)), int(window.group(2)))

@@ -131,12 +131,19 @@ def test_awaiting_pickup_with_last_day_only():
     assert _message(parcel) == "📍 Kopfhörer (DHL) liegt zur Abholung bereit bis 06.10."
 
 
-def test_pickup_place_only_from_the_carrier():
+def test_pickup_place_not_from_a_17track_only_result():
     """A place that came with a 17track-only result is not the carrier's branch."""
     parcel = _parcel(ParcelStatus.AWAITING_PICKUP, pickup_point="Irgendwo", enriched=("status",))
     assert _message(parcel) == "📍 Kopfhörer (DHL) liegt zur Abholung bereit"
-    shop = _parcel(ParcelStatus.AWAITING_PICKUP, carrier="amazon", pickup_point="Irgendwo")
-    assert _message(shop) == "📍 Kopfhörer (Amazon) liegt zur Abholung bereit"
+
+
+def test_pickup_place_a_shops_pickup_mail_named():
+    """v0.3.36: Amazon's pickup mail names the place of an order without a carrier number."""
+    shop = _parcel(
+        ParcelStatus.AWAITING_PICKUP, carrier="amazon", pickup_point="Irgendwo",
+        pickup_until=date(2026, 10, 6),
+    )
+    assert _message(shop) == "📍 Kopfhörer (Amazon) liegt zur Abholung bereit – Irgendwo bis 06.10."
 
 
 def test_exception():

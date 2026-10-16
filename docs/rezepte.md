@@ -1,6 +1,6 @@
 # Rezepte
 
-Zehn fertige Beispiele zum Kopieren. Jedes Rezept sagt, wofür es gut ist, zeigt das YAML und nennt, was du anpassen musst.
+Elf fertige Beispiele zum Kopieren. Jedes Rezept sagt, wofür es gut ist, zeigt das YAML und nennt, was du anpassen musst.
 
 ## So benutzt du ein Rezept
 
@@ -399,7 +399,7 @@ data:
 - `unrecognized`: keine Sendung erkannt
 - `ignored`: Werbung oder Konto-Mail
 - `stale`: älter als 14 Tage
-- `duplicate`: diese Mail wurde schon gelesen
+- `duplicate`: diese Mail wurde schon gelesen und angewendet
 
 **Anpassen:**
 
@@ -452,3 +452,53 @@ content: |
 - Das Zeitfenster erscheint nur, wenn der Paketdienst eines nennt.
 
 **So funktioniert es:** Die Listen `parcels`, `possible` und `delivered_today` sind Attribute von `sensor.pakete_heute`. Jeder Eintrag hat `number`, `name`, `carrier`, `eta_from` und `eta_to`. Alle Attribute: [Sensoren, Kalender und Dienste](sensoren.md#sensorpakete_heute).
+
+## 11. Unterwegs ohne Abholbereite
+
+**Wofür:** Eine Zahl nur für die Pakete, die noch zu dir unterwegs sind. `sensor.pakete_unterwegs` zählt alles, was noch nicht zugestellt ist, also auch die Pakete, die schon in der Packstation oder im Paketshop auf dich warten. Abholbereite zählen bei `sensor.pakete_unterwegs` und bei `sensor.pakete_abholbereit` mit. Zieht man die eine Zahl von der anderen ab, bleiben die Pakete, die noch kommen.
+
+=== "Als Helfer (ohne YAML)"
+
+    1. **Einstellungen → Geräte & Dienste → Helfer → Helfer erstellen → Template → Template-Sensor**.
+    2. Name: `Unterwegs ohne Abholbereite`.
+    3. Bei **Zustandstemplate** einfügen:
+
+        ```jinja
+        {{ [states('sensor.pakete_unterwegs') | int(0) - states('sensor.pakete_abholbereit') | int(0), 0] | max }}
+        ```
+
+    4. **Maßeinheit**: `Pakete`, **Zustandsklasse**: „Messung“.
+    5. Gibt es bei dir unter **Erweiterte Optionen** das Feld **Verfügbarkeitstemplate**, dort einfügen:
+
+        ```jinja
+        {{ has_value('sensor.pakete_unterwegs') and has_value('sensor.pakete_abholbereit') }}
+        ```
+
+        Speichern.
+
+=== "In der configuration.yaml"
+
+    ```yaml
+    template:
+      - sensor:
+          - name: "Unterwegs ohne Abholbereite"
+            unique_id: pakete_unterwegs_ohne_abholbereite
+            unit_of_measurement: Pakete
+            state_class: measurement
+            availability: >
+              {{ has_value('sensor.pakete_unterwegs')
+                 and has_value('sensor.pakete_abholbereit') }}
+            state: >
+              {{ [states('sensor.pakete_unterwegs') | int(0)
+                  - states('sensor.pakete_abholbereit') | int(0), 0] | max }}
+    ```
+
+    Danach Home Assistant neu starten (oder unter **Entwicklerwerkzeuge → YAML** die Template-Entitäten neu laden).
+
+**Anpassen:**
+
+- Der Name ist frei wählbar. Die Entität heißt danach, hier `sensor.unterwegs_ohne_abholbereite`.
+- Das Verfügbarkeitstemplate (`has_value`) lässt den Sensor „nicht verfügbar“ sein, solange einer der beiden Sensoren der Integration noch keinen Wert hat, z. B. kurz nach dem Start. So erscheint dann keine falsche Zahl. `int(0)` und `max` sind die zweite Sicherung: Die Zahl wird nie negativ.
+- `Pakete` als Maßeinheit und die Zustandsklasse „Messung“ machen aus dem Verlauf eine Linie und heben die Werte in der Statistik auf. Wer das nicht will, lässt beides weg.
+
+**So funktioniert es:** Beide Sensoren der Integration sind Zahlen. Kommt ein Paket in der Packstation an, steigt `sensor.pakete_abholbereit` um eins, `sensor.pakete_unterwegs` bleibt gleich: Der neue Sensor fällt um eins. Holst du es ab, fallen beide, und er bleibt, wie er ist. Alle Zählsensoren: [Die vier Zählsensoren](sensoren.md#die-vier-zahlsensoren).

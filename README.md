@@ -31,7 +31,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und entfernen – [Die Karte](https://soerenkaiser99.github.io/parcel_tracker/karte/)
 - **Benachrichtigungen** (optional): bei „in Zustellung“, „zugestellt“, „abholbereit“ oder einem Problem, ohne eigene Automation – [Benachrichtigungen](https://soerenkaiser99.github.io/parcel_tracker/benachrichtigungen/)
 - **Automationen**: fünf Auslöser im Automations-Editor ohne YAML und das Event `parcel_tracker_status_changed` – [Automationen](https://soerenkaiser99.github.io/parcel_tracker/automationen/)
-- **Rezepte**: zehn Beispiele für Automationen und Karten zum Kopieren – [Rezepte](https://soerenkaiser99.github.io/parcel_tracker/rezepte/)
+- **Rezepte**: elf Beispiele für Automationen und Karten zum Kopieren – [Rezepte](https://soerenkaiser99.github.io/parcel_tracker/rezepte/)
 - **Sensoren und Kalender**: `sensor.paket_<nummer>` pro Paket, `sensor.pakete_heute`, vier Zählsensoren und `calendar.pakete` – [Sensoren, Kalender und Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/)
 - **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track` – [Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/#dienste)
 - **17track** (optional): ergänzt Ort, Zeitfenster und Verlauf und verfolgt Carrier ohne eigene Anbindung, z. B. FedEx – [17track](https://soerenkaiser99.github.io/parcel_tracker/dienste/#17track-optional)

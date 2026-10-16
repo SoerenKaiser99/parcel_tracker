@@ -30,6 +30,7 @@ from .base import (
     NotFound,
     ParseError,
     RateLimited,
+    plain_text,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -119,6 +120,11 @@ def _basic(client_id: str, secret: str) -> str:
     return "Basic " + base64.b64encode(f"{client_id}:{secret}".encode()).decode()
 
 
+def _text(value: Any) -> str:
+    """A text of the answer as plain text ("" for none), whatever markup it holds."""
+    return plain_text(value) if isinstance(value, str) else ""
+
+
 def _day(value: Any) -> date | None:
     if not isinstance(value, str) or len(value) != 8 or not value.isdigit():
         return None
@@ -162,10 +168,11 @@ def _event(activity: dict[str, Any]) -> TrackingEvent | None:
     day = _day(activity.get("date"))
     stamp = _clock(day, activity.get("time")) if day else None
     status = activity.get("status") or {}
-    if stamp is None or not status.get("description"):
+    text = _text(status.get("description"))
+    if stamp is None or not text:
         return None
-    city = ((activity.get("location") or {}).get("address") or {}).get("city") or None
-    return TrackingEvent(timestamp=stamp, text=status["description"], location=city)
+    city = _text(((activity.get("location") or {}).get("address") or {}).get("city")) or None
+    return TrackingEvent(timestamp=stamp, text=text, location=city)
 
 
 def parse_ups(data: Any) -> TrackingResult:
@@ -212,7 +219,7 @@ def parse_ups(data: Any) -> TrackingResult:
     events = [e for a in activities if (e := _event(a))][:MAX_EVENTS]
     return TrackingResult(
         status=status,
-        status_text=current.get("description") or None,
+        status_text=_text(current.get("description")) or None,
         eta_date=eta_date,
         eta_from=eta_from,
         eta_to=eta_to,

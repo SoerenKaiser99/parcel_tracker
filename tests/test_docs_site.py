@@ -109,9 +109,9 @@ def test_recipes_are_automations_in_the_current_syntax_or_cards():
         for trigger in automation["triggers"]:
             assert "trigger" in trigger and "platform" not in trigger
             assert trigger["trigger"] != "device"  # device ids are picked in the editor
-    assert len(re.findall(r"^## \d+\. ", TEXTS["rezepte.md"], re.M)) == 10
-    assert TEXTS["rezepte.md"].count("**Anpassen:**") == 10
-    assert TEXTS["rezepte.md"].count("**Wofür:**") == 10
+    assert len(re.findall(r"^## \d+\. ", TEXTS["rezepte.md"], re.M)) == 11
+    assert TEXTS["rezepte.md"].count("**Anpassen:**") == 11
+    assert TEXTS["rezepte.md"].count("**Wofür:**") == 11
 
 
 def test_entities_services_and_the_event_exist_in_the_code():
@@ -141,9 +141,14 @@ def test_event_fields_and_attributes_exist_in_the_code():
         assert f'"{attribute}": ' in SENSOR_PY, attribute
 
 
+# A user's script, quoted verbatim (mail-import.md, issue #26): its own words, not ours.
+CONTRIBUTED = re.compile(r'^\?\?\? example "paket-postfach-setup\.sh"\n(?:(?: {4}.*)?\n)+', re.M)
+
+
 def test_no_page_says_bitte_or_erfolgreich():
+    assert len(CONTRIBUTED.findall(TEXTS["mail-import.md"])) == 1
     for name, text in TEXTS.items():
-        found = re.findall(r"\b(bitte|erfolgreich\w*)\b", text, re.I)
+        found = re.findall(r"\b(bitte|erfolgreich\w*)\b", CONTRIBUTED.sub("", text), re.I)
         assert not found, f"{name}: {found}"
 
 

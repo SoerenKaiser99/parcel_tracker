@@ -302,8 +302,17 @@ DAY_BODY = (
         ("Ihre Sendung liegt am Ablageort", ParcelStatus.DELIVERED),
         ("Ihre Sendung wurde am gewünschten Ablageort hinterlegt", ParcelStatus.DELIVERED),
         ("Ihre Sendung liegt nicht am gewünschten Ablageort", ParcelStatus.IN_TRANSIT),
+        # in the letter box or with a neighbour: delivered as well
+        ("Ihre Beispiel GmbH Sendung liegt im Briefkasten", ParcelStatus.DELIVERED),
+        ("Ihre Beispiel GmbH Sendung liegt nebenan", ParcelStatus.DELIVERED),
+        ("Ihre Sendung liegt nicht im Briefkasten", ParcelStatus.IN_TRANSIT),
         # waits for the recipient
         ("Ihre Sendung wurde an Packstation 123 zugestellt", ParcelStatus.AWAITING_PICKUP),
+        ("Ihre Beispiel GmbH Sendung liegt seit 2 Tagen in der Filiale",
+         ParcelStatus.AWAITING_PICKUP),
+        ("Nur noch 3 Tage: Ihre Sendung liegt in Ihrer Filiale", ParcelStatus.AWAITING_PICKUP),
+        ("Ihre Sendung ist auf dem Weg in eine Filiale", ParcelStatus.IN_TRANSIT),
+        ("Ihre Sendung liegt nicht in der Filiale", ParcelStatus.IN_TRANSIT),
         ("Ihre Sendung wurde in die Filiale Beispielweg 1 zugestellt",
          ParcelStatus.AWAITING_PICKUP),
         ("Ihre Sendung liegt in der Packstation 123 zur Abholung bereit",
@@ -591,6 +600,63 @@ def test_dhl_mail_without_a_new_day_is_not_postponed():
     assert u.postponed is False and u.eta_date is None
 
 
+# ----- "liegt im Briefkasten": delivered, the number stands only in a link -----
+def test_dhl_letter_box_mail_is_a_delivery():
+    mail = load_mail("158_dhl_zustellung_liegt_im_briefkasten.eml")
+    [u] = parse_mail(mail).updates
+    assert (u.number, u.carrier, u.title) == ("00340999999999990158", "dhl", "Beispiel GmbH")
+    assert (u.status, u.delivered_at) == (ParcelStatus.DELIVERED, sent_at(mail))
+
+
+# ----- the number stands only in the HTML part -----
+def _html_only_number(page: str) -> EmailMessage:
+    msg = _msg("Ihre Beispiel GmbH Sendung ist unterwegs", "[{PACKAGE_IDENTIFIER}]\n",
+               "DHL Paket <noreply@dhl.de>")
+    msg.add_alternative(f"<html><body>{page}</body></html>", subtype="html")
+    return msg
+
+
+def test_dhl_number_only_in_the_html_part_is_read():
+    # The text part names the number only in a link: 12 digits, without their label.
+    [u] = parse_mail(load_mail("159_dhl_sendung_ist_unterwegs_nummer_im_html.eml")).updates
+    assert (u.number, u.carrier, u.title) == ("999999990159", "dhl", "Beispiel GmbH")
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2026, 4, 16))
+
+
+def test_dhl_mail_with_an_empty_text_part_is_read_from_its_html_part():
+    [u] = parse_mail(load_mail("160_dhl_sendung_ist_unterwegs_leerer_textteil.eml")).updates
+    assert (u.number, u.carrier) == ("00340999999999990160", "dhl")
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2024, 10, 16))
+
+
+def test_dhl_html_part_shows_a_number_from_abroad_below_the_button():
+    page = "<p>Sendungsstatus einsehen</p><p>LR999999159NL</p>"
+    [u] = parse_mail(_html_only_number(page)).updates
+    assert u.number == "LR999999159NL"
+    page = "<p>Sendungsverlauf einsehen</p><p>999999990159</p>"
+    assert parse_mail(_html_only_number(page)).updates[0].number == "999999990159"
+    page = "<p>Sendungsstatus einsehen</p><p>JJATA9999999999990159</p>"  # from Austria
+    assert parse_mail(_html_only_number(page)).updates[0].number == "JJATA9999999999990159"
+    # ... but the next button is no number
+    page = "<p>Sendungsstatus einsehen</p><p>E-Mail-Einstellungen verwalten</p>"
+    assert parse_mail(_html_only_number(page)).updates == []
+
+
+def test_dhl_html_part_twelve_digits_elsewhere_are_no_number():
+    page = "<p>Sendungsstatus einsehen</p><p>Artikelnummer</p><p>999999990159</p>"
+    assert parse_mail(_html_only_number(page)).updates == []
+
+
+# ----- "auf dem Transportweg beschädigt": still on its way, told in its own words -----
+def test_dhl_damaged_packaging_stays_on_its_way_with_a_line_of_its_own():
+    subject = "Ihre Beispiel GmbH Sendung wurde leider auf dem Transportweg beschädigt"
+    [u] = parse_mail(_msg(subject, f"{DHL_NUMBER}\n", "DHL Paket <noreply@dhl.de>")).updates
+    assert (u.status, u.status_text) == (ParcelStatus.IN_TRANSIT, "Verpackung beschädigt")
+    assert (u.eta_date, u.delivered_at, u.postponed) == (None, None, False)
+    plain = _msg("Ihre Sendung ist unterwegs", f"{DHL_NUMBER}\n", "DHL Paket <noreply@dhl.de>")
+    assert parse_mail(plain).updates[0].status_text is None
+
+
 # ----- "wird gleich zugestellt": in delivery, told in the mail's own words -----
 def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
     soon = load_mail("145_dhl_zustellung_wird_gleich_zugestellt.eml")
@@ -657,3 +723,21 @@ def test_dhl_express_delivery_on_another_day_is_not_in_delivery_today():
 
 def test_dhl_express_sender_is_known_so_a_forward_is_read_as_the_original():
     assert known_sender_domain("noreply.odd@dhl.com") == "dhl.com"
+
+
+# ----- the receipt of a Packstation is about a parcel somebody sent -----
+def test_dhl_packstation_receipt_is_not_read():
+    msg = _msg("Einlieferungsbeleg: Ihr Versand an der Packstation", "[{PARCEL}]\n",
+               "DHL Paket <noreply@dhl.de>")
+    msg.add_alternative(
+        "<html><body><p>Sendungsnummer:</p><p>999999990901</p></body></html>", subtype="html")
+    assert parse_mail(msg).updates == []
+
+
+def test_dhl_html_part_reads_only_the_forms_dhl_shows_below_the_button():
+    # (an invoice number, 15 digits: no number of DHL's, whatever stands above them)
+    for shown in ("RE2026000012345", "999999999990159", "ABCDEFGH99990159", "LR999999159"):
+        page = f"<p>Ihre Sendung</p><p>{shown}</p>"
+        assert parse_mail(_html_only_number(page)).updates == [], shown
+        page = f"<p>Sendungsstatus einsehen</p><p>{shown}</p>"
+        assert parse_mail(_html_only_number(page)).updates == [], shown

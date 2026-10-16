@@ -53,11 +53,17 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "in ihrem land / ihrer region angekommen": (_ON_WAY, "Im Zielland angekommen"),
     # (the body only says that there is news)
     "neuer lieferstatus": (_ON_WAY, None),
+    # (the steps of the mails of autumn 2024)
+    "verzollt": (_ON_WAY, "Verzollt"),
+    "im lieferzentrum": (_ON_WAY, "Im Lieferzentrum"),
+    # ("wird in Kürze ausgeliefert": soon, no day)
+    "zur auslieferung bereit": (_ON_WAY, "Zur Auslieferung bereit"),
+    "zugestellt": (ParcelStatus.DELIVERED, None),
 }
-# "Wird zugestellt" comes hours after the shipping mail and its body says "dem
-# Versandunternehmen übergeben": handed to the carrier, not on the last mile. No mail seen
-# so far tells the last mile under this subject, so it is never "in Zustellung": without
-# that sentence the order is simply on its way.
+# "Bestellung <number>: Wird zugestellt" comes hours after the shipping mail and its body
+# says "dem Versandunternehmen übergeben": handed to the carrier, not on the last mile. No
+# mail seen so far tells the last mile under this subject, so it is never "in Zustellung":
+# without that sentence the order is simply on its way.
 _HANDED_OVER = "wird zugestellt"
 _HANDED_OVER_BODY = re.compile(r"dem\s+Versandunternehmen\s+übergeben")
 HANDED_OVER_TEXT = "Dem Versandunternehmen übergeben"
@@ -76,10 +82,20 @@ _PARCEL_STEPS: dict[str, str | None] = {
     "hat die abflugregion verlassen": "Abflugregion verlassen",
     "vom kurier abgeholt": "Vom Kurier abgeholt",
     "in ihrem land / ihrer region": "Im Zielland angekommen",
+    "im zielland / in der zielregion": "Im Zielland angekommen",
+    "mit lokalem kurier": "Dem lokalen Kurier übergeben",
     # (the body only says that there is news from the country of departure)
     "hat eine aktualisierung": None,
 }
 CUSTOMS_TEXT = "Zollabfertigung beendet"
+# Mails that tell nothing about a parcel on its way: a note that there is news (the links
+# name the parcels), a coupon for a late delivery, returns and refunds.
+_NO_NEWS_SUBJECT = re.compile(
+    r"\d+ Packstück\(e\) haben Lieferneuigkeiten|Ihr Verspätete-Lieferung-Coupon-Code"
+    r"|Your delayed delivery coupon code|Warte auf Ihr Feedback"
+    r"|Order \d+: Waiting for your return|Überprüfen Sie den Rückerstattungsantragsprozess",
+    re.IGNORECASE,
+)
 
 _ORDER_SUBJECT = re.compile(r"Bestellung (?P<order>\d{12,20})\s*:?\s*(?P<step>\S.*)")
 _ORDERS_SUBJECT = re.compile(r"\d+ Bestellungen wurden bestätigt: (?P<order>\d{12,20})\b")
@@ -295,6 +311,10 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
                 sent_at=sent,
                 title=title,
                 eta_date=eta,
+                # (the step "zugestellt" tells when; a confirmation proves no arrival)
+                delivered_at=(
+                    sent if status is ParcelStatus.DELIVERED and not confirmation else None
+                ),
                 tracking_ref=tracking_ref,
                 tracking_carrier=tracking_carrier,
                 status_text=words,
@@ -416,12 +436,16 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     """Any mail of AliExpress: updates, ignored, or (no updates) unrecognised.
 
     Order mails: confirmed and ready to ship ("Bestellt"), shipped and on its way
-    ("Versendet", with AliExpress's words for the step), delivery confirmed. Parcel mails:
-    see ``_parcel_mail``. Ignored: reminders, requests for a rating and "Your order … is
-    closed". A subject nobody knows yet is unrecognised, so it gets noticed.
+    ("Versendet", with AliExpress's words for the step), delivered, delivery confirmed.
+    Parcel mails: see ``_parcel_mail``. Ignored: reminders, requests for a rating, "Your
+    order … is closed" and the mails that tell nothing about a parcel on its way (news
+    without a number, a coupon, returns and refunds). A subject nobody knows yet is
+    unrecognised, so it gets noticed.
     """
     subj = subject(msg)
     if _CLOSED_SUBJECT.match(subj):
+        return MailResult(ignored=True)
+    if _NO_NEWS_SUBJECT.match(subj):
         return MailResult(ignored=True)
     if found := _CUSTOMS_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), CUSTOMS_TEXT)
