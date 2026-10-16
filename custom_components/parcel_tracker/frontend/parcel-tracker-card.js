@@ -291,6 +291,8 @@ function orderNumber(number) {
 // The pages a number leads to, as a small symbol behind it: [icon, words for the reader].
 const TRACK_LINK = ["mdi:truck-delivery-outline", "Sendung verfolgen"];
 const ORDER_LINK = ["mdi:receipt-text-outline", "Bestellung öffnen"];
+// Amazon's own tracking page of a shipment (see links.py).
+const AMAZON_TRACKING = "https://www.amazon.de/progress-tracker/";
 
 // The numbers in a parcel's details, to be read off or copied, each with the pages it leads
 // to: a carrier's parcel has its tracking number; a shop order its order number and, once a
@@ -304,11 +306,14 @@ function numberLines(a) {
     const order = orderNumber(a.number) || a.number;
     const shop = [orderUrl(a.number), ORDER_LINK];
     const amazon = typeof a.amazon_shipment === "string" && a.amazon_shipment;
-    if (a.tracking_ref) {
-      return [["Bestellnummer", order, [shop]], ["Sendungsnummer", a.tracking_ref, [track]]];
-    }
-    if (amazon) return [["Bestellnummer", order, [shop]], ["Amazon-Sendung", amazon, [track]]];
-    return [["Bestellnummer", order, [track, shop]]];
+    if (!a.tracking_ref && !amazon) return [["Bestellnummer", order, [track, shop]]];
+    // A carrier without a tracking page of ours: the page is Amazon's (links.py), and it
+    // belongs behind Amazon's shipment, not behind the carrier's number.
+    const atAmazon = amazon && (trackingUrl(a) || "").startsWith(AMAZON_TRACKING);
+    const lines = [["Bestellnummer", order, [shop]]];
+    if (a.tracking_ref) lines.push(["Sendungsnummer", a.tracking_ref, atAmazon ? [] : [track]]);
+    if (amazon && (!a.tracking_ref || atAmazon)) lines.push(["Amazon-Sendung", amazon, [track]]);
+    return lines;
   }
   return a.number ? [["Sendungsnummer", a.number, [track]]] : [];
 }
@@ -558,8 +563,12 @@ class ParcelTrackerCard extends HTMLElement {
         .ev { padding-inline-start:1em; text-indent:-1em; }
         .note { margin-top:4px; }
         .ids { margin-top:4px; }
-        /* (the padding makes the symbol easier to hit; the negative margin keeps the line) */
-        .ids a.go { display:inline-flex; vertical-align:middle; margin:-6px 0 -6px 2px; padding:6px; border-radius:6px; color:var(--primary-color); }
+        /* Each line as high as a symbol's hit area (24px, the WCAG minimum for a target): two
+           lines' areas never overlap. */
+        .ids > div { line-height:24px; }
+        /* (the padding makes the symbol easier to hit, wider than high to keep the lines close;
+           the negative margin keeps the line) */
+        .ids a.go { display:inline-flex; vertical-align:middle; margin:-3px 0 -3px 0; padding:3px 6px; border-radius:6px; color:var(--primary-color); }
         .ids a.go ha-icon { --mdc-icon-size:18px; }
         .num { color:var(--primary-text-color); -webkit-user-select:all; user-select:all; cursor:text; overflow-wrap:anywhere; }
         .actions { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }

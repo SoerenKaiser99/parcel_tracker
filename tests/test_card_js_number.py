@@ -167,6 +167,18 @@ def test_a_closed_row_shows_no_number_line(card):
         assert "Bestellnummer" not in html
 
 
+def test_two_lines_are_as_far_apart_as_a_symbols_hit_area(card):
+    """A symbol is hit on 18px plus 3px above and below it: 24px (the WCAG minimum for a
+    target), and 30px wide. As high is each number line, so on a phone the areas of the
+    symbols in two lines never overlap."""
+    [line] = re.findall(r"\.ids > div \{([^}]*)\}", card["template"])
+    [link] = re.findall(r"\.ids a\.go \{([^}]*)\}", card["template"])
+    [icon] = re.findall(r"\.ids a\.go ha-icon \{([^}]*)\}", card["template"])
+    assert "line-height:24px" in line
+    assert "padding:3px 6px" in link and "margin:-3px 0 -3px 0" in link
+    assert "--mdc-icon-size:18px" in icon
+
+
 def test_the_number_can_be_selected_to_copy_it(card):
     [rule] = re.findall(r"\.num \{([^}]*)\}", card["template"])
     assert "user-select:all" in rule

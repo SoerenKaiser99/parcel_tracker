@@ -52,6 +52,12 @@ const out = {
   order: numbers(order),
   amazonOnly: numbers(amazonOnly),
   amazonShipment: numbers({ ...amazonOnly, amazon_shipment: "TAbCdE9fG" }),
+  // A carrier without a tracking page of ours: links.py links to Amazon's page instead.
+  pagelessCarrier: numbers({
+    ...amazonOnly, amazon_shipment: "TAbCdE9fG", tracking_ref: "LP00999999999999",
+    tracking_carrier: "other",
+  }),
+  carrierAndAmazon: numbers({ ...order, amazon_shipment: "TAbCdE9fG" }),
   none: numbers({ ...amazonOnly, tracking_url: null }),
   old: numbers({ number: "00340999999999999901", carrier: "dhl" }),
   odd: [42, {}, "", "javascript:alert(1)", "http://example.org/x", " https://example.org"].map(
@@ -112,6 +118,22 @@ def test_amazons_tracking_page_stands_behind_amazons_shipment(card):
         + _line("Amazon-Sendung", "TAbCdE9fG", _link(AMAZON_TRACKING))
         + "</div>"
     )
+
+
+def test_amazons_page_for_a_carrier_without_a_page_stands_behind_amazons_shipment(card):
+    # Not behind the carrier's number: that page is Amazon's, about Amazon's shipment.
+    assert card["pagelessCarrier"] == (
+        '<div class="detail ids">'
+        + _line("Bestellnummer", "999-9156534-2587125", _order_link())
+        + _line("Sendungsnummer", "LP00999999999999", "")
+        + _line("Amazon-Sendung", "TAbCdE9fG", _link(AMAZON_TRACKING))
+        + "</div>"
+    )
+
+
+def test_a_carriers_page_keeps_its_place_behind_the_carriers_number(card):
+    # The carrier's own page comes first (links.py): Amazon's shipment is not shown then.
+    assert card["carrierAndAmazon"] == card["order"]
 
 
 def test_a_tracking_page_without_any_shipment_number_stands_behind_the_order_number(card):
