@@ -377,7 +377,7 @@ data:
 - `number`: die Nummer deines Pakets (im Beispiel eine erfundene). Sie steht im Attribut `number` von `sensor.paket_<nummer>`.
 - `name`: dein Name für das Paket.
 
-**Grenzen:** Der Verlauf von Home Assistant behält, was er vor dem Einschalten aufgezeichnet hat. Der Knopf „Bestellung“ auf der Karte öffnet weiterhin die Bestellseite beim Shop. Der Schalter ist für den Blick aufs Dashboard gedacht, kein Schutz vor jemandem mit Admin-Zugang. Mehr unter [Namen ausblenden](datenschutz.md#namen-ausblenden).
+**Grenzen:** Der Verlauf von Home Assistant behält, was er vor dem Einschalten aufgezeichnet hat. Das Symbol „Bestellung öffnen“ auf der Karte öffnet weiterhin die Bestellseite beim Shop. Der Schalter ist für den Blick aufs Dashboard gedacht, kein Schutz vor jemandem mit Admin-Zugang. Mehr unter [Namen ausblenden](datenschutz.md#namen-ausblenden).
 
 ## 9. Mail aus n8n übergeben
 

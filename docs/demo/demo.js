@@ -41,15 +41,25 @@
     });
   }
   if (!customElements.get("ha-icon")) {
-    // One own, simple box drawing for every icon name.
+    // Own, simple drawings: the truck and the receipt behind the numbers, a box for every
+    // other icon name. The size follows --mdc-icon-size, like in Home Assistant.
+    const drawings = {
+      "mdi:truck-delivery-outline":
+        '<path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="17.5" r="1.8"/>'
+        + '<circle cx="17" cy="17.5" r="1.8"/>',
+      "mdi:receipt-text-outline":
+        '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+    };
+    const box = '<path d="M12 3 20 7v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10M8 5l8 4"/>';
     customElements.define("ha-icon", class extends HTMLElement {
-      constructor() {
-        super();
+      connectedCallback() {
+        if (this.shadowRoot) return;
+        const size = "var(--mdc-icon-size, 24px)";
         this.attachShadow({ mode: "open" }).innerHTML = `
-          <style>:host { display: inline-flex; width: 24px; height: 24px; }</style>
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+          <style>:host { display: inline-flex; width: ${size}; height: ${size}; }</style>
+          <svg viewBox="0 0 24 24" width="100%" height="100%" fill="none" stroke="currentColor"
                stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
-            <path d="M12 3 20 7v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10M8 5l8 4"/>
+            ${drawings[this.getAttribute("icon")] || box}
           </svg>`;
       }
     });
@@ -146,7 +156,7 @@
       ],
     }),
     // A shop order that took over the carrier's number: it links to the carrier's page
-    // ("Sendung verfolgen") and to the order at the shop ("Bestellung").
+    // ("Sendung verfolgen") and to the order at the shop ("Bestellung öffnen").
     parcel("in_transit", "amazon", "AMZ99999999999999905", "Wasserfilter, 3er-Pack", {
       eta_days: 1, delivery_code: "990099",
       tracking_ref: "00340999999999999914", tracking_carrier: "dhl",

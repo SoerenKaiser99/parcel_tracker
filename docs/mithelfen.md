@@ -22,7 +22,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **GLS in Österreich** | Liefert die Abfrage mit Land „Österreich“ Status und Verlauf? | [Issue #3](https://github.com/SoerenKaiser99/parcel_tracker/issues/3) |
 | **GLS: 12-stellige Nummer mit „Automatisch“** | Wird die Nummer aus der GLS-Mail erkannt, ohne dass du „GLS“ auswählst? | im Forum |
 | **17track bei DPD und GLS** | Füllt „Details über 17track holen“ Ort und Verlauf nach? Bisher nur bei DHL gesehen. | im Forum |
-| **Link „Sendung verfolgen“** | Führt er bei GLS, Hermes und UPS direkt zu deinem Paket? Bei DHL ist das bestätigt. | im Forum |
+| **Symbol „Sendung verfolgen“** | Führt es bei GLS, Hermes und UPS direkt zu deinem Paket? Bei DHL ist das bestätigt. | im Forum |
 
 ### E-Mail-Import
 
@@ -56,7 +56,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **„Namen ausblenden“** | Taucht irgendwo doch noch ein echter Name auf – Karte, Kalender, Benachrichtigung, Sprachassistent? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Benachrichtigung „Abholbereit“** | Kommt die Meldung, wenn ein Paket in Packstation, Filiale oder PaketShop liegt? | im Forum |
 | **Auslöser im Automations-Editor** | Findest du die fünf Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |
-| **Knopf „Bestellung“ bei eBay** | Öffnet er die richtige Bestellseite? Bei Amazon ist das bestätigt. | im Forum |
+| **Symbol „Bestellung öffnen“ bei eBay** | Öffnet es die richtige Bestellseite? Bei Amazon ist das bestätigt. | im Forum |
 | **Sendungs- und Bestellnummer im aufgeklappten Paket** | Steht unter dem Verlauf „Sendungsnummer: …“, bei einer Bestellung „Bestellnummer: …“ so wie beim Shop? Lässt sich die Nummer am Handy markieren und kopieren? Neu seit v0.3.34. | im Forum |
 | **Die [Rezepte](rezepte.md)** | Läuft ein Rezept bei dir so, wie es dasteht? Was musstest du ändern? | im Forum |
 

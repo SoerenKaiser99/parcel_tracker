@@ -288,26 +288,45 @@ function orderNumber(number) {
   return digits ? digits[1] : null;
 }
 
-// The numbers in a parcel's details, to be read off or copied: a carrier's parcel has its
-// tracking number; a shop order its order number and, once a mail named it, the carrier's
-// tracking number, else an Amazon order Amazon's id of its newest shipment (attribute
-// amazon_shipment). Numbers are shown also with "Namen ausblenden" (that hides names only).
+// The pages a number leads to, as a small symbol behind it: [icon, words for the reader].
+const TRACK_LINK = ["mdi:truck-delivery-outline", "Sendung verfolgen"];
+const ORDER_LINK = ["mdi:receipt-text-outline", "Bestellung öffnen"];
+// Amazon's own tracking page of a shipment (see links.py).
+const AMAZON_TRACKING = "https://www.amazon.de/progress-tracker/";
+
+// The numbers in a parcel's details, to be read off or copied, each with the pages it leads
+// to: a carrier's parcel has its tracking number; a shop order its order number and, once a
+// mail named it, the carrier's tracking number, else an Amazon order Amazon's id of its
+// newest shipment (attribute amazon_shipment). The tracking page stands behind the number of
+// the shipment, or behind the order number of an order that knows none. Numbers are shown
+// also with "Namen ausblenden" (that hides names only).
 function numberLines(a) {
+  const track = [trackingUrl(a), TRACK_LINK];
   if (SHOPS.includes(a.carrier)) {
-    const lines = [["Bestellnummer", orderNumber(a.number) || a.number]];
-    if (a.tracking_ref) lines.push(["Sendungsnummer", a.tracking_ref]);
-    else if (typeof a.amazon_shipment === "string" && a.amazon_shipment) {
-      lines.push(["Amazon-Sendung", a.amazon_shipment]);
-    }
+    const order = orderNumber(a.number) || a.number;
+    const shop = [orderUrl(a.number), ORDER_LINK];
+    const amazon = typeof a.amazon_shipment === "string" && a.amazon_shipment;
+    if (!a.tracking_ref && !amazon) return [["Bestellnummer", order, [track, shop]]];
+    // A carrier without a tracking page of ours: the page is Amazon's (links.py), and it
+    // belongs behind Amazon's shipment, not behind the carrier's number.
+    const atAmazon = amazon && (trackingUrl(a) || "").startsWith(AMAZON_TRACKING);
+    const lines = [["Bestellnummer", order, [shop]]];
+    if (a.tracking_ref) lines.push(["Sendungsnummer", a.tracking_ref, atAmazon ? [] : [track]]);
+    if (amazon && (!a.tracking_ref || atAmazon)) lines.push(["Amazon-Sendung", amazon, [track]]);
     return lines;
   }
-  return a.number ? [["Sendungsnummer", a.number]] : [];
+  return a.number ? [["Sendungsnummer", a.number, [track]]] : [];
 }
+
+// Links, not buttons: the browser opens the page, the card has nothing to do.
+const pageLink = ([url, [icon, words]]) => (url
+  ? `<a class="go" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${words}" aria-label="${words}"><ha-icon icon="${icon}"></ha-icon></a>`
+  : "");
 
 function numbersHtml(a) {
   const lines = numberLines(a);
   return lines.length
-    ? `<div class="detail ids">${lines.map(([label, value]) => `<div>${label}: <span class="num">${esc(value)}</span></div>`).join("")}</div>`
+    ? `<div class="detail ids">${lines.map(([label, value, links]) => `<div>${label}: <span class="num">${esc(value)}</span>${links.map(pageLink).join("")}</div>`).join("")}</div>`
     : "";
 }
 
@@ -506,8 +525,7 @@ class ParcelTrackerCard extends HTMLElement {
         }
         .row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-bottom:8px; }
         input, select { font:inherit; padding:8px; border-radius:6px; border:1px solid var(--divider-color); background:var(--card-background-color); color:var(--primary-text-color); min-width:0; }
-        button, .actions a { font:inherit; padding:8px 12px; border-radius:6px; border:1px solid var(--divider-color); background:none; color:var(--primary-text-color); cursor:pointer; }
-        .actions a { text-decoration:none; }
+        button { font:inherit; padding:8px 12px; border-radius:6px; border:1px solid var(--divider-color); background:none; color:var(--primary-text-color); cursor:pointer; }
         .err { color:var(--error-color); font-size:13px; min-height:18px; }
         .err.bare:empty { display:none; }
         .plus { width:36px; height:36px; margin:-6px -4px -6px 0; padding:0; border:none; border-radius:50%; display:grid; place-items:center; flex:none; }
@@ -545,6 +563,13 @@ class ParcelTrackerCard extends HTMLElement {
         .ev { padding-inline-start:1em; text-indent:-1em; }
         .note { margin-top:4px; }
         .ids { margin-top:4px; }
+        /* Each line as high as a symbol's hit area (24px, the WCAG minimum for a target): two
+           lines' areas never overlap. */
+        .ids > div { line-height:24px; }
+        /* (the padding makes the symbol easier to hit, wider than high to keep the lines close;
+           the negative margin keeps the line) */
+        .ids a.go { display:inline-flex; vertical-align:middle; margin:-3px 0 -3px 0; padding:3px 6px; border-radius:6px; color:var(--primary-color); }
+        .ids a.go ha-icon { --mdc-icon-size:18px; }
         .num { color:var(--primary-text-color); -webkit-user-select:all; user-select:all; cursor:text; overflow-wrap:anywhere; }
         .actions { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
         .actions input { flex:1 1 140px; }
@@ -748,23 +773,19 @@ class ParcelTrackerCard extends HTMLElement {
         <button type="button" class="danger" data-a="remove-confirm" data-number="${n}">Wirklich löschen?</button>
         <button type="button" data-a="remove-cancel" data-number="${n}">Abbrechen</button></div>`;
     }
-    // Links, not buttons: the browser opens the page, the card has nothing to do.
-    const link = (url, text) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${text}</a>` : "");
-    const track = link(trackingUrl(a), "Sendung verfolgen");
-    const order = link(orderUrl(a.number), "Bestellung");
     // Delivered between the two taps: nothing is left to confirm.
     if (this._receiving.has(a.number) && !canMarkReceived(a, s)) this._receiving.delete(a.number);
     // One mis-tap would be final (nothing takes the mark back): asked twice, like deleting.
-    // "Abbrechen" stands exactly where "Erhalten" was tapped (the links stay in front of
-    // it) and gets the focus, so a double tap or Enter never confirms by itself.
+    // "Abbrechen" stands exactly where "Erhalten" was tapped (first in the row) and gets the
+    // focus, so a double tap or Enter never confirms by itself.
     if (this._receiving.has(a.number)) {
-      return `<div class="actions" role="group" aria-label="Erhalten bestätigen">${track}${order}
+      return `<div class="actions" role="group" aria-label="Erhalten bestätigen">
         <button type="button" data-a="received-cancel" data-number="${n}">Abbrechen</button>
         <button type="button" data-a="received-confirm" data-number="${n}">Wirklich erhalten?</button></div>`;
     }
     const received = canMarkReceived(a, s)
       ? `<button type="button" data-a="received" data-number="${n}">Erhalten</button>` : "";
-    return `<div class="actions">${track}${order}${received}<button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
+    return `<div class="actions">${received}<button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
   }
 
   _codeHtml(a) {
