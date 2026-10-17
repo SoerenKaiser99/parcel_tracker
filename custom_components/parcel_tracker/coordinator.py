@@ -700,9 +700,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel = change.parcel
         if change.old_status is None and parcel.status is ParcelStatus.DELIVERED:
             if change.announce:
-                # Delivered as its first status, but news (see ``Change.announce``):
-                # told once like a change to "delivered", by the parcel itself. Nobody
-                # told anything about it before, so it had no status: "unknown".
+                # Delivered as its first status, but news (see ``Change.announce``: a
+                # carrier's parcel, or a further box of a shop order): told once like a
+                # change to "delivered", by the parcel itself. Nobody told anything about
+                # it before, so it had no status: "unknown".
                 self._fire(parcel, ParcelStatus.UNKNOWN)
             else:
                 self._untold(parcel)

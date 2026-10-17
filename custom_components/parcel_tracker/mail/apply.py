@@ -78,8 +78,9 @@ class Change:
     # waits for no announcement: the box's delivery is told. The order's change is its
     # own event, but no notification (see the coordinator's ``_mail_changed``).
     told: bool = False
-    # A carrier mail made this parcel, delivered right away, and it is news all the same
-    # (see ``_apply_tracking``): the coordinator announces it once as delivered.
+    # A mail made this parcel, delivered right away, and it is news all the same: a
+    # carrier's parcel (see ``_apply_tracking``) or a further box of a known order (see
+    # ``_apply_order``). The coordinator announces it once as delivered.
     announce: bool = False
 
 
@@ -355,6 +356,37 @@ def _order_parcels(parcels: dict[str, Parcel], carrier: str, number: str) -> lis
     return sorted(siblings, key=lambda p: (len(p.number), p.number))
 
 
+def _order_index(order: str, number: str) -> int:
+    """Which entry of an order a number is: 1 for the order's own, n for "…P<n>"."""
+    suffix = number[len(order) + 1 :] if number != order else ""
+    return int(suffix) if suffix.isdigit() else 1
+
+
+def _numbered(title: str, index: int) -> str:
+    """An entry's name: its item, with the number of the entry from the second one on."""
+    return title if index == 1 else f"{title} ({index})"
+
+
+def _shop_box(carrier: str, index: int) -> str:
+    """The name of a further entry whose mails named no item yet ("Amazon-Sendung (2)")."""
+    return f"{CARRIER_NAMES[carrier]}-Sendung ({index})"
+
+
+def _new_number(parcels: dict[str, Parcel], siblings: list[Parcel], order: str) -> str:
+    """The number of a new entry of an order: the order's own while it has none, else the
+    one after the highest it has ("…P3" after "…P2").
+
+    Never the number of an entry that is there: one the user removed leaves a gap, and
+    counting the entries would hand out a number that is taken.
+    """
+    if not siblings and order not in parcels:
+        return order
+    index = max((_order_index(order, p.number) for p in siblings), default=1) + 1
+    while f"{order}P{index}" in parcels:
+        index += 1
+    return f"{order}P{index}"
+
+
 def _take_shop_facts(
     parcels: dict[str, Parcel], parcel: Parcel, update: MailUpdate, now: datetime
 ) -> bool:
@@ -407,14 +439,14 @@ def _take_shop_facts(
 
 
 def _remember_shipment(parcel: Parcel, update: MailUpdate) -> None:
-    """Keep Amazon's id of the shipment a mail names with the order it went to.
+    """Keep Amazon's id of the shipment a mail names with the entry it went to.
 
-    Kept for the link to Amazon's tracking page (``links.tracking_url``), never told: no
-    change of the order, no news. Nothing for an order the user marked as received, like
-    ``_take_shop_facts``.
+    It tells which entry of an order the later mails of that box go to (``_by_shipment``)
+    and gives the link to Amazon's tracking page (``links.tracking_url``). Keeping it is
+    never told: no change of the order, no news. Kept for an entry the user marked as
+    received as well: the hand mark stays as it is (``_forward``), and without the id
+    every later mail of that box would make an entry of its own.
     """
-    if parcel.manual_delivered:
-        return
     if update.shipment_id and update.shipment_id not in parcel.shipment_ids:
         parcel.shipment_ids.append(update.shipment_id)
 
@@ -445,15 +477,104 @@ def _further_parcel(
     _forward(extra, words, now)
 
 
+def _same_item(parcel: Parcel, key: str | None) -> bool:
+    return bool(key and parcel.mail_title and title_key(parcel.mail_title) == key)
+
+
+def _names_item(parcel: Parcel, key: str | None) -> bool:
+    """Like ``_same_item``, but a title cut short counts as well: the subject of a shipping
+    mail may name only the first word ("Lsa…"), the order's mail names it in full."""
+    theirs = title_key(parcel.mail_title) if parcel.mail_title else ""
+    return bool(key and theirs) and (theirs.startswith(key) or key.startswith(theirs))
+
+
+def _only_ordered(parcel: Parcel) -> bool:
+    """No box was told for this entry yet: it is only ordered ("Bestellt"), or it was
+    closed while it was, without a delivery mail (``close_unconfirmed``).
+
+    The first box of an order takes such an entry over (``_by_shipment``, ``_take_over``);
+    a closed one comes back to life with it, as with any later mail of the shop.
+    """
+    if parcel.shipment_ids:
+        return False
+    if parcel.status is ParcelStatus.PRE_TRANSIT:
+        return True
+    if not parcel.assumed_delivered or parcel.tracking_ref is not None:
+        return False
+    result = parcel.result
+    closing = (ASSUMED_TEXT, result.status_text)
+    ordered = SHOP_TEXT[ParcelStatus.PRE_TRANSIT]
+    return all(e.text == ordered for e in result.events if e.text not in closing)
+
+
+def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
+    """The entry of an order a mail that names its shipment (Amazon's id) goes to.
+
+    The id is the box's own, the same in every mail about it, so it wins over the title:
+    two boxes of one item ("2 x …" sent on two days) are two entries, and a box whose
+    title grows ("… und 2 weitere Artikel") stays one. Older versions kept every id with
+    the entry its mail went to, so two entries may hold the same one: then the one that
+    names the mail's item, else the first. An id no entry has yet is a box that is new
+    here. It takes an entry no box was told for yet:
+
+    - the one that names its item, or else the order itself while no box was told for it
+      (``_only_ordered``: the first box takes it over);
+    - for a mail that names no item (an old "Zugestellt" mail), the first open one, or
+      else the order itself as above.
+
+    None if there is none: the box is a further shipment, an entry of its own (the caller
+    makes it), whatever its status and title.
+    """
+    shipment = update.shipment_id
+    key = title_key(update.title) if update.title else None
+    if held := [p for p in siblings if shipment in p.shipment_ids]:
+        return next((p for p in held if _names_item(p, key)), held[0])
+    free = [p for p in siblings if not p.shipment_ids]
+    open_ = (p for p in free if p.status is not ParcelStatus.DELIVERED)
+    named = (p for p in free if _names_item(p, key)) if key is not None else open_
+    return next(named, None) or next((p for p in free if _only_ordered(p)), None)
+
+
+def _take_over(target: Parcel, update: MailUpdate) -> None:
+    """The first box of an order takes over the entry made when it was ordered.
+
+    The order's mail named its first item; from now on the entry is this box, so it is
+    named after the item the box holds. Later mails find it by that name (and a box with
+    the first item finds its own entry, not this one). Not for a name the user typed in,
+    and not for a shop whose mails name an order's items in turn.
+    """
+    if (
+        update.carrier in SINGLE_PARCEL_SHOPS
+        or not update.title
+        or not _only_ordered(target)
+        or _step(update.status) <= _step(ParcelStatus.PRE_TRANSIT)
+        or _names_item(target, title_key(update.title))
+    ):
+        return
+    target.mail_title = update.title
+    if not target.name_manual and target.number == update.number:
+        target.name = update.title
+
+
 def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
     """A shop order ("AMZ…"/"EBAY…"/"ALI…"/"EVT…"): one parcel per order, suffix for further
-    shipments (never for AliExpress and Eventim: their mails name an order's items in turn)."""
+    shipments (never for AliExpress and Eventim: their mails name an order's items in turn).
+
+    A mail that names its shipment (Amazon's id) goes by it (``_by_shipment``). Any other
+    goes by the item it names, else to the order's first open entry; it is a further
+    shipment only as "Versendet" with an item no entry names, once every entry of the
+    order is shipped. A further entry takes the number after the highest one the order
+    has (``_new_number``) and is named after its item with that number: "… (3)".
+    """
     siblings = _order_parcels(parcels, update.carrier, update.number)
     key = title_key(update.title) if update.title else None
-    target = next(
-        (p for p in siblings if key and p.mail_title and title_key(p.mail_title) == key), None
-    )
-    if target is None and siblings:
+    if update.shipment_id and siblings:
+        target = _by_shipment(siblings, update)
+        further_shipment = target is None
+    else:
+        target = next((p for p in siblings if _same_item(p, key)), None)
+        further_shipment = False
+    if target is None and siblings and not further_shipment:
         # (a postponed delivery is news about a shipment there is, never a further one)
         further_shipment = (
             key is not None
@@ -466,18 +587,37 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
             open_ = [p for p in siblings if p.status is not ParcelStatus.DELIVERED]
             target = (open_ or siblings)[0]
     if target is None:
-        count = len(siblings) + 1
-        number = update.number if count == 1 else f"{update.number}P{count}"
-        name = update.title if count == 1 or not update.title else f"{update.title} ({count})"
+        number = _new_number(parcels, siblings, update.number)
+        index = _order_index(update.number, number)
+        if update.title:
+            name = _numbered(update.title, index)
+        else:
+            # (a further box whose mail names no item, see ``_by_shipment``)
+            name = _shop_box(update.carrier, index) if index > 1 else None
         target = Parcel(number, update.carrier, "mail", name, now, now, mail_title=update.title)
         parcels[number] = target
         _take_shop_facts(parcels, target, update, now)
         _remember_shipment(target, update)
         _forward(target, update, now)
-        return Change(target, None, True)
+        # A first status is no news - but a further box of an order that is delivered as
+        # soon as it is known (the mails before were never read, or named no box of
+        # their own) is: it is the order's box that just came, like a carrier's parcel
+        # delivered right away (``_apply_tracking``). Never the order's first entry, and
+        # not for a mail read late: nothing came just now.
+        news = (
+            bool(siblings)
+            and target.status is ParcelStatus.DELIVERED
+            and not target.assumed_delivered
+            and now - update.sent_at <= NEW_DELIVERY_MAX_AGE
+        )
+        return Change(target, None, True, announce=news)
+    _take_over(target, update)
     if target.mail_title is None and update.title:
         target.mail_title = update.title
-        target.name = target.name or update.title
+        index = _order_index(update.number, target.number)
+        if not target.name_manual and target.name in (None, _shop_box(update.carrier, index)):
+            # (a box whose mails named no item so far: now one does)
+            target.name = _numbered(update.title, index)
     old = target.status
     own = parcels.get(update.tracking_ref) if update.tracking_ref else None
     facts = _take_shop_facts(parcels, target, update, now)
