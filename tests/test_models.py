@@ -176,3 +176,22 @@ def test_unreadable_gls_probes_count_as_not_asked(stored):
     data = Parcel("999999999017", None, "auto", None, now, now).to_dict()
     data["gls_probes"] = stored
     assert Parcel.from_dict(data).gls_probes == 0
+
+
+def test_shipment_ids_roundtrip_and_backward_compat():
+    p = _mail_parcel(shipment_ids=["TAbCdE9fG", "UhIjKl9mN"])
+    assert p.to_dict()["shipment_ids"] == ["TAbCdE9fG", "UhIjKl9mN"]
+    assert Parcel.from_dict(p.to_dict()) == p
+    old = _mail_parcel().to_dict()
+    del old["shipment_ids"]
+    assert Parcel.from_dict(old).shipment_ids == []
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected"),
+    [(None, []), ("TAbCdE9fG", []), ({"a": 1}, []), (["TAbCdE9fG", 5, None], ["TAbCdE9fG"])],
+)
+def test_unreadable_shipment_ids_are_dropped(stored, expected):
+    data = _mail_parcel().to_dict()
+    data["shipment_ids"] = stored
+    assert Parcel.from_dict(data).shipment_ids == expected

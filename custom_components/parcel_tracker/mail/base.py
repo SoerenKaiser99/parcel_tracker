@@ -22,11 +22,18 @@ MONTHS = {
 }
 
 # Invisible marks Amazon/DHL put into mails: combining grapheme joiner, zero-width
-# chars, direction marks/embeddings (U+202B before the order number), soft hyphen.
-_INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­]")
+# chars, direction marks/embeddings (U+202B before the order number) and isolates
+# (around the count in "und 3 weitere Artikel"), soft hyphen.
+_INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­\u2066-\u2069]")
 _SPACES = re.compile("[ \t   ]+")
 _FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
 _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
+# Words a shop's mail about a postponed delivery brings (``MailUpdate.status_text``): nobody
+# was met, it takes longer, or it could not be delivered for a reason not told (AliExpress
+# "Lieferprobleme für Packstück …"). They tell one moment, see ``apply._POSTPONED_TEXTS``.
+ATTEMPT_TEXT = "Zustellung versucht"
+DELAY_TEXT = "Lieferung verspätet"
+PROBLEM_TEXT = "Lieferprobleme"
 
 
 @dataclass
@@ -58,9 +65,20 @@ class MailUpdate:
     # The mail's own words for the status, shown and written to the history instead of
     # the usual text of the status ("Zustellung versucht").
     status_text: str | None = None
-    # The shop confirms the delivery days afterwards (AliExpress "Lieferung bestätigt"): an
-    # order that is delivered for real keeps its time of delivery and its history.
+    # The shop confirms the delivery days afterwards (AliExpress "Lieferung bestätigt"). An
+    # order that is delivered for real keeps its time of delivery and its history. Any
+    # other order is closed on the shop's word alone, like one without a delivery mail
+    # (``Parcel.assumed_delivered``): nobody saw it arrive, so nothing is pushed and it
+    # never counts as delivered today. See ``apply._confirm``.
     confirmation: bool = False
+    # Where a parcel that is ready for pickup waits and the last day it may be picked up,
+    # as a shop's mail names them (Amazon "Paket zur Abholung bereit"): the place's own
+    # name and street, never a person, a postcode or the shop's internal id.
+    pickup_point: str | None = None
+    pickup_until: date | None = None
+    # Amazon's own id of a shipment, from the link to its tracking page ("shipmentId"): each
+    # mail from "Versendet" on names it, the same in every mail about that box.
+    shipment_id: str | None = None
 
 
 @dataclass
@@ -168,11 +186,45 @@ def _content(part: EmailMessage) -> str:
         return (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
 
 
+_PLAIN_LINK = re.compile(r"https?://[^\s<>\"'\[\]()]+")
+
+
+class _Hrefs(HTMLParser):
+    """The targets of the links (``<a href>``) of an HTML text."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.found: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "a":
+            self.found += [value for name, value in attrs if name == "href" and value]
+
+
+def part_links(part: EmailMessage) -> list[str]:
+    """The links of one text part: ``href`` of an HTML part, the addresses in a text."""
+    content = _content(part)
+    if part.get_content_type() == "text/plain":
+        return _PLAIN_LINK.findall(content)
+    parser = _Hrefs()
+    try:
+        parser.feed(content)
+        parser.close()
+    except (AssertionError, ValueError):  # broken markup: what was read so far
+        pass
+    return parser.found
+
+
 def body_text(msg: EmailMessage) -> str:
     """Cleaned text/plain body, else the text of the HTML body ('' if there is neither)."""
     part = msg.get_body(preferencelist=("plain",))
     if part is not None:
         return clean(_content(part))
+    return html_body_text(msg)
+
+
+def html_body_text(msg: EmailMessage) -> str:
+    """The text of the HTML body ('' if there is none)."""
     part = msg.get_body(preferencelist=("html",))
     return html_text(_content(part)) if part is not None else ""
 

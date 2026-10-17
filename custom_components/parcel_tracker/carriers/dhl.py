@@ -20,6 +20,7 @@ from .base import (
     NotFound,
     ParseError,
     RateLimited,
+    plain_text,
 )
 
 DHL_URL = "https://api-eu.dhl.com/track/shipments"
@@ -87,11 +88,16 @@ def _eta(shipment: dict[str, Any]) -> tuple[date | None, datetime | None, dateti
     return from_day or to_day or day, eta_from, eta_to
 
 
+def _text(value: Any) -> str:
+    """A text of DHL's answer as plain text ("" for none); DHL may send HTML (issue #18)."""
+    return plain_text(value) if isinstance(value, str) else ""
+
+
 def _locality(node: dict[str, Any] | None) -> str | None:
     raw = (((node or {}).get("location") or {}).get("address") or {}).get("addressLocality")
     if not isinstance(raw, str):
         return raw
-    value = raw.strip()
+    value = _text(raw)
     for country in ("Deutschland", "Germany"):
         if value.lower().endswith(f", {country.lower()}"):
             value = value[: -len(country) - 2].strip()
@@ -122,7 +128,7 @@ def parse_dhl(data: dict[str, Any]) -> TrackingResult:
     except (KeyError, IndexError, TypeError) as err:
         raise ParseError("no shipment in DHL response") from err
 
-    text = current.get("description") or current.get("status") or ""
+    text = _text(current.get("description")) or _text(current.get("status"))
     known = _SHORT_CODE_MAP.get(current.get("status"))
     status = known or _refine(_CODE_MAP.get(current.get("statusCode"), ParcelStatus.UNKNOWN), text)
 
@@ -131,7 +137,7 @@ def parse_dhl(data: dict[str, Any]) -> TrackingResult:
     events = [
         TrackingEvent(
             timestamp=_ts(ev.get("timestamp")),
-            text=ev.get("description") or ev.get("status") or "",
+            text=_text(ev.get("description")) or _text(ev.get("status")),
             location=_locality(ev),
         )
         for ev in (shipment.get("events") or [])[:MAX_EVENTS]
@@ -153,7 +159,10 @@ def parse_dhl(data: dict[str, Any]) -> TrackingResult:
 
 
 # International shipments: a UPU S10 number issued in Germany ("CQ…DE", "RR…DE"). No other
-# carrier's rule takes 13 characters, so it is a sure match.
+# carrier's rule takes 13 characters, so it is a sure match. This rule only serves
+# "Automatisch" for a number typed in: one of another country ("…AT", "…CH", "…NL", "…BE")
+# belongs to that country's post and stays no match. A parcel a DHL mail creates with such
+# a number carries "dhl" and is asked at DHL without this rule (issue #34).
 _S10 = re.compile(r"[A-Z]{2}\d{9}DE")
 
 

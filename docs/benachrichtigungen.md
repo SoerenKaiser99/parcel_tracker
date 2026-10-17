@@ -56,7 +56,7 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 | Problem | `⚠️ Kopfhörer (DHL): Problem bei der Zustellung` |
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
-- Ort der Filiale und letzter Abholtag stehen nur da, wenn der Paketdienst sie nennt.
+- Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder die Abholmail des Shops (Amazon „Paket zur Abholung bereit“) sie nennt. Der Ort ist höchstens 40 Zeichen lang.
 - Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen).
 - Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.
 - Mit [Namen ausblenden](datenschutz.md#namen-ausblenden) steht dort statt eines Namens aus einer Mail `DHL-Paket …2557`, ohne den Paketdienst dahinter.
@@ -68,11 +68,12 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 
 Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt. Also nicht doppelt für denselben Status und nicht, wenn ein Paketdienst nach 17track mit einem älteren Stand antwortet.
 
-- **Der allererste Status** eines neuen Pakets wird nie gemeldet.
-- **Während eines Neustarts** geht nichts verloren: Wechselt ein Paket den Status, während Home Assistant neu startet oder die Integration neu lädt, folgen Event und Benachrichtigung genau einmal, sobald Home Assistant fertig gestartet ist – spätestens zwei Minuten nachdem die Integration geladen wurde. Nach einem Neuladen im laufenden Betrieb sofort.
+- **Der allererste Status** eines neuen Pakets wird nicht gemeldet. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
+- **Während eines Neustarts** geht nichts verloren: Wechselt ein Paket den Status, während Home Assistant neu startet oder die Integration neu lädt, folgen Event und Benachrichtigung genau einmal, sobald Home Assistant fertig gestartet ist – spätestens zwei Minuten nachdem die Integration geladen wurde. Nach einem Neuladen im laufenden Betrieb sofort. Eine noch ausstehende Meldung wird mit dem Paket gespeichert: Sie übersteht auch ein erneutes Neuladen und einen weiteren Neustart, bevor sie gesendet wurde.
 - **Mehrere Wechsel** in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status.
-- **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam, feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.
+- **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam („Abgeschlossen ohne Zustellbestätigung“, siehe [Bestellungen ohne Zustellmail](mail-import.md#bestellungen-ohne-zustellmail)), feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.
 - **Von Hand erhalten:** Markierst du ein Paket mit [„Erhalten“](karte.md#erhalten) selbst als erhalten, feuert das Event mit dem Feld `manual` auf `true`. Eine Benachrichtigung gibt es auch dafür nicht.
+- **Mehrere Bestellungen in einem Paket** (AliExpress): Das Event feuert für jede Bestellung, die Benachrichtigung aus den Optionen geht für das Paket einmal raus.
 
 Schlägt das Senden fehl, steht eine Warnung ohne Paketdaten im Log. Die Paketabfrage läuft unverändert weiter.
 
@@ -130,6 +131,11 @@ Ein Beispiel für das Feld **Text**:
 {{ name }} kommt mit {{ carrier }}
 ```
 
-Die Sendungsnummer, der Zustell-Code und der Ort stehen in keinem der voreingestellten Texte. Bestellungen, die ohne Zustellmail abgeschlossen wurden (`assumed`), meldet der Blueprint nicht.
+Die Sendungsnummer, der Zustell-Code und der Ort stehen in keinem der voreingestellten Texte. Bestellungen, die ohne Zustellmail abgeschlossen wurden (`assumed`), und Pakete, die von Hand als erhalten markiert wurden (`manual`), meldet der Blueprint nicht.
+
+!!! warning "Nach dem Update einmal neu importieren"
+    Home Assistant aktualisiert einen importierten Blueprint nicht von selbst. Der Blueprint prüft `assumed` seit v0.3.20 und `manual` seit v0.3.30. Eine Automation aus einer älteren Fassung meldet eine Markierung von Hand als „wurde zugestellt“ – vor v0.3.20 auch eine abgeschlossene Bestellung.
+
+    Importier den Blueprint nach dem Update auf 0.3.30 oder neuer einmal neu: **Einstellungen → Automationen & Szenen → Blueprints**, im Menü des Blueprints **Blueprint erneut importieren**. Deine Automationen daraus bleiben und nutzen danach die neue Fassung. Für eigene Automationen, die auf `new_status == delivered` filtern, steht die Bedingung unter [Automationen](automationen.md#von-hand-erhalten-manual).
 
 Der Blueprint braucht Home Assistant 2024.10 oder neuer.

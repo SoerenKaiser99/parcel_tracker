@@ -85,6 +85,17 @@ click("received");
 out.signature.asking = card._signature();
 out.asked = { ...state(), renaming: card._renaming.has("X1"),
   deleting: card._confirming.has("X1") };
+// A row without any link (Eventim): what stands where "Erhalten" was?
+const ticket = { number: "EVT999999901", carrier: "eventim" };
+out.place = { before: card._actionsHtml(ticket, "in_transit") };
+card._receiving.add(ticket.number);
+out.place.asking = card._actionsHtml(ticket, "in_transit");
+// Delivered between the two taps: nothing is left to confirm.
+out.place.delivered = card._actionsHtml(ticket, "delivered");
+out.place.stillAsking = card._receiving.has(ticket.number);
+card._receiving.add(ticket.number);
+out.place.assumed = card._actionsHtml({ ...ticket, assumed_delivered: true }, "delivered");
+card._receiving.delete(ticket.number);
 click("received-cancel");
 out.cancelled = state();
 click("received");
@@ -130,24 +141,20 @@ def _actions(html: str) -> list[str]:
 @pytest.mark.parametrize("state", ["transit", "pickup", "unknown", "problem"])
 def test_every_parcel_that_is_not_delivered_has_the_button(card, state):
     assert BUTTON in card["html"][state]
-    assert _actions(card["html"][state]) == [
-        "Sendung verfolgen", "Erhalten", "Umbenennen", "Löschen",
-    ]
+    assert _actions(card["html"][state]) == ["Erhalten", "Umbenennen", "Löschen"]
 
 
-def test_order_of_the_actions_links_first(card):
-    assert _actions(card["html"]["both"]) == [
-        "Sendung verfolgen", "Bestellung", "Erhalten", "Umbenennen", "Löschen",
-    ]
-    # An order without any link (Eventim): the button comes first.
+def test_order_of_the_actions_the_button_first(card):
+    # The links stand behind the numbers: the row holds only buttons, also for an order.
+    assert _actions(card["html"]["both"]) == ["Erhalten", "Umbenennen", "Löschen"]
     assert _actions(card["html"]["ordered"]) == ["Erhalten", "Umbenennen", "Löschen"]
-    assert "<a " not in card["html"]["ordered"]
+    assert "<a " not in card["html"]["both"]
 
 
 def test_a_delivered_parcel_has_no_button(card):
     for state in ("delivered", "manual"):
         assert 'data-a="received"' not in card["html"][state]
-        assert _actions(card["html"][state]) == ["Sendung verfolgen", "Umbenennen", "Löschen"]
+        assert _actions(card["html"][state]) == ["Umbenennen", "Löschen"]
     assert card["can"] == {
         "transit": True, "delivered": False, "assumed": True, "assumedOpenAgain": True,
     }
@@ -171,15 +178,33 @@ def test_a_parcel_marked_by_hand_is_shown_like_a_delivered_one(card):
 def test_the_first_tap_only_asks(card):
     asked = card["asked"]
     assert asked["asking"] is True and asked["calls"] == 0
-    assert asked["focus"] == {"number": "X1", "a": "received-confirm"}
-    assert _actions(asked["html"]) == ["Wirklich erhalten?", "Abbrechen"]
+    # The focus goes to "Abbrechen": a second tap or Enter never confirms by itself.
+    assert asked["focus"] == {"number": "X1", "a": "received-cancel"}
+    assert _actions(asked["html"]) == ["Abbrechen", "Wirklich erhalten?"]
     assert 'role="group" aria-label="Erhalten bestätigen"' in asked["html"]
-    assert "<a " not in asked["html"] and 'class="danger"' not in asked["html"]
+    assert 'class="danger"' not in asked["html"]
     # Renaming or deleting that was under way is over.
     assert asked["renaming"] is False and asked["deleting"] is False
     # The open question is part of what the card compares before it draws anew.
     assert card["signature"]["before"] != card["signature"]["asking"]
     assert "|rcv:X1|" in card["signature"]["asking"]
+
+
+def test_a_double_tap_hits_abbrechen_not_the_confirmation(card):
+    """The mark cannot be taken back: where "Erhalten" was tapped stands "Abbrechen"."""
+    place = card["place"]
+    assert _actions(place["before"]) == ["Erhalten", "Umbenennen", "Löschen"]
+    assert _actions(place["asking"]) == ["Abbrechen", "Wirklich erhalten?"]
+    assert _actions(card["html"]["transit"])[:1] == ["Erhalten"]
+    assert _actions(card["asked"]["html"])[:1] == ["Abbrechen"]
+
+
+def test_delivered_between_the_two_taps_ends_the_question(card):
+    place = card["place"]
+    assert _actions(place["delivered"]) == ["Umbenennen", "Löschen"]
+    assert place["stillAsking"] is False
+    # An order closed on its own can still be confirmed: the question stays.
+    assert _actions(place["assumed"]) == ["Abbrechen", "Wirklich erhalten?"]
 
 
 def test_cancel_and_the_other_actions_take_the_question_back(card):

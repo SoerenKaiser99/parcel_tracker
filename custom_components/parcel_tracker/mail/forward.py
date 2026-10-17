@@ -61,7 +61,8 @@ _WEEKDAYS = {
     )
     for name in names
 }
-_MONTHS = {
+# Months as three letters, German and English.
+MONTHS_ABBR = {
     "jan": 1, "feb": 2, "mär": 3, "mar": 3, "mrz": 3, "apr": 4, "mai": 5, "may": 5,
     "jun": 6, "jul": 7, "aug": 8, "sep": 9, "okt": 10, "oct": 10, "nov": 11, "dez": 12,
     "dec": 12,
@@ -70,7 +71,7 @@ _MONTH_NAMES = frozenset(
     {
         "januar", "februar", "märz", "april", "mai", "juni", "juli", "august", "september",
         "oktober", "november", "dezember", "january", "february", "march", "may", "june",
-        "july", "october", "december", "sept", "mrz", *_MONTHS,
+        "july", "october", "december", "sept", "mrz", *MONTHS_ABBR,
     }
 )
 _ZONES = {"mesz": 2, "cest": 2, "mez": 1, "cet": 1, "utc": 0, "gmt": 0, "z": 0}
@@ -218,7 +219,7 @@ def parse_quoted_date(text: str) -> datetime | None:
             day = int(match.group(1 if kind == "dMy" else 2))
             if name not in _MONTH_NAMES:
                 continue
-            found = [(int(match.group(3)), _MONTHS[name[:3]], day)]
+            found = [(int(match.group(3)), MONTHS_ABBR[name[:3]], day)]
         rest = f"{rest[: match.start()]} {rest[match.end() :]}"
         for word in _WORD.findall(rest):
             lower = word.lower()

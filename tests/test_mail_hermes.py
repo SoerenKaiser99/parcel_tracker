@@ -123,6 +123,59 @@ def test_only_a_known_shop_becomes_the_name(sender, title):
     assert (u.title, u.shop) == (title, None)
 
 
+# ----- today's window, the delivery at the door, a new day -----
+def test_comes_today_is_in_delivery_with_its_window():
+    msg = load_mail("168_hermes_deine_sendung_kommt_heute.eml")
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.carrier, u.status) == (
+        "H1000999999999990168", "hermes", ParcelStatus.OUT_FOR_DELIVERY,
+    )
+    assert u.eta_date == date(2025, 7, 11)
+    assert (u.eta_from, u.eta_to) == (
+        datetime(2025, 7, 11, 12, 5, tzinfo=BERLIN), datetime(2025, 7, 11, 13, 35, tzinfo=BERLIN),
+    )
+    assert (u.shop, u.postponed) == ("amazon", False)
+
+
+def test_delivery_at_the_door_is_delivered():
+    msg = load_mail("169_hermes_erfolgreiche_haustuerzustellung.eml")
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.status) == ("H1000999999999990168", ParcelStatus.DELIVERED)
+    assert u.delivered_at == msg["Date"].datetime
+    assert (u.eta_date, u.eta_from) == (None, None)
+
+
+def test_new_attempt_puts_the_parcel_back_on_its_way_for_the_new_day():
+    [u] = parse_mail(load_mail("170_hermes_erneuter_zustellversuch.eml")).updates
+    assert (u.number, u.status, u.postponed) == (
+        "H1000999999999990170", ParcelStatus.IN_TRANSIT, True,
+    )
+    assert u.eta_date == date(2025, 8, 28)
+    assert (u.eta_from, u.eta_to) == (
+        datetime(2025, 8, 28, 10, 50, tzinfo=BERLIN), datetime(2025, 8, 28, 13, 50, tzinfo=BERLIN),
+    )
+    assert u.delivered_at is None
+
+
+def test_a_later_day_without_a_window_is_taken_too():
+    body = (
+        "wir schaffen es heute leider nicht. Deine Sendung wird voraussichtlich Mittwoch "
+        "zugestellt.\nNeuer Zustelltermin am\nMittwoch, 07.10.2026\n"
+        "Sendungsnummer H1000999999999990901\n"
+    )
+    msg = _msg("Wichtige Information zur Zustellung deiner Hermes Sendung von Zalando", body)
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.postponed, u.eta_date) == (ParcelStatus.IN_TRANSIT, True, date(2026, 10, 7))
+    assert (u.eta_from, u.eta_to) == (None, None)
+
+
+def test_failed_attempt_without_a_new_day_still_tells_no_status():
+    body = ("deine Sendung konnte leider nicht zugestellt werden.\n"
+            "Sendungsnummer H1000999999999990901\n")
+    [u] = parse_mail(_msg("Erneuter Zustellversuch deiner Hermes Sendung", body)).updates
+    assert (u.status, u.postponed, u.eta_date) == (None, False, None)
+
+
 def test_unknown_subject_keeps_number_without_status():
     [u] = parse_hermes_mail(_msg("Neuigkeiten", "Sendungsnummer H9999999999999999901"))
     assert (u.number, u.status) == ("H9999999999999999901", None)
@@ -138,3 +191,56 @@ def test_routing():
         ("hermes", ParcelStatus.DELIVERED)
     ]
     assert not result.amazon and not result.ignored
+
+
+def test_shop_of_the_new_attempt_subject_ends_before_the_question():
+    body = "Neuer Zustellversuch am\nDonnerstag, 08.10.2026\nSendungsnummer H1000999999999990901\n"
+    msg = _msg("Erneuter Zustellversuch deiner Hermes Sendung von Zalando. Wo möchtest du sie "
+               "empfangen?", body)
+    [u] = parse_mail(msg).updates
+    assert (u.title, u.status) == ("Zalando", ParcelStatus.IN_TRANSIT)
+
+
+# ----- review: "kommt heute … nicht", a delivery that is not one at the door -----
+def test_not_today_after_all_is_not_in_delivery():
+    body = "Sendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg("Deine Sendung kommt heute leider nicht mehr.", body)).updates
+    assert (u.status, u.eta_date) == (None, None)
+
+
+def test_only_the_delivery_at_the_door_is_delivered():
+    body = "Sendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg("Erfolgreiche PaketShopzustellung", body)).updates
+    assert (u.status, u.delivered_at) == (None, None)
+
+
+def test_delivery_at_the_door_that_did_not_happen_is_not_delivered():
+    body = "Sendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg("Erfolgreiche Haustürzustellung nicht möglich", body)).updates
+    assert (u.status, u.delivered_at) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("subj", "status"),
+    [
+        ("Deine Hermes Sendung von Zalando wurde zugestellt", ParcelStatus.DELIVERED),
+        ("Deine Hermes Sendung von Zalando kommt heute", ParcelStatus.OUT_FOR_DELIVERY),
+    ],
+)
+def test_a_new_day_in_the_text_does_not_overrule_a_settled_subject(subj, status):
+    body = "Neuer Zustelltermin am\nDonnerstag, 08.10.2026\nSendungsnummer H1000999999999990901\n"
+    [u] = parse_mail(_msg(subj, body)).updates
+    assert (u.status, u.postponed) == (status, False)
+    assert u.eta_date != date(2026, 10, 8)
+
+
+def test_window_of_the_failed_attempt_is_not_the_new_days():
+    body = (
+        "wir haben dich heute zwischen 10:00 und 12:00 Uhr leider nicht angetroffen.\n"
+        "Neuer Zustelltermin am\nDonnerstag, 08.10.2026\n"
+        "Sendungsnummer H1000999999999990901\n"
+    )
+    msg = _msg("Wichtige Information zur Zustellung deiner Hermes Sendung von Zalando", body)
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.eta_date) == (ParcelStatus.IN_TRANSIT, date(2026, 10, 8))
+    assert (u.eta_from, u.eta_to) == (None, None)

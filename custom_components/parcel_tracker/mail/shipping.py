@@ -15,6 +15,7 @@ from .base import (
     company_name,
     domain_of,
     find_numbers,
+    html_body_text,
     html_text,
     is_forwarded,
     sender,
@@ -23,9 +24,12 @@ from .base import (
     subject,
     upcoming_date,
 )
+from .forward import MONTHS_ABBR
 
 DHL_SENDER = "noreply@dhl.de"
 DHL_DOMAIN = "dhl.de"  # every sender there (also paketankuendigung@dhl.de) is DHL
+DHL_COM_DOMAIN = "dhl.com"  # DHL Express
+DHL_EXPRESS_SENDER = "noreply.odd@dhl.com"
 UPS_SENDER = "pkginfo@ups.com"
 AMAZON_DHL_NAME = "Amazon-Sendung (DHL)"
 # Shops and carriers we know: only the display name of such a sender is looked at as a
@@ -43,13 +47,31 @@ _DHL_NEW_DAY = re.compile(
     r"neuer\s+voraussichtlicher\s+Zustelltag\s+ist[\s*_–—-]*\w+,\s+de[rn]\s+"
     r"(\d{1,2})\.(?:(\d{1,2})\.)?"
 )
-# International shipments carry a UPU S10 number issued in Germany ("CQ…DE"). Read only
-# in DHL's own mails: two letters, nine digits and "DE" say too little anywhere else.
-_DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}DE)(?![A-Za-z0-9])")
+# International shipments carry a UPU S10 number: issued in Germany ("CQ…DE") or, for an
+# import, in the sending country ("LE…BE", "LW…NL"; issue #34). DHL tracks them all. Read
+# only in DHL's own mails: two letters, nine digits and a country say too little anywhere
+# else (and "Automatisch" leaves the other countries' numbers to their posts). The check
+# digit is not checked: DHL decides whether it knows the number.
+_DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}[A-Z]{2})(?![A-Za-z0-9])")
 # Some shipments carry a 12-digit number. 12 digits alone say nothing (eBay item numbers
 # look like that): read only in DHL's own mails and only right behind its label, which may
 # stand in the table cell or on the line before the number.
 _DHL_SHORT = re.compile(r"\bSendungsnummer\s*:?\s*(\d{12})(?!\d)")
+# The text part of some mails is empty, or names the number only in a link (the text of the
+# link is a placeholder nobody filled in). The HTML part shows the number on a line of its
+# own below the button. Read there are only the forms seen there that the patterns above do
+# not find: 12 digits, a UPU S10 number (found above already), five letters and 16
+# digits ("JJATA…" from Austria), "JJD" with up to 24 digits. Anything else on that line
+# (an invoice number, 15 digits) is no number of DHL's.
+_DHL_SHOWN = re.compile(
+    r"^(?:Sendungs(?:status|verlauf) einsehen|Ihre Sendung)\n"
+    r"(\d{12}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{5}\d{16}|JJD\d{18,24})$",
+    re.MULTILINE,
+)
+# The receipt of a Packstation ("Einlieferungsbeleg: Ihr Versand an der Packstation") is
+# about a parcel somebody sent, not one that comes. Its text part names no number, and the
+# HTML part is not searched for one.
+_DHL_RECEIPT = re.compile(r"\bEinlieferungsbeleg\b", re.IGNORECASE)
 # DHL's newer layout leaves HTML table markup in its text/plain part.
 _MARKUP = re.compile(r"<(?:table|tr|td|p|div|br|span)\b", re.IGNORECASE)
 # "Ihre <Shop> Sendung ist unterwegs" / "… kommt heute …" / "… wurde zugestellt" / "… wird
@@ -62,14 +84,23 @@ _DHL_SHOP = re.compile(
 # mail speaks of days and deliveries too.
 # "wurde zugestellt", "wurde an den gewünschten Ablageort zugestellt"
 _DHL_DELIVERED = re.compile(r"\bwurde\b(?:\s+\S+){0,6}?\s+zugestellt\b")
-# "liegt am gewünschten Ablageort", "wurde am vereinbarten Ablageort hinterlegt": delivered
-# too, told without the word.
+# "liegt am gewünschten Ablageort", "wurde am vereinbarten Ablageort hinterlegt", "liegt im
+# Briefkasten", "liegt nebenan" (handed to a neighbour): delivered too, told without the word.
 _DHL_DROPPED = re.compile(
     r"\bliegt\b(?:\s+\S+){0,3}?\s+ablageort\b|\bablageort\s+hinterlegt\b"
+    r"|\bliegt\s+im\s+briefkasten\b|\bliegt\s+nebenan\b"
 )
 # ... but "an Packstation 123 zugestellt" waits for the recipient.
 _DHL_PICKUP_PLACE = re.compile(r"packstation|filiale|paketshop|poststation|postfiliale")
-_DHL_READY = re.compile(r"\bzur\s+abholung\s+bereit\b|\babholbereit\b")
+# (also the reminder "liegt seit 2 Tagen in der Filiale")
+_DHL_READY = re.compile(
+    r"\bzur\s+abholung\s+bereit\b|\babholbereit\b|\bliegt\b(?:\s+\S+){0,4}?\s+in\s+"
+    r"(?:der|ihrer|einer)\s+(?:packstation|filiale|paketshop|poststation|postfiliale)\b"
+)
+# "… wurde leider auf dem Transportweg beschädigt": the packaging; DHL packs it anew and
+# delivers it. Still on its way, with a line of its own in the history.
+_DHL_DAMAGED = re.compile(r"\btransportweg\s+beschädigt\b")
+DAMAGED_TEXT = "Verpackung beschädigt"
 _DHL_TODAY = re.compile(r"\bkommt\s+heute\b|\bwird\s+(?:heute|gleich)\b.*\bzugestellt\b")
 # "wird gleich zugestellt": the courier is close. Still "in Zustellung", with a line of
 # its own in the history.
@@ -106,13 +137,29 @@ def _dhl_status(subj: str) -> tuple[ParcelStatus | None, int | None]:
     return (ParcelStatus.IN_TRANSIT if "sendung" in lower else None), None
 
 
+def _dhl_words(subj: str, status: ParcelStatus | None) -> str | None:
+    """The mail's own words for the history, None if the status says it all."""
+    lower = subj.lower()
+    if status is ParcelStatus.OUT_FOR_DELIVERY and _DHL_SOON.search(lower):
+        return SOON_TEXT
+    if status is ParcelStatus.IN_TRANSIT and _DHL_DAMAGED.search(lower):
+        return DAMAGED_TEXT
+    return None
+
+
+def _dhl_numbers(text: str) -> list[str]:
+    numbers = [n for carrier, n in find_numbers(text) if carrier == "dhl"]
+    return numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
+
+
 def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     """DHL notification: number, status, day or today's window, the shop the subject names.
 
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
     unterwegs", "kommt morgen" (the day after the mail), "kommt heute" / "wird heute
     zugestellt" / "wird gleich zugestellt" (told in its own words), "wurde … zugestellt",
-    "liegt am gewünschten Ablageort" and, for a Packstation or branch, "liegt zur Abholung
+    "liegt am gewünschten Ablageort" / "liegt im Briefkasten" / "liegt nebenan" and, for a
+    Packstation or branch, "liegt zur Abholung
     bereit" / "wurde an Packstation … zugestellt". Any other subject that speaks of a
     "Sendung" means "on its way" without a day; a question (survey) and
     a subject without "Sendung" tell no status. A pick-up code is never read. An Amazon shipment
@@ -126,8 +173,13 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     if _MARKUP.search(text):
         text = html_text(text)
     sent = sent_at(msg)
-    numbers = [n for carrier, n in find_numbers(text) if carrier == "dhl"]
-    numbers = numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
+    numbers = _dhl_numbers(text)
+    if not numbers and _DHL_RECEIPT.search(subj):
+        return []
+    if not numbers:
+        # Nothing in the text part: the HTML part is read instead, for the day as well.
+        text = html_body_text(msg)
+        numbers = _dhl_numbers(text) or _DHL_SHOWN.findall(text)
     if not numbers:
         return []
     amazon = "amazon sendung" in f"{subj}\n{text}".lower()
@@ -143,7 +195,6 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     status, ahead = _dhl_status(subj)
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
-    soon = status is ParcelStatus.OUT_FOR_DELIVERY and _DHL_SOON.search(subj.lower())
     if status is ParcelStatus.OUT_FOR_DELIVERY:
         eta_date = sent.date()
         if window := _DHL_WINDOW.search(text):
@@ -173,9 +224,84 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             delivered_at=delivered_at,
             shop=shop_name,
             postponed=postponed,
-            status_text=SOON_TEXT if soon else None,
+            status_text=_dhl_words(subj, status),
         )
     ]
+
+
+# ----- dhl.com: DHL Express -----
+# "Ihre DHL Express Sendung mit Sendungsnr. 9999990166 von AMAZON ist unterwegs." / "… wird
+# voraussichtlich HEUTE bis Tagesende ausgeliefert." / "Ihre DHL Express Sendung mit der
+# Sendungsnummer 9999990166 von AMAZON wurde wie gewünscht am 11 Jun 2025 um 15:45
+# zugestellt." The subject is always "DHL On Demand Delivery".
+# Only these three sentences, word for word up to the full stop: "wurde … nicht zugestellt",
+# "wird heute nicht mehr ausgeliefert" or a Service Point never fit, and with no open gap a
+# long line is read in linear time. The text is folded into one line first (a wrapped
+# line, blank lines): between the words is exactly one space, so no run of white space can
+# be split between a gap and the shipper. The shipper ends before the sentence goes on: no
+# negation fits in between.
+_EXPRESS_DATE = r"\d{1,2}\.? [A-Za-zÄä]{3}\w{0,10}\.? \d{4}"
+_EXPRESS = re.compile(
+    r"Ihre DHL Express Sendung mit (?:der )?Sendungsn(?:r\.|ummer) "
+    r"(?P<number>\d{10})(?!\d)"
+    r"(?: von (?P<shipper>(?:(?! (?:ist|wird|wurde) ).){1,150}?))? "
+    r"(?:ist unterwegs"
+    r"|wird voraussichtlich (?P<soon>\w{1,20})(?: bis Tagesende)? ausgeliefert"
+    rf"|wurde (?:wie gewünscht )?am (?P<day>{_EXPRESS_DATE})"
+    r" um (?P<hour>\d{1,2}):(?P<minute>\d{2}) zugestellt)\."
+)
+_EXPRESS_DAY = re.compile(rf"voraussichtliche Zustelldatum ({_EXPRESS_DATE})")
+_EXPRESS_DATE_PARTS = re.compile(r"(\d{1,2})\.? ([A-Za-zÄä]{3})\w*\.? (\d{4})")
+
+
+def _express_day(told: str) -> date | None:
+    """The day of ``_EXPRESS_DATE`` (the month in English or German, three letters)."""
+    day, month, year = _EXPRESS_DATE_PARTS.match(told).groups()
+    try:
+        return date(int(year), MONTHS_ABBR[month.lower()], int(day))
+    except (KeyError, ValueError):
+        return None
+
+
+def parse_dhl_express_mail(msg: EmailMessage) -> list[MailUpdate]:
+    """DHL Express ("On Demand Delivery", from dhl.com).
+
+    The sentence about the shipment tells the status ("ist unterwegs", "wird voraussichtlich
+    HEUTE … ausgeliefert", "wurde … am <day> um <time> zugestellt"), the shipper names the
+    parcel through the naming gate. Any other sentence is no Express mail we know. A later
+    day than the mail's own takes back an earlier "HEUTE" (``MailUpdate.postponed``).
+    """
+    text = " ".join(body_text(msg).split())
+    if not (told := _EXPRESS.search(text)):
+        # (like DHL's own mails: a text part may be empty while the HTML part tells it)
+        text = " ".join(html_body_text(msg).split())
+        if not (told := _EXPRESS.search(text)):
+            return []
+    sent = sent_at(msg)
+    shipper = told.group("shipper") or ""
+    shop_name = shop_of(shipper)
+    update = MailUpdate(
+        told.group("number"), "dhl", ParcelStatus.IN_TRANSIT, sent,
+        title=AMAZON_DHL_NAME if shop_name == "amazon" else company_name(shipper),
+        shop=shop_name,
+    )
+    if told.group("day"):
+        update.status, update.delivered_at = ParcelStatus.DELIVERED, sent
+        day = _express_day(told.group("day"))
+        hour, minute = int(told.group("hour")), int(told.group("minute"))
+        if day and hour < 24 and minute < 60:
+            update.delivered_at = at(day, hour, minute)
+        return [update]
+    soon = (told.group("soon") or "").lower()
+    if soon == "heute":
+        update.status, update.eta_date = ParcelStatus.OUT_FOR_DELIVERY, sent.date()
+    elif soon == "morgen":
+        update.eta_date = sent.date() + timedelta(days=1)
+    elif not soon and (day := _EXPRESS_DAY.search(text)):
+        update.eta_date = _express_day(day.group(1))
+    # (any other word for the day leaves it open)
+    update.postponed = update.eta_date is not None and update.eta_date > sent.date()
+    return [update]
 
 
 def parse_ups_mail(msg: EmailMessage) -> list[MailUpdate]:

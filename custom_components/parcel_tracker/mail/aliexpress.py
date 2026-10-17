@@ -10,17 +10,19 @@ such a mail names none. Buyer, address, shop and price are never taken.
 
 from __future__ import annotations
 
-import html
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from urllib.parse import parse_qsl, urlsplit
 
 from ..models import ParcelStatus
 from .base import (
+    PROBLEM_TEXT,
     MailResult,
     MailUpdate,
     body_text,
     carrier_for,
+    part_links,
     sent_at,
     shorten,
     subject,
@@ -52,34 +54,68 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "in ihrem land / ihrer region angekommen": (_ON_WAY, "Im Zielland angekommen"),
     # (the body only says that there is news)
     "neuer lieferstatus": (_ON_WAY, None),
+    # (the steps of the mails of autumn 2024)
+    "verzollt": (_ON_WAY, "Verzollt"),
+    "im lieferzentrum": (_ON_WAY, "Im Lieferzentrum"),
+    # ("wird in Kürze ausgeliefert": soon, no day)
+    "zur auslieferung bereit": (_ON_WAY, "Zur Auslieferung bereit"),
+    "zugestellt": (ParcelStatus.DELIVERED, None),
 }
-# "Wird zugestellt" comes hours after the shipping mail and its body says "dem
-# Versandunternehmen übergeben": handed to the carrier, not on the last mile.
+# "Bestellung <number>: Wird zugestellt" comes hours after the shipping mail and its body
+# says "dem Versandunternehmen übergeben": handed to the carrier, not on the last mile. No
+# mail seen so far tells the last mile under this subject, so it is never "in Zustellung":
+# without that sentence the order is simply on its way. (The mail about a parcel, "Paket
+# <number> wird zugestellt", is another one: see _PACKAGE_STEPS.)
 _HANDED_OVER = "wird zugestellt"
 _HANDED_OVER_BODY = re.compile(r"dem\s+Versandunternehmen\s+übergeben")
 HANDED_OVER_TEXT = "Dem Versandunternehmen übergeben"
 # A reminder ("wird in Kürze als abgeschlossen markiert") and the request for a rating
 # tell nothing about the parcel.
 _NO_NEWS = frozenset({"auf bestätigung wird gewartet", "wie war ihr einkaufserlebnis?"})
-# "wie ist es gelaufen?": a survey, but its body confirms the delivery.
+# "wie ist es gelaufen?": a survey, but its body confirms the delivery of the order it
+# names. That is AliExpress's word, not an arrival anybody saw (the same mail goes on "Wenn
+# Sie den Artikel immer noch nicht erhalten haben …"): see ``MailUpdate.confirmation``.
 _SURVEY = "wie ist es gelaufen?"
-_CONFIRMED = re.compile(r"Wir haben die Lieferung Ihrer Bestellung\s+\d+\s+bestätigt")
-CONFIRMED_TEXT = "Lieferung bestätigt"
+_CONFIRMED = re.compile(r"Wir haben die Lieferung Ihrer Bestellung\s+(\d+)\s+bestätigt")
+CONFIRMED_TEXT = "Lieferung bestätigt (laut AliExpress)"
 # The step of a parcel mail, all on the way: AliExpress's words for the history (None
 # for a mail that tells no step of its own).
 _PARCEL_STEPS: dict[str, str | None] = {
     "hat die abflugregion verlassen": "Abflugregion verlassen",
     "vom kurier abgeholt": "Vom Kurier abgeholt",
     "in ihrem land / ihrer region": "Im Zielland angekommen",
+    "im zielland / in der zielregion": "Im Zielland angekommen",
+    "mit lokalem kurier": "Dem lokalen Kurier übergeben",
     # (the body only says that there is news from the country of departure)
     "hat eine aktualisierung": None,
 }
 CUSTOMS_TEXT = "Zollabfertigung beendet"
+# "Paket <number> ist versandbereit" / "… wird zugestellt" (on the last mile: it comes
+# with the carrier's "kommt heute", and in nine of ten mails seen "… wurde zugestellt"
+# followed one and a half to five hours later, once the day after) / "… wurde zugestellt"
+# (two to three hours after the carrier told it): (status, own words).
+_PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
+    "ist versandbereit": (_PRE, "Versandbereit"),
+    "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),
+    "wurde zugestellt": (ParcelStatus.DELIVERED, None),
+}
+# "Lieferprobleme für Packstück <number>": it could not be delivered ("konnte … nicht
+# zugestellt werden"); what follows is told by the next mail (see ``PROBLEM_TEXT``).
+# Mails that tell nothing about a parcel on its way: a note that there is news (the links
+# name the parcels), a coupon for a late delivery, returns and refunds.
+_NO_NEWS_SUBJECT = re.compile(
+    r"\d+ Packstück\(e\) haben Lieferneuigkeiten|Ihr Verspätete-Lieferung-Coupon-Code"
+    r"|Your delayed delivery coupon code|Warte auf Ihr Feedback"
+    r"|Order \d+: Waiting for your return|Überprüfen Sie den Rückerstattungsantragsprozess",
+    re.IGNORECASE,
+)
 
 _ORDER_SUBJECT = re.compile(r"Bestellung (?P<order>\d{12,20})\s*:?\s*(?P<step>\S.*)")
 _ORDERS_SUBJECT = re.compile(r"\d+ Bestellungen wurden bestätigt: (?P<order>\d{12,20})\b")
 _PARCEL_SUBJECT = re.compile(r"Packstück (?P<number>[0-9A-Z]{8,30})\s*:?\s*(?P<step>\S.*)")
 _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) wurde beendet")
+_PACKAGE_SUBJECT = re.compile(r"Paket (?P<number>[0-9A-Z]{8,30})\s+(?P<step>\S.*)")
+_PROBLEM_SUBJECT = re.compile(r"Lieferprobleme für Packstück (?P<number>[0-9A-Z]{8,30})\b")
 # English, whatever the language of the account: the order was cancelled ("closed for a
 # timeout" if it was never paid; mostly the body tells no reason). It closes an order
 # that is not shipped yet or was closed on its own (see ``apply._cancel_order``).
@@ -91,7 +127,9 @@ _OVERDUE_ORDER = re.compile(
     r"Ihre Bestellung\s+(?P<order>\d{12,20})\s+in der vorgesehenen Zeit nicht versendet"
 )
 
-_URL = re.compile(r"[\[<(]*https?://\S+")
+# (the brackets in front of a link go with it; looked for from the first bracket of a run
+# only, so a long run of brackets without a link is read once, not once per bracket)
+_URL = re.compile(r"(?<![\[<(])[\[<(]*https?://\S+")
 # "x2" below an item, "€ 3,99x2" in the layout with prices; "<variant> x2" on one line.
 _QUANTITY = re.compile(r"(?:€ ?[\d.,]+ ?)?x\d+")
 _VARIANT_QUANTITY = re.compile(r"\S.* x\d+")
@@ -120,10 +158,25 @@ _ABOVE_ITEMS = frozenset(
         "zugestellt",
     }
 )
+# Lines that are no item's name wherever they stand: a greeting, a line with a phone
+# number (the recipient), a day, the labels around the address.
+_NO_ITEM = re.compile(
+    r"^(?:hallo|hi|hey|dear|liebe[rs]?|guten\s+tag)(?=[\s,!]|$)"
+    r"|\(\+\d+\)|\+\d{2}[\d ]{6,}"
+    r"|\b\d{1,2}/\d{1,2}/\d{4}\b"
+    r"|^(?:aufgegeben am|voraussichtliche zustellzeit|versand nach|bestell-nr\.|bestellsumme"
+    r"|gesamtbetrag|zahlungsmethode)",
+    re.IGNORECASE,
+)
 _ETA = re.compile(r"^Voraussichtliche Zustellzeit\n(\d{1,2})/(\d{1,2})/(\d{4})$", re.MULTILINE)
 _TRACKING = re.compile(r"Sendungsverfolgungsnummer lautet ([0-9A-Z]{8,30})\b")
-# The orders of a parcel stand only in its links (several in one: "o_ids=1,2").
-_LINK_ORDERS = re.compile(r"[?&](?:tradeOrderId|o_ids|orderId)=(\d+(?:(?:,|%2C)\d+)*)", re.I)
+# The orders of a parcel stand only in its links (several in one: "o_ids=1,2"): in these
+# parameters of a link to AliExpress itself.
+_LINK_HOST = "aliexpress.com"
+_LINK_PARAMS = frozenset({"tradeorderid", "o_ids", "orderid"})
+# More orders than this in one mail are no parcel's orders: the mail is told like one
+# that names none.
+MAX_LINK_ORDERS = 20
 
 
 def order_number(order: str) -> str:
@@ -173,21 +226,24 @@ def _above_items(lines: list[str], index: int) -> bool:
 def _item_names(lines: list[str]) -> list[str]:
     """The names of the items in ``lines``.
 
-    An item is its name, mostly a variant and then the quantity ("x2"); the name is found
-    from the quantity upwards. The shop's line is never a name.
+    An item is its name, mostly a variant and then the quantity ("x2"). The name is found
+    from the quantity upwards, and only where a layout puts it: right below a line that is
+    none of an item (a label, the shop's line, an order line, the quantity of the item
+    before). Anything else has no name: no title is better than a wrong one, and a
+    greeting, the recipient's line or a day never is one.
     """
     names = []
     for index, line in enumerate(lines):
         if _QUANTITY.fullmatch(line):
-            # name, variant, quantity; without a variant the name stands right above
-            rows = (index - 2, index - 1)
+            # the name stands right above, or above the variant
+            rows = (index - 1, index - 2)
         elif _VARIANT_QUANTITY.fullmatch(line):
             rows = (index - 1,)
         else:
             continue
-        if rows[0] < 0 or _above_items(lines, rows[-1]):
-            continue  # a quantity without an item above it
-        row = rows[0] if not _above_items(lines, rows[0]) else rows[-1]
+        row = next((r for r in rows if r >= 1 and _above_items(lines, r - 1)), None)
+        if row is None or _above_items(lines, row) or _NO_ITEM.search(lines[row]):
+            continue
         if name := _name(lines[row]):
             names.append(name)
     return names
@@ -239,9 +295,7 @@ def _order_step(step: str, text: str) -> tuple[ParcelStatus, str | None] | None:
     """(status, own words) of the step an order mail names; None for one we do not know."""
     key = " ".join(step.lower().split())
     if key == _HANDED_OVER:
-        if _HANDED_OVER_BODY.search(text):
-            return _ON_WAY, HANDED_OVER_TEXT
-        return ParcelStatus.OUT_FOR_DELIVERY, None
+        return _ON_WAY, HANDED_OVER_TEXT if _HANDED_OVER_BODY.search(text) else None
     return _ORDER_STEPS.get(key)
 
 
@@ -252,7 +306,9 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
         return MailResult(ignored=True)
     sent = sent_at(msg)
     if key == _SURVEY:
-        if not _CONFIRMED.search(text):
+        confirmed = _CONFIRMED.search(text)
+        # (only the order of this mail: a sentence about another one confirms nothing)
+        if not confirmed or confirmed.group(1) != order:
             return MailResult(ignored=True)
         status, words, confirmation = ParcelStatus.DELIVERED, CONFIRMED_TEXT, True
     elif found := _order_step(step, text):
@@ -264,6 +320,9 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
     if (named := _TRACKING.search(text)) and (carrier := carrier_for(named.group(1))):
         tracking_ref, tracking_carrier = named.group(1), carrier
     eta = _eta(text, sent.date()) if status is not ParcelStatus.DELIVERED else None
+    orders = _orders(text.splitlines(), order)
+    if confirmation:
+        orders = {order: orders.get(order)}
     return MailResult(
         updates=[
             MailUpdate(
@@ -273,59 +332,98 @@ def _order_mail(msg: EmailMessage, order: str, step: str) -> MailResult:
                 sent_at=sent,
                 title=title,
                 eta_date=eta,
-                delivered_at=sent if status is ParcelStatus.DELIVERED else None,
+                # (the step "zugestellt" tells when; a confirmation proves no arrival)
+                delivered_at=(
+                    sent if status is ParcelStatus.DELIVERED and not confirmation else None
+                ),
                 tracking_ref=tracking_ref,
                 tracking_carrier=tracking_carrier,
                 status_text=words,
                 confirmation=confirmation,
             )
-            for number, title in _orders(text.splitlines(), order).items()
+            for number, title in orders.items()
         ]
     )
 
 
 def _link_orders(msg: EmailMessage) -> list[str]:
-    """The order numbers the links of a mail name, first occurrence first."""
+    """The order numbers the links of a mail name, first occurrence first.
+
+    Read only from links to AliExpress itself (aliexpress.com and its sub-domains), from
+    the parameters that name orders; a list is split at its commas and every value must
+    be an order number as a whole. Nothing else counts: no other host, no text or other
+    attribute that looks like a link, no link inside a link (it stays encoded), no part
+    of a longer run of digits. More than MAX_LINK_ORDERS orders are none at all.
+    """
     orders: list[str] = []
     for part in msg.walk():
         if part.get_content_type() not in ("text/plain", "text/html"):
             continue
-        try:
-            content = part.get_content()
-        except (LookupError, ValueError):
-            content = (part.get_payload(decode=True) or b"").decode("utf-8", "replace")
-        for listed in _LINK_ORDERS.findall(html.unescape(content)):
-            for order in _DIGITS.findall(listed):
-                if order not in orders:
-                    orders.append(order)
-    return orders
+        for link in part_links(part):
+            try:
+                url = urlsplit(link.strip())
+                host = (url.hostname or "").lower()
+            except ValueError:
+                continue
+            if url.scheme not in ("http", "https"):
+                continue
+            if host != _LINK_HOST and not host.endswith("." + _LINK_HOST):
+                continue
+            for name, listed in parse_qsl(url.query):
+                if name.lower() not in _LINK_PARAMS:
+                    continue
+                for order in listed.split(","):
+                    if _DIGITS.fullmatch(order) and order not in orders:
+                        orders.append(order)
+    return orders if len(orders) <= MAX_LINK_ORDERS else []
 
 
-def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResult:
-    """A mail about the parcel at the carrier ("Packstück …", "Zollabfertigung für …").
+def _parcel_mail(
+    msg: EmailMessage,
+    number: str,
+    words: str | None,
+    status: ParcelStatus = _ON_WAY,
+    postponed: bool = False,
+) -> MailResult:
+    """A mail about the parcel at the carrier ("Packstück …", "Paket …", "Zollabfertigung …").
 
     Its orders (the links name them) get the status and, if the number is one of a
     carrier we know, that number: the order is followed at the carrier then. A number in
     an unknown format (AliExpress's own, Cainiao) is dropped: no order may wait for a
     carrier nobody can ask. Without an order in the links the mail is a carrier's mail
     about an AliExpress shipment: merged into the one order that fits, else a parcel of
-    its own; with an unknown number only the status is left, for the one order that fits.
+    its own; with an unknown number only the status is left, for the one order that fits,
+    and only "on the way": any other step would go to whatever order is the one on its way
+    (every mail of the last mile seen names its orders).
+    "In delivery" is the day of the mail, "delivered" the time it was sent. A mail without
+    an order names no day: it has to find its order by the status alone. ``postponed``: the
+    mail may take its order back from "in Zustellung" (a failed delivery).
     """
     sent = sent_at(msg)
+    when: dict[str, date | datetime] = {}
+    if status is ParcelStatus.OUT_FOR_DELIVERY:
+        when = {"eta_date": sent.date()}
+    elif status is ParcelStatus.DELIVERED:
+        when = {"delivered_at": sent}
     carrier = carrier_for(number)
     orders = _link_orders(msg)
     names = _item_names(_lines(body_text(msg)))
+    if not orders and not carrier and (status is not _ON_WAY or postponed):
+        return MailResult()
     if not orders:
+        when.pop("eta_date", None)
         return MailResult(
             updates=[
                 MailUpdate(
                     number=number if carrier else "",
                     carrier=carrier or "aliexpress",
-                    status=_ON_WAY,
+                    status=status,
+                    **when,
                     sent_at=sent,
                     title=PARCEL_NAME if carrier else None,
                     shop="aliexpress",
                     status_text=words,
+                    postponed=postponed,
                 )
             ]
         )
@@ -334,13 +432,15 @@ def _parcel_mail(msg: EmailMessage, number: str, words: str | None) -> MailResul
             MailUpdate(
                 number=order_number(order),
                 carrier="aliexpress",
-                status=_ON_WAY,
+                status=status,
+                **when,
                 sent_at=sent,
                 # (which item belongs to which order is not told)
                 title=_title(names) if len(orders) == 1 else None,
                 tracking_ref=number if carrier else None,
                 tracking_carrier=carrier,
                 status_text=words,
+                postponed=postponed,
             )
             for order in orders
         ]
@@ -351,10 +451,12 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     """Any mail of AliExpress: updates, ignored, or (no updates) unrecognised.
 
     Order mails: confirmed and ready to ship ("Bestellt"), shipped and on its way
-    ("Versendet", with AliExpress's words for the step), delivery confirmed, cancelled
-    ("Your order … is closed", "Stornierte Bestellung wegen überfälligem Versand"). Parcel
-    mails: see ``_parcel_mail``. Ignored: reminders and requests for a rating. A subject
-    nobody knows yet is unrecognised, so it gets noticed.
+    ("Versendet", with AliExpress's words for the step), delivered, delivery confirmed,
+    cancelled ("Your order … is closed", "Stornierte Bestellung wegen überfälligem
+    Versand"). Parcel mails: see ``_parcel_mail``. Ignored: reminders, requests for a
+    rating and the mails that tell nothing about a parcel on its way (news without a
+    number, a coupon, returns and refunds). A subject nobody knows yet is unrecognised,
+    so it gets noticed.
     """
     subj = subject(msg)
     found = _CLOSED_SUBJECT.match(subj)
@@ -365,8 +467,17 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
         return MailResult(
             updates=[MailUpdate(number, "aliexpress", ParcelStatus.CANCELLED, sent_at(msg))]
         )
+    if _NO_NEWS_SUBJECT.match(subj):
+        return MailResult(ignored=True)
     if found := _CUSTOMS_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), CUSTOMS_TEXT)
+    if found := _PROBLEM_SUBJECT.match(subj):
+        return _parcel_mail(msg, found.group("number"), PROBLEM_TEXT, postponed=True)
+    if found := _PACKAGE_SUBJECT.match(subj):
+        step = _PACKAGE_STEPS.get(" ".join(found.group("step").lower().split()))
+        if step is None:
+            return MailResult()
+        return _parcel_mail(msg, found.group("number"), step[1], step[0])
     if found := _PARCEL_SUBJECT.match(subj):
         step = " ".join(found.group("step").lower().split())
         if step not in _PARCEL_STEPS:

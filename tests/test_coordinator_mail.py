@@ -20,6 +20,7 @@ from custom_components.parcel_tracker.const import (
 from custom_components.parcel_tracker.coordinator import ParcelCoordinator
 from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.apply import apply_update
+from custom_components.parcel_tracker.mail.base import MailResult
 from custom_components.parcel_tracker.mail.imap import ImapAuthError, ImapUnavailable
 from custom_components.parcel_tracker.models import ParcelStatus
 from custom_components.parcel_tracker.store import ParcelStore
@@ -548,7 +549,17 @@ async def test_missing_folder_is_logged_once_without_a_repair_and_backs_off(
     assert mailbox.finished == []
     state = coord.diagnostics()["mail_import"]
     assert (state["last_error"], state["error_streak"]) == ("folder", 3)
-    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+
+    def own_warnings():
+        # (only the integration's own: asyncio warns about a slow callback now and then)
+        return [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING"
+            and r.name.startswith("custom_components.parcel_tracker")
+        ]
+
+    warnings = own_warnings()
     assert len(warnings) == 1 and "folder" in warnings[0].getMessage()
     assert "Geheim" not in caplog.text
     assert not ir.async_get(hass).issues
@@ -561,7 +572,7 @@ async def test_missing_folder_is_logged_once_without_a_repair_and_backs_off(
     freezer.tick(coord._mail_next - dt_util.utcnow())
     with caplog.at_level("WARNING"):
         await coord.async_import_mail()
-    assert len([r for r in caplog.records if r.levelname == "WARNING"]) == 2
+    assert len(own_warnings()) == 2
 
 
 async def test_diagnostics_tell_only_whether_a_custom_folder_is_read(hass):
@@ -573,3 +584,284 @@ async def test_diagnostics_tell_only_whether_a_custom_folder_is_read(hass):
     assert state["custom_folder"] is True
     assert "Geheim" not in str(state)
     assert (await _coordinator(hass, None)).diagnostics()["mail_import"]["custom_folder"] is False
+
+
+# ----- v0.3.32: the mail server's certificate is not accepted -----
+
+
+async def test_rejected_certificate_is_logged_once_per_outage_and_backs_off(
+    hass, freezer, caplog
+):
+    from custom_components.parcel_tracker.mail.imap import ImapCertificateError
+
+    def rejected():
+        error = ImapCertificateError("certificate rejected")
+        error.__cause__ = Exception("self-signed certificate for geheim.example")
+        return error
+
+    mailbox = FakeMailbox(error=rejected())
+    mailbox.host, mailbox.user, mailbox._password = "geheim.example", "geheim-user", "geheim-pw"
+    coord = await _coordinator(hass, mailbox)
+    waits = []
+    with caplog.at_level("DEBUG"):
+        for _ in range(3):
+            start = dt_util.utcnow()
+            await coord.async_import_mail()
+            waits.append((coord._mail_next - start).total_seconds() / 60)
+            freezer.tick(coord._mail_next - start)
+    assert waits == [5, 10, 20]
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == ("certificate", 3)
+
+    def own_warnings():
+        return [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING"
+            and r.name.startswith("custom_components.parcel_tracker")
+        ]
+
+    warnings = own_warnings()
+    assert len(warnings) == 1 and "certificate" in warnings[0].getMessage()
+    # Neither the certificate's words nor the server, the user or the password.
+    assert "geheim" not in caplog.text and "self-signed" not in caplog.text
+    # No repair: the options form is where the kind of connection is chosen and checked.
+    assert not ir.async_get(hass).issues
+    # The server is back with a good certificate: the next outage is told again.
+    mailbox.error = None
+    await coord.async_import_mail()
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == (None, 0)
+    mailbox.error = rejected()
+    freezer.tick(coord._mail_next - dt_util.utcnow())
+    with caplog.at_level("WARNING"):
+        await coord.async_import_mail()
+    assert len(own_warnings()) == 2
+
+
+async def test_a_plain_outage_between_two_certificate_errors_does_not_warn_again(
+    hass, freezer, caplog
+):
+    """One outage, whatever the server answers in between: one warning."""
+    from custom_components.parcel_tracker.mail.imap import ImapCertificateError
+
+    mailbox = FakeMailbox(error=ImapCertificateError("certificate rejected"))
+    coord = await _coordinator(hass, mailbox)
+    with caplog.at_level("WARNING"):
+        for error in (None, ImapUnavailable("down"), ImapCertificateError("certificate rejected")):
+            if error is not None:
+                mailbox.error = error
+            await coord.async_import_mail()
+            freezer.tick(coord._mail_next - dt_util.utcnow())
+    warnings = [
+        r for r in caplog.records
+        if r.levelname == "WARNING" and r.name.startswith("custom_components.parcel_tracker")
+    ]
+    assert len(warnings) == 1
+
+
+async def test_diagnostics_tell_port_and_security_without_the_port_itself(hass):
+    mailbox = FakeMailbox()
+    coord = await _coordinator(hass, mailbox)
+    state = coord.diagnostics()["mail_import"]
+    assert (state["custom_port"], state["security"]) == (False, None)
+    mailbox.port, mailbox.custom_port, mailbox.security = 10993, True, "ssl_noverify"
+    state = coord.diagnostics()["mail_import"]
+    assert (state["custom_port"], state["security"]) == (True, "ssl_noverify")
+    assert "10993" not in str(state)
+    mailbox.security = "Geheimer Freitext"
+    assert coord.diagnostics()["mail_import"]["security"] is None
+    state = (await _coordinator(hass, None)).diagnostics()["mail_import"]
+    assert (state["custom_port"], state["security"]) == (False, None)
+
+
+async def test_a_server_that_disables_plain_logins_is_logged_once_per_outage(
+    hass, freezer, caplog
+):
+    from custom_components.parcel_tracker.mail.imap import (
+        ImapCertificateError,
+        ImapLoginDisabled,
+    )
+
+    mailbox = FakeMailbox(error=ImapLoginDisabled("login disabled"))
+    mailbox.host, mailbox.user, mailbox._password = "geheim.example", "geheim-user", "geheim-pw"
+    coord = await _coordinator(hass, mailbox)
+
+    def own_warnings():
+        return [
+            r
+            for r in caplog.records
+            if r.levelname == "WARNING"
+            and r.name.startswith("custom_components.parcel_tracker")
+        ]
+
+    waits = []
+    with caplog.at_level("DEBUG"):
+        for _ in range(3):
+            start = dt_util.utcnow()
+            await coord.async_import_mail()
+            waits.append((coord._mail_next - start).total_seconds() / 60)
+            freezer.tick(coord._mail_next - start)
+    assert waits == [5, 10, 20]
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["error_streak"]) == ("login_disabled", 3)
+    assert len(own_warnings()) == 1 and "encryption" in own_warnings()[0].getMessage()
+    assert "geheim" not in caplog.text
+    assert not ir.async_get(hass).issues
+    # Another kind of trouble in the same outage has its own one warning.
+    mailbox.error = ImapCertificateError("certificate rejected")
+    with caplog.at_level("WARNING"):
+        for _ in range(2):
+            await coord.async_import_mail()
+            freezer.tick(coord._mail_next - dt_util.utcnow())
+    assert len(own_warnings()) == 2
+    # Working again: the next outage is told anew.
+    mailbox.error = None
+    await coord.async_import_mail()
+    mailbox.error = ImapLoginDisabled("login disabled")
+    freezer.tick(coord._mail_next - dt_util.utcnow())
+    with caplog.at_level("WARNING"):
+        await coord.async_import_mail()
+    assert len(own_warnings()) == 3
+
+
+# ----- issue #21: only a mail that was applied is remembered by its Message-ID -----
+PARSE = "custom_components.parcel_tracker.coordinator.parse_mail"
+TODAY_MAIL = "Wed, 30 Sep 2026 08:00:00 +0000"
+
+
+async def _import(coord, mails) -> list:
+    """One more import run with these mails; what became of them."""
+    coord.mailbox.mails = list(mails)
+    coord._mail_next = None
+    await coord.async_import_mail()
+    return coord.mailbox.finished[-1][0]
+
+
+async def test_mail_that_told_nothing_is_read_again_when_it_comes_back(hass, freezer):
+    """The mail a parser was improved for: the version before could not read it."""
+    freezer.move_to("2026-09-30 10:00:00+00:00")
+    mail = dated_mail(1, TODAY_MAIL)
+    coord = await _coordinator(hass, FakeMailbox())
+    with patch(PARSE, return_value=MailResult()):
+        assert await _import(coord, [("1", mail)]) == [("1", FOLDER_UNRECOGNIZED)]
+    with patch(PARSE, side_effect=ValueError("boom")):
+        assert await _import(coord, [("2", mail)]) == [("2", FOLDER_UNRECOGNIZED)]
+    with patch(PARSE, return_value=MailResult(ignored=True)):
+        assert await _import(coord, [("3", mail)]) == [("3", None)]
+    with patch("custom_components.parcel_tracker.coordinator.MAIL_MAX_AGE", timedelta(0)):
+        assert await _import(coord, [("4", mail)]) == [("4", None)]
+    assert coord.store.message_ids == []
+    assert coord.store.parcels == {}
+
+    assert await _import(coord, [("5", mail)]) == [("5", FOLDER_PROCESSED)]
+    assert coord.store.get("00340999999999999911") is not None
+    assert coord.store.message_ids == ["<dated1@example.org>"]
+    # Applied: from now on the same mail changes nothing.
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update", wraps=apply_update
+    ) as apply:
+        assert await _import(coord, [("6", mail)]) == [("6", FOLDER_PROCESSED)]
+    assert apply.call_count == 0
+    state = coord.diagnostics()["mail_import"]
+    # Not recognised twice, but one mail: counted once (see the next test).
+    assert (state["recognized"], state["unrecognized"]) == (1, 1)
+
+
+async def test_mail_that_could_not_be_filed_is_applied_once(hass, freezer):
+    """The mailbox fails after reading: every mail is still unseen at the next fetch."""
+    freezer.move_to("2026-09-30 10:00:00+00:00")
+    no_number = dated_mail(2, TODAY_MAIL).partition(b"\r\n\r\n")[0] + b"\r\n\r\nDanke\r\n"
+    mails = [("1", dated_mail(1, TODAY_MAIL)), ("2", no_number)]
+
+    class Unfiled(FakeMailbox):
+        def finish(self, dispositions, move):
+            super().finish(dispositions, move)
+            raise ImapUnavailable("gone")
+
+    coord = await _coordinator(hass, Unfiled())
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update", wraps=apply_update
+    ) as apply:
+        for _ in range(2):
+            assert await _import(coord, mails) == [
+                ("1", FOLDER_PROCESSED),
+                ("2", FOLDER_UNRECOGNIZED),
+            ]
+    assert apply.call_count == 1
+    assert coord._mail_error is None  # reading worked: no backoff
+    assert coord.store.message_ids == ["<dated1@example.org>"]
+
+
+async def test_mail_that_comes_back_unfiled_is_counted_and_logged_once(hass, caplog):
+    """Review of #27: filing fails at every run, an hour at 5 minutes."""
+
+    class Unfiled(FakeMailbox):
+        def finish(self, dispositions, move):
+            super().finish(dispositions, move)
+            raise ImapUnavailable("gone")
+
+    broken = dated_mail(1, TODAY_MAIL)
+    mails = [("1", unknown_amazon_mail(0)), ("2", broken)]
+
+    def flaky(msg, read_otp):
+        if msg["Message-ID"] == "<dated1@example.org>":
+            raise ValueError("boom")
+        return parse_mail(msg, read_otp)
+
+    coord = await _coordinator(hass, Unfiled())
+    with patch(PARSE, side_effect=flaky), caplog.at_level("WARNING"):
+        for _ in range(12):
+            assert await _import(coord, mails) == [
+                ("1", FOLDER_UNRECOGNIZED),
+                ("2", FOLDER_UNRECOGNIZED),
+            ]
+    assert caplog.text.count("Could not read a mail (ValueError)") == 1
+    state = coord.diagnostics()["mail_import"]
+    assert (state["unrecognized"], state["amazon_misses"]) == (2, 1)
+    assert len(state["last_unrecognized"]) == 2
+
+
+async def test_mail_that_fails_halfway_is_not_applied_again(hass):
+    """An update was applied before the error: the mail counts as read."""
+
+    def applied_then_fails(parcels, update, now):
+        apply_update(parcels, update, now)
+        raise RuntimeError("boom")
+
+    mail = dated_mail(1, TODAY_MAIL)
+    coord = await _coordinator(hass, FakeMailbox())
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update",
+        side_effect=applied_then_fails,
+    ):
+        assert await _import(coord, [("1", mail)]) == [("1", FOLDER_UNRECOGNIZED)]
+    assert coord.store.message_ids == ["<dated1@example.org>"]
+    with patch(
+        "custom_components.parcel_tracker.coordinator.apply_update", wraps=apply_update
+    ) as apply:
+        assert await _import(coord, [("2", mail)]) == [("2", FOLDER_PROCESSED)]
+    assert apply.call_count == 0
+
+
+async def test_amazon_mail_read_again_counts_as_one_miss(hass):
+    coord = await _coordinator(hass, FakeMailbox())
+    registry = ir.async_get(hass)
+    for run in range(6):
+        await _import(coord, [(str(run), unknown_amazon_mail(0))])
+    assert coord._amazon_misses == 1
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
+    # Five different mails are still five misses, whatever is read again in between.
+    for i in (1, 1, 2, 0, 3):
+        await _import(coord, [(f"again{i}", unknown_amazon_mail(i))])
+    assert coord._amazon_misses == 4
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
+    await _import(coord, [("5", unknown_amazon_mail(4))])
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is not None
+    # A recognised Amazon mail starts over; a mail counted before stays counted.
+    await _import(coord, [("6", raw("001_bestellbestaetigung_bestellt.eml"))])
+    assert registry.async_get_issue(DOMAIN, "amazon_unrecognized") is None
+    await _import(coord, [("7", unknown_amazon_mail(0))])
+    assert coord._amazon_misses == 0
+    await _import(coord, [("8", unknown_amazon_mail(5))])
+    assert coord._amazon_misses == 1

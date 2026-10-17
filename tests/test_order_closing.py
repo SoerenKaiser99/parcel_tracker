@@ -627,8 +627,10 @@ async def test_overdue_order_is_closed_without_a_notification(hass, hass_storage
     overdue = _order(first=TODAY - _days(6), last=TODAY - _days(4), changed=NOW - _days(8))
     in_time = _order(OTHER_ORDER, "Kopfhörer", TODAY - _days(3), changed=NOW - _days(8))
     asked = _order(EBAY_ORDER, "Lampe", TODAY - _days(9), carrier="ebay", changed=NOW - _days(9))
-    asked.tracking_ref, asked.tracking_carrier = "H1000999999999999901", "hermes"
-    coord = await _coordinator(hass, hass_storage, [overdue, in_time, asked])
+    asked.tracking_ref, asked.tracking_carrier = "00340999999999999955", "dhl"
+    # (a carrier that answers: an order whose number leads nowhere is closed, v0.3.31)
+    carrier = FakeCarrier(_result(ParcelStatus.IN_TRANSIT, "Unterwegs"))
+    coord = await _coordinator(hass, hass_storage, [overdue, in_time, asked], carrier)
     await _refresh(hass, coord)  # the first refresh: closed, told once announcing starts
     await hass.async_block_till_done()
 

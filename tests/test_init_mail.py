@@ -1,6 +1,7 @@
 import ssl
 from unittest.mock import patch
 
+import pytest
 from homeassistant.helpers import issue_registry as ir
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -130,3 +131,99 @@ def test_mailbox_reads_inbox_unless_a_folder_is_stored():
             domain=DOMAIN, data=data, options={CONF_IMAP_USER: "u", "imap_folder": stored}
         )
         assert _mailbox(entry).folder == folder
+
+
+# ----- v0.3.32: port, kind of connection and the hint about an unverified connection -----
+
+ISSUE = "imap_insecure"
+
+
+def _mail_entry(**options) -> MockConfigEntry:
+    return MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
+        options={CONF_IMAP_USER: "u", **options},
+    )
+
+
+def test_mailbox_is_tls_on_993_unless_something_else_is_stored():
+    before = _mailbox(_mail_entry())
+    assert (before.port, before.security, before.custom_port) == (993, "ssl", False)
+    assert before._ssl_context.verify_mode == ssl.CERT_REQUIRED
+    assert before._ssl_context.check_hostname is True
+    noverify = _mailbox(_mail_entry(imap_port=10993, imap_security="ssl_noverify"))
+    assert (noverify.port, noverify.security, noverify.custom_port) == (10993, "ssl_noverify", True)
+    # Home Assistant's shared context without verification, handed in from outside.
+    assert noverify._ssl_context.verify_mode == ssl.CERT_NONE
+    assert noverify._ssl_context.check_hostname is False
+    plain = _mailbox(_mail_entry(imap_port=143, imap_security="plain"))
+    assert (plain.port, plain.security, plain._ssl_context) == (143, "plain", None)
+    odd = _mailbox(_mail_entry(imap_port="x", imap_security="x"))
+    assert (odd.port, odd.security) == (993, "ssl")
+    assert odd._ssl_context.verify_mode == ssl.CERT_REQUIRED
+
+
+async def _set_up(hass, entry):
+    entry.add_to_hass(hass)
+    with patch(FETCH):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+
+@pytest.mark.parametrize(
+    ("options", "warned"),
+    [
+        ({}, False),
+        ({"imap_security": "ssl", CONF_IMAP_HOST: "imap.example.org"}, False),
+        ({"imap_security": "ssl_noverify", CONF_IMAP_HOST: "imap.example.org"}, True),
+        ({"imap_security": "plain", CONF_IMAP_HOST: "imap.example.org"}, True),
+        ({"imap_security": "plain"}, True),  # the default host is a provider on the internet
+        ({"imap_security": "plain", CONF_IMAP_HOST: "8.8.8.8"}, True),
+        ({"imap_security": "ssl_noverify", CONF_IMAP_HOST: "192.168.178.20"}, False),
+        ({"imap_security": "plain", CONF_IMAP_HOST: "dovecot"}, False),
+        ({"imap_security": "plain", CONF_IMAP_HOST: "mail.fritz.box"}, False),
+        ({"imap_security": "ssl_noverify", CONF_IMAP_HOST: "fd00::20"}, False),
+    ],
+)
+async def test_unverified_connection_to_a_public_host_raises_a_hint(hass, options, warned):
+    await _set_up(hass, _mail_entry(**options))
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, ISSUE)
+    assert (issue is not None) is warned
+    if warned:
+        assert issue.severity is ir.IssueSeverity.WARNING
+        assert issue.is_fixable is False
+        assert issue.translation_key == ISSUE
+        # Nothing of the server or the login goes into the issue.
+        assert not issue.translation_placeholders
+
+
+@pytest.mark.parametrize(
+    "better",
+    [
+        {"imap_security": "ssl", CONF_IMAP_HOST: "imap.example.org"},
+        {"imap_security": "plain", CONF_IMAP_HOST: "10.0.0.5"},
+        {CONF_IMAP_USER: ""},
+    ],
+    ids=["verified-again", "host-local", "import-off"],
+)
+async def test_the_hint_goes_when_the_reason_is_gone(hass, better):
+    entry = _mail_entry(imap_security="plain", **{CONF_IMAP_HOST: "imap.example.org"})
+    await _set_up(hass, entry)
+    registry = ir.async_get(hass)
+    assert registry.async_get_issue(DOMAIN, ISSUE) is not None
+    with patch(FETCH):
+        hass.config_entries.async_update_entry(entry, options={**entry.options, **better})
+        await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, ISSUE) is None
+
+
+async def test_a_dismissed_hint_stays_dismissed_over_a_reload(hass):
+    entry = _mail_entry(imap_security="plain", **{CONF_IMAP_HOST: "imap.example.org"})
+    await _set_up(hass, entry)
+    registry = ir.async_get(hass)
+    registry.async_ignore(DOMAIN, ISSUE, True)
+    assert registry.async_get_issue(DOMAIN, ISSUE).dismissed_version is not None
+    with patch(FETCH):
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+    assert registry.async_get_issue(DOMAIN, ISSUE).dismissed_version is not None

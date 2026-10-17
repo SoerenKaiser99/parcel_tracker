@@ -43,8 +43,9 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 
 - Bestell- bzw. Sendungsnummer,
 - ein auf 60 Zeichen gekürzter Artikeltitel,
-- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
+- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
 - Status, Liefertag und Zeitfenster,
+- bei einem abholbereiten Paket aus der Amazon-Mail „Paket zur Abholung bereit“: Name und Straße der Abholstelle (ohne Postleitzahl, Ort und interne Nummer des Shops) und der letzte Abholtag,
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
 
@@ -69,9 +70,9 @@ Benachrichtigungen gehen an die gewählten Ziele und damit an deren Dienst (bei 
 - den Namen bzw. Artikeltitel des Pakets (ohne Namen die letzten vier Stellen der Nummer),
 - den Paketdienst,
 - den Status,
-- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Filiale.
+- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Abholstelle (bei der Amazon-Abholmail Name und Straße des Shops).
 
-**Nie enthalten:** der Zustell-Code, die vollständige Sendungsnummer, eine Adresse, ein Ablageort.
+**Nie enthalten:** der Zustell-Code, die vollständige Sendungsnummer, deine Adresse, ein Ablageort.
 
 Das Kennzeichen zum Ersetzen einer früheren Meldung (`data.tag`) ist ein Hash der Sendungsnummer, nie die Nummer selbst.
 
@@ -103,9 +104,9 @@ Was im Paket ist und von wem es kommt, nennt die Integration dann nirgends mehr.
 
 ### Was sichtbar bleibt
 
-- Der Paketdienst (auch der, den eine Shop-Mail nennt, z. B. „via Hermes“), die Nummer, Status, Liefertag, Ort und der Verlauf des Paketdienstes. Darin steht kein Artikel.
-- Der Knopf „Bestellung“ auf der Karte öffnet weiterhin die Bestellseite beim Shop. Die zeigt den Artikel nur dem, der dort angemeldet ist.
-- „Sendung verfolgen“ und das Attribut `tracking_url`: Darin steht nur die Nummer.
+- Der Paketdienst (auch der, den eine Shop-Mail nennt, z. B. „via Hermes“), die Nummer (auf der Karte aufgeklappt als Sendungs- oder Bestellnummer), Status, Liefertag, Ort und der Verlauf des Paketdienstes. Darin steht kein Artikel.
+- Das Symbol „Bestellung öffnen“ auf der Karte öffnet weiterhin die Bestellseite beim Shop. Die zeigt den Artikel nur dem, der dort angemeldet ist.
+- „Sendung verfolgen“ und das Attribut `tracking_url`: Darin steht nur die Nummer, bei Amazon die Bestellnummer und Amazons Kennung der Sendung.
 
 ### Selbst eingetippte Namen bleiben sichtbar
 
@@ -118,7 +119,8 @@ Bei Namen, die vor v0.3.24 vergeben wurden, weiß die Integration nicht, wer sie
 - Namen, Artikeltitel und alles, was das [Zusammenführen](mail-import.md#zusammenfuhren-carrier-mail-und-bestellung) braucht, stehen unverändert im Speicher der Integration. Mails werden weiter genauso zugeordnet.
 - Schaltest du den Schalter wieder aus, sind die echten Namen sofort zurück.
 - Beim Speichern lädt die Integration neu. Ein Neustart von Home Assistant ist nicht nötig.
-- Die Entitäts-IDs entstehen aus der Nummer und ändern sich durch den Schalter nicht.
+- Die Entitäts-IDs (`sensor.paket_<nummer>`) entstehen aus der Nummer und ändern sich durch den Schalter nicht.
+- Der Diagnose-Download enthielt noch nie Namen. Er nennt nur, ob der Schalter eingeschaltet ist.
 
 ### Grenzen
 
@@ -150,4 +152,4 @@ Der Diagnose-Download enthält keine Geheimnisse und keine Namen. Sendungs- und 
 
 ## Markenhinweis
 
-DHL, DPD, Hermes, UPS, GLS, 17track, Amazon, eBay, AliExpress und Eventim sind Marken ihrer Inhaber. Die Logos dienen nur zur Kennzeichnung des Paketdienstes. Dieses Projekt ist nicht mit den Unternehmen verbunden.
+DHL, DPD, Hermes, UPS, GLS, 17track, Amazon, eBay, AliExpress und Eventim sind Marken ihrer Inhaber. Die Logos (Simple Icons, CC0) dienen nur zur Kennzeichnung des Paketdienstes: DHL als gelbes Schild mit rotem Schriftzug, UPS in der Textfarbe des Themes, Hermes als blauer Punkt mit „H“, GLS als blauer Punkt mit „G“ (Simple Icons hat kein GLS-Logo), AliExpress als roter Punkt mit „A“, Eventim als dunkelblauer Punkt mit „E“, „Andere (über 17track)“ als grauer Punkt mit „17“. Dieses Projekt ist nicht mit den Unternehmen verbunden.

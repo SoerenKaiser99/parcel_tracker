@@ -516,6 +516,8 @@ async def test_diagnostics_without_any_credentials(hass, hass_storage, freezer):
     assert result["mail_import"] == {
         "configured": False,
         "custom_folder": False,
+        "custom_port": False,
+        "security": None,
         "interval_minutes": 5,
         "last_run": None,
         "next_run": None,
@@ -526,6 +528,7 @@ async def test_diagnostics_without_any_credentials(hass, hass_storage, freezer):
         "amazon_misses": 0,
         "known_message_ids": 0,
         "last_unrecognized": [],
+        "filing": None,
     }
     assert result["parcels"] == []
 
@@ -615,7 +618,7 @@ async def test_mail_import_counts_and_remembers_only_domain_and_forwarded(hass, 
     assert (state["last_error"], state["error_streak"]) == (None, 0)
     assert (state["recognized"], state["unrecognized"]) == (1, 4)
     assert state["amazon_misses"] == 1
-    assert state["known_message_ids"] == 5
+    assert state["known_message_ids"] == 1  # only the mail that was applied
     assert state["last_unrecognized"] == [
         {"domain": "other", "forwarded": False},
         {"domain": "amazon.de", "forwarded": False},
@@ -665,7 +668,7 @@ async def test_forwarded_mail_is_booked_under_its_original_sender(hass, freezer)
     await coordinator.async_refresh()
     state = (await async_get_config_entry_diagnostics(hass, entry))["mail_import"]
     assert (state["recognized"], state["unrecognized"]) == (1, 3)
-    assert state["known_message_ids"] == 4
+    assert state["known_message_ids"] == 1
     assert state["last_unrecognized"] == [
         {"domain": "dhl.de", "forwarded": True},
         {"domain": "other", "forwarded": True},
@@ -874,3 +877,72 @@ async def test_diagnostics_tell_a_custom_mail_folder_only_as_yes_or_no(hass, has
     assert result["mail_import"]["custom_folder"] is True
     assert result["entry"]["options"]["imap_folder"] == REDACTED
     assert "Mustermann" not in _dump(result)
+
+
+async def test_diagnostics_tell_the_port_only_as_default_or_not_and_the_security_mode(
+    hass, hass_storage, freezer
+):
+    """A port can tell an own server apart; the kind of connection says nothing personal."""
+    entry = await _setup(hass, hass_storage, freezer)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["mail_import"]["custom_port"] is False
+    assert result["mail_import"]["security"] == "ssl"
+    assert "imap_port" not in result["entry"]["options"]
+    hass.config_entries.async_update_entry(
+        entry, options={**OPTIONS, "imap_port": 10993, "imap_security": "ssl_noverify"}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["mail_import"]["custom_port"] is True
+    assert result["mail_import"]["security"] == "ssl_noverify"
+    assert result["entry"]["options"]["imap_port"] == REDACTED
+    assert result["entry"]["options"]["imap_security"] == "ssl_noverify"
+    assert "10993" not in _dump(result)
+    # The default port, stored: still only "not custom".
+    hass.config_entries.async_update_entry(
+        entry, options={**OPTIONS, "imap_port": 993, "imap_security": "plain"}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["mail_import"]["custom_port"] is False
+    assert result["mail_import"]["security"] == "plain"
+
+
+async def test_diagnostics_never_pass_on_a_security_mode_nobody_knows(
+    hass, hass_storage, freezer
+):
+    entry = await _setup(hass, hass_storage, freezer)
+    hass.config_entries.async_update_entry(
+        entry, options={**OPTIONS, "imap_security": "Geheimer Freitext"}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["entry"]["options"]["imap_security"] == "other"
+    assert result["mail_import"]["security"] == "ssl"  # what is really used
+    assert "Geheim" not in _dump(result)
+
+
+async def test_diagnostics_tell_how_mails_are_filed_without_host_user_or_folder(
+    hass, hass_storage, freezer
+):
+    """Issue #25: what explains "nothing is moved", and nothing that names the person."""
+    entry = await _setup(hass, hass_storage, freezer)
+    mailbox = entry.runtime_data.mailbox
+    state = (await async_get_config_entry_diagnostics(hass, entry))["mail_import"]["filing"]
+    assert state == mailbox.filing_state()
+    assert state["failing"] is False and state["last_error"] is None
+    # After a run on a server with folders below INBOX whose CREATE fails.
+    mailbox._filing.update(
+        has_move=True, has_uidplus=False, has_namespace=True,
+        namespace_prefix="INBOX.", delimiter=".", failing=True,
+        last_error="folder_unavailable",
+    )
+    mailbox._filing["folders"]["processed"] = {"state": "missing", "place": None}
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    state = result["mail_import"]["filing"]
+    assert (state["namespace_prefix"], state["delimiter"]) == ("INBOX.", ".")
+    assert (state["failing"], state["last_error"]) == (True, "folder_unavailable")
+    assert state["folders"]["processed"] == {"state": "missing", "place": None}
+    text = _dump(result)
+    assert IMAP_USER not in text
+    assert "pakete.tester" not in text

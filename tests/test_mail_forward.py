@@ -236,6 +236,17 @@ def test_forwarded_dhl_mail_is_read_by_the_dhl_parser(style, seconds):
 
 
 @pytest.mark.parametrize(("style", "seconds"), STYLES, ids=STYLE_IDS)
+def test_forwarded_dhl_express_mail_is_read_by_the_express_parser(style, seconds):
+    subj = "DHL On Demand Delivery"
+    block = style("DHL EXPRESS", "noreply.odd@dhl.com", subj, ORIGINAL)
+    body = ("Hallo Max Mustermann,\nIhre DHL Express Sendung mit Sendungsnr. 9999990166 von "
+            "AMAZON wird voraussichtlich HEUTE bis Tagesende ausgeliefert.\n")
+    [u] = parse_mail(_wire(_forward(block + body, subj, ORIGINAL))).updates
+    assert (u.number, u.carrier, u.status) == ("9999990166", "dhl", ParcelStatus.OUT_FOR_DELIVERY)
+    assert u.eta_date == ORIGINAL.date()
+
+
+@pytest.mark.parametrize(("style", "seconds"), STYLES, ids=STYLE_IDS)
 def test_quoted_lines_with_quote_marks_are_read_too(style, seconds):
     block = style(DHL_NAME, DHL_ADDRESS, DHL_SUBJECT, ORIGINAL)
     quoted = "\n".join(f"> {line}".rstrip() for line in (block + DHL_BODY).splitlines())

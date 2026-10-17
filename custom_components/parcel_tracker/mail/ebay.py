@@ -1,7 +1,8 @@
 """eBay order mails (no Home Assistant imports).
 
-eBay mails carry no tracking number; 12-digit numbers are item numbers and are never
-read as one. Buyer, seller and address are never taken.
+Only "Update zur Bestellung" and "Zustellversuch" carry the carrier's number
+("Sendungsnummer: …"); it is taken when it tells its carrier on its own. 12-digit numbers
+are item numbers and are never read as one. Buyer, seller and address are never taken.
 """
 
 from __future__ import annotations
@@ -11,9 +12,11 @@ from email.message import EmailMessage
 
 from ..models import ParcelStatus
 from .base import (
+    ATTEMPT_TEXT,
     MailUpdate,
     at,
     body_text,
+    carrier_for,
     carrier_key,
     resolve_dates,
     sent_at,
@@ -23,9 +26,25 @@ from .base import (
 
 EBAY_SENDER = "ebay@ebay.com"
 
-_DELIVERED = re.compile(r"BESTELLUNG ZUGESTELLT:\s*(?P<title>.+)$")
+# "📦BESTELLUNG ZUGESTELLT: …" and "📦PAKET ZUGESTELLT: …": anywhere in the subject (an emoji,
+# "[EXTERN]" or "*** SPAM ***" of a mail gateway may stand in front), but only in upper case
+# and with the colon, as eBay writes it ("Ihr Paket zugestellt: …" is no eBay subject)
+_DELIVERED = re.compile(r"(?<![^\W\d_])(?:BESTELLUNG|PAKET) ZUGESTELLT:\s*(?P<title>.+)$")
 _CANCELLED = re.compile(r"Kauf (?P<order>\d{2}-\d{5}-\d{5}) wurde abgebrochen")
-_ITEM = re.compile(r"^(?P<title>[^\n]+)\nArtikelnr\.:[ \t]*\n?[ \t]*\d{6,}", re.M)
+# "Update zur Bestellung: …": the seller shipped (or is about to) and names the number.
+_UPDATE = re.compile(r"Update zur Bestellung:\s*(?P<title>.+)$")
+_TRACKING = re.compile(r"Sendungsnummer:[ \t]*\n?[ \t]*(?P<number>[0-9A-Z]{8,30})(?![0-9A-Z])")
+# "Zustellversuch: …": the carrier met nobody ("DHL Germany hat Sie leider nicht
+# angetroffen."). On its way again, no longer today; it names the number as well.
+_ATTEMPT = re.compile(r"Zustellversuch:\s*(?P<title>.+)$")
+# (one layout puts "eBay-Käuferschutz", "Preis:" and the price between title and number)
+# ("Einzelheiten zum Kauf ansehen" is a link: the "PAKET ZUGESTELLT" mail may have no title)
+_ITEM = re.compile(
+    r"^(?!Einzelheiten zum Kauf ansehen\n)(?P<title>[^\n]+)\n"
+    r"(?:eBay-Käuferschutz\nPreis:\n[^\n]+\n)?"
+    r"Artikelnr\.:[ \t]*\n?[ \t]*\d{6,}",
+    re.M,
+)
 _ORDER = re.compile(r"Bestellnummer:\s*(\d{2}-\d{5}-\d{5})\b")
 _ETA = re.compile(r"Lieferung ca\.:[ \t]*\n?[ \t]*(?P<rest>[^\n]+)")
 _HINT = re.compile(r"Versanddienstleister:[ \t]*\n?[ \t]*(?P<name>[^\n]+)")
@@ -40,7 +59,7 @@ def order_number(order: str) -> str:
 
 
 def _status(subj: str) -> ParcelStatus | None:
-    if "beim Versanddienstleister" in subj:
+    if "beim Versanddienstleister" in subj or _UPDATE.search(subj) or _ATTEMPT.search(subj):
         return ParcelStatus.IN_TRANSIT
     if _DELIVERED.search(subj):
         return ParcelStatus.DELIVERED
@@ -80,8 +99,16 @@ def _hint(text: str) -> str | None:
 
 
 def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
-    """'beim Versanddienstleister' (in transit), 'BESTELLUNG ZUGESTELLT' (delivered) or
-    'Kauf … wurde abgebrochen' (cancelled)."""
+    """'beim Versanddienstleister' / 'Update zur Bestellung' (in transit), 'Zustellversuch'
+    (in transit again, in its own words) or 'BESTELLUNG ZUGESTELLT' / 'PAKET ZUGESTELLT'
+    (delivered; without a title in the body the subject's is taken) or 'Kauf … wurde
+    abgebrochen' (cancelled).
+
+    The update and the attempt name the carrier's number. It goes with the order only if
+    the number tells its carrier on its own (DHL "00340…"/"JJD…", UPS, Hermes "H…"): then
+    the order is asked about there. 12 or 14 digits may belong to several carriers and are
+    left alone.
+    """
     subj = subject(msg)
     if cancelled := _CANCELLED.search(subj):
         number = order_number(cancelled.group("order"))
@@ -100,8 +127,16 @@ def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
         dropped = _DROPPED.search(text)
         if dropped and (day := resolve_dates(dropped.group("day"), sent.date())):
             delivered_at = at(day[0], int(dropped.group("h")), int(dropped.group("m")))
-    subject_title = _DELIVERED.search(subj)
+    attempt = _ATTEMPT.search(subj)
+    update = _UPDATE.search(subj) or attempt
+    subject_title = _DELIVERED.search(subj) or update
     fallback = shorten(subject_title.group("title").rstrip(".… ")) if subject_title else None
+    orders = _orders(text)
+    tracking_ref = tracking_carrier = None
+    # (a mail about several orders does not tell whose number it is)
+    if update and len(orders) == 1 and (tracking := _TRACKING.search(text)):
+        tracking_carrier = carrier_for(tracking.group("number"))
+        tracking_ref = tracking.group("number") if tracking_carrier else None
     return [
         MailUpdate(
             number=order_number(order),
@@ -113,6 +148,10 @@ def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
             eta_latest=eta_latest,
             delivered_at=delivered_at,
             shipping_carrier_hint=_hint(text),
+            tracking_ref=tracking_ref,
+            tracking_carrier=tracking_carrier,
+            postponed=attempt is not None,
+            status_text=ATTEMPT_TEXT if attempt else None,
         )
-        for order, titles in _orders(text).items()
+        for order, titles in orders.items()
     ]

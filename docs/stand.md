@@ -15,6 +15,8 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | GLS-Live-Abfrage | umgesetzt; von einem Tester mit einem echten Paket bestätigt |
 | 17track | umgesetzt; Abfrage von einem Tester bestätigt (das Kontingent wird einmal belastet, die Karte füllt sich) |
 | Von Hand weitergeleitete Mails | umgesetzt; von einem Tester bestätigt |
+| Eigener Ordner im Postfach (Mail-Import liest genau den eingetragenen Ordner) | umgesetzt (v0.3.29); von einem Tester bestätigt ([Issue #18](https://github.com/SoerenKaiser99/parcel_tracker/issues/18)) |
+| Ablage-Ordner bei Postfächern mit INBOX-Präfix (Hosting-Postfächer) | umgesetzt (v0.3.33); von einem Tester bestätigt ([Issue #25](https://github.com/SoerenKaiser99/parcel_tracker/issues/25)) |
 
 ## Umgesetzt
 
@@ -30,7 +32,7 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Mails von GLS Österreich und DPD Österreich, internationale DHL-Nummern (`CQ…DE`) | umgesetzt nach anonymisierten Beispielmails von Testern |
 | Benachrichtigungen (Optionen und Blueprint) | umgesetzt, an Benachrichtigungs-Entitäten und klassische Dienste (z. B. Pushover) |
 | Land (Deutschland, Österreich, Schweiz) | umgesetzt für PLZ-Länge und GLS-Abfrage |
-| Bestellungen ohne Zustellmail (Amazon, eBay, AliExpress, Eventim) | umgesetzt: Ein zugestelltes Carrier-Paket schließt die passende Bestellung, überfällige Bestellungen ohne Sendungsnummer werden „Abgeschlossen ohne Zustellbestätigung“ |
+| Bestellungen ohne Zustellmail (Amazon, eBay, AliExpress, Eventim) | umgesetzt: Ein zugestelltes Carrier-Paket schließt die passende Bestellung, überfällige Bestellungen, zu denen kein Paketdienst gefragt werden kann, werden „Abgeschlossen ohne Zustellbestätigung“ |
 
 ## Umgesetzt, aber noch nicht bestätigt
 

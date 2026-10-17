@@ -77,14 +77,17 @@ Den Status liest der Import nur aus dem Betreff der DHL-Mail:
 | „kommt morgen“ | „Unterwegs“ mit dem Tag nach der Mail |
 | „kommt heute“, „wird heute zugestellt“ | „In Zustellung“ für den Tag der Mail |
 | „wird gleich zugestellt“ | „In Zustellung“ für den Tag der Mail, mit der eigenen Zeile „Wird gleich zugestellt“ im Verlauf |
-| „wurde zugestellt“, auch „wurde an den gewünschten Ablageort zugestellt“ | „Zugestellt“ |
-| „Liegt zur Abholung bereit“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“ |
+| „wurde zugestellt“, auch „wurde an den gewünschten Ablageort zugestellt“, „liegt im Briefkasten“, „liegt nebenan“ | „Zugestellt“ |
+| „Liegt zur Abholung bereit“, „liegt seit … Tagen in der Filiale“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“ |
+| „wurde leider auf dem Transportweg beschädigt“ | „Unterwegs“, mit der eigenen Zeile „Verpackung beschädigt“ im Verlauf |
 | jede andere Mail, deren Betreff von einer „Sendung“ spricht (Zustellfoto, gescheiterter Zustellversuch, Neuigkeiten) | nur „Unterwegs“ ohne Tag; nie einen Status zurück |
 | Umfrage (Betreff mit Fragezeichen) oder Betreff ohne „Sendung“ | legt das Paket nur an |
 
-Abholcodes liest der Import nie.
+Abholcodes liest der Import nie. Steht im Textteil der Mail keine Sendungsnummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil.
 
-Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key „Kein Live-Status“ statt eines Termins. Die Integration kann eine solche Nummer nicht prüfen: Ob sie stimmt, vertippt oder längst zugestellt ist, erfährt sie ohne Key nicht.
+Mails von DHL Express („DHL On Demand Delivery“, `noreply.odd@dhl.com`) setzen „Unterwegs“, „In Zustellung“ für den Tag der Mail und „Zugestellt“ mit der Uhrzeit aus dem Satz im Text.
+
+Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key auf der Karte „Kein Live-Status“ statt eines Termins. Aufgeklappt steht dort „Kein Live-Status: DHL-API-Key fehlt (unter „Konfigurieren“ eintragen).“ Die Integration kann eine solche Nummer nicht prüfen: Ob sie stimmt, vertippt oder längst zugestellt ist, erfährt sie ohne Key nicht. Erst mit Key meldet DHL bei einer unbekannten Nummer „Noch keine Daten vom Carrier“.
 
 ??? note "Warum es keinen anderen Weg gibt"
     - **Nutzungsbedingungen:** DHL erlaubt automatische Abfragen nur über die offizielle Schnittstelle. Die Sendungsverfolgung der Webseite ist laut DHL ausdrücklich nur für Menschen gedacht. Automatisches Auslesen ist untersagt und wird technisch geblockt. Das umgeht diese Integration nicht.
@@ -95,7 +98,7 @@ Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key
 - Abgefragt wird die öffentliche DPD-Sendungsverfolgung, nur mit der Sendungsnummer. Zugangsdaten brauchst du nicht.
 - DPD liefert den Status und die fünf Meilenstein-Termine, aber keinen Standort und kein Zeitfenster.
 - Die detailliertere DPD-Seite braucht eine Postleitzahl und ist durch ein Captcha geschützt. Deshalb nutzt die Integration sie nicht.
-- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung.
+- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung. Die Mails danach setzen den Status selbst: „Zwischen … und … Uhr kommt Ihr DPD Paket“ („In Zustellung“ mit Zeitfenster), „Ihr Paket ist da!“ („Zugestellt“) und „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ („Abholbereit“).
 
 ## GLS
 
@@ -105,7 +108,7 @@ GLS-Pakete fragt die Integration über die offene Sendungsverfolgung von gls-gro
 
 - **11 Ziffern** erkennt „Automatisch“ als GLS.
 - **12 Ziffern** (so steht die Nummer in den GLS-Mails und im Link zur Sendungsverfolgung) funktionieren mit der Carrier-Wahl „GLS“ und beim Import der GLS-Mails. Die letzte Ziffer ist eine Prüfziffer, GLS wird mit den ersten 11 Ziffern gefragt.
-- **12 Ziffern mit „Automatisch“:** So sehen auch DHL-Nummern und eBay-Artikelnummern aus. Die Integration fragt die Nummer einmal mit allen 12 Ziffern bei GLS an. Bei einem Treffer wird sie ein GLS-Paket. Mit DHL-Key wird zuerst DHL gefragt und GLS nur, wenn DHL die Nummer nicht kennt. Kennt GLS die Nummer nicht, bleibt alles wie zuvor, und GLS wird für dieses Paket nicht noch einmal gefragt. Ist GLS nicht erreichbar, gibt es höchstens drei Versuche.
+- **12 Ziffern mit „Automatisch“:** So sehen auch DHL-Nummern und eBay-Artikelnummern aus. Die Integration fragt die Nummer einmal mit allen 12 Ziffern bei GLS an; GLS findet ein Paket nur mit der richtigen Prüfziffer. Bei einem Treffer wird sie ein GLS-Paket. Mit DHL-Key wird zuerst DHL gefragt und GLS nur, wenn DHL die Nummer nicht kennt. Kennt GLS die Nummer nicht, bleibt alles wie zuvor, und GLS wird für dieses Paket nicht noch einmal gefragt. Ist GLS nicht erreichbar, gibt es höchstens drei Versuche.
 - **Achtstellige Track-IDs** aus Buchstaben und Ziffern trägst du mit der Carrier-Wahl „GLS“ ein.
 
 **PLZ:** Ist in den Einstellungen eine PLZ hinterlegt, schickt die Integration sie mit, und GLS liefert zusätzlich den Verlauf (bis zu 20 Ereignisse). Ohne PLZ – oder wenn die PLZ nicht zur Sendung passt – gibt es nur den Status.
@@ -124,7 +127,7 @@ GLS-Pakete fragt die Integration über die offene Sendungsverfolgung von gls-gro
 
 ## UPS
 
-Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails. Eine von Hand eingetragene `1Z…`-Nummer zeigt dann „Kein Live-Status“, bis eine UPS-Mail zu ihr kommt.
+Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails. Eine von Hand eingetragene `1Z…`-Nummer zeigt dann „Kein Live-Status“, aufgeklappt „Kein Live-Status: UPS-Zugangsdaten fehlen (unter „Konfigurieren“ eintragen).“, bis eine UPS-Mail zu ihr kommt.
 
 Mit einer eigenen UPS-App fragt die Integration zusätzlich die offizielle UPS Track API ab – auch für von Hand eingetragene `1Z…`-Nummern.
 
@@ -196,7 +199,7 @@ Liefert der Paketdienst gar nichts (z. B. DHL ohne API-Key, UPS ohne API-Zugang)
 Diese vier kennt die Integration **nur aus Mails**. Eine Anmeldung beim Shop gibt es nicht. Abgefragt wird nur die Sendungsnummer des Paketdienstes, sobald eine Mail sie verrät.
 
 - **Amazon:** Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Amazon-Nummern (`TBA…`) lassen sich nicht direkt verfolgen.
-- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer. eBay-Mails enthalten keine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
+- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer. Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
 - **AliExpress:** Pro Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer. Nennt eine „Packstück“-Mail eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live beim Paketdienst abgefragt (DHL mit API-Key).
 
 - **Eventim:** Pro Ticketbestellung mit Postversand entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Die Versandbenachrichtigung setzt „Versendet“ und den Lieferzeitraum. Eventim nennt keine Sendungsnummer und schickt keine „Zugestellt“-Mail: Die Bestellung endet mit [„Erhalten“](karte.md#erhalten) auf der Karte oder von selbst nach dem Lieferzeitraum. Tickets zum Selbstausdrucken oder fürs Handy werden nicht angelegt.
@@ -219,21 +222,29 @@ Die Integration ist für Deutschland gebaut. Die Einstellung **Land** ist die Gr
 - Für Österreich fragt die Integration die österreichische Variante der offenen GLS-Abfrage. Eine Probe mit einer ungültigen Nummer hat gezeigt, dass sie genauso antwortet wie die deutsche. **Mit echten Paketen ist das noch nicht getestet.**
 - Für die Schweiz bleibt die GLS-Abfrage auf der deutschen Variante, weil die Schweizer Variante ihre Texte auf Englisch liefert.
 - Der Mail-Import liest die Mails von `noreply@gls-group.eu` und `noreply@gls-rtt.com`, egal welches Land eingestellt ist. Zustelladresse, Empfängername und Referenz übernimmt er nie.
+- `noreply@gls-group.eu`: „Ihr Paket von … ist unterwegs“ legt das Paket an; „… wurde durch GLS am gewünschten Ort abgestellt“ oder „zugestellt“ meldet die Zustellung mit der Uhrzeit. Das gilt auch für mehrere Pakete in einer Mail: Nennt eine Mail mehrere Paketnummern, legt der Import für jede Nummer ein eigenes Paket an.
+- `noreply@gls-rtt.com`: „Ihr Paket ist auf dem Weg!“ bedeutet: heute in Zustellung.
 
 **DPD Österreich:**
 
 - Mails von `no_reply@dpd.at` legen das Paket an („Ein DPD Paket für dich“) und melden die Zustellung mit Uhrzeit („Neuigkeiten zu deinem Paket“).
+- „Ihr DPD Paket kommt zwischen 13:00 und 14:00 Uhr“ setzt „In Zustellung“ für den Tag der Mail mit dem Zeitfenster aus dem Betreff (seit v0.3.35). Der Versender aus „Ihr Paket … von … wird voraussichtlich …“ wird nur zum Namen, wenn es ein bekannter Shop ist oder der Name eine Rechtsform trägt – nie eine Privatperson. Die Zustelladresse aus der Mail liest der Import nie.
+- Als zugestellt gilt ein Paket nur, wenn es laut Mail „zugestellt“, „abgestellt“ oder am gewünschten Abstellort bzw. Wunschort „hinterlegt“ wurde. Auch „beim Nachbarn abgegeben“ gilt als zugestellt (wer der Nachbar ist, wird nicht gelesen).
+- „Abholbereit“ zeigt es nur, wenn die Mail einen Pickup Paketshop bzw. eine Abholstation nennt und das Paket dort liegt („hinterlegt“, „zugestellt“, „abholbereit“, „bereit“). „Auf dem Weg in den Paketshop“ oder „umgeleitet“ reicht nicht.
+- Jede andere Meldung (an DPD übergeben, im Depot, „wird morgen zugestellt“ ohne Zeitfenster im Betreff, nicht zugestellt) setzt keinen Status.
+- Gelesen werden nur die Sätze von `no_reply@dpd.at`. Mails anderer Absender bei dpd.at legen das Paket nur an.
 - Der Status kommt bei DPD Österreich derzeit nur aus diesen Mails. Die DPD-Abfrage bleibt die deutsche Seite.
-- mydpd.at hat zwar eine eigene offene Abfrage. Sie antwortet aber in einem anderen Format und ließ sich nur mit einer ungültigen Nummer prüfen. Ohne echte Antwort wird daraus keine Abfrage gebaut.
+- mydpd.at hat zwar eine eigene offene Abfrage. Sie antwortet aber in einem anderen Format als die deutsche Seite und ließ sich nur mit einer ungültigen Nummer prüfen. Ohne echte Antwort wird daraus keine Abfrage gebaut.
+- Ein per Mail als zugestellt gemeldetes Paket wird nicht mehr abgefragt und bleibt zugestellt.
 - Den Abstellort übernimmt der Import nie.
 
-**DHL international:** Nummern internationaler DHL-Sendungen (zwei Buchstaben, neun Ziffern, „DE“, z. B. `CQ…DE`) erkennt „Automatisch“ als DHL (Live-Status mit DHL-API-Key), und der Mail-Import liest sie aus den DHL-Mails.
+**DHL international:** Nummern internationaler DHL-Sendungen (zwei Buchstaben, neun Ziffern, „DE“, z. B. `CQ…DE`) erkennt „Automatisch“ als DHL (Live-Status mit DHL-API-Key), und der Mail-Import liest sie aus den DHL-Mails. Bei Sendungen aus dem Ausland nennt die DHL-Mail oft die Nummer des Absenderlands, z. B. `LE…BE` (Belgien) oder `LW…NL` (Niederlande): Auch diese Nummern liest der Import aus den DHL-Mails (seit v0.3.37) und fragt sie mit dem DHL-API-Key bei DHL ab. Von Hand mit „Automatisch“ eingegeben, erkennt die Integration solche Nummern dagegen nicht als DHL, weil sie meist zur Post des jeweiligen Landes gehören (z. B. `…AT`, `…CH`, `…NL`, `…BE`): Mit DHL-Key fragt sie wie bei jeder unbekannten Nummer einmal bei DHL nach. Weißt du, dass DHL das Paket bringt, wähle „DHL“ von Hand. Die Mail „… in den nächsten 2 Werktagen von der Österreichischen Post zugestellt“ ergibt „Unterwegs“ ohne Liefertag, weil sie keinen festen Tag nennt.
 
 **Noch nicht:**
 
 - DPD-Live-Abfrage für Österreich, DPD Schweiz,
 - Österreichische Post und Schweizerische Post als eigene Paketdienste (bis dahin über „Andere (über 17track)“),
-- „Automatisch“ erkennt andere ausländische Nummernformate nicht,
+- „Automatisch“ erkennt andere ausländische Nummernformate nicht automatisch,
 - Mails aus der Schweiz kennt der Mail-Import noch nicht.
 
-Damit daraus mehr wird, helfen anonymisierte Beispielmails der Paketdienste und Shops aus Österreich und der Schweiz. Siehe [Beispielmails einreichen](hilfe.md#beispielmails-einreichen).
+Damit daraus mehr wird, helfen anonymisierte Beispielmails der Paketdienste und Shops aus Österreich und der Schweiz (siehe [Beispielmails einreichen](hilfe.md#beispielmails-einreichen)) und bei Fehlern die Diagnose-Datei (siehe [Fehler melden](hilfe.md#fehler-melden)).

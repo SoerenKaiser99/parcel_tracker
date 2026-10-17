@@ -61,6 +61,8 @@
             "data": {
               "mail_enabled": "Mail import enabled",
               "imap_host": "IMAP server",
+              "imap_port": "Port",
+              "imap_security": "Connection",
               "imap_user": "Username",
               "imap_password": "Password",
               "imap_folder": "Folder",
@@ -70,6 +72,8 @@
             },
             "data_description": {
               "mail_enabled": "Switching it off removes the saved username and password.",
+              "imap_port": "Usual ports: 993 encrypted, 143 unencrypted. Choosing another connection does not change the port.",
+              "imap_security": "\"Encrypted (TLS, default)\" fits every mail provider. The other two are only for a mail server in your own network, e.g. a self-hosted server with a self-signed certificate: with a provider on the internet the password could be read or the server impersonated.",
               "imap_user": "Leave empty to keep the saved username.",
               "imap_password": "Leave empty to keep the saved password.",
               "imap_folder": "The folder of the mailbox that is read – only this one. Keep \"INBOX\" for a dedicated parcel mailbox. A folder of your main mailbox works too, but then Home Assistant knows the password of that whole mailbox. Leave empty to keep the stored folder.",
@@ -116,7 +120,9 @@
       "invalid_postcode": "Enter a 5-digit postcode.",
       "invalid_postcode_4": "Enter a 4-digit postcode.",
       "imap_auth": "The mail server rejected username or password.",
-      "imap_cannot_connect": "Couldn't reach the mail server. Check the server name.",
+      "imap_cannot_connect": "Couldn't reach the mail server. Check the server name, port and connection.",
+      "imap_certificate": "The mail server's certificate was not accepted. For your own server in the home network: choose the connection \"Encrypted, don't verify the certificate\".",
+      "imap_login_disabled": "The mail server accepts no login without encryption. Choose \"Encrypted, don't verify the certificate\" (usually port 993) or allow plain-text logins on the server.",
       "imap_password_missing": "Enter the mailbox password.",
       "folder_not_found": "This folder doesn't exist in the mailbox.",
       "folder_reserved": "Paket Tracker files mails into this folder. Choose another folder to read.",
@@ -140,6 +146,10 @@
     "imap_auth": {
       "title": "Parcel mailbox login rejected",
       "description": "The mail server no longer accepts the login for the parcel mailbox. Open the Parcel Tracker options and enter the current password."
+    },
+    "imap_insecure": {
+      "title": "Parcel mailbox is read without verified encryption",
+      "description": "The parcel mailbox is read without verified encryption (connection \"Encrypted, don't verify the certificate\" or \"Unencrypted\"), and the mail server doesn't look like one in your own network. The password could be read or the server impersonated on the way – use these connections only in your own network. Choose \"Encrypted (TLS, default)\" in the Parcel Tracker options. If the server is in your own network after all, you can ignore this notice."
     },
     "amazon_unrecognized": {
       "title": "Amazon mails not recognised",
@@ -223,6 +233,13 @@
         "de": "Germany",
         "at": "Austria",
         "ch": "Switzerland"
+      }
+    },
+    "imap_security": {
+      "options": {
+        "ssl": "Encrypted (TLS, default)",
+        "ssl_noverify": "Encrypted, don't verify the certificate",
+        "plain": "Unencrypted"
       }
     },
     "notify_events": {

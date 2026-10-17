@@ -10,6 +10,12 @@ from unittest.mock import Mock
 
 import pytest
 
+# Loaded before any test: enable_custom_integrations puts an empty custom_components
+# package into the config dir under tmp_path, and the loader of Home Assistant imports
+# that one if this package is not loaded yet. A test that imports it only in its body
+# then fails with ModuleNotFoundError, unless another test file of the run loaded it.
+import custom_components.parcel_tracker  # noqa: F401
+
 pytest_plugins = "pytest_homeassistant_custom_component"
 
 FIXTURES = Path(__file__).parent / "fixtures"

@@ -81,6 +81,11 @@ def _count(value: Any) -> int:
     return value if type(value) is int and value > 0 else 0
 
 
+def _texts(value: Any) -> list[str]:
+    """A stored list of texts; anything else in it (or no list at all) is dropped."""
+    return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
+
 @dataclass(frozen=True)
 class TrackingEvent:
     """One scan event."""
@@ -202,6 +207,25 @@ class Parcel:
     # it is delivered and stays exactly as marked, whatever a carrier, 17track or a mail
     # says afterwards. Persisted; a parcel stored by an older version has no mark.
     manual_delivered: bool = False
+    # When the newest mail that told a shop order's status was sent, also one that only
+    # repeated the status and left no line in the history (see ``mail.apply._forward``).
+    # What a mail read late is measured against once the order was closed on its own.
+    # Persisted; an order stored by an older version has none.
+    last_mail_at: datetime | None = None
+    # Was the delivery of this parcel announced (status event, and with it the
+    # notification)? True once it was; False for a parcel whose very first status was
+    # "delivered", which is no news, so nobody was told; None while it is not delivered,
+    # and for a parcel stored by an older version (nobody knows: its history decides,
+    # see ``mail.apply._delivery_told``). Persisted: an order that takes the parcel in
+    # later must not push a delivery again, and must push one nobody heard of.
+    delivery_announced: bool | None = None
+    # The status the carrier told in its last answer; None while it never answered.
+    # Persisted: what an answer about an order closed on its own is compared with (see
+    # the coordinator's ``_keeps_closing``), also after a restart.
+    carrier_status: ParcelStatus | None = None
+    # Amazon's ids of the shipments of an order its mails named (``MailUpdate.shipment_id``),
+    # oldest first, each once. Persisted; an order stored by an older version has none.
+    shipment_ids: list[str] = field(default_factory=list)
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -260,6 +284,10 @@ class Parcel:
             "gls_probes": self.gls_probes,
             "name_manual": self.name_manual,
             "manual_delivered": self.manual_delivered,
+            "last_mail_at": _iso(self.last_mail_at),
+            "delivery_announced": self.delivery_announced,
+            "carrier_status": self.carrier_status.value if self.carrier_status else None,
+            "shipment_ids": list(self.shipment_ids),
         }
 
     @classmethod
@@ -295,6 +323,12 @@ class Parcel:
             gls_probes=_count(data.get("gls_probes")),
             name_manual=data.get("name_manual") is True,
             manual_delivered=data.get("manual_delivered") is True,
+            last_mail_at=_dt(data.get("last_mail_at")),
+            delivery_announced=(
+                mark if isinstance(mark := data.get("delivery_announced"), bool) else None
+            ),
+            carrier_status=_status(data.get("carrier_status")),
+            shipment_ids=_texts(data.get("shipment_ids")),
         )
 
 

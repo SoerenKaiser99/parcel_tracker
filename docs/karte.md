@@ -4,7 +4,19 @@ Die Karte `custom:parcel-tracker-card` kommt mit der Integration. Im Karten-Ausw
 
 ![Die Karte mit geöffneter Eingabe und einem aufgeklappten DHL-Paket](images/karte-detail.png){ width="320" }
 
-Zum Ausprobieren ohne Home Assistant: [Demo-Karte öffnen](demo/index.html). Alle Pakete dort sind erfunden.
+Zum Ausprobieren ohne Home Assistant: [Demo-Karte öffnen](demo/index.html). Alle Pakete dort sind erfunden. Die Bilder auf diesen Seiten stammen aus dieser Demo.
+
+??? note "Die Demo steuern und lokal öffnen"
+    Die Demo-Seite zeigt die echte Karte ohne Home Assistant im Browser. Hinter die Adresse gehängt, ändern diese Parameter die Ansicht:
+
+    | Parameter | Wirkung |
+    |---|---|
+    | `?theme=dark` | das dunkle Design |
+    | `?open=1` | klappt das erste Paket auf |
+    | `?add=open` | öffnet die Eingabe hinter dem Plus-Knopf |
+    | `?add=always` | zeigt die Eingabe dauerhaft |
+
+    Lokal geht es auch: den Repository-Ordner mit `python3 -m http.server` ausliefern und `docs/demo/index.html` öffnen.
 
 Die Karte ist deutsch, unabhängig von der Sprache, die in Home Assistant eingestellt ist. Auch die Statusangaben („Unterwegs“, „Zugestellt“ …) kommen aus der Karte selbst.
 
@@ -23,7 +35,11 @@ Nach dem Hinzufügen klappt die Eingabe wieder zu. Bei einem Fehler bleibt sie o
 
     „Hinzugefügt. Ohne DHL-API-Key gibt es dafür keinen Live-Status: Key unter „Konfigurieren“ eintragen – oder der Status kommt aus den DHL-Mails über den Mail-Import.“
 
-    Für UPS ohne Zugangsdaten gibt es dieselbe Zeile mit „UPS-Zugangsdaten“. Die Zeile bleibt stehen, bis du sie über das × schließt, das nächste Paket hinzufügst oder das Paket einen Status bekommt. Für Pakete aus Mails erscheint sie nie.
+    Für UPS ohne Zugangsdaten:
+
+    „Hinzugefügt. Ohne UPS-Zugangsdaten gibt es dafür keinen Live-Status: Zugangsdaten unter „Konfigurieren“ eintragen – oder der Status kommt aus den UPS-Mails über den Mail-Import.“
+
+    Die Eingabe klappt dabei wie gewohnt zu, die Zeile bleibt unter dem Kartentitel stehen (mit `add_form: always` unter der Eingabe). Sie bleibt, bis du sie über das × am Zeilenende schließt, das nächste Paket hinzufügst oder die Eingabe wieder schließt. Sie verschwindet auch, sobald das Paket einen Status bekommt. Für Pakete aus Mails und für Pakete, die schon in der Liste standen, erscheint sie nie.
 
 Amazon-Nummern (`TBA…`) lassen sich nicht direkt verfolgen. Dafür ist der [E-Mail-Import](mail-import.md) da.
 
@@ -65,13 +81,16 @@ Ein Tipp auf ein Paket klappt es auf. Der kleine Pfeil rechts in der Zeile zeigt
 Aufgeklappt siehst du:
 
 **Verlauf**
-:   Die Ereignisse der Sendung mit Zeit, Text und – wenn bekannt – Ort.
+:   Die Ereignisse der Sendung mit Zeit, Text und – wenn bekannt – Ort. Die Texte stehen als reiner Text da, auch wenn der Paketdienst einen Link mitschickt (seit v0.3.34).
+
+**Sendungsnummer, Bestellnummer**
+:   Unter dem Verlauf steht die Nummer des Pakets: „Sendungsnummer: …“. Bei einer Bestellung (Amazon, eBay, AliExpress, Eventim) steht dort „Bestellnummer: …“, so geschrieben wie beim Shop (z. B. `999-9999999-9999999` bei Amazon), und sobald eine Mail die Nummer des Paketdienstes genannt hat, darunter auch deren „Sendungsnummer: …“. Eine Amazon-Bestellung ohne diese Nummer zeigt stattdessen „Amazon-Sendung: …“ (ebenso unter einer Nummer, für deren Paketdienst es keine Verfolgungsseite gibt), Amazons eigene Kennung der Sendung aus den Mails ab „Versendet“; sie gilt nur auf Amazons Seite, nicht beim Zusteller. Ein Tipp auf die Nummer markiert sie ganz, dann lässt sie sich kopieren. Die Nummern stehen auch mit [Namen ausblenden](datenschutz.md#namen-ausblenden) da: Die Option blendet nur Namen aus. Seit v0.3.34.
 
 **Sendung verfolgen**
-:   Öffnet die Sendungsverfolgung des Paketdienstes (DHL, DPD, GLS, Hermes, UPS) mit der Sendungsnummer in einem neuen Tab. Den Link gibt es auch bei einer Bestellung, sobald sie die Sendungsnummer des Paketdienstes kennt. Ohne Sendungsnummer eines dieser Paketdienste (Bestellung nur aus Mails, Paket nur über 17track, Paketdienst noch nicht erkannt) gibt es den Link nicht. Es sind die deutschen Seiten der Paketdienste, auch mit Land Österreich oder Schweiz. Die Adresse steht auch im Attribut `tracking_url` des Paket-Sensors.
+:   Das Symbol mit dem Lieferwagen hinter der Sendungsnummer. Öffnet die Sendungsverfolgung des Paketdienstes (DHL, DPD, GLS, Hermes, UPS) mit der Sendungsnummer in einem neuen Tab. Den Link gibt es auch bei einer Bestellung, sobald sie die Sendungsnummer des Paketdienstes kennt. Eine Amazon-Bestellung ohne diese Nummer führt stattdessen zur Sendungsverfolgung bei Amazon (mit Anmeldung), sobald eine Mail ab „Versendet“ die Sendung verlinkt hat; das Symbol steht dann hinter der Amazon-Sendung, bei mehreren Sendungen führt es zur neuesten. Sonst gibt es ohne Sendungsnummer eines dieser Paketdienste (Bestellung nur aus Mails, Paket nur über 17track, Paketdienst noch nicht erkannt) keinen Link. Es sind die deutschen Seiten der Paketdienste, auch mit Land Österreich oder Schweiz. Die Adresse steht auch im Attribut `tracking_url` des Paket-Sensors.
 
-**Bestellung**
-:   Bei einer Amazon-, eBay- oder AliExpress-Bestellung: öffnet die Bestellseite des Shops in einem neuen Tab. Bei Eventim gibt es den Link nicht.
+**Bestellung öffnen**
+:   Das Symbol mit dem Beleg hinter der Bestellnummer. Bei einer Amazon-, eBay- oder AliExpress-Bestellung: öffnet die Bestellseite des Shops in einem neuen Tab. Bei Eventim gibt es den Link nicht.
 
 **Erhalten**
 :   Markiert das Paket von Hand als erhalten, mit Rückfrage „Wirklich erhalten?“. Steht bei jedem Paket, das noch nicht zugestellt ist. Siehe [Erhalten](#erhalten).
@@ -88,7 +107,7 @@ Aufgeklappt siehst du:
 **Löschen**
 :   Entfernt das Paket, mit Rückfrage „Wirklich löschen?“.
 
-Die Reihenfolge in der Zeile: erst die Links „Sendung verfolgen“ und „Bestellung“, dann „Erhalten“, „Umbenennen“ und „Löschen“. Auf schmalen Karten bricht die Zeile um.
+Die beiden Links stehen als Symbole hinter den Nummern, die Knöpfe darunter in einer Zeile: „Erhalten“, „Umbenennen“ und „Löschen“. Auf schmalen Karten bricht die Zeile um.
 
 ### Erhalten
 
@@ -102,19 +121,20 @@ Manche Pakete bekommen ihr „Zugestellt“ nie:
 Bisher blieb dafür nur „Löschen“. Mit „Erhalten“ sagst du der Integration selbst, dass das Paket da ist.
 
 1. Paket aufklappen und **Erhalten** antippen.
-2. Die Rückfrage **Wirklich erhalten?** bestätigen – oder **Abbrechen**.
+2. Es erscheinen **Abbrechen** und **Wirklich erhalten?**. Mit „Wirklich erhalten?“ bestätigst du. „Abbrechen“ steht genau dort, wo eben „Erhalten“ stand: Ein Doppeltipp bestätigt also nichts.
 
 Was dann gilt:
 
 - Das Paket ist zugestellt, mit dem Zeitpunkt des Tipps. Im Verlauf steht „Erhalten (von Hand markiert)“, in der Zeile „Erhalten“.
 - Es zählt beim Schild „zugestellt“ und bei `sensor.pakete_zugestellt_heute` mit und verschwindet wie jedes zugestellte Paket nach der eingestellten Zahl von Tagen.
 - **Die Markierung gilt.** Der Paketdienst wird nicht mehr abgefragt, und keine spätere Mail und keine Antwort von 17track ändert Status, Zeitpunkt oder Text.
+- **Die Markierung gilt für genau diesen Eintrag.** Eine Bestellung, zu der das markierte Paket gehören könnte, schließt sie nicht.
 - Eine Benachrichtigung gibt es nicht – du hast es ja gerade selbst angetippt. Das Event feuert mit dem Feld `manual`, siehe [Automationen](automationen.md#von-hand-erhalten-manual).
 
 !!! warning "Zurücknehmen geht nicht"
     Ein Paket, das als erhalten markiert ist, bleibt es. Deshalb die Rückfrage. Hast du dich vertippt, lösch das Paket und trag es neu ein.
 
-Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen: Sie zählt dann als heute zugestellt. Bei einem zugestellten Paket fehlt der Knopf.
+Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket fehlt der Knopf.
 
 Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
 
@@ -129,7 +149,7 @@ Legt fest, wie die Eingabe für neue Sendungen erscheint.
 | Wert | Wirkung |
 |---|---|
 | `button` (Standard) | Eingabe eingeklappt hinter dem Plus-Knopf |
-| `always` | Eingabe immer sichtbar, kein Plus-Knopf |
+| `always` | Eingabe immer sichtbar, kein Plus-Knopf (das Aussehen bis v0.3.8) |
 | `never` | Keine Eingabe und kein Plus-Knopf, z. B. für ein Wand-Tablet. Pakete kommen dann über den Dienst `parcel_tracker.add_parcel` oder den E-Mail-Import |
 
 Fehlt die Option oder steht dort ein anderer Wert, gilt `button`.
