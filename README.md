@@ -8,7 +8,7 @@ Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) 
 
 <p>
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-hell.png" width="260" alt="Die Paket-Tracker-Karte im hellen Design: zwölf Pakete von DHL, DPD, GLS, Hermes, UPS, Amazon, eBay, AliExpress und 17track mit Status, Fortschrittsbalken und Liefertermin">
-  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-detail.png" width="260" alt="Die Karte mit geöffneter Eingabe für eine neue Sendung und einem aufgeklappten DHL-Paket: Verlauf der Sendung, der Link „Sendung verfolgen“ und die Knöpfe „Details über 17track holen“, „Umbenennen“ und „Löschen“">
+  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-detail.png" width="260" alt="Die Karte mit geöffneter Eingabe für eine neue Sendung und einem aufgeklappten DHL-Paket: Verlauf der Sendung, die Sendungsnummer mit dem Symbol „Sendung verfolgen“ dahinter und die Knöpfe „Details über 17track holen“, „Erhalten“, „Umbenennen“ und „Löschen“">
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-dunkel.png" width="260" alt="Die Paket-Tracker-Karte im dunklen Design">
 </p>
 

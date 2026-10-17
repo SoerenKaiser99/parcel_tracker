@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 16. Oktober 2026, Version 0.3.37. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 17. Oktober 2026, Version 0.3.38. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -47,6 +47,9 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“** | Steht das Paket mit dieser Mail auf „In Zustellung“, heute mit dem Zeitfenster aus dem Betreff? Neu seit v0.3.35. | [Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31) |
 | **Amazon: „Paket zur Abholung bereit“** | Steht die Bestellung nach der Mail von `pickup-point@amazon.de` auf „Abholbereit“, mit Abholort und letztem Abholtag auf der Karte und in der Benachrichtigung? Ist „Abholung am …“ in deiner Mail wirklich der letzte Abholtag? Gilt das auch für Amazon Locker und Counter? Neu seit v0.3.36. | [Issue #33](https://github.com/SoerenKaiser99/parcel_tracker/issues/33) |
 | **DHL: Sendungsnummern aus anderen Ländern** | Entsteht aus einer DHL-Mail mit einer Nummer des Absenderlands (z. B. `LE…BE`, `LW…NL`) ein Paket, und zeigt es mit DHL-Key den Live-Status? Neu seit v0.3.37. | [Issue #34](https://github.com/SoerenKaiser99/parcel_tracker/issues/34) |
+| **DHL Express („DHL On Demand Delivery“)** | Setzen die Mails von `noreply.odd@dhl.com` „Unterwegs“, „In Zustellung“ für heute und „Zugestellt“ mit der Uhrzeit aus der Mail? Bekommt das Paket den Namen des Absenders (bei Amazon „Amazon-Sendung (DHL)“)? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
+| **AliExpress: Mails der letzten Meile** | Setzt „Paket … wird zugestellt“ die Bestellung heute auf „In Zustellung“ und „Paket … wurde zugestellt“ auf „Zugestellt“? Steht nach „Lieferprobleme für Packstück …“ „Versendet“ mit dem Text „Lieferprobleme“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
+| **Amazon: „Sendung verfolgen“ führt zu Amazon** | Öffnet das Symbol bei einer Amazon-Bestellung ohne Nummer eines Paketdienstes Amazons Sendungsverfolgung mit der richtigen Sendung? Steht dort „Amazon-Sendung: …“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 
 ### Karte, Benachrichtigungen, Automationen
 
@@ -56,6 +59,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **„Namen ausblenden“** | Taucht irgendwo doch noch ein echter Name auf – Karte, Kalender, Benachrichtigung, Sprachassistent? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Benachrichtigung „Abholbereit“** | Kommt die Meldung, wenn ein Paket in Packstation, Filiale oder PaketShop liegt? | im Forum |
 | **Auslöser im Automations-Editor** | Findest du die fünf Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |
+| **Symbole hinter den Nummern** | Öffnet der Lieferwagen hinter der Sendungsnummer die Sendungsverfolgung und der Beleg hinter der Bestellnummer die Bestellseite? Lassen sich die kleinen Symbole am Handy gut treffen? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Symbol „Bestellung öffnen“ bei eBay** | Öffnet es die richtige Bestellseite? Bei Amazon ist das bestätigt. | im Forum |
 | **Sendungs- und Bestellnummer im aufgeklappten Paket** | Steht unter dem Verlauf „Sendungsnummer: …“, bei einer Bestellung „Bestellnummer: …“ so wie beim Shop? Lässt sich die Nummer am Handy markieren und kopieren? Neu seit v0.3.34. | im Forum |
 | **Die [Rezepte](rezepte.md)** | Läuft ein Rezept bei dir so, wie es dasteht? Was musstest du ändern? | im Forum |
@@ -67,12 +71,13 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 | Absender | Welche Mail |
 |---|---|
 | **DHL** | Paket liegt in der Packstation oder Filiale; Zustellung nicht möglich; beim Nachbarn abgegeben |
+| **DHL Express** | „ist unterwegs“ und „wird voraussichtlich … ausgeliefert“ (bisher nur „zugestellt“ als Beispiel); Zustellung nicht möglich; Service Point |
 | **DPD Österreich** | laufende Sendung mit Zustelltag, aber ohne Zeitfenster; zugestellt; im Pickup Paketshop abholbereit; Zustellung nicht möglich |
 | **GLS** | im PaketShop abholbereit; Zustellung verschoben |
 | **Hermes** | im PaketShop abholbereit |
 | **UPS** | jede Mail hilft, bisher gibt es nur wenige Beispiele |
 | **Amazon** | Bestellung storniert; Mails von Amazon in Österreich |
-| **AliExpress** | englische Mails; Mails, die bei dir unter „Nicht erkannt“ landen |
+| **AliExpress** | englische Mails; „Paket … wird zugestellt“ und „Lieferprobleme für Packstück …“ (bisher nur „Paket … wurde zugestellt“ als Beispiel); Mails, die bei dir unter „Nicht erkannt“ landen |
 | **Eventim** | Versandbenachrichtigungen und Bestellbestätigungen mit einer anderen Liefermethode als „Standardversand (Deutschland)“, z. B. Einschreiben oder Express; Mails von `bestellstatus@eventim.de`, die bei dir unter „Nicht erkannt“ landen |
 | **Österreichische Post, Schweizer Post** | Ankündigung, in Zustellung, zugestellt – damit diese Dienste überhaupt dazukommen können |
 

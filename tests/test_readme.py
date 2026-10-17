@@ -338,6 +338,11 @@ def test_readme_shows_the_card_screenshots_at_the_top():
     assert all("Karte" in alt for alt in alts)
     assert "hellen Design" in intro and "dunklen Design" in intro and "aufgeklappten" in intro
     assert "geöffneter Eingabe" in intro  # the detail screenshot shows the open form
+    # v0.3.38: the links are icons behind the numbers; the alt text says so, not "Link".
+    detail_alt = next(alt for alt in alts if "aufgeklappten DHL-Paket" in alt)
+    assert "Sendungsnummer mit dem Symbol „Sendung verfolgen“" in detail_alt
+    assert "„Erhalten“" in detail_alt
+    assert "Link" not in detail_alt
     assert "Die Bilder zeigen erfundene Pakete" in intro
     # The demo page, on the site (docs/demo/ is published as it is).
     assert f"({SITE}demo/index.html)" in intro
