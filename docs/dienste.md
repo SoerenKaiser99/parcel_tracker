@@ -199,7 +199,7 @@ Liefert der Paketdienst gar nichts (z. B. DHL ohne API-Key, UPS ohne API-Zugang)
 Diese vier kennt die Integration **nur aus Mails**. Eine Anmeldung beim Shop gibt es nicht. Abgefragt wird nur die Sendungsnummer des Paketdienstes, sobald eine Mail sie verrät.
 
 - **Amazon:** Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Amazon-Nummern (`TBA…`) lassen sich nicht direkt verfolgen.
-- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer. Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
+- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer, ab der Kaufbestätigung als „Bestellt“. Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
 - **AliExpress:** Pro Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer. Nennt eine „Packstück“-Mail eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live beim Paketdienst abgefragt (DHL mit API-Key).
 
 - **Eventim:** Pro Ticketbestellung mit Postversand entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Die Versandbenachrichtigung setzt „Versendet“ und den Lieferzeitraum. Eventim nennt keine Sendungsnummer und schickt keine „Zugestellt“-Mail: Die Bestellung endet mit [„Erhalten“](karte.md#erhalten) auf der Karte oder von selbst nach dem Lieferzeitraum. Tickets zum Selbstausdrucken oder fürs Handy werden nicht angelegt.

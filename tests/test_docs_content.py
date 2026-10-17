@@ -96,6 +96,14 @@ def test_mail_import_page_documents_the_import():
     assert "Paket-Tracker-Nicht-erkannt" in page
 
 
+def test_docs_explain_the_ebay_purchase_confirmation():
+    ebay = _tab(MAIL, "eBay")
+    _all_have(ebay, ("„Bestellung bestätigt: …“", "„Ihre Bestellung wurde bestätigt“",
+                     "als „Bestellt“", "„Ihre Bestellung ist eingegangen!“",
+                     "„Kauf bestätigt: …“", "nur aus dem Betreff"))
+    assert "ab der Kaufbestätigung als „Bestellt“" in TEXTS[SERVICES]
+
+
 def test_docs_say_the_delivery_code_is_readable_via_attributes():
     section = _section(PRIVACY, "Zustell-Codes")
     assert "Verdeckt ist er nur auf der Karte" in section
