@@ -208,6 +208,8 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 
 ## Was aus welcher Mail wird
 
+Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zustelltag), darf ein Paket von „In Zustellung“ zurücknehmen, aber nur, wenn sie nicht älter ist als die neueste Zeile im Verlauf. Wird sie erst nach einer neueren Mail oder einem neueren Stand des Paketdienstes gelesen, ändert sie nichts.
+
 === "Amazon"
 
     - Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Kommt eine Bestellung in mehreren Sendungen, heißt das nächste Paket „… (2)“.

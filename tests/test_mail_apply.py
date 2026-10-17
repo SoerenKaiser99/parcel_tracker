@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -838,6 +838,43 @@ def test_a_postponed_delivery_never_reopens_a_parcel_that_arrived(final):
     assert parcels[_DHL].status is final
 
 
+def test_a_postponed_delivery_read_late_does_not_take_the_parcel_back():
+    # The announcement of the evening before ("tomorrow") is read after "HEUTE".
+    parcels: dict[str, Parcel] = {}
+    morning = datetime(2026, 10, 8, 8, 0, tzinfo=BERLIN)
+    apply_update(parcels, _dhl(ParcelStatus.OUT_FOR_DELIVERY, morning, eta_date=date(2026, 10, 8)),
+                 NOW)
+    evening = datetime(2026, 10, 7, 19, 0, tzinfo=BERLIN)
+    update = _dhl(ParcelStatus.IN_TRANSIT, evening, eta_date=date(2026, 10, 8), postponed=True)
+    assert apply_update(parcels, update, NOW) is None
+    p = parcels[_DHL]
+    assert (p.status, p.result.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, date(2026, 10, 8))
+    assert [e.timestamp for e in p.result.events] == [morning]
+
+
+def test_a_postponed_delivery_as_old_as_the_history_still_takes_the_parcel_back():
+    parcels: dict[str, Parcel] = {}
+    morning = datetime(2026, 10, 8, 8, 0, tzinfo=BERLIN)
+    apply_update(parcels, _dhl(ParcelStatus.OUT_FOR_DELIVERY, morning, eta_date=date(2026, 10, 8)),
+                 NOW)
+    update = _dhl(ParcelStatus.IN_TRANSIT, morning, eta_date=date(2026, 10, 9), postponed=True)
+    assert apply_update(parcels, update, NOW) is not None
+    assert parcels[_DHL].status is ParcelStatus.IN_TRANSIT
+
+
+def test_a_postponed_delivery_read_late_is_measured_against_the_carriers_lines():
+    # The carrier's own history (its API) counts like the lines of earlier mails.
+    out = ParcelStatus.OUT_FOR_DELIVERY
+    line = datetime(2026, 10, 8, 7, 30, tzinfo=BERLIN)
+    result = TrackingResult(out, "In Zustellung", date(2026, 10, 8), None, None, None, None,
+                            None, None, [TrackingEvent(line, "In Zustellung", None)])
+    parcels = {_DHL: Parcel(_DHL, "dhl", "manual", None, NOW, NOW, result=result)}
+    evening = datetime(2026, 10, 7, 19, 0, tzinfo=BERLIN)
+    update = _dhl(ParcelStatus.IN_TRANSIT, evening, eta_date=date(2026, 10, 8), postponed=True)
+    assert apply_update(parcels, update, NOW) is None
+    assert parcels[_DHL].status is out
+
+
 # ----- Amazon "Versuchte Zustellung": the order is taken back and has no day -----
 def _attempt(title: str = "Beispielmarke Trinkflasche") -> MailUpdate:
     return MailUpdate(ORDER, "amazon", ParcelStatus.IN_TRANSIT, NOW.astimezone(BERLIN),
@@ -863,6 +900,20 @@ def test_an_attempted_delivery_is_never_a_further_shipment():
     result = parcels[ORDER].result
     assert result.status_text == "Zustellung versucht" and result.eta_date is None
     assert [e.text for e in result.events] == ["Zustellung versucht"]
+
+
+def test_an_attempted_delivery_read_late_does_not_take_the_order_back():
+    # "Zustellung versucht" of the day before, read after the next "In Zustellung"
+    title = "Beispielmarke Trinkflasche"
+    out = MailUpdate(ORDER, "amazon", ParcelStatus.OUT_FOR_DELIVERY, NOW, title=title,
+                     eta_date=TODAY)
+    parcels: dict[str, Parcel] = {}
+    apply_update(parcels, out, NOW)
+    attempt = replace(_attempt(title), sent_at=NOW - timedelta(days=1))
+    assert apply_update(parcels, attempt, NOW) is None
+    result = parcels[ORDER].result
+    assert (result.status, result.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, TODAY)
+    assert [e.text for e in result.events] == ["In Zustellung"]
 
 
 def test_a_delay_without_a_new_day_drops_the_later_day_an_attempt_would_keep():

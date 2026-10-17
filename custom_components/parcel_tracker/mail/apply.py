@@ -194,7 +194,15 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         and update.sent_at <= _known_before(parcel)
     )
     # A postponed delivery is a step back the carrier itself tells; what has arrived stays.
-    postponed = update.postponed and parcel.status not in _ARRIVED
+    # Only from a mail that is not older than the newest line of the history: read late
+    # (the announcement of the evening before after "HEUTE", a delivery problem after the
+    # next "wird zugestellt") it takes back what came after it.
+    last_line = _newest(old.events) if old else None
+    postponed = (
+        update.postponed
+        and parcel.status not in _ARRIVED
+        and (last_line is None or update.sent_at >= last_line)
+    )
     # "Backwards" is measured against what is shown, also if that is 17track's status.
     if (
         update.status is not None
