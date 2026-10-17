@@ -21,6 +21,7 @@ from custom_components.parcel_tracker.mail.aliexpress import (
     CUSTOMS_TEXT,
     HANDED_OVER_TEXT,
     PARCEL_NAME,
+    PROBLEM_TEXT,
     order_number,
     parse_aliexpress,
 )
@@ -291,6 +292,10 @@ def _parcel(subject: str) -> EmailMessage:
          "Dem lokalen Kurier übergeben"),
         (f"Packstück {DHL}: im Zielland / in der Zielregion", ParcelStatus.IN_TRANSIT,
          "Im Zielland angekommen"),
+        (f"Paket {DHL} wird zugestellt", ParcelStatus.OUT_FOR_DELIVERY, None),
+        (f"Paket {DHL} wurde zugestellt", ParcelStatus.DELIVERED, None),
+        (f"Paket {DHL} ist versandbereit", ParcelStatus.PRE_TRANSIT, "Versandbereit"),
+        (f"Lieferprobleme für Packstück {DHL}", ParcelStatus.IN_TRANSIT, PROBLEM_TEXT),
     ],
 )
 def test_steps_of_a_parcel_on_the_last_mile(subject, status, words):
@@ -794,3 +799,116 @@ def test_unknown_relayed_sender_is_an_ordinary_unknown_mail():
     assert sender(msg)[0].endswith("@privaterelay.appleid.com")
     [u] = parse_mail(msg).updates  # the generic parser: only the safe number
     assert (u.number, u.carrier, u.status) == (DHL, "dhl", None)
+
+
+# ----- the last mile: "Paket … wird / wurde zugestellt", "Lieferprobleme" -----
+PARCEL_DELIVERED = "171_aliexpress_paket_wurde_zugestellt.eml"
+
+
+def test_delivered_parcel_closes_its_orders_and_brings_the_number():
+    # The links of the mail name two orders: one parcel for both.
+    msg = load_mail(PARCEL_DELIVERED)
+    first, second = parse_mail(msg).updates
+    assert (first.number, second.number) == ("ALI9999999999990171", "ALI9999999999990172")
+    for u in (first, second):
+        assert (u.carrier, u.status) == ("aliexpress", ParcelStatus.DELIVERED)
+        assert (u.tracking_ref, u.tracking_carrier) == ("00340999999999990171", "dhl")
+        assert (u.delivered_at, u.eta_date) == (sent_at(msg), None)
+        assert u.title is None  # (which item belongs to which order is not told)
+
+
+def test_a_parcel_step_nobody_knows_is_unrecognised():
+    result = parse_mail(_parcel(f"Paket {DHL} etwas ganz Neues"))
+    assert not result.ignored and result.updates == []
+
+
+def test_delivery_problem_takes_the_order_back_from_in_delivery():
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Paket {DHL} wird zugestellt"))
+    order = parcels[ORDER]
+    assert order.status is ParcelStatus.OUT_FOR_DELIVERY
+    problem = _parcel(f"Lieferprobleme für Packstück {DHL}")
+    problem.replace_header("Date", "Wed, 07 Oct 2026 12:00:00 +0200")
+    [u] = parse_mail(problem).updates
+    assert u.postponed
+    _apply(parcels, problem)
+    assert (order.status, order.result.status_text) == (ParcelStatus.IN_TRANSIT, "Lieferprobleme")
+    assert order.result.eta_date is None  # no longer today
+
+
+def test_last_mile_mail_without_an_order_names_no_day():
+    # (it has to find its order by the status alone: see ``_merge_candidate``)
+    [u] = parse_mail(_msg(f"Paket {DHL} wird zugestellt")).updates
+    assert (u.number, u.carrier, u.status) == (DHL, "dhl", ParcelStatus.OUT_FOR_DELIVERY)
+    assert u.eta_date is None
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Paket LP00999999990904 wird zugestellt",
+        "Paket LP00999999990904 wurde zugestellt",
+        "Paket LP00999999990904 ist versandbereit",
+        "Lieferprobleme für Packstück LP00999999990904",
+    ],
+)
+def test_last_mile_mail_without_an_order_and_an_unknown_number_sets_nothing(subject):
+    # Every such mail seen names its orders in the links. Without them and without a
+    # carrier to ask, "in Zustellung" or "zugestellt" would go to whatever order is the
+    # one on its way, on no day at all (and "zugestellt" is pushed).
+    result = parse_mail(_msg(subject))
+    assert not result.ignored and result.updates == []
+
+
+def _at(msg: EmailMessage, when: str) -> EmailMessage:
+    msg.replace_header("Date", when)
+    return msg
+
+
+def test_ready_for_shipping_read_late_does_not_take_the_order_back():
+    parcels: dict = {}
+    _apply(parcels, _parcel("Bestellung 9999999999990901: Bestellung versandt"))
+    _apply(parcels, _at(_parcel(f"Paket {DHL} ist versandbereit"),
+                        "Tue, 06 Oct 2026 08:00:00 +0200"))
+    assert parcels[ORDER].status is ParcelStatus.IN_TRANSIT
+
+
+def test_delivery_problem_is_one_moment():
+    # The next mail that only says "on the way" drops the words, like "Zustellung versucht".
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Lieferprobleme für Packstück {DHL}"))
+    assert parcels[ORDER].result.status_text == PROBLEM_TEXT
+    _apply(parcels, _at(_parcel("Bestellung 9999999999990901: Neuer Lieferstatus"),
+                        "Thu, 08 Oct 2026 09:00:00 +0200"))
+    assert parcels[ORDER].result.status_text == "Versendet"
+
+
+def test_delivered_after_a_delivery_problem():
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Paket {DHL} wird zugestellt"))
+    _apply(parcels, _at(_parcel(f"Lieferprobleme für Packstück {DHL}"),
+                        "Wed, 07 Oct 2026 13:00:00 +0200"))
+    _apply(parcels, _at(_parcel(f"Paket {DHL} wurde zugestellt"),
+                        "Thu, 08 Oct 2026 12:00:00 +0200"))
+    order = parcels[ORDER]
+    assert order.status is ParcelStatus.DELIVERED
+    assert order.result.delivered_at == datetime(2026, 10, 8, 12, 0, tzinfo=BERLIN)
+
+
+@pytest.mark.parametrize("aliexpress_first", [False, True])
+def test_delivered_keeps_the_carriers_earlier_time(aliexpress_first):
+    # AliExpress tells the delivery two to three hours after DHL: whichever mail is read
+    # first, the time is DHL's, and it is the one in the history.
+    parcels: dict = {}
+    _apply(parcels, _parcel(f"Paket {DHL} wird zugestellt"))
+    dhl = _msg("Ihre AliExpress Sendung liegt im Briefkasten",
+               body=f"Ihre Sendung {DHL} liegt im Briefkasten.",
+               sender_="noreply@dhl.de", when="Wed, 07 Oct 2026 14:45:00 +0200")
+    ali = _at(_parcel(f"Paket {DHL} wurde zugestellt"), "Wed, 07 Oct 2026 17:00:00 +0200")
+    for msg in (ali, dhl) if aliexpress_first else (dhl, ali):
+        _apply(parcels, msg)
+    [order] = parcels.values()
+    assert order.status is ParcelStatus.DELIVERED
+    dhl_time = datetime(2026, 10, 7, 14, 45, tzinfo=BERLIN)
+    assert order.result.delivered_at == dhl_time
+    assert order.result.events[0].timestamp == dhl_time

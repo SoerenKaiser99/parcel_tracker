@@ -30,6 +30,7 @@ from ..models import (
 from .base import (
     ATTEMPT_TEXT,
     DELAY_TEXT,
+    PROBLEM_TEXT,
     MailUpdate,
     brand_of,
     carrier_key,
@@ -44,7 +45,7 @@ _DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
 _ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
 # Words a shop's mail about a postponed delivery brings. They tell one moment: a later
 # mail that only repeats the status does not keep them (see ``_forward``).
-_POSTPONED_TEXTS = frozenset({ATTEMPT_TEXT, DELAY_TEXT})
+_POSTPONED_TEXTS = frozenset({ATTEMPT_TEXT, DELAY_TEXT, PROBLEM_TEXT})
 
 SHOP_TEXT = {
     ParcelStatus.PRE_TRANSIT: "Bestellt",
@@ -263,6 +264,18 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         else:
             eta = (None, None, None, None)
         delivered = update.status is ParcelStatus.DELIVERED
+        delivered_at = (update.delivered_at or update.sent_at) if delivered else None
+        if delivered_at and same and old.delivered_at and old.delivered_at < delivered_at:
+            # A delivery is never told before it happened: the earliest word of it is the
+            # closest. A shop tells it hours after the carrier (AliExpress "Paket …
+            # wurde zugestellt" two to three hours after DHL's "liegt im Briefkasten").
+            delivered_at = old.delivered_at
+        elif delivered_at and same and old.delivered_at and delivered_at < old.delivered_at:
+            # (the line of the delivery in the history moves with it)
+            events = [
+                replace(e, timestamp=delivered_at) if e.timestamp == old.delivered_at else e
+                for e in events
+            ]
         # Where a parcel ready for pickup waits: what this mail names, else (it is still
         # there) what an earlier mail named. Any other status has no pickup point.
         pickup = update.status is ParcelStatus.AWAITING_PICKUP
@@ -279,7 +292,7 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
             location=old.location if old else None,
             pickup_point=pickup_point if pickup else None,
             pickup_until=pickup_until if pickup else None,
-            delivered_at=(update.delivered_at or update.sent_at) if delivered else None,
+            delivered_at=delivered_at,
             events=events[:MAX_EVENTS],
         )
         result = with_track17(result, parcel.track17_result)
