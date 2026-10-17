@@ -346,8 +346,9 @@ const track17Question = (rest) => (rest == null
   : `Verbraucht 1 von ${rest} verbleibenden 17track-Nummern. Fortfahren?`);
 
 // "Erhalten" marks a parcel as received by hand. Offered for every parcel that is not
-// delivered, and for an order closed without a delivery mail (the tap confirms it).
-const canMarkReceived = (a, s) => s !== DONE || a.assumed_delivered === true;
+// delivered or cancelled, and for an order closed without a delivery mail (the tap
+// confirms it). A cancelled order comes no more: a tap would make it delivered today.
+const canMarkReceived = (a, s) => (s !== DONE && s !== CANCELLED) || a.assumed_delivered === true;
 
 // Card option add_form: "button" (the form opens behind the plus), "always" (form always
 // shown, no plus), "never" (neither). Anything else is "button".

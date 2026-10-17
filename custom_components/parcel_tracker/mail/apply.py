@@ -32,11 +32,13 @@ from .base import (
     ATTEMPT_TEXT,
     DELAY_TEXT,
     PROBLEM_TEXT,
+    READY_TEXT,
     MailUpdate,
     brand_of,
     carrier_key,
     is_carrier_display,
     is_carrier_title,
+    names_more_items,
     shop_of,
     title_key,
 )
@@ -55,6 +57,8 @@ SHOP_TEXT = {
     ParcelStatus.AWAITING_PICKUP: "Abholbereit",
     ParcelStatus.DELIVERED: "Zugestellt",
 }
+# The lines of an order's history before anything left (see ``_never_shipped``).
+_ORDERED_TEXTS = frozenset({SHOP_TEXT[ParcelStatus.PRE_TRANSIT], READY_TEXT})
 # Status text of a shop order closed because no delivery mail came (see order_overdue).
 ASSUMED_TEXT = "Abgeschlossen ohne Zustellbestätigung"
 # Status text of a parcel the user marked as received (see mark_received).
@@ -844,22 +848,60 @@ def mark_received(parcel: Parcel, now: datetime) -> None:
     parcel.track17_next_at = None
 
 
+def _never_shipped(parcel: Parcel) -> bool:
+    """Has nothing of an order left yet?
+
+    "Bestellt", or closed without a delivery mail while its history tells nothing but the
+    order: no shipping, no delivery the shop confirmed (``_confirm``).
+    """
+    result = parcel.result
+    if result is None or parcel.tracking_ref is not None:
+        return False
+    if result.status is ParcelStatus.PRE_TRANSIT:
+        return True
+    return (
+        parcel.assumed_delivered
+        and result.status_text == ASSUMED_TEXT
+        and all(e.text in _ORDERED_TEXTS for e in result.events if e.text != ASSUMED_TEXT)
+    )
+
+
+def _cancels_all(parcel: Parcel, update: MailUpdate) -> bool:
+    """Does the cancellation take all of the order?
+
+    A mail about the order does (it names no item). One about items only if the order is
+    that one item: its title names it and no further one ("… und 2 weitere Artikel").
+    """
+    if update.title is None:
+        return True
+    title = parcel.mail_title
+    return (
+        title is not None
+        and not names_more_items(title)
+        and title_key(title) == title_key(update.title)
+    )
+
+
 def _cancel_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
     """The shop cancelled an order: closed with a status of its own, "Storniert".
 
-    Only the one order that is not shipped yet ("Bestellt", no carrier's number): what is
-    on its way comes anyway, and what has arrived stays. So a cancellation read only after
-    the mail about the shipment (mails are not read in the order they were sent) closes
-    nothing either. An order closed without a delivery mail (nobody knows whether it came)
-    is cancelled too, whatever it was before. Nothing is created. The day the mails named
-    goes: nothing comes. A mail the shop sends after that opens the order again
+    Only the one order that has not left yet (``_never_shipped``) and that the mail
+    cancels all of (``_cancels_all``): what is on its way comes anyway, what has arrived
+    stays, and the rest of an order whose items were cancelled in part still comes. So a
+    cancellation read only after the mail about the shipment (mails are not read in the
+    order they were sent) closes nothing either. Nothing is created. The day the mails
+    named goes: nothing comes. A mail the shop sends after that opens the order again
     (``_apply_order``).
+
+    Known limits, both rare: a cancellation read before the order's first mail (cancelled
+    right after ordering) finds no order and is lost, the order then waits until it is
+    closed without a delivery mail. And a mail sent before the cancellation but read after
+    it is dropped altogether (``_cancelled_before`` compares the times of the mails).
     """
     waiting = [
         p
         for p in _order_parcels(parcels, update.carrier, update.number)
-        if p.tracking_ref is None
-        and (p.status is ParcelStatus.PRE_TRANSIT or p.assumed_delivered)
+        if _never_shipped(p) and _cancels_all(p, update)
     ]
     if len(waiting) != 1:
         return None

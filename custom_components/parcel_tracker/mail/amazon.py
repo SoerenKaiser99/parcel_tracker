@@ -56,16 +56,19 @@ _ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
 _DELAY = "lieferungsaktualisierung"
 _DELAYED = re.compile(r"(?<!nicht )\b(?:verspät|verzöger)\w*", re.IGNORECASE)
 _PICKUP = "paket zur abholung bereit"
-# "Artikel erfolgreich storniert: …": the items the subject names will not come.
+# Cancellations. "Ihre Bestellung wurde storniert.": the whole order. "Artikel erfolgreich
+# storniert: …" (the item in the subject) and "Erfolgreiche Stornierung von Artikeln aus
+# Ihrer …-Bestellung" (the item below "Aufgegeben am …"): items of it, maybe not all.
+# The order number stands as "Bestellnr.", "Bestellung #…" or "Bestell-Nr.…", in the
+# head of the mail and again above its items.
 _CANCELLED = "artikel erfolgreich storniert"
-# The same in other wordings, without an item in the subject. The order number stands as
-# "Bestellung #…" or "Bestell-Nr.…", in the head of the mail and again above its items.
-_CANCELLED_SUBJECTS = (
-    "ihre bestellung wurde storniert",
-    "erfolgreiche stornierung von artikeln",
-)
+_ORDER_CANCELLED = "ihre bestellung wurde storniert"
+_ITEMS_CANCELLED = "erfolgreiche stornierung von artikeln"
 _CANCELLED_ORDER = re.compile(
-    r"^(?:Bestellung #|Bestell-Nr\.)\s*(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE
+    r"^(?:Bestellnr\.|Bestellung #|Bestell-Nr\.)\s*(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE
+)
+_CANCELLED_ITEM = re.compile(
+    r"^Aufgegeben am [^\n]+\n(?:[ \t]*\n)*[ \t]*(?P<title>\S[^\n]*)", re.MULTILINE
 )
 
 _PREFIXES = {
@@ -182,7 +185,7 @@ def subject_title(subj: str) -> str | None:
 
 def subject_status(subj: str) -> ParcelStatus | None:
     """Status from the subject prefix before ':', or from a subject that tells a cancellation."""
-    if subj.strip().lower().startswith(_CANCELLED_SUBJECTS):
+    if subj.strip().lower().startswith((_ORDER_CANCELLED, _ITEMS_CANCELLED)):
         return ParcelStatus.CANCELLED
     if ":" not in subj:
         return None
@@ -357,6 +360,27 @@ def parse_amazon_pickup(msg: EmailMessage) -> list[MailUpdate]:
     return updates
 
 
+def _cancellation(subj: str, text: str, sent: datetime) -> list[MailUpdate]:
+    """A cancellation: one update per order, however often the mail names it.
+
+    The mail about the whole order names no item (``title`` None). The mails about items
+    name the first one they cancel, so only an order of that one item is closed (see
+    ``apply._cancel_order``); without an item they tell nothing.
+    """
+    numbers = dict.fromkeys(_CANCELLED_ORDER.findall(text))
+    title = None
+    if not subj.strip().lower().startswith(_ORDER_CANCELLED):
+        title = subject_title(subj)
+        if title is None and (item := _CANCELLED_ITEM.search(text)):
+            title = shorten(item.group("title"))
+        if title is None:
+            return []
+    return [
+        MailUpdate(order_number(n), "amazon", ParcelStatus.CANCELLED, sent, title=title)
+        for n in numbers
+    ]
+
+
 def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     """Parse a current-format Amazon mail; one update per order number."""
     subj = subject(msg)
@@ -365,16 +389,14 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     text = body_text(msg)
     sent = sent_at(msg)
     status = subject_status(subj) or stage_status(text)
+    if status is ParcelStatus.CANCELLED:
+        return _cancellation(subj, text, sent)
     # In the plain layout an order named again is the same one (in the head and again above
     # the items): its last mention counts. In the usual layout a number that comes again is
     # a further shipment with its own day and items.
     mentions = list(_ORDER.finditer(text))
     last = {match.group(2): match for match in mentions if match.group("plain")}
     orders = [m for m in mentions if not m.group("plain") or last[m.group(2)] is m]
-    if subj.strip().lower().startswith(_CANCELLED_SUBJECTS):
-        # One update per order, however often the mail names it.
-        numbers = dict.fromkeys(_CANCELLED_ORDER.findall(text))
-        return [MailUpdate(order_number(number), "amazon", status, sent) for number in numbers]
     if status is None or not orders:
         return []
 

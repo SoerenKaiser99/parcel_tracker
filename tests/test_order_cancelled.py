@@ -1,8 +1,9 @@
-"""A shop cancels an order: the status "Storniert" (Amazon, eBay, AliExpress)."""
+"""A shop cancels an order: the status "Storniert" (Amazon, AliExpress)."""
 
 import json
 import shutil
 import subprocess
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -14,14 +15,20 @@ from custom_components.parcel_tracker.const import DOMAIN
 from custom_components.parcel_tracker.coordinator import _ParsedMail
 from custom_components.parcel_tracker.diagnostics import async_get_config_entry_diagnostics
 from custom_components.parcel_tracker.mail import parse_mail
+from custom_components.parcel_tracker.mail.aliexpress import CONFIRMED_TEXT
 from custom_components.parcel_tracker.mail.apply import (
     ASSUMED_TEXT,
     CANCELLED_TEXT,
     apply_update,
     close_unconfirmed,
 )
-from custom_components.parcel_tracker.mail.base import MailResult, MailUpdate
-from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
+from custom_components.parcel_tracker.mail.base import READY_TEXT, MailResult, MailUpdate
+from custom_components.parcel_tracker.models import (
+    Parcel,
+    ParcelStatus,
+    TrackingEvent,
+    TrackingResult,
+)
 from custom_components.parcel_tracker.notification import build_notification
 from custom_components.parcel_tracker.schedule import (
     delivered_today,
@@ -33,21 +40,24 @@ from custom_components.parcel_tracker.schedule import (
 from .conftest import load_mail
 from .test_order_closing import _coordinator, _prepared, _refresh
 
-ALIEXPRESS = "152_aliexpress_your_order_is_closed.eml"
-ALIEXPRESS_NO_REASON = "142_aliexpress_your_order_is_closed.eml"
-EBAY = "153_ebay_kauf_wurde_abgebrochen.eml"
+# "Artikel erfolgreich storniert: …": the item in the subject.
 AMAZON = "154_order_update_artikel_erfolgreich_stornie.eml"
-# Other wordings: no item in the subject, the order number twice in the text.
+# Other wordings: no item in the subject, the order number twice in the text. The first
+# one is about the whole order, the second about items of it (named in the text).
 AMAZON_ORDER = "155_order_update_ihre_bestellung_wurde_storn.eml"
 AMAZON_ITEMS = "156_order_update_erfolgreiche_stornierung_vo.eml"
 # German, sent along with "is closed": the order number stands only in the text.
 ALIEXPRESS_OVERDUE = "157_aliexpress_stornierte_bestellung_wegen_b.eml"
+# Tells no reason: also after a dispute or a refund of an order that arrived long ago.
+ALIEXPRESS_CLOSED = "142_aliexpress_your_order_is_closed.eml"
 
 NOW = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
 TODAY = NOW.astimezone(BERLIN).date()
 SENT = (NOW - timedelta(hours=1)).astimezone(BERLIN)
 ORDER = "AMZ99974120133366279"
-TITLE = "Giffard Himbeer (Framboise,…"
+TITLE = "Beispiel-Sirup Himbeer 1 Liter (Glas…"
+ROBOT = "Beispiel-Saugroboter mit Wischfunktion, Hindernisüberwindun…"
+SANDING = "Beispiel-Schleifnetz… und 4 weitere Artikel"
 NODE = shutil.which("node")
 
 
@@ -68,11 +78,8 @@ def _cancel(number=ORDER, carrier="amazon", title=None) -> MailUpdate:
     ("name", "number", "carrier", "title"),
     [
         (AMAZON, ORDER, "amazon", TITLE),
-        (AMAZON_ORDER, "AMZ99938310205529571", "amazon", None),
-        (AMAZON_ITEMS, "AMZ99936398346041064", "amazon", None),
-        (EBAY, "EBAY993239565855", "ebay", None),
-        (ALIEXPRESS, "ALI9999999999990001", "aliexpress", None),
-        (ALIEXPRESS_NO_REASON, "ALI9999999999990022", "aliexpress", None),
+        (AMAZON_ORDER, "AMZ99938310205529571", "amazon", None),  # (None: the whole order)
+        (AMAZON_ITEMS, "AMZ99936398346041064", "amazon", ROBOT),
         (ALIEXPRESS_OVERDUE, "ALI9999999999990001", "aliexpress", None),
     ],
 )
@@ -83,6 +90,25 @@ def test_cancellation_mails_name_the_order_and_the_status(name, number, carrier,
     assert update.status is ParcelStatus.CANCELLED
     assert not result.ignored
     assert result.amazon is (carrier == "amazon")  # counts as an Amazon mail we know
+
+
+def test_an_item_cancellation_without_an_item_tells_nothing():
+    msg = load_mail(AMAZON_ITEMS)
+    body = msg.get_content().replace("Aufgegeben am 4. Juli 2025", "")
+    msg.set_content(body)
+    assert parse_mail(msg).updates == []
+
+
+def test_closed_tells_no_reason_and_is_only_read():
+    result = parse_mail(load_mail(ALIEXPRESS_CLOSED))
+    assert result.ignored and not result.updates
+
+
+def test_an_ebay_purchase_broken_off_is_no_cancellation():
+    # eBay orders begin with the shipping mail, never "Bestellt": nothing to cancel yet.
+    msg = load_mail("104_ebay_ihre_sendung_ist_jetzt_beim_versand.eml")
+    msg.replace_header("Subject", "Kauf 99-99999-99999 wurde abgebrochen")
+    assert parse_mail(msg).updates == []
 
 
 def test_other_mails_are_never_a_cancellation():
@@ -107,15 +133,16 @@ def test_a_cancellation_forwarded_by_hand_is_read_like_amazons_own_mail():
 
 
 @pytest.mark.parametrize(
-    ("name", "number", "carrier"),
+    ("name", "number", "carrier", "title"),
     [
-        (AMAZON, ORDER, "amazon"),
-        (EBAY, "EBAY993239565855", "ebay"),
-        (ALIEXPRESS, "ALI9999999999990001", "aliexpress"),
+        (AMAZON, ORDER, "amazon", TITLE),
+        (AMAZON_ORDER, "AMZ99938310205529571", "amazon", SANDING),  # (also with further items)
+        (AMAZON_ITEMS, "AMZ99936398346041064", "amazon", "Beispiel-Saugroboter mit Wischfunk…"),
+        (ALIEXPRESS_OVERDUE, "ALI9999999999990001", "aliexpress", None),
     ],
 )
-def test_the_mail_closes_the_open_order_as_cancelled(name, number, carrier):
-    order = _order(number, carrier)
+def test_the_mail_closes_the_open_order_as_cancelled(name, number, carrier, title):
+    order = _order(number, carrier, title=title)
     parcels = {number: order}
     mail = load_mail(name)
     [change] = [apply_update(parcels, u, NOW) for u in parse_mail(mail).updates]
@@ -181,15 +208,63 @@ def test_a_cancellation_read_after_the_shipping_mail_closes_nothing():
     assert order.to_dict() == before
 
 
-# (closed on its own, nobody knows whether it came: whatever it was before)
-@pytest.mark.parametrize("status", [ParcelStatus.PRE_TRANSIT, ParcelStatus.IN_TRANSIT])
-def test_an_order_closed_without_a_delivery_mail_becomes_cancelled(status):
-    order = _order(status=status)
+def _history(order, *texts):
+    """Give ``order`` the history of the mails ``texts`` (oldest first)."""
+    events = [TrackingEvent(SENT - timedelta(days=9 - i), t, None) for i, t in enumerate(texts)]
+    order.result = replace(order.result, events=events[::-1])
+    return order
+
+
+# (closed on its own, but nothing had left: the shop's cancellation tells why no mail came)
+@pytest.mark.parametrize("texts", [("Bestellt",), ("Bestellt", READY_TEXT)])
+def test_an_order_closed_without_a_delivery_mail_that_never_left_becomes_cancelled(texts):
+    order = _history(_order(), *texts)
     close_unconfirmed(order, NOW - timedelta(days=1))
     change = apply_update({ORDER: order}, _cancel(), NOW)
     assert (change.old_status, order.status) == (ParcelStatus.DELIVERED, ParcelStatus.CANCELLED)
     assert order.assumed_delivered is False
-    assert [e.text for e in order.result.events] == [CANCELLED_TEXT, ASSUMED_TEXT]
+    assert [e.text for e in order.result.events] == [CANCELLED_TEXT, ASSUMED_TEXT, *texts[::-1]]
+
+
+# Part of it was shipped and may well have come; the cancellation is about the rest.
+def test_an_order_closed_without_a_delivery_mail_after_it_was_shipped_stays():
+    order = _history(_order(status=ParcelStatus.IN_TRANSIT), "Bestellt", "Versendet")
+    close_unconfirmed(order, NOW - timedelta(days=1))
+    before = order.to_dict()
+    assert apply_update({ORDER: order}, _cancel(), NOW) is None
+    assert order.to_dict() == before
+
+
+def test_an_order_the_shop_confirmed_as_delivered_stays():
+    order = _history(_order(carrier="aliexpress", number="ALI9999999999990001"), "Bestellt")
+    close_unconfirmed(order, NOW - timedelta(days=1), CONFIRMED_TEXT, SENT - timedelta(days=1))
+    before = order.to_dict()
+    assert apply_update({order.number: order}, _cancel(order.number, "aliexpress"), NOW) is None
+    assert order.to_dict() == before
+
+
+# ----- a cancellation of items: only an order of that one item -----
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        f"{TITLE} und 1 weiterer Artikel",  # the other item still comes
+        "Beispiel-Netzteil 65 W",  # another item of the order
+        None,  # nobody knows what the order holds
+    ],
+)
+def test_an_item_cancellation_leaves_an_order_with_more_or_other_items(title):
+    order = _order(title=title)
+    before = order.to_dict()
+    assert apply_update({ORDER: order}, _cancel(title=TITLE), NOW) is None
+    assert order.to_dict() == before
+
+
+def test_the_cancellation_of_the_whole_order_closes_it_with_all_its_items():
+    order = _order(title=f"{TITLE} und 1 weiterer Artikel")
+    assert apply_update({ORDER: order}, _cancel(), NOW).parcel is order
+    assert order.status is ParcelStatus.CANCELLED
 
 
 def test_the_same_mail_twice_changes_nothing():
@@ -210,10 +285,17 @@ def test_of_two_shipments_only_the_one_that_still_waits_is_closed():
     assert (first.status, second.status) == (ParcelStatus.DELIVERED, ParcelStatus.CANCELLED)
 
 
+def test_of_two_waiting_shipments_the_item_mail_takes_the_one_it_names():
+    first, second = _order(title="Netzteil 65 W"), _order(f"{ORDER}P2")
+    parcels = {first.number: first, second.number: second}
+    assert apply_update(parcels, _cancel(title=TITLE), NOW).parcel is second
+    assert (first.status, second.status) == (ParcelStatus.PRE_TRANSIT, ParcelStatus.CANCELLED)
+
+
 def test_two_waiting_shipments_are_one_too_many_to_pick_from():
     first, second = _order(title="Netzteil 65 W"), _order(f"{ORDER}P2")
     parcels = {first.number: first, second.number: second}
-    assert apply_update(parcels, _cancel(title=TITLE), NOW) is None
+    assert apply_update(parcels, _cancel(), NOW) is None
     assert (first.status, second.status) == (ParcelStatus.PRE_TRANSIT, ParcelStatus.PRE_TRANSIT)
 
 
@@ -269,7 +351,7 @@ def test_the_status_is_stored_and_nothing_else_marks_the_order():
 
 
 def _closed_on_its_own():
-    order = _order(status=ParcelStatus.IN_TRANSIT)
+    order = _order()
     close_unconfirmed(order, NOW - timedelta(days=1))
     return order
 
@@ -340,7 +422,8 @@ vm.createContext(sandbox);
 vm.runInContext(
   fs.readFileSync(process.argv[1], "utf8")
     + "\n;globalThis.__label = stateLabel; globalThis.__eta = etaText;"
-    + "globalThis.__sub = subText; globalThis.__order = ORDER;",
+    + "globalThis.__sub = subText; globalThis.__order = ORDER;"
+    + "globalThis.__received = canMarkReceived;",
   sandbox,
 );
 const st = (state, attributes) => ({ state, attributes });
@@ -353,6 +436,7 @@ console.log(JSON.stringify({
   sub: sandbox.__sub(label, cancelled, "cancelled"),
   order: [sandbox.__order("delivered", cancelled), sandbox.__order("cancelled", cancelled)],
   assumed: sandbox.__eta("delivered", { ...cancelled, assumed_delivered: true }),
+  received: ["cancelled", "pre_transit"].map((s) => sandbox.__received(cancelled, s)),
 }));
 """
 
@@ -368,3 +452,5 @@ def test_card_shows_a_cancelled_order_as_storniert():
     assert card["sub"] == "Amazon · Storniert"
     assert card["order"] == [5, 5]  # at the end of the list, with the delivered ones
     assert card["assumed"] == "Abgeschlossen (ohne Zustellbestätigung)"
+    # "Erhalten" would make it delivered today: a cancelled order is not offered it.
+    assert card["received"] == [False, True]

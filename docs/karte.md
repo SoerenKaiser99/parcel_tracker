@@ -70,6 +70,7 @@ Jede Zeile zeigt den Paketdienst, den Namen, den Status, einen Fortschrittsbalke
 | „Abholbereit“ | liegt in Packstation, Filiale oder PaketShop |
 | „Zugestellt heute“, „Zugestellt gestern“, „Zugestellt am …“ | zugestellt |
 | „Abgeschlossen (ohne Zustellbestätigung)“ | Bestellung ohne Zustellmail, siehe [E-Mail-Import](mail-import.md#bestellungen-ohne-zustellmail) |
+| „Storniert“ | Der Shop hat die Bestellung storniert, sie steht ausgegraut am Ende der Liste, siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird) |
 | „Noch kein Termin“ | Das Paket hat einen Status, aber noch keinen Zustelltag |
 | „Termin überschritten“ | Der genannte Liefertag ist vorbei |
 | „Kein Live-Status“ | Der Paketdienst lässt sich nicht abfragen, weil der DHL-API-Key oder die UPS-Zugangsdaten fehlen |
@@ -134,7 +135,7 @@ Was dann gilt:
 !!! warning "Zurücknehmen geht nicht"
     Ein Paket, das als erhalten markiert ist, bleibt es. Deshalb die Rückfrage. Hast du dich vertippt, lösch das Paket und trag es neu ein.
 
-Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket fehlt der Knopf.
+Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket und einer stornierten Bestellung fehlt der Knopf.
 
 Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
 

@@ -18,6 +18,7 @@ from urllib.parse import parse_qsl, urlsplit
 from ..models import ParcelStatus
 from .base import (
     PROBLEM_TEXT,
+    READY_TEXT,
     MailResult,
     MailUpdate,
     body_text,
@@ -43,8 +44,8 @@ _ON_WAY = ParcelStatus.IN_TRANSIT
 _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "bestellauftrag bestätigt": (_PRE, None),
     "bestellbestätigung": (_PRE, None),
-    "versandfertig": (_PRE, "Versandbereit"),
-    "versandbereit": (_PRE, "Versandbereit"),
+    "versandfertig": (_PRE, READY_TEXT),
+    "versandbereit": (_PRE, READY_TEXT),
     "bestellung versandt": (_ON_WAY, None),
     "wurde versandt": (_ON_WAY, None),
     "teilweise versandt": (_ON_WAY, "Teilweise versandt"),
@@ -95,7 +96,7 @@ CUSTOMS_TEXT = "Zollabfertigung beendet"
 # followed one and a half to five hours later, once the day after) / "… wurde zugestellt"
 # (two to three hours after the carrier told it): (status, own words).
 _PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
-    "ist versandbereit": (_PRE, "Versandbereit"),
+    "ist versandbereit": (_PRE, READY_TEXT),
     "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),
     "wurde zugestellt": (ParcelStatus.DELIVERED, None),
 }
@@ -116,12 +117,12 @@ _PARCEL_SUBJECT = re.compile(r"Packstück (?P<number>[0-9A-Z]{8,30})\s*:?\s*(?P<
 _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) wurde beendet")
 _PACKAGE_SUBJECT = re.compile(r"Paket (?P<number>[0-9A-Z]{8,30})\s+(?P<step>\S.*)")
 _PROBLEM_SUBJECT = re.compile(r"Lieferprobleme für Packstück (?P<number>[0-9A-Z]{8,30})\b")
-# English, whatever the language of the account: the order was cancelled ("closed for a
-# timeout" if it was never paid; mostly the body tells no reason). It closes an order
-# that is not shipped yet or was closed on its own (see ``apply._cancel_order``).
-_CLOSED_SUBJECT = re.compile(r"Your order (?P<order>\d{12,20}) is closed")
-# German, sent along with "is closed" when the seller did not ship in time. The subject
-# names no order, the text does.
+# English, whatever the language of the account; its body tells no reason (cancelled,
+# refunded, closed after a dispute, or done), so nothing is taken from it.
+_CLOSED_SUBJECT = re.compile(r"Your order \d+ is closed")
+# German, sent along with "is closed" when the seller did not ship in time: this one tells
+# the reason. The subject names no order, the text does. It closes an order that is not
+# shipped yet (see ``apply._cancel_order``).
 _OVERDUE_SUBJECT = "Stornierte Bestellung wegen überfälligem Versand"
 _OVERDUE_ORDER = re.compile(
     r"Ihre Bestellung\s+(?P<order>\d{12,20})\s+in der vorgesehenen Zeit nicht versendet"
@@ -452,21 +453,20 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
 
     Order mails: confirmed and ready to ship ("Bestellt"), shipped and on its way
     ("Versendet", with AliExpress's words for the step), delivered, delivery confirmed,
-    cancelled ("Your order … is closed", "Stornierte Bestellung wegen überfälligem
-    Versand"). Parcel mails: see ``_parcel_mail``. Ignored: reminders, requests for a
-    rating and the mails that tell nothing about a parcel on its way (news without a
-    number, a coupon, returns and refunds). A subject nobody knows yet is unrecognised,
-    so it gets noticed.
+    cancelled because the seller did not ship in time ("Stornierte Bestellung wegen
+    überfälligem Versand"). Parcel mails: see ``_parcel_mail``. Ignored: reminders,
+    requests for a rating, "Your order … is closed" and the mails that tell nothing about
+    a parcel on its way (news without a number, a coupon, returns and refunds). A subject
+    nobody knows yet is unrecognised, so it gets noticed.
     """
     subj = subject(msg)
-    found = _CLOSED_SUBJECT.match(subj)
-    if found is None and subj.startswith(_OVERDUE_SUBJECT):
-        found = _OVERDUE_ORDER.search(body_text(msg))
-    if found:
+    if subj.startswith(_OVERDUE_SUBJECT) and (found := _OVERDUE_ORDER.search(body_text(msg))):
         number = order_number(found.group("order"))
         return MailResult(
             updates=[MailUpdate(number, "aliexpress", ParcelStatus.CANCELLED, sent_at(msg))]
         )
+    if _CLOSED_SUBJECT.match(subj):
+        return MailResult(ignored=True)
     if _NO_NEWS_SUBJECT.match(subj):
         return MailResult(ignored=True)
     if found := _CUSTOMS_SUBJECT.match(subj):

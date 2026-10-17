@@ -241,7 +241,7 @@ def test_confirmed_delivery_closes_the_order():
     assert u.title == "Beispiel-Schalter kabello…"
 
 
-@pytest.mark.parametrize("name", [RATING, REMINDER, OFFERS])
+@pytest.mark.parametrize("name", [RATING, REMINDER, OFFERS, CLOSED])
 def test_mails_without_news_are_ignored_not_unrecognised(name):
     result = parse_mail(load_mail(name))
     assert result.ignored and not result.updates and not result.amazon
@@ -402,7 +402,7 @@ def test_parcel_mail_without_links_is_a_carrier_mail_about_an_aliexpress_shipmen
 
 
 def test_parse_aliexpress_returns_a_result():
-    result = parse_aliexpress(_msg("Bestellung 9999999999990901: Wie war Ihr Einkaufserlebnis?"))
+    result = parse_aliexpress(_msg("Your order 9999999999990901 is closed"))
     assert result.ignored and not result.updates
 
 
@@ -649,10 +649,8 @@ def test_ignored_mails_change_nothing():
     parcels: dict = {}
     _apply(parcels, _msg("Bestellung 9999999999990015: Bestellung versandt"))
     before = {number: parcel.to_dict() for number, parcel in parcels.items()}
-    for name in (RATING, REMINDER, OFFERS):
+    for name in (RATING, REMINDER, OFFERS, CLOSED):
         assert _apply(parcels, name) == []
-    # "is closed" for another order than the one there is.
-    assert _apply(parcels, CLOSED) == [None]
     assert {number: parcel.to_dict() for number, parcel in parcels.items()} == before
 
 

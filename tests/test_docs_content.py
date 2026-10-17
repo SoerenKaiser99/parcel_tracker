@@ -96,6 +96,22 @@ def test_mail_import_page_documents_the_import():
     assert "Paket-Tracker-Nicht-erkannt" in page
 
 
+def test_docs_explain_cancelled_orders():
+    amazon = _tab(MAIL, "Amazon")
+    _all_have(amazon, ("„Ihre Bestellung wurde storniert.“", "„Artikel … storniert: …“",
+                       "„… Stornierung von Artikeln …“", "„Storniert“", "`cancelled`",
+                       "ohne Benachrichtigung", "genau aus diesem Artikel",
+                       "Storniert wird nur, was noch nicht versendet ist"))
+    aliexpress = _tab(MAIL, "AliExpress")
+    assert "„Stornierte Bestellung wegen überfälligem Versand“" in aliexpress
+    assert "„Your order … is closed“ (die Mail sagt nicht" in aliexpress  # only read
+    assert "abgebrochen" not in _tab(MAIL, "eBay")
+    assert "| `cancelled` |" in TEXTS[SENSORS] and "| `cancelled` |" in TEXTS[AUTOMATIONS]
+    assert "`cancelled`" in _section(NOTIFY, "Wann wird gesendet?")
+    assert "| „Storniert“ |" in TEXTS[CARD]
+    assert "einer stornierten Bestellung fehlt der Knopf" in TEXTS[CARD]
+
+
 def test_docs_say_the_delivery_code_is_readable_via_attributes():
     section = _section(PRIVACY, "Zustell-Codes")
     assert "Verdeckt ist er nur auf der Karte" in section
@@ -1257,7 +1273,7 @@ def test_helping_page_is_at_this_version():
     assert "Zustellversuch" not in missing and "Lieferung verspätet" not in missing
     _all_have(missing, [
         "| **Hermes** | im PaketShop abholbereit |",
-        "| **Amazon** | Bestellung storniert; Mails von Amazon in Österreich |",
+        "| **Amazon** | Mails von Amazon in Österreich |",
         "**DPD Österreich**", "**DHL**", "**GLS**", "**UPS**", "**AliExpress**",
         "**Eventim**", "**Österreichische Post, Schweizer Post**", "**DHL Express**",
     ])
