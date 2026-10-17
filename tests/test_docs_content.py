@@ -28,6 +28,7 @@ SENDERS = [
     "paketankuendigung@dhl.de",
     "zustellung@dhl.de",
     "sendungsupdate@dhl.de",
+    "noreply.odd@dhl.com",
     "noreply@service.dpd.de",
     "no_reply@dpd.at",
     "noreply@gls-group.eu",
