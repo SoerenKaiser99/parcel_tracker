@@ -348,6 +348,8 @@ Eine Carrier-Mail (DHL „Amazon Sendung“, GLS, Hermes, UPS) gehört zu **gena
 
 Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdienst ab (Attribute `tracking_ref` und `tracking_carrier`). Passt es nicht eindeutig, entsteht ein eigenes Paket.
 
+Eine Carrier-Mail, die Amazon nennt, kommt nie zu einer Amazon-Bestellung, deren Sendungen alle der Verkäufer selbst verschickt („Versand durch Verkäufer“, erkennbar an Amazons Sendungs-ID mit „D“ am Anfang): Dessen Paketdienst nennt den Verkäufer, nie Amazon. Bleibt nach diesem Ausschluss genau eine andere passende Bestellung übrig, bekommt sie die Mail. Die Mail vom Paketdienst des Verkäufers findet eine solche Bestellung weiter über den Versanddienstleister, den die Shop-Mail genannt hat, oder über die Marke; Letzteres nur, wenn sie eine Firma nennt und der Artikeltitel mit deren Namen beginnt (Bedingungen im Kasten darunter).
+
 ??? note "Carrier-Mail nennt die Marke statt des Shops"
     Nennt die Carrier-Mail statt des Shops die Marke („Ihre Beispielmarke GmbH Sendung kommt heute“), gehört sie nur zu einem offenen **Amazon-Paket** ohne Sendungsnummer – nie zu einem eBay-Paket –, und nur, wenn
 
