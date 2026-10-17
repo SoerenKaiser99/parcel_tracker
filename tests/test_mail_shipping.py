@@ -8,7 +8,7 @@ import pytest
 from custom_components.parcel_tracker.carriers.base import BERLIN
 from custom_components.parcel_tracker.mail import known_sender_domain, parse_mail
 from custom_components.parcel_tracker.mail.apply import apply_update
-from custom_components.parcel_tracker.mail.base import sent_at
+from custom_components.parcel_tracker.mail.base import at, sent_at
 from custom_components.parcel_tracker.mail.shipping import (
     AMAZON_DHL_NAME,
     parse_dhl_mail,
@@ -294,6 +294,8 @@ DAY_BODY = (
         ("Ihre Beispiel GmbH Sendung ist unterwegs", ParcelStatus.IN_TRANSIT),
         ("Ihre Sendung kommt heute", ParcelStatus.OUT_FOR_DELIVERY),
         ("Ihre Sendung kommt heute zwischen 13:10 - 14:40 Uhr", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Ihr DHL Paket kommt früher als geplant - Jetzt live verfolgen",
+         ParcelStatus.OUT_FOR_DELIVERY),
         ("Ihre Sendung wurde zugestellt", ParcelStatus.DELIVERED),
         ("Ihre Beispiel GmbH Sendung wurde erfolgreich zugestellt", ParcelStatus.DELIVERED),
         # no delivery
@@ -367,6 +369,25 @@ def test_dhl_status_comes_only_from_the_subject(subject, status, body):
     else:
         # only "ist unterwegs" reads the day the body names
         assert (u.eta_date, u.eta_from, u.eta_to) == (None, None, None)
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Ihre Sendung wird Ihnen heute zwischen 13:10 - 14:40 Uhr durch Ihren Paketzusteller zugestellt.",
+        # the layouts up to 2024-08
+        "Ihr DHL Paket wird Ihnen heute zwischen 13:10 und 14:40 Uhr durch Ihren Paketzusteller",
+        "Ihr Paket kommt zwischen 13:10 bis 14:40\nOnlineversion",
+        "Ihr Paket kommt zwischen 13:10 und\n14:40\nWenn diese Nachricht nicht richtig angezeigt wird",
+        "befindet sich nun im Zustellfahrzeug und\nwird heute zwischen 13:10\nund14:40 Uhr bei Ihnen",
+    ],
+)
+def test_dhl_window_in_every_layout(sentence):
+    msg = _msg("Ihr DHL Paket kommt heute", f"{sentence}\n{DHL_NUMBER}\n", "DHL Paket <noreply@dhl.de>")
+    [u] = parse_mail(msg).updates
+    day = sent_at(msg).date()
+    assert u.eta_from == at(day, 13, 10)
+    assert u.eta_to == at(day, 14, 40)
 
 
 @pytest.mark.parametrize(

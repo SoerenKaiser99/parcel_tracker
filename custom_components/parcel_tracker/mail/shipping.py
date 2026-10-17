@@ -36,7 +36,9 @@ AMAZON_DHL_NAME = "Amazon-Sendung (DHL)"
 # parcel name, and only a shop's passes (``company_name``), never a carrier's.
 KNOWN_SENDER_DOMAINS = frozenset({"amazon.de", "dhl.de", "ups.com", *DPD_DOMAINS})
 
-_DHL_WINDOW = re.compile(r"heute\s+zwischen\s+(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})")
+# Read only in a mail for today. The layouts up to 2024-08 write "und" or "bis" and leave out
+# "heute" ("Ihr Paket kommt zwischen 14:45 bis 16:15"), or break the line inside the window.
+_DHL_WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s*(?:[–-]|und|bis)\s*(\d{1,2}):(\d{2})")
 # (the newer layout puts "**—" between "voraussichtlich" and "am" in its text part)
 _DHL_DAY = re.compile(
     r"voraussichtlich[\s*_–—-]*am\s+\w+,\s+den\s+(\d{1,2})\.(?:(\d{1,2})\.)?"
@@ -101,7 +103,10 @@ _DHL_READY = re.compile(
 # delivers it. Still on its way, with a line of its own in the history.
 _DHL_DAMAGED = re.compile(r"\btransportweg\s+beschädigt\b")
 DAMAGED_TEXT = "Verpackung beschädigt"
-_DHL_TODAY = re.compile(r"\bkommt\s+heute\b|\bwird\s+(?:heute|gleich)\b.*\bzugestellt\b")
+# ("kommt früher als geplant": today, in the layouts up to 2024-08)
+_DHL_TODAY = re.compile(
+    r"\bkommt\s+(?:heute|früher\s+als\s+geplant)\b|\bwird\s+(?:heute|gleich)\b.*\bzugestellt\b"
+)
 # "wird gleich zugestellt": the courier is close. Still "in Zustellung", with a line of
 # its own in the history.
 _DHL_SOON = re.compile(r"\bwird\s+gleich\b.*\bzugestellt\b")
