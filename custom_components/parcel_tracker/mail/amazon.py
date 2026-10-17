@@ -374,7 +374,10 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         code = otp.group(1)
 
     from_subject = subject_title(subj) if len(orders) == 1 else None
-    shipments = _shipments(msg)
+    # An order the mail names as several shipments has several ids, and which link is
+    # whose is not told: none of them gets one (the item tells them apart, as without).
+    numbers = [match.group(2) for match in orders]
+    shipments = {o: s for o, s in _shipments(msg).items() if numbers.count(o) == 1}
     updates = []
     above = 0
     for index, match in enumerate(orders):
