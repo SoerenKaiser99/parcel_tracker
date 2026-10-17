@@ -48,7 +48,8 @@ _PICKUP_TEXT = re.compile(r"paketshop\b[^\n]*zur abholung bereit")
 # counts when no home-delivery sentence stands next to it.
 _HOME_TEXT = re.compile(r"wunschort zugestellt|erfolgreich zugestellt")
 _ETA_LABEL = "voraussichtliche lieferung"
-_WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s*Uhr")
+# ("zwischen 10:45 - 14:45 Uhr" too, seen 2026-08 next to "12.August")
+_WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s*(?:und|[–-])\s*(\d{1,2}):(\d{2})\s*Uhr")
 _SENDER_LABELS = frozenset(
     {"versender", "absender", "dein paket von", "dein paket von dem absender"}
 )
