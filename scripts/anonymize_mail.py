@@ -400,7 +400,18 @@ _T_FREEMAIL = {
     "posteo.net", "mailbox.org", "freenet.de", "aol.com", "proton.me", "protonmail.com",
     "arcor.de", "online.de", "mail.de", "email.de", "tutanota.com", "tuta.io", "vodafone.de",
 }
-_T_B0, _T_B1 = r"(?<![^\W\d_])", r"(?![^\W\d_])"  # no letter before / behind
+# Where a given or learnt word may begin and end: no letter before / behind it, or the case
+# changes there. Some senders write the text part beside their HTML without its line breaks
+# ("Herr MeierIhre Bestellung", "Jonas MeierLindenweg 7", in capitals "MEIERIhre": the last
+# capital starts the next word); inside an ordinary word the case never changes like that.
+_T_LOWER, _T_UPPER = (
+    "".join(char for char in map(chr, range(0x250)) if kind(char))
+    for kind in (str.islower, str.isupper)
+)
+_T_CASE_CHANGE = (
+    rf"(?-i:(?<=[{_T_LOWER}])(?=[{_T_UPPER}])|(?<=[{_T_UPPER}])(?=[{_T_UPPER}][{_T_LOWER}]))"
+)
+_T_B0, _T_B1 = rf"(?:(?<![^\W\d_])|{_T_CASE_CHANGE})", rf"(?:(?![^\W\d_])|{_T_CASE_CHANGE})"
 _T_UMLAUT = {"ä": "a", "ö": "o", "ü": "u"}
 _T_DIGRAPH = {"ae": "ä", "oe": "ö", "ue": "ü"}
 # "=" and "%" belong to the local part: bounce+user=gmx.de@shop.example is one address.
