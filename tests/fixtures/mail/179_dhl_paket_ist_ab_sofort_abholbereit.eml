@@ -1,0 +1,59 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number, the shop, the branch and its street are invented; the time
+ zone of the calendar entry, the opening hours and the footer are cut
+From: "DHL Paket" <noreply@dhl.de>
+To: max@example.org
+Subject: Ihr DHL Paket ist ab sofort abholbereit
+Date: Sat, 30 Mar 2024 11:12:20 +0100
+Message-ID: <fixture-179@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============fixture-179=="
+
+--===============fixture-179==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//artegic/ELAINE//DE
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:max@example.org
+ORGANIZER;CN=DHL Paket:MAILTO:noreply@dhl.de
+LOCATION:Filiale 999 (Beispielweg 12, 12345 Musterstadt)
+SUMMARY:Paket aus Filiale 999 abholen
+DESCRIPTION:Auf Karte anzeigen <https://www.dhl.de/…>
+CLASS:PUBLIC
+END:VEVENT
+END:VCALENDAR
+
+--===============fixture-179==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Wichtige Informationen zu Ihrem Paket</p>
+<p>Onlineversion</p>
+<p>Hallo Max Mustermann,</p>
+<p>wir haben gute Nachrichten für Sie. Ihr DHL Paket liegt ab sofort für Sie zur Abholung in der Filiale bereit.</p>
+<p>Beste Grüße</p>
+<p>Filiale</p>
+<p>Adresse der Filiale:</p>
+<p>Filiale 999 (Postbank Filiale)</p>
+<p>Beispielweg 12</p>
+<p>12345 Musterstadt</p>
+<p>Zur Kartenansicht</p>
+<p>Öffnungszeiten:</p>
+<p>Sendungsdetails</p>
+<p>Ihre Sendung von:</p>
+<p>beispielshop.de</p>
+<p>Sendungsnummer:</p>
+<p>00340999999999990179</p>
+<p>Wichtige Information</p>
+<p>Abholung Filiale:</p>
+<p>Bitte bringen Sie für die Abholung aus der Filiale Ihren amtlichen Ausweis und die Benachrichtigungskarte aus Ihrem Briefkasten mit.</p>
+</body></html>
+
+--===============fixture-179==--
