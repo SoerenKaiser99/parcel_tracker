@@ -244,7 +244,7 @@ def test_international_number_in_groups_keeps_letters_and_groups(tmp_path, numbe
         "Bestellt am 2026-10-05 um 09:05:17 Uhr",
         "Preis 1.299,00 EUR, 2 x 19,99 EUR, Rabatt 12.50 EUR, Summe 1 338,98 EUR",
         "Regal 12 Fach 345 Karton 6789, Raum 12 34567 frei, 3 Pakete, 250 g",
-        "Abholung bis 12.10. 18:00 Uhr in Filiale 512",
+        "Abholung bis 12.10. 18:00 Uhr an Tor 512",
     ],
 )
 def test_dates_times_prices_and_short_numbers_stay(tmp_path, line):

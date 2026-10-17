@@ -70,7 +70,7 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 
 | Absender | Welche Mail |
 |---|---|
-| **DHL** | Paket liegt in der Packstation oder Filiale; Zustellung nicht möglich; beim Nachbarn abgegeben |
+| **DHL** | Paket liegt in der Packstation (aus Filialen gibt es Beispiele); Zustellung nicht möglich; beim Nachbarn abgegeben |
 | **DHL Express** | „ist unterwegs“ und „wird voraussichtlich … ausgeliefert“ (bisher nur „zugestellt“ als Beispiel); Zustellung nicht möglich; Service Point |
 | **DPD Österreich** | laufende Sendung mit Zustelltag, aber ohne Zeitfenster; zugestellt; im Pickup Paketshop abholbereit; Zustellung nicht möglich |
 | **GLS** | im PaketShop abholbereit; Zustellung verschoben |
