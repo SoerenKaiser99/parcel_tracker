@@ -463,7 +463,8 @@ def test_help_is_german_and_exits_with_0():
     done = _call("--help")
     assert done.returncode == 0
     for text in ("--zip", "--out", "--name", "--street", "--postcode", "--city", "--phone",
-                 "--email", "--ohne-angaben", "anonymisiert", "paket-tracker-beispiele.zip"):
+                 "--email", "--ohne-angaben", "--salt", "anonymisiert",
+                 "paket-tracker-beispiele.zip"):
         assert text in done.stdout, text
 
 

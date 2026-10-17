@@ -339,7 +339,7 @@ def _evt_known(line):
 _T_USAGE = (
     'usage: anonymize_mail.py <Datei.eml | Ordner> [--zip] [--out ORDNER] [--ohne-angaben]\n'
     '           [--name "Vorname Nachname"] [--street "Straße Hausnummer"] [--postcode PLZ]\n'
-    '           [--city ORT] [--phone TELEFON] [--email MAILADRESSE]\n'
+    '           [--city ORT] [--phone TELEFON] [--email MAILADRESSE] [--salt DATEI]\n'
     '       anonymize_mail.py --fixtures SRC_DIR DST_DIR POSTCODE CITY FIRSTNAME LASTNAME'
     ' [MAILDOMAIN ...]'
 )
@@ -356,6 +356,17 @@ Macht aus gespeicherten Paketmails (.eml) anonymisierte Beispielmails für ein G
   --ohne-angaben        ausdrücklich ohne eigene Angaben arbeiten: Das Skript fragt nicht
                         und bereinigt nur allgemein. Namen und Orte können dann stehen
                         bleiben. Ohne diese Option braucht das Skript mindestens eine Angabe.
+  --salt DATEI          wiederholbare Ergebnisse: Fehlt DATEI, legt das Skript sie mit einem
+                        zufälligen Salt an (ein selbst ausgedachter ließe sich erraten und
+                        wird abgelehnt). Erfundene Nummern und Dateinamen hängen dann nur an
+                        der Mail, nicht an ihrer Stelle im Lauf. Eine Mail ergibt so in jedem
+                        Lauf dieselbe Datei, solange das Skript aus den anderen Mails nichts
+                        Neues lernt (bei Eventim zählen Tag und Bestellnummer weiter die Mails
+                        des Laufs). Sie heißt <Datum>_<Absender>_<Kennung>.eml und ersetzt ihr
+                        Ergebnis aus einem früheren Lauf; andere frühere Ergebnisse mit Salt
+                        bleiben liegen und werden am Ende genannt. Die DATEI nicht weitergeben
+                        und nicht in den Zielordner legen: Mit ihr lassen sich die erfundenen
+                        Nummern zurückrechnen.
 
 Ersetzt werden außerdem alle Mail-Adressen außer dem Absender, Telefonnummern, Links (nur
 der Servername bleibt), Sendungs-, Bestell- und andere lange Nummern (gleiche Form, erfundene
@@ -375,6 +386,9 @@ _T_OPTIONS = {
     "email": "Mail-Adresse",
 }
 _T_BARE = "--ohne-angaben"
+# A salt file as the script writes it: 32 random bytes. One a tester thought of could be found
+# by trying, from a number in a mail whose original is public (a trade licence number).
+_T_SALT = re.compile(r"[0-9a-f]{64}")
 _T_ZIP = "paket-tracker-beispiele.zip"
 _T_MAIL = "max@example.org"
 _T_PHONE = "+49 000 0000000"
@@ -715,9 +729,10 @@ class _TUsage(Exception):
 
 
 def _t_parse(args):
-    """(paths, out dir or None, zip?, help?, without values?, {option: [values]})."""
+    """(paths, out dir or None, zip?, help?, without values?, salt file or None,
+    {option: [values]})."""
     paths, out, pack, usage, values = [], None, False, False, {key: [] for key in _T_OPTIONS}
-    bare, i = False, 0
+    bare, salt, i = False, None, 0
     while i < len(args):
         arg = args[i]
         i += 1
@@ -735,7 +750,7 @@ def _t_parse(args):
             pack = True
         elif name == _T_BARE and not equals:
             bare = True
-        elif name.startswith("--") and (key == "out" or key in _T_OPTIONS):
+        elif name.startswith("--") and (key in ("out", "salt") or key in _T_OPTIONS):
             if not equals:
                 if i >= len(args) or args[i].startswith("--"):
                     raise _TUsage(f"Option {name} braucht einen Wert.")
@@ -743,11 +758,13 @@ def _t_parse(args):
                 i += 1
             if key == "out":
                 out = value
+            elif key == "salt":
+                salt = value
             else:
                 values[key].extend(value.split(";"))
         else:
             raise _TUsage(f"Unbekannte Option {name}")
-    return paths, out, pack, usage, bare, values
+    return paths, out, pack, usage, bare, salt, values
 
 
 def _t_variants(value, gap=r"[\s._-]*"):
@@ -929,14 +946,17 @@ class _TScrubber:
     drop-off places), the second pass replaces these in every mail of the run.
     """
 
-    def __init__(self, values):
+    def __init__(self, values, salt=None):
         self.rules, self.short, self.avoid = _t_given(values)
         self.learned = {}  # text found in one mail -> its replacement in every mail
         self.words = {}  # single word of a recipient's name (lower case) -> replacement
         self.streets, self.postcodes, self.cities = set(), set(), set()
         self._learning = False
         self._learnt = None  # compiled rules of what was learnt
-        self._salt = secrets.token_hex(16)
+        # The tester's own salt invents the same numbers in every run; without a secret an
+        # invented number could be traced back by trying.
+        self.fixed = salt is not None
+        self._salt = secrets.token_hex(16) if salt is None else salt
         self._runs = {}
         # what must not be readable in a result: every value and every part of a name
         self._check = {v.casefold() for key in values for v in values[key] if len(v) >= 3}
@@ -1131,6 +1151,15 @@ class _TScrubber:
         return (match.group(1) if match.re is _T_PLACE_NEXT else "") + "Ablageort: Garage"
 
     # ----- numbers, links -----
+    def label(self, msg, number):
+        """What stands for a mail in its file name, Message-ID and MIME boundary: its number in
+        the run, or with the tester's salt a hash of the mail (of its Message-ID if it has
+        one) that every run gives again."""
+        if not self.fixed:
+            return f"{number:03d}"
+        source = _t_header(msg, "Message-ID").encode() or bytes(msg)
+        return hashlib.sha256(self._salt.encode() + b"\0" + source).hexdigest()[:12]
+
     def _run(self, run):
         """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays."""
         if run not in self._runs:
@@ -1483,7 +1512,7 @@ def _t_eventim(text, order_mail, count):
 
 
 def _t_build(msg, number, scrubber):
-    """(anonymised mail, domain for the file name, private sender?, value left?)."""
+    """(anonymised mail, file name, private sender?, value left?)."""
     display, address = _t_sender(msg)
     plain, markup, has_plain, has_html = _t_texts(msg)
     raw_subject = _t_header(msg, "Subject")
@@ -1533,15 +1562,28 @@ def _t_build(msg, number, scrubber):
         out["Date"] = evt_date(number)  # (the real one tells the day of the order)
     elif _t_header(msg, "Date"):
         _t_set(out, "Date", _t_header(msg, "Date"))
-    out["Message-ID"] = f"<beispiel-{number:03d}@example.org>"
+    label = scrubber.label(msg, number)
+    out["Message-ID"] = f"<beispiel-{label}@example.org>"
     plain, markup = scrubber.scrub(plain, keep), scrubber.scrub(markup, keep)
     if has_plain or not has_html:
         _t_body(out, plain if plain.endswith("\n") or not plain else plain + "\n", "plain")
     if has_html:
         _t_body(out, as_html(markup), "html", alternative=has_plain)
+    if scrubber.fixed and out.is_multipart():
+        out.set_boundary(f"===============beispiel-{label}==")  # else a random one
     domain = re.sub(r"[^a-z0-9.-]", "", address.rsplit("@", 1)[-1])
+    domain = "privat" if private else domain or "unbekannt"
+    name = f"{_t_day(out)}_{domain}_{label}" if scrubber.fixed else f"{label}_{domain}"
     left = scrubber.left(f"{out['From']}\n{subject}\n{plain}\n{markup}")
-    return out, "privat" if private else domain or "unbekannt", private, left
+    return out, f"{name}.eml", private, left
+
+
+def _t_day(out):
+    """The day of the Date header of a result, for its file name."""
+    try:
+        return email.utils.parsedate_to_datetime(str(out["Date"])).strftime("%Y-%m-%d")
+    except (TypeError, ValueError, IndexError):
+        return "ohne-datum"
 
 
 def _t_terminal():
@@ -1600,15 +1642,44 @@ def _t_clear(out_dir):
             continue
         if name == _T_ZIP:
             os.remove(path)
-        elif re.fullmatch(r"\d{3}_[a-z0-9.-]+\.eml", name):
-            with open(path, "rb") as handle:
-                own = b"\nMessage-ID: <beispiel-" in handle.read(8192)
-            if own:  # a mail of someone else with such a name stays
-                os.remove(path)
+        elif re.fullmatch(r"\d{3}_[a-z0-9.-]+\.eml", name) and _t_own(path):
+            os.remove(path)  # (a mail of someone else with such a name stays)
+
+
+def _t_own(path):
+    """A result of this script: its Message-ID is one the script invents."""
+    with open(path, "rb") as handle:
+        return b"\nMessage-ID: <beispiel-" in handle.read(8192)
+
+
+def _t_salt(path, out_dir):
+    """The salt in the file of --salt; a missing file is written with a random one."""
+    folder = os.path.normcase(os.path.dirname(os.path.abspath(path)))
+    if folder == os.path.normcase(os.path.abspath(out_dir)):
+        raise _TUsage("Die Datei zu --salt darf nicht im Zielordner liegen (sie würde mit"
+                      " hochgeladen).")
+    if not os.path.exists(path):
+        try:
+            with open(path, "x", encoding="utf-8") as handle:
+                handle.write(secrets.token_hex(32) + "\n")
+        except OSError:
+            raise _TUsage("Die Datei zu --salt lässt sich nicht anlegen.") from None
+        print(f"Neuer Salt in {os.path.abspath(path)}: behalten und nie weitergeben.")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            salt = handle.read().strip()
+    except (OSError, UnicodeDecodeError):
+        raise _TUsage("Die Datei zu --salt lässt sich nicht lesen.") from None
+    if not _T_SALT.fullmatch(salt):
+        raise _TUsage(
+            "Die Datei zu --salt stammt nicht von diesem Skript. Einen Salt nicht selbst\n"
+            "ausdenken (er ließe sich erraten): Fehlt die Datei, legt das Skript sie selbst an."
+        )
+    return salt
 
 
 def _t_run(args):
-    paths, out_dir, pack, usage, bare, values = _t_parse(args)
+    paths, out_dir, pack, usage, bare, salt, values = _t_parse(args)
     if usage:
         print(_T_USAGE + "\n" + _T_HELP)
         return 0
@@ -1634,7 +1705,9 @@ def _t_run(args):
             " --postcode ... --city ...)\n"
             f"oder mit {_T_BARE} ausdrücklich darauf verzichten."
         )
-    scrubber = _TScrubber(values)
+    if salt is not None:
+        salt = _t_salt(salt, out_dir)
+    scrubber = _TScrubber(values, salt)
     if not any(values.values()):
         print("ACHTUNG: Ohne eigene Angaben werden die Mails nur allgemein bereinigt")
         print("(Mail-Adressen, Telefonnummern, Links, Nummern, Ablageorte, Anreden, Adressblöcke")
@@ -1657,19 +1730,18 @@ def _t_run(args):
             unreadable.append(os.path.basename(path))
     try:
         os.makedirs(out_dir, exist_ok=True)
-        _t_clear(out_dir)
+        _t_clear(out_dir)  # (a result with a salt is written over its own earlier one)
     except OSError:
         raise _TUsage("Der Zielordner lässt sich nicht anlegen oder leeren.") from None
     written, forwarded, doubtful, passed_on = [], 0, [], []
     for source, mail in mails:
         number = len(written) + 1
         try:
-            out, domain, private, left = _t_build(mail, number, scrubber)
+            out, name, private, left = _t_build(mail, number, scrubber)
             data = bytes(out)
         except Exception:  # no traceback: it could show a part of a mail
             unreadable.append(source)
             continue
-        name = f"{number:03d}_{domain}.eml"
         with open(os.path.join(out_dir, name), "wb") as handle:
             handle.write(data)
         written.append((name, data))
@@ -1699,12 +1771,24 @@ def _t_run(args):
     if doubtful:
         print("ACHTUNG: In diesen Dateien steht noch eine der eigenen Angaben, vielleicht als")
         print("Teil eines anderen Wortes. Besonders genau lesen: " + ", ".join(doubtful))
+    # Results of an earlier run that _t_clear leaves (those with a salt): named, not removed.
+    done = {name for name, _ in written}
+    stale = sorted(
+        name for name in os.listdir(out_dir)
+        if name.lower().endswith(".eml") and name not in done
+        and os.path.isfile(os.path.join(out_dir, name)) and _t_own(os.path.join(out_dir, name))
+    )
+    if stale:
+        print("ACHTUNG: Diese Dateien im Zielordner stammen aus einem früheren Lauf, nicht aus")
+        print("diesem. Nicht mit hochladen: " + ", ".join(stale))
     print()
     print("WICHTIG: Jede Datei vor dem Hochladen selbst öffnen und durchlesen (ein Texteditor")
     print("genügt). Das Skript erkennt nicht alles: Steht noch etwas Privates drin, die Stelle")
     print("von Hand ersetzen oder die Mail weglassen" + (", danach das ZIP neu packen." if pack
                                                           else "."))
-    print("Hochgeladen werden nur die Dateien aus diesem Ordner, nie die Original-Mails.")
+    print("Hochgeladen werden nur die Dateien " + ("dieses Laufs (oben aufgelistet)" if stale
+                                                    else "aus diesem Ordner")
+          + ", nie die Original-Mails.")
     return 0
 
 
