@@ -308,6 +308,19 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         parcel.delivery_code = update.delivery_code
         parcel.delivery_code_day = update.eta_date or update.sent_at.date()
         changed = True
+    if parcel.status is ParcelStatus.DELIVERED:
+        # Due at delivery: once delivered there is nothing left to pay or to tell.
+        if parcel.customs_amount is not None:
+            parcel.customs_amount = parcel.customs_currency = None
+            parcel.customs_cash = False
+            changed = True
+    elif update.customs_amount is not None:
+        taken = (update.customs_amount, update.customs_currency, update.customs_cash)
+        if taken != (parcel.customs_amount, parcel.customs_currency, parcel.customs_cash):
+            parcel.customs_amount = update.customs_amount
+            parcel.customs_currency = update.customs_currency
+            parcel.customs_cash = update.customs_cash
+            changed = True
     return changed
 
 

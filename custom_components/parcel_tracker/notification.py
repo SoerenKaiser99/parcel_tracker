@@ -102,6 +102,24 @@ def _window_today(parcel: Parcel, now: datetime) -> str:
     return f" – heute {start:%H:%M}–{end:%H:%M} Uhr"
 
 
+def _money(amount: float, currency: str) -> str:
+    """'12,34 €' (German writing: comma for the cents, a dot between the thousands)."""
+    text = f"{amount:,.2f}".replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+    return f"{text} {'€' if currency == 'EUR' else currency}"
+
+
+def _customs(parcel: Parcel) -> str:
+    """' – Einfuhrabgaben 12,34 € bar bereithalten' while import duty is due; only when the
+    amount is known (a DHL mail named it, see ``Parcel.customs_due``)."""
+    due = parcel.customs_due
+    if due is None:
+        return ""
+    amount, currency, cash = due
+    return f" – Einfuhrabgaben {_money(amount, currency)} " + (
+        "bar bereithalten" if cash else "bei Zustellung"
+    )
+
+
 def _pickup(parcel: Parcel) -> str:
     """' – <place>' and ' bis <day>' if known: named by the carrier or by a shop's pickup
     mail (Amazon "Paket zur Abholung bereit"). A result that is 17track's alone names no
@@ -133,7 +151,7 @@ def build_notification(
     label = _label(parcel, hide_names)
     match result.status:
         case ParcelStatus.OUT_FOR_DELIVERY:
-            message = f"📦 {label} ist in Zustellung{_window_today(parcel, now)}"
+            message = f"📦 {label} ist in Zustellung{_window_today(parcel, now)}{_customs(parcel)}"
         case ParcelStatus.DELIVERED:
             message = f"✅ {label} wurde zugestellt"
         case ParcelStatus.AWAITING_PICKUP:

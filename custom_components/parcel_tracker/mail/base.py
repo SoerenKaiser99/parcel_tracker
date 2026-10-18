@@ -79,6 +79,12 @@ class MailUpdate:
     # Amazon's own id of a shipment, from the link to its tracking page ("shipmentId"): each
     # mail from "Versendet" on names it, the same in every mail about that box.
     shipment_id: str | None = None
+    # Import duty the recipient pays at delivery, as DHL's mail of the day names it ("Die
+    # Einfuhrabgaben i.H.v. 12,34€ … sind bei Zustellung … in bar zu bezahlen"). Only the
+    # amount, its currency and whether cash is asked for, never the rest of the sentence.
+    customs_amount: float | None = None
+    customs_currency: str | None = None
+    customs_cash: bool = False
 
 
 @dataclass

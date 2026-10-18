@@ -169,6 +169,11 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids else None,
             "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
+            # Import duty still to pay at delivery, as a DHL mail named it (None until then
+            # and after the delivery); customs_cash: the carrier asks for cash.
+            "customs_amount": due[0] if (due := p.customs_due) else None,
+            "customs_currency": due[1] if due else None,
+            "customs_cash": due[2] if due else False,
             "track17": p.track17,
             "track17_carrier": p.track17_carrier,
         }

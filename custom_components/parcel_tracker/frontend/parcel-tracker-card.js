@@ -330,6 +330,36 @@ function numbersHtml(a) {
     : "";
 }
 
+// Import duty (Zoll) still to pay at delivery, as a DHL mail named it (attributes
+// customs_amount, customs_currency, customs_cash). null without an amount; the integration
+// leaves the attributes empty once the parcel is delivered.
+function customs(a) {
+  const amount = a.customs_amount;
+  if (typeof amount !== "number" || !(amount > 0)) return null;
+  const currency = typeof a.customs_currency === "string" && a.customs_currency ? a.customs_currency : "EUR";
+  let money;
+  try {
+    money = new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(amount);
+  } catch {
+    money = `${amount.toFixed(2).replace(".", ",")} ${currency}`; // a currency Intl does not know
+  }
+  return { money: money.replace(/\u00a0/g, " "), cash: a.customs_cash === true };
+}
+
+// One line in the details: "Einfuhrabgaben: 12,34 € in bar bei Zustellung".
+function customsDetail(a) {
+  const c = customs(a);
+  return c ? `<div class="detail duty">Einfuhrabgaben: ${esc(c.money)}${c.cash ? " in bar" : ""} bei Zustellung</div>` : "";
+}
+
+// A small badge in the collapsed row, so the duty is seen without opening the parcel.
+function customsBadge(a) {
+  const c = customs(a);
+  return c
+    ? `<span class="badge duty" role="img" title="Einfuhrabgaben bei Zustellung${c.cash ? " in bar" : ""}" aria-label="Einfuhrabgaben ${esc(c.money)}${c.cash ? " in bar" : ""} bei Zustellung">Zoll ${esc(c.money)}</span>`
+    : "";
+}
+
 // The carrier's tracking page of a parcel: the integration builds it (attribute
 // tracking_url), the card only links to it. null without one; anything but https is no link.
 function trackingUrl(a) {
@@ -520,6 +550,7 @@ class ParcelTrackerCard extends HTMLElement {
         .badge.sure { background:var(--primary-color); color:var(--text-primary-color); }
         .badge.possible { border-color:var(--divider-color); color:var(--secondary-text-color); }
         .badge.delivered { border-color:var(--success-color); color:var(--success-color); }
+        .badge.duty { border-color:var(--warning-color, #ff9800); color:var(--warning-color, #ff9800); margin-left:6px; }
         @supports (color:color-mix(in srgb, red 50%, blue)) {
           .badge.delivered { border-color:transparent; background:color-mix(in srgb, var(--success-color) 18%, transparent); color:color-mix(in srgb, var(--success-color) 72%, var(--primary-text-color)); }
         }
@@ -978,8 +1009,8 @@ class ParcelTrackerCard extends HTMLElement {
         <button type="button" class="row-toggle" aria-expanded="${open ? "true" : "false"}" data-number="${esc(a.number)}" data-a="toggle">
           <span class="top"><span class="name">${this._icon(a.carrier)}<span>${esc(a.name || a.number)}</span></span>${right}<span class="chev" aria-hidden="true"></span></span>
         </button>
-        <div class="sub">${sub}</div>${bar}${stale}
-        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${numbersHtml(a)}${note}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
+        <div class="sub">${sub}${customsBadge(a)}</div>${bar}${stale}
+        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${customsDetail(a)}${numbersHtml(a)}${note}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
       item.querySelector(".row-toggle").addEventListener("click", () => {
         if (open) {
           this._open.delete(a.number);

@@ -67,6 +67,9 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `amazon_shipment` | Amazons Kennung der neuesten Sendung einer Amazon-Bestellung (aus den Mails ab „Versendet“); leer ohne |
 | `shipping_carrier_hint` | Versanddienstleister, den eine Shop-Mail genannt hat |
 | `delivery_code` | Zustell-Code, nur mit eingeschalteter Option und nur bis zum Liefertag |
+| `customs_amount` | Betrag der Einfuhrabgaben (Zoll), die bei der Zustellung zu zahlen sind, als Zahl (z. B. `12.34`). Er stammt aus der DHL-Mail am Zustelltag und steht nur bis zur Zustellung da, sonst leer |
+| `customs_currency` | Währung zu `customs_amount`, z. B. `EUR`; leer, wenn kein Betrag bekannt ist |
+| `customs_cash` | `true`, wenn die Mail Barzahlung verlangt („in bar zu bezahlen“), sonst `false` |
 | `track17` | `true`, wenn das Paket bei 17track angemeldet ist |
 | `track17_carrier` | Paketdienst, den 17track erkannt hat |
 

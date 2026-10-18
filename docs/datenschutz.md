@@ -46,6 +46,7 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 - der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
 - Status, Liefertag und Zeitfenster,
 - bei einem abholbereiten Paket aus der Amazon-Mail „Paket zur Abholung bereit“: Name und Straße der Abholstelle (ohne Postleitzahl, Ort und interne Nummer des Shops) und der letzte Abholtag,
+- bei einer DHL-Sendung aus dem Ausland der Betrag der Einfuhrabgaben (Zoll), seine Währung und ob bar gezahlt werden soll – nicht der Satz aus der Mail. Der Betrag steht bis zur Zustellung in den Attributen, auf der Karte und in der Benachrichtigung „In Zustellung“. Danach wird er gelöscht,
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
 

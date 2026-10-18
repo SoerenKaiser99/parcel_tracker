@@ -51,11 +51,13 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 | Ereignis | Beispiel |
 |---|---|
 | In Zustellung | `📦 Kopfhörer (DHL) ist in Zustellung – heute 14:00–16:00 Uhr` |
+| In Zustellung, mit Zoll | `📦 Kopfhörer (DHL) ist in Zustellung – Einfuhrabgaben 12,34 € bar bereithalten` |
 | Zugestellt | `✅ Kopfhörer (DHL) wurde zugestellt` |
 | Abholbereit | `📍 Kopfhörer (DHL) liegt zur Abholung bereit – Bonn bis 06.10.` |
 | Problem | `⚠️ Kopfhörer (DHL): Problem bei der Zustellung` |
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
+- Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da.
 - Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder die Abholmail des Shops (Amazon „Paket zur Abholung bereit“) sie nennt. Der Ort ist höchstens 40 Zeichen lang.
 - Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen).
 - Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.
