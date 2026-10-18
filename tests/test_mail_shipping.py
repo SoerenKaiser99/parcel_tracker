@@ -186,6 +186,7 @@ def test_ups_shipper_goes_through_the_naming_gate(shipper, title, name):
 NEW_LAYOUT = "113_dhl_paketankuendigung_amazon_unterwegs.eml"
 INTERNATIONAL = "118_dhl_international_unterwegs.eml"
 S10 = "CQ999999901DE"
+DHL_NUMBER_S10 = "00340999999999999917"
 
 
 def test_dhl_second_sender_is_routed_to_the_dhl_parser():
@@ -273,6 +274,75 @@ def test_dhl_shop_name_is_cut_and_never_taken_from_a_forwarded_mail():
         _msg("WG: Ihre Beispiel GmbH Sendung ist unterwegs", S10, "Max Mustermann <noreply@dhl.de>")
     )
     assert u.title is None
+
+
+# ----- issue #35: the option "Absendernamen aus DHL-Mails übernehmen" -----
+@pytest.mark.parametrize(
+    ("subject", "plain"),
+    [
+        # a small shop with DHL's cut-off mark, a private sender, a name with a legal form
+        ("Ihre Beispielshop .. Sendung ist unterwegs", "Beispielshop"),
+        ("Ihre Beispielshop… Sendung kommt heute", "Beispielshop"),
+        ("Ihre Erika Beispiel Sendung ist unterwegs", "Erika Beispiel"),
+        ("Ihre Erika Beispiel Sendung liegt zur Abholung bereit", "Erika Beispiel"),
+        # no name at all: a carrier, nothing, no letter
+        ("Ihre DHL Sendung ist unterwegs", None),
+        ("Ihre DHL Paket Sendung ist unterwegs", None),
+        ("Ihre Sendung ist unterwegs", None),
+        ("Ihre .. Sendung ist unterwegs", None),
+        ("Ihre 12345 Sendung ist unterwegs", None),
+    ],
+)
+def test_plain_names_option_names_small_shops_and_persons(subject, plain):
+    msg = _msg(subject, DHL_NUMBER_S10, "DHL <noreply@dhl.de>")
+    [off] = parse_dhl_mail(msg)
+    [on] = parse_dhl_mail(msg, plain_names=True)
+    assert off.title is None  # default: unchanged, nobody is named without the gate
+    assert on.title == plain
+    assert (on.number, on.status) == (off.number, off.status)
+
+
+def test_plain_names_option_leaves_what_the_gate_names_alone():
+    for subject, title in (
+        ("Ihre Beispiel GmbH Sendung ist unterwegs", "Beispiel GmbH"),
+        ("Ihre Zalando Sendung kommt heute", "Zalando"),
+        ("Ihre Amazon Sendung kommt heute", AMAZON_DHL_NAME),
+        ("Ihre Beispiel GmbH Max Mustermann Sendung kommt heute", "Beispiel GmbH"),
+    ):
+        msg = _msg(subject, DHL_NUMBER_S10, "DHL <noreply@dhl.de>")
+        assert parse_dhl_mail(msg)[0].title == title
+        assert parse_dhl_mail(msg, plain_names=True)[0].title == title
+
+
+def test_plain_names_option_is_cut_and_never_taken_from_a_forwarded_mail():
+    long_name = "Erika Beispiel Versandhandel für Haus und Garten und Werkstatt und Hobby"
+    [u] = parse_dhl_mail(
+        _msg(f"Ihre {long_name} Sendung ist unterwegs", S10, "DHL <noreply@dhl.de>"),
+        plain_names=True,
+    )
+    assert len(u.title) == 60 and u.title.endswith("…") and long_name.startswith(u.title[:-1])
+    [u] = parse_dhl_mail(
+        _msg(
+            "WG: Ihre Erika Beispiel Sendung ist unterwegs",
+            S10,
+            "Max Mustermann <noreply@dhl.de>",
+        ),
+        plain_names=True,
+    )
+    assert u.title is None
+
+
+def test_plain_names_option_reads_the_subject_only():
+    body = "Hallo Erika Beispiel,\nIhre Sendung ist unterwegs.\nSendungsnummer " + DHL_NUMBER_S10
+    msg = _msg("Ihre Sendung ist unterwegs", body, "DHL <noreply@dhl.de>")
+    assert parse_dhl_mail(msg, plain_names=True)[0].title is None
+
+
+def test_plain_names_option_goes_through_parse_mail():
+    msg = _msg("Ihre Erika Beispiel Sendung ist unterwegs", DHL_NUMBER_S10, "DHL <noreply@dhl.de>")
+    assert parse_mail(msg).updates[0].title is None
+    assert parse_mail(msg, plain_names=True).updates[0].title == "Erika Beispiel"
+    assert parse_mail(msg, False, True).updates[0].title == "Erika Beispiel"
 
 
 # ----- v0.3.15 review: the subject decides the status of a DHL mail -----
