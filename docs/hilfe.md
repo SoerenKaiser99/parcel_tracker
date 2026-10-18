@@ -132,11 +132,12 @@ Das prüfst du der Reihe nach:
 
 1. **Ist die Mail im Paket-Postfach angekommen, und zwar im Ordner, den der Import liest (Standard: Posteingang)?** Wenn nicht, greift die Filterregel im Hauptpostfach nicht. Steht der Absender in der [Liste der Absender](mail-import.md#filterregel-anlegen)?
 2. **In welchem Ordner liegt sie?** Erkannte Mails landen in `Paket-Tracker-Verarbeitet`, nicht erkannte in `Paket-Tracker-Nicht-erkannt`.
-3. **Ist es eine deutsche Mail von einem der unterstützten Absender?** Der Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS-, eBay-, AliExpress- und Eventim-Mails).
-4. **Ist die Mail älter als 14 Tage?** Dann wird sie nur als gelesen markiert.
-5. **Von Hand weitergeleitet?** Der Kopfzeilen-Block der Original-Mail („Von: … / Gesendet: … / An: … / Betreff: …“) muss stehen bleiben. Siehe [Von Hand weiterleiten](mail-import.md#von-hand-weiterleiten).
-6. **Apple „E-Mail-Adresse verbergen“?** Die Filterregel braucht die Relay-Adresse, so wie sie in der Mail steht.
-7. **Werbung oder Konto-Mail?** Solche Mails markiert der Import absichtlich nur als gelesen.
+3. **Liegt sie gelesen im Posteingang?** Der Import liest nur ungelesene Mails. Hast du sie geöffnet, bevor er nachgeschaut hat (z. B. am Handy oder in der Vorschau des Webmailers), lässt er sie liegen. Markier sie als ungelesen, dann liest er sie bei der nächsten Abfrage.
+4. **Ist es eine deutsche Mail von einem der unterstützten Absender?** Der Import versteht nur deutsche Mails (amazon.de sowie deutsche DHL-, Hermes-, UPS-, GLS-, eBay-, AliExpress- und Eventim-Mails).
+5. **Ist die Mail älter als 14 Tage?** Dann wird sie nur als gelesen markiert.
+6. **Von Hand weitergeleitet?** Der Kopfzeilen-Block der Original-Mail („Von: … / Gesendet: … / An: … / Betreff: …“) muss stehen bleiben. Siehe [Von Hand weiterleiten](mail-import.md#von-hand-weiterleiten).
+7. **Apple „E-Mail-Adresse verbergen“?** Die Filterregel braucht die Relay-Adresse, so wie sie in der Mail steht.
+8. **Werbung oder Konto-Mail?** Solche Mails markiert der Import absichtlich nur als gelesen.
 
 Liegt eine echte Paketmail in `Paket-Tracker-Nicht-erkannt`, lässt sich das nur mit einer Beispielmail beheben: [Beispielmails einreichen](#beispielmails-einreichen). Kann ein Update die Mail lesen, schieb sie danach zurück in den Ordner, den der Import liest, und markier sie als ungelesen: Dann liest er sie noch einmal (solange sie nicht älter als 14 Tage ist). Das gilt für Mails, die ab v0.3.34 gelesen wurden; eine Mail, die eine ältere Version gelesen hat, kennt der Import noch und legt sie gleich nach `Paket-Tracker-Verarbeitet`.
 
