@@ -291,3 +291,193 @@ def test_title_line_in_the_body_still_wins_over_the_cut_subject():
     )
     [u] = parse_ebay(msg)
     assert (u.number, u.title) == ("EBAY990909000909", "Beispiel Thermostatkopf M30x1,5 weiß")
+
+
+# ----- the purchase confirmation: "Bestellt" -----
+# (the layout since 2026: every value twice; two items of one order)
+CONFIRMED = "180_ebay_ihre_bestellung_wurde_bestaetigt.eml"
+
+
+def test_purchase_confirmation_is_ordered_with_its_items_and_days():
+    [u] = parse_mail(load_mail(CONFIRMED)).updates
+    assert (u.number, u.carrier, u.status) == ("EBAY143825253407", "ebay", ParcelStatus.PRE_TRANSIT)
+    assert u.title == "Beispiel-Zulaufschlauch Aquastop 1,6m und 1 weiterer Artikel"
+    # The head names the days with a sentence behind them; the line below "Lieferung ca.:"
+    # further down names them alone.
+    assert (u.eta_date, u.eta_latest) == (date(2026, 3, 27), date(2026, 4, 2))
+    assert (u.tracking_ref, u.shipping_carrier_hint, u.delivered_at) == (None, None, None)
+
+
+def test_the_layout_before_2026_with_the_price_once_names_its_item():
+    body = ("Wir benachrichtigen Sie, wenn Ihre Bestellung verschickt wird.\n"
+            "Beispiel-Artikel\neBay-Käuferschutz\nPreis:\nEUR 21,80\nArtikelnr.:\n999999999901\n"
+            "Bestellnummer:\n99-00000-00001\n")
+    [u] = parse_ebay(_msg("Bestellung bestätigt: Beispiel-Art...", body))
+    assert u.title == "Beispiel-Artikel"
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        "Bestellung bestätigt: Beispiel-Artikel",
+        "Max, Ihre Bestellung wurde bestätigt.",
+        "Ihre Bestellung wurde bestätigt",
+        "Ihre Bestellung ist eingegangen!",  # (2022 and 2023)
+        "✅ KAUF BESTÄTIGT: Beispiel-Artikel",  # (until 2021)
+    ],
+)
+def test_every_wording_of_the_purchase_confirmation_is_ordered(subject):
+    [u] = parse_ebay(_msg(subject, "Bestellnummer: 99-00000-00001\n"))
+    assert (u.number, u.status) == ("EBAY990000000001", ParcelStatus.PRE_TRANSIT)
+
+
+@pytest.mark.parametrize(
+    "label",
+    ["Artikelpreis: EUR 2,32 (2 x EUR 1,16)", "Bestellnummer: 99-00000-00001",
+     "SKU: Farbe: blau", "Gesamt: EUR 5,79", "Insgesamt: EUR 32,85", "Preis:"],
+)
+def test_older_confirmation_takes_no_label_with_its_value_as_its_name(label):
+    # (these layouts list an item in lines of their own; only the subject's item is taken)
+    body = (f"Beispiel-Artikel, lang\n{label}\nArtikelnr.: 999999999901\n"
+            "Bestellnummer: 99-00000-00001\n")
+    [u] = parse_ebay(_msg("Ihre Bestellung ist eingegangen!", body))
+    assert u.title is None
+    [u] = parse_ebay(_msg("✅ Kauf bestätigt: Beispiel-Artikel, la...", body))
+    assert u.title == "Beispiel-Artikel, la"
+
+
+def test_the_order_goes_on_from_its_confirmation_to_the_shipping_mail():
+    from custom_components.parcel_tracker.mail.apply import apply_update
+    from custom_components.parcel_tracker.mail.base import sent_at
+
+    confirmed = load_mail(CONFIRMED)
+    [order] = parse_mail(confirmed).updates
+    shipped = _msg(
+        "🚚 Update zur Bestellung: Beispiel-Zulaufschlauch",
+        "Sendungsnummer:\n00340434161094042557\nEinzelheiten zu Ihrem Kauf\n"
+        "Beispiel-Zulaufschlauch Aquastop 1,6m\nArtikelnr.:\n097209577403\n"
+        "Bestellnummer:\n14-38252-53407\nBeispiel-Magnetventil für Waschmaschine\n"
+        "Artikelnr.:\n675788922619\nBestellnummer:\n14-38252-53407\n",
+    )
+    [update] = parse_mail(shipped).updates
+    parcels = {}
+    apply_update(parcels, order, sent_at(confirmed))
+    parcel = parcels[order.number]
+    assert (parcel.status, parcel.name) == (ParcelStatus.PRE_TRANSIT, order.title)
+    change = apply_update(parcels, update, sent_at(confirmed) + timedelta(days=2))
+    # One order: "Bestellt", then "Versendet", asked about at DHL from now on.
+    assert list(parcels) == [order.number] and change.old_status is ParcelStatus.PRE_TRANSIT
+    assert (parcel.status, parcel.tracking_ref) == (ParcelStatus.IN_TRANSIT, "00340434161094042557")
+    assert [e.text for e in parcel.result.events] == ["Versendet", "Bestellt"]
+
+
+def test_a_confirmation_read_after_the_shipping_mail_takes_nothing_back():
+    from custom_components.parcel_tracker.mail.apply import apply_update
+    from custom_components.parcel_tracker.mail.base import sent_at
+
+    confirmed = load_mail(CONFIRMED)
+    [order] = parse_mail(confirmed).updates
+    shipped = replace(order, status=ParcelStatus.IN_TRANSIT,
+                      sent_at=sent_at(confirmed) + timedelta(days=1))
+    parcels = {}
+    apply_update(parcels, shipped, shipped.sent_at)
+    before = asdict(parcels[order.number].result)
+    assert apply_update(parcels, order, shipped.sent_at + timedelta(hours=1)) is None
+    assert asdict(parcels[order.number].result) == before
+
+
+@pytest.mark.parametrize("closing", ["unconfirmed", "received"])
+def test_a_confirmation_read_after_the_order_was_closed_opens_nothing(closing):
+    # Closed without a delivery mail, or marked as received by hand; then the old
+    # confirmation is read (forwarded by hand, handed in later).
+    from custom_components.parcel_tracker.mail.apply import (
+        apply_update,
+        close_unconfirmed,
+        mark_received,
+    )
+    from custom_components.parcel_tracker.mail.base import sent_at
+
+    confirmed = load_mail(CONFIRMED)
+    [order] = parse_mail(confirmed).updates
+    shipped = replace(order, status=ParcelStatus.IN_TRANSIT,
+                      sent_at=sent_at(confirmed) + timedelta(days=1))
+    parcels = {}
+    apply_update(parcels, shipped, shipped.sent_at)
+    parcel = parcels[order.number]
+    closed_at = shipped.sent_at + timedelta(days=20)
+    close = close_unconfirmed if closing == "unconfirmed" else mark_received
+    close(parcel, closed_at)
+    before = parcel.to_dict()
+    assert apply_update(parcels, order, closed_at + timedelta(days=1)) is None
+    assert parcel.to_dict() == before
+
+
+# ----- strict review: what never is a title, and what never is a confirmation -----
+ITEM_2026 = "{title}\nPreis:\n{price}\n{second}\nArtikelnr.:\n999999999901\n999999999901\n"
+
+
+@pytest.mark.parametrize(
+    ("subject", "body"),
+    [
+        ("Ihre Sendung ist jetzt beim Versanddienstleister!",
+         "NEU: Beispiel Kabel\nArtikelnr.:\n999999999901\n"),
+        ("Ihre Bestellung wurde bestätigt",
+         ITEM_2026.format(title="NEU: Beispiel Kabel", price="EUR 7,95", second="EUR 7,95")),
+        # (the total, then its parts)
+        ("Ihre Bestellung wurde bestätigt",
+         ITEM_2026.format(title="NEU: Beispiel Kabel", price="EUR 15,90", second="2 x EUR 7,95")),
+    ],
+)
+def test_a_title_with_a_word_and_a_colon_is_still_the_title(subject, body):
+    [u] = parse_ebay(_msg(subject, body + "Bestellnummer:\n99-00000-00001\n"))
+    assert u.title == "NEU: Beispiel Kabel"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Einzelheiten zum Kauf ansehen\nPreis:\nEUR 15,90\n2 x EUR 7,95\n"
+        "Artikelnr.:\n999999999901\n",
+        "Einzelheiten zum Kauf ansehen\neBay-Käuferschutz\nPreis:\nEUR 5,00\n"
+        "Artikelnr.:\n999999999901\n",
+    ],
+)
+def test_neither_a_price_nor_the_buyer_protection_becomes_the_title(body):
+    [u] = parse_ebay(_msg("📦PAKET ZUGESTELLT: Beispiel Kabel",
+                          body + "Bestellnummer:\n99-00000-00001\n"))
+    assert u.title == "Beispiel Kabel"  # (the subject's)
+
+
+@pytest.mark.parametrize(
+    "subject",
+    ["Verkauf bestätigt: Beispiel-Artikel", "Vorbestellung bestätigt: Beispiel-Artikel",
+     "Einkauf bestätigt: Beispiel-Artikel", "Abbestellung bestätigt: Beispiel-Artikel"],
+)
+def test_only_the_whole_words_are_a_confirmation(subject):
+    assert parse_ebay(_msg(subject, "Bestellnummer: 99-00000-00001\n")) == []
+
+
+@pytest.mark.parametrize(
+    ("subject", "status"),
+    [
+        ("🚚 Update zur Bestellung: Kauf bestätigt: Beispiel-Set", ParcelStatus.IN_TRANSIT),
+        ("📦PAKET ZUGESTELLT: Ihre Bestellung ist eingegangen Set", ParcelStatus.DELIVERED),
+    ],
+)
+def test_words_of_the_confirmation_in_an_item_title_take_nothing_back(subject, status):
+    [u] = parse_ebay(_msg(subject, "Bestellnummer: 99-00000-00001\n"))
+    assert u.status is status
+
+
+def test_a_subject_with_only_dots_gives_no_name_and_the_shipping_mail_names_the_order():
+    from custom_components.parcel_tracker.mail.apply import apply_update
+
+    [order] = parse_ebay(_msg("Bestellung bestätigt: ...", "Bestellnummer: 99-00000-00001\n"))
+    assert order.title is None
+    [shipped] = parse_ebay(_msg("Ihre Sendung ist jetzt beim Versanddienstleister!",
+                                "Beispiel Kabel\nArtikelnr.:\n999999999901\n"
+                                "Bestellnummer:\n99-00000-00001\n"))
+    parcels = {}
+    apply_update(parcels, order, order.sent_at)
+    apply_update(parcels, shipped, order.sent_at + timedelta(days=1))
+    assert parcels[order.number].name == "Beispiel Kabel"
