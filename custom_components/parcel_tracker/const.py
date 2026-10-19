@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.38"
+VERSION = "0.3.39"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -22,6 +22,7 @@ CONF_IMAP_PORT = "imap_port"
 CONF_IMAP_SECURITY = "imap_security"
 CONF_MOVE_PROCESSED = "move_processed"
 CONF_READ_OTP = "read_otp"
+CONF_PLAIN_NAMES = "plain_names"
 CONF_MAIL_INTERVAL = "mail_interval"
 CONF_UPS_SECTION = "ups"
 CONF_UPS_ENABLED = "ups_enabled"
@@ -62,6 +63,7 @@ IMAP_SECURITIES = (IMAP_SECURITY_SSL, IMAP_SECURITY_NOVERIFY, IMAP_SECURITY_PLAI
 DEFAULT_IMAP_SECURITY = IMAP_SECURITY_SSL
 DEFAULT_MOVE_PROCESSED = True
 DEFAULT_READ_OTP = False
+DEFAULT_PLAIN_NAMES = False
 DEFAULT_MAIL_INTERVAL = 5
 MIN_MAIL_INTERVAL = 1
 MAX_MAIL_INTERVAL = 60

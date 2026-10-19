@@ -4,6 +4,7 @@ spellings and the label "an folgende Adresse zugestellt:" (invented names and pl
 Nothing is given via options: the generic scrubbing has to find the address on its own.
 """
 
+import re
 from email.message import EmailMessage
 
 from .test_anonymize_rules import _absent, _mail, _run, _text
@@ -102,6 +103,48 @@ def test_companies_and_numbers_that_are_no_address_stay(tmp_path):
     # four digits below a line without a street word are no postcode
     assert "Artikel 3\n1299 Stück\n" in out
     assert "2026 Highlights\n" in out
+
+
+def test_pickup_place_gets_an_invented_number_and_loses_its_street(tmp_path):
+    # The branch and the Packstation are near the recipient: their numbers and streets tell
+    # where the recipient lives, also outside the address block.
+    text = (
+        "Ihr Paket liegt ab sofort für Sie in der Filiale 999 zur Abholung bereit.\n"
+        "LOCATION:Filiale 999 (Lindenallee 12, 80000 Anderswo)\n"
+        "Adresse der Filiale:\nFiliale 999 (Postbank Filiale)\nLindenallee 12\n80000 Anderswo\n\n"
+        '<a href="https://www.dhl.de/standort">Postfiliale 999</a><br />\n'
+        "        Lindenallee 12<br />\n        80000 Anderswo<br />\n\n"
+        "Ihr Versand an der Packstation 456:\nPackstation 456\nBirkensteig 7, Supermarkt\n"
+        "80000 Anderswo\n"
+    )
+    msg = _scrub(tmp_path, "DHL <abholung@dhl.de>", "Paket in Filiale 999 abholbereit", text)
+    out = _text(msg)
+    _absent(msg, "999", "456", "lindenallee", "birkensteig", "80000", "anderswo")
+    # the same place keeps one invented number, in the subject too
+    [branch] = set(re.findall(r"Filiale (\d+)", msg["Subject"] + out))
+    assert re.fullmatch(r"\d{3}", branch)
+    assert f"Filiale {branch} (Postbank Filiale)\nMusterstraße 1\n12345 Musterstadt\n" in out
+    assert f"Filiale {branch} (Musterstraße 1, 12345 Musterstadt)" in out
+    assert re.search(r"Packstation \d{3}\nMusterstraße 1, Supermarkt\n12345 Musterstadt", out)
+
+
+def test_invented_pickup_number_never_reads_as_a_phone_number(tmp_path):
+    # A 0 in front, with the postcode behind it, would be taken for a phone number.
+    text = "".join(f"Packstation {n} 80000 Anderswo\n" for n in range(100, 400))
+    out = _text(_scrub(tmp_path, "DHL <abholung@dhl.de>", "Neue Packstationen", text))
+    assert len(re.findall(r"^Packstation [1-9]\d\d 80000 Anderswo$", out, re.M)) == 300
+    assert "+49" not in out
+
+
+def test_words_below_a_pickup_place_that_are_no_street_stay(tmp_path):
+    text = (
+        "Postfiliale 999\nÖffnungszeiten 9 bis 18 Uhr\nIhr DHL Team\n\n"
+        "Filialen 3 in der Nähe\nPaketshop finden\n"
+    )
+    out = _text(_scrub(tmp_path, "DHL <abholung@dhl.de>", "Ihr Paket ist abholbereit", text))
+    assert "\nÖffnungszeiten 9 bis 18 Uhr\nIhr DHL Team\n" in out
+    assert "Filialen 3 in der Nähe\nPaketshop finden\n" in out
+    assert "Postfiliale 999" not in out
 
 
 def test_ebay_seller_written_twice_goes_in_both_lines(tmp_path):

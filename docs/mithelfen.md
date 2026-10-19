@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 17. Oktober 2026, Version 0.3.38. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 19. Oktober 2026, Version 0.3.39. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -57,8 +57,12 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 |---|---|---|
 | **Knopf „Erhalten“** | Steht er im aufgeklappten Paket, kommt die Rückfrage „Wirklich erhalten?“, und zählt das Paket danach als heute zugestellt? Bleibt es dabei, auch wenn später noch eine Mail oder eine Antwort des Paketdienstes kommt? Neu seit v0.3.30. | im Forum |
 | **„Namen ausblenden“** | Taucht irgendwo doch noch ein echter Name auf – Karte, Kalender, Benachrichtigung, Sprachassistent? | [Fehler melden](hilfe.md#fehler-melden) |
+| **„Absendernamen aus DHL-Mails übernehmen“** | Heißt ein Paket nach dem Namen aus dem DHL-Betreff „Ihre <Name> Sendung …“, auch bei einem kleinen Shop oder einer Privatperson? Fehlt das „..“ am Ende? Blendet „Namen ausblenden“ den Namen weiterhin aus? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Benachrichtigung „Abholbereit“** | Kommt die Meldung, wenn ein Paket in Packstation, Filiale oder PaketShop liegt? | im Forum |
 | **Auslöser im Automations-Editor** | Findest du die fünf Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |
+| **eBay: Kaufbestätigung** | Legt „Bestellung bestätigt: …“ bzw. „Ihre Bestellung wurde bestätigt“ die Bestellung als „Bestellt“ an, mit Artikel und Lieferzeitraum? Übernimmt die spätere Versandmail dieselbe Bestellung, ohne dass ein zweiter Eintrag entsteht? Neu seit v0.3.39 (Beitrag von benep). | im Forum |
+| **DHL: Abholort aus der Abholmail** | Steht bei „… ist in der Filiale abholbereit“ bzw. „Ihr DHL Paket ist ab sofort abholbereit“ die Filiale oder Packstation mit Straße als Abholort auf der Karte, aber nie deine eigene Adresse? Neu seit v0.3.39 (Beitrag von benep). | [Fehler melden](hilfe.md#fehler-melden) |
+| **Amazon: Versand durch Verkäufer** | Landet eine DHL- oder Hermes-Mail „von Amazon“ bei der richtigen Bestellung, wenn eine andere Bestellung vom Verkäufer selbst verschickt wird? Neu seit v0.3.39 (Beitrag von benep). | im Forum |
 | **Symbole hinter den Nummern** | Öffnet der Lieferwagen hinter der Sendungsnummer die Sendungsverfolgung und der Beleg hinter der Bestellnummer die Bestellseite? Lassen sich die kleinen Symbole am Handy gut treffen? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Symbol „Bestellung öffnen“ bei eBay** | Öffnet es die richtige Bestellseite? Bei Amazon ist das bestätigt. | im Forum |
 | **Sendungs- und Bestellnummer im aufgeklappten Paket** | Steht unter dem Verlauf „Sendungsnummer: …“, bei einer Bestellung „Bestellnummer: …“ so wie beim Shop? Lässt sich die Nummer am Handy markieren und kopieren? Neu seit v0.3.34. | im Forum |
@@ -70,7 +74,7 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 
 | Absender | Welche Mail |
 |---|---|
-| **DHL** | Paket liegt in der Packstation oder Filiale; Zustellung nicht möglich; beim Nachbarn abgegeben |
+| **DHL** | Paket liegt in der Packstation (aus Filialen gibt es Beispiele); Zustellung nicht möglich; beim Nachbarn abgegeben |
 | **DHL Express** | „ist unterwegs“ und „wird voraussichtlich … ausgeliefert“ (bisher nur „zugestellt“ als Beispiel); Zustellung nicht möglich; Service Point |
 | **DPD Österreich** | laufende Sendung mit Zustelltag, aber ohne Zeitfenster; zugestellt; im Pickup Paketshop abholbereit; Zustellung nicht möglich |
 | **GLS** | im PaketShop abholbereit; Zustellung verschoben |

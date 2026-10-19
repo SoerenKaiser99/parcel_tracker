@@ -18,9 +18,11 @@ from .base import (
     html_body_text,
     html_text,
     is_forwarded,
+    names_carrier,
     sender,
     sent_at,
     shop_of,
+    shorten,
     subject,
     upcoming_date,
 )
@@ -97,6 +99,20 @@ _DHL_READY = re.compile(
     r"\bzur\s+abholung\s+bereit\b|\babholbereit\b|\bliegt\b(?:\s+\S+){0,4}?\s+in\s+"
     r"(?:der|ihrer|einer)\s+(?:packstation|filiale|paketshop|poststation|postfiliale)\b"
 )
+# Where a parcel ready for pickup waits: the block below "Adresse der Filiale:" (newer layout
+# "Adresse" or "Adresse:") names the branch, its street and the postcode with the town, each
+# on a line of its own. Taken are the branch and the street, only if the first line names a
+# place of DHL's ("Postfiliale 999", "Filiale 999 (Postbank Filiale)", "Packstation 123"):
+# so no recipient's address ever becomes the place. Postcode and town are left out.
+_DHL_PICKUP_BLOCK = re.compile(
+    r"^Adresse(?: der Filiale)?:?\n(?P<name>[^\n]{1,60})\n(?P<street>[^\n]{1,60})\n"
+    r"(?:DE-)?\d{5}\s",
+    re.MULTILINE,
+)
+_DHL_PICKUP_NAME = re.compile(
+    r"(?:Post)?[Ff]iliale\s+\d+\b|Packstation\s+\d+\b|Poststation\b|Paketshop\b"
+)
+_DHL_STREET = re.compile(r"(?=.*[^\W\d_]{2}).*\d")
 # "… wurde leider auf dem Transportweg beschädigt": the packaging; DHL packs it anew and
 # delivers it. Still on its way, with a line of its own in the history.
 _DHL_DAMAGED = re.compile(r"\btransportweg\s+beschädigt\b")
@@ -147,12 +163,42 @@ def _dhl_words(subj: str, status: ParcelStatus | None) -> str | None:
     return None
 
 
+def _dhl_pickup_point(msg: EmailMessage, text: str) -> str | None:
+    """Branch and street of the place a parcel waits at (``_DHL_PICKUP_BLOCK``), from the
+    text read for the number, else from the HTML part (the older layout names the place
+    there only); None if neither names a place of DHL's."""
+    for source in (text, html_body_text(msg)):
+        lines = "\n".join(filter(None, (line.strip(" *\t") for line in source.splitlines())))
+        block = _DHL_PICKUP_BLOCK.search(lines)
+        if (
+            block
+            and _DHL_PICKUP_NAME.match(block.group("name"))
+            and _DHL_STREET.match(block.group("street"))
+        ):
+            return shorten(f"{block.group('name')}, {block.group('street')}")
+    return None
+
+
 def _dhl_numbers(text: str) -> list[str]:
     numbers = [n for carrier, n in find_numbers(text) if carrier == "dhl"]
     return numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
 
 
-def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
+def _plain_name(text: str) -> str | None:
+    """The name DHL puts into "Ihre <Name> Sendung", without the naming gate.
+
+    Only for the option "Absendernamen aus DHL-Mails übernehmen" (issue #35): small shops
+    and private senders pass here although ``company_name`` turns them down. DHL cuts a long
+    name off with "..": that mark is dropped. A name that is none (a carrier, no letter at
+    all) gives None.
+    """
+    name = " ".join(text.split()).rstrip(" .\u2026")
+    if len(name) < 2 or not re.search(r"[^\W\d_]", name) or names_carrier(name):
+        return None
+    return shorten(name)
+
+
+def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpdate]:
     """DHL notification: number, status, day or today's window, the shop the subject names.
 
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
@@ -160,11 +206,13 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     zugestellt" / "wird gleich zugestellt" (told in its own words), "wurde … zugestellt",
     "liegt am gewünschten Ablageort" / "liegt im Briefkasten" / "liegt nebenan" and, for a
     Packstation or branch, "liegt zur Abholung
-    bereit" / "wurde an Packstation … zugestellt". Any other subject that speaks of a
+    bereit" / "wurde an Packstation … zugestellt" (with the branch and its street as the
+    pickup point, ``_dhl_pickup_point``). Any other subject that speaks of a
     "Sendung" means "on its way" without a day; a question (survey) and
     a subject without "Sendung" tell no status. A pick-up code is never read. An Amazon shipment
     keeps its fixed name (and is merged into the open Amazon order when unambiguous); any other
-    shop only names the parcel if it passes the naming gate and the mail was not forwarded. The
+    shop only names the parcel if it passes the naming gate and the mail was not forwarded
+    (with ``plain_names`` the name in the subject needs no gate, see ``_plain_name``). The
     international variant ("in den nächsten 2 Werktagen von der Österreichischen Post
     zugestellt") names no day, so none is set.
     """
@@ -192,6 +240,8 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
         shop_name = shop_of(shop)
         if not is_forwarded(msg):
             title = company_name(shop)
+            if title is None and plain_names:
+                title = _plain_name(shop)
     status, ahead = _dhl_status(subj)
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
@@ -211,6 +261,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
         postponed = eta_date is not None
     elif status is ParcelStatus.DELIVERED:
         delivered_at = sent
+    pickup_point = _dhl_pickup_point(msg, text) if status is ParcelStatus.AWAITING_PICKUP else None
     return [
         MailUpdate(
             number=numbers[0],
@@ -225,6 +276,7 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
             shop=shop_name,
             postponed=postponed,
             status_text=_dhl_words(subj, status),
+            pickup_point=pickup_point,
         )
     ]
 

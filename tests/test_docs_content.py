@@ -28,6 +28,7 @@ SENDERS = [
     "paketankuendigung@dhl.de",
     "zustellung@dhl.de",
     "sendungsupdate@dhl.de",
+    "abholung@dhl.de",
     "noreply.odd@dhl.com",
     "noreply@service.dpd.de",
     "no_reply@dpd.at",
@@ -110,6 +111,14 @@ def test_docs_explain_cancelled_orders():
     assert "`cancelled`" in _section(NOTIFY, "Wann wird gesendet?")
     assert "| „Storniert“ |" in TEXTS[CARD]
     assert "einer stornierten Bestellung fehlt der Knopf" in TEXTS[CARD]
+
+
+def test_docs_explain_the_ebay_purchase_confirmation():
+    ebay = _tab(MAIL, "eBay")
+    _all_have(ebay, ("„Bestellung bestätigt: …“", "„Ihre Bestellung wurde bestätigt“",
+                     "als „Bestellt“", "„Ihre Bestellung ist eingegangen!“",
+                     "„Kauf bestätigt: …“", "nur aus dem Betreff"))
+    assert "ab der Kaufbestätigung als „Bestellt“" in TEXTS[SERVICES]
 
 
 def test_docs_say_the_delivery_code_is_readable_via_attributes():
@@ -912,14 +921,15 @@ def test_docs_list_the_dhl_senders_and_the_domain_rule():
         "paketankuendigung@dhl.de",
         "zustellung@dhl.de",
         "sendungsupdate@dhl.de",  # v0.3.22 (issue 11)
+        "abholung@dhl.de",  # the pickup mail
     ):
         assert f"`{address}`" in senders
         assert f'"{address}"' in senders  # the Sieve example
     assert "Regel auf die ganze Domain `dhl.de`" in senders
     no_key = _section(SERVICES, NO_KEY)
     assert (
-        "`noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de` und"
-        " `sendungsupdate@dhl.de`"
+        "`noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de`,"
+        " `sendungsupdate@dhl.de` und `abholung@dhl.de`"
     ) in no_key
     mails = _tab(MAIL, "DHL")
     assert "12 Ziffern" in mails and "„Ihre Sendungsnummer“" in mails
@@ -1251,7 +1261,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 17. Oktober 2026, Version 0.3.38." in text
+    assert "*Stand: 19. Oktober 2026, Version 0.3.39." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
