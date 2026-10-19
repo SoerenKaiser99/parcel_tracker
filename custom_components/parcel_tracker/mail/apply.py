@@ -572,6 +572,22 @@ def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
     return order if order.status is ParcelStatus.IN_TRANSIT else None
 
 
+def _seller_shipped(order: Parcel) -> bool:
+    """True if every shipment Amazon named for the order is sent by the seller itself.
+
+    Amazon's shipment ids (``Parcel.shipment_ids``, from the link to its tracking page)
+    begin with "D" for "Versand durch Verkäufer": a marketplace seller sends the box with a
+    carrier of its own, and that carrier's mail names the seller, never Amazon. Shipments
+    Amazon sends itself began with "U" until February 2026 and with "T" since. The format
+    is Amazon's own and nowhere documented, so only the "D" is checked: it held for every
+    seller's shipment seen so far. Should Amazon ever give a "D" to boxes it sends itself,
+    such orders would wrongly be ruled out for mails naming Amazon.
+    An order without an id is none either: nothing is known about it.
+    """
+    ids = order.shipment_ids
+    return order.carrier == "amazon" and bool(ids) and all(i.startswith("D") for i in ids)
+
+
 def _merge_candidate(
     parcels: dict[str, Parcel], update: MailUpdate, delivered: date | None = None
 ) -> Parcel | None:
@@ -581,6 +597,12 @@ def _merge_candidate(
     this carrier; the day must match the order's day or window (without a day: the
     order must be in transit). A mail that names another company than the shop (the
     brand that sells at Amazon) may still belong to an order: see ``_brand_candidate``.
+
+    A mail that names Amazon never goes to an Amazon order whose shipments are all sent by
+    the seller (``_seller_shipped``): the seller's carrier names the seller, so a mail
+    naming Amazon is about a box Amazon sent, another one. This only rules an order out,
+    it never picks one; the way by the brand stays open for such an order, as that is
+    how the seller's mails find it.
 
     ``delivered`` is the day a parcel was delivered: one that is matched afterwards (see
     ``fold_delivered``), or the day of a "zugestellt" mail about a number nobody knows
@@ -597,7 +619,10 @@ def _merge_candidate(
         and p.status is not ParcelStatus.DELIVERED
     ]
     open_orders = [
-        p for p in orders if p.carrier == update.shop or _hint_key(p) == update.carrier
+        p
+        for p in orders
+        if (p.carrier == update.shop or _hint_key(p) == update.carrier)
+        and not (update.shop == "amazon" and _seller_shipped(p))
     ]
     if delivered:
         matches = [

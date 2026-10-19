@@ -251,7 +251,7 @@ Die Diagnose lädst du unter **Einstellungen → Geräte & Dienste → Paket Tra
 **Die Diagnose enthält:**
 
 - die Version der Integration und das eingestellte Land,
-- ob „Namen ausblenden“ eingeschaltet ist (und je Paket, ob sein Name von Hand vergeben wurde – nie den Namen selbst),
+- ob „Namen ausblenden“ eingeschaltet ist und ob „Absendernamen aus DHL-Mails übernehmen“ eingeschaltet ist (und je Paket, ob sein Name von Hand vergeben wurde – nie den Namen selbst),
 - die Einstellungen ohne Geheimnisse,
 - je Paket Carrier, Modus, Status (auch, ob eine Bestellung ohne Zustellmail abgeschlossen wurde), Fehler und Zähler,
 - den Zustand des Mail-Imports: Zeitpunkt des letzten Laufs, Wartezeit nach Fehlern, Zähler für erkannte und nicht erkannte Mails,

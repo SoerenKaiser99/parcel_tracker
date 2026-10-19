@@ -43,9 +43,10 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 
 - Bestell- bzw. Sendungsnummer,
 - ein auf 60 Zeichen gekürzter Artikeltitel,
-- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
+- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“. Einzige Ausnahme ist die Option [Absendernamen aus DHL-Mails übernehmen](#absendernamen-aus-dhl-mails-ubernehmen), die du selbst einschalten musst,
 - Status, Liefertag und Zeitfenster,
 - bei einem abholbereiten Paket aus der Amazon-Mail „Paket zur Abholung bereit“: Name und Straße der Abholstelle (ohne Postleitzahl, Ort und interne Nummer des Shops) und der letzte Abholtag,
+- bei einem abholbereiten Paket aus der Abholmail von DHL: Filiale bzw. Packstation und Straße (ohne Postleitzahl und Ort),
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
 
@@ -61,6 +62,21 @@ Links in AliExpress-Mails (sie sagen, zu welcher Bestellung ein Packstück gehö
 
 Eine Mail, die du [per HTTP übergibst](mail-import.md#ohne-postfach-mail-per-http-ubergeben), geht nur an den Import und wird nicht gespeichert. Deshalb gibt es dafür bewusst keinen Dienst: Ein Dienstaufruf stünde samt Mail in der Recorder-Datenbank.
 
+### Absendernamen aus DHL-Mails übernehmen
+
+DHL nennt im Betreff den Absender: „Ihre <Name> Sendung kommt heute“. Von Haus aus wird dieser Name nur Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …). Ein kleiner Shop („Ihre Beispielshop .. Sendung …“) oder eine Privatperson bleibt ohne Namen: Das Paket heißt dann `DHL <Nummer>`.
+
+Im Bereich **E-Mail-Import** gibt es dafür den Schalter **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** (Standard: **aus**). Eingeschaltet wird der Name aus dem Betreff genommen, auch bei kleinen Shops und Privatpersonen. Ein „..“ oder „…“, mit dem DHL einen langen Namen abschneidet, entfällt.
+
+Was das für deine Daten heißt:
+
+- Der Name einer **Privatperson** kann dann auf der Karte, im Kalender, in den Sensoren und in Benachrichtigungen stehen. Schalte ihn nur ein, wenn das für dein Dashboard in Ordnung ist.
+- Gelesen wird **nur der Betreff** „Ihre … Sendung“. Nie die Anrede, nie eine Adresse, nie der Absender oder Namen aus anderen Stellen der Mail.
+- Ein Name aus einer **von Hand weitergeleiteten** Mail wird nie übernommen, auch nicht mit dem Schalter.
+- Ein Name, der einen Paketdienst nennt („DHL“, „DHL Paket“) oder keine Buchstaben enthält, wird nie übernommen.
+- [Namen ausblenden](#namen-ausblenden) gilt weiter und geht vor: Dann zeigt auch ein so gewonnener Name nichts, es steht nur der neutrale Name da.
+- Der Schalter ändert keine gespeicherten Namen. Er wirkt auf Mails, die danach gelesen werden.
+
 ## Benachrichtigungen
 
 Benachrichtigungen gehen an die gewählten Ziele und damit an deren Dienst (bei der Home-Assistant-App über den Push-Dienst von Apple oder Google).
@@ -70,7 +86,7 @@ Benachrichtigungen gehen an die gewählten Ziele und damit an deren Dienst (bei 
 - den Namen bzw. Artikeltitel des Pakets (ohne Namen die letzten vier Stellen der Nummer),
 - den Paketdienst,
 - den Status,
-- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Abholstelle (bei der Amazon-Abholmail Name und Straße des Shops).
+- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Abholstelle (bei der Amazon-Abholmail Name und Straße des Shops, bei der DHL-Abholmail Filiale bzw. Packstation und Straße).
 
 **Nie enthalten:** der Zustell-Code, die vollständige Sendungsnummer, deine Adresse, ein Ablageort.
 

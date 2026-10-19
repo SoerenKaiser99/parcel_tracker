@@ -29,6 +29,7 @@ from .const import (
     CONF_MOVE_PROCESSED,
     CONF_NOTIFY_EVENTS,
     CONF_NOTIFY_TARGETS,
+    CONF_PLAIN_NAMES,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
@@ -60,6 +61,7 @@ SAFE_KEYS = frozenset(
         CONF_IMAP_HOST,
         CONF_IMAP_SECURITY,
         CONF_MOVE_PROCESSED,
+        CONF_PLAIN_NAMES,
         CONF_READ_OTP,
         CONF_MAIL_INTERVAL,
         CONF_UPS_BUDGET,
@@ -152,6 +154,8 @@ def _redact(data: Mapping[str, Any]) -> dict[str, Any]:
         shown[CONF_COUNTRY] = known_country(shown[CONF_COUNTRY])
     if CONF_HIDE_NAMES in shown:
         shown[CONF_HIDE_NAMES] = shown[CONF_HIDE_NAMES] is True
+    if CONF_PLAIN_NAMES in shown:
+        shown[CONF_PLAIN_NAMES] = shown[CONF_PLAIN_NAMES] is True
     return shown
 
 

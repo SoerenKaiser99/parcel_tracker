@@ -18,6 +18,7 @@ from custom_components.parcel_tracker.const import (
     CONF_MAIL_INTERVAL,
     CONF_MAIL_SECTION,
     CONF_MOVE_PROCESSED,
+    CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
     DOMAIN,
@@ -343,6 +344,8 @@ async def test_options_mail_defaults_and_disabled_without_user(hass):
     assert entry.options[CONF_MAIL_INTERVAL] == 5
     assert entry.options[CONF_MOVE_PROCESSED] is True
     assert entry.options[CONF_READ_OTP] is False
+    # off by default, and then not stored at all (an untouched form changes nothing)
+    assert CONF_PLAIN_NAMES not in entry.options
     assert CONF_IMAP_PASSWORD not in entry.data
 
 
@@ -358,6 +361,7 @@ async def test_options_mail_login_ok_stores_password_in_data(hass):
                 imap_password="geheim",
                 move_processed=False,
                 read_otp=True,
+                plain_names=True,
             ),
         )
         await hass.async_block_till_done()
@@ -368,6 +372,7 @@ async def test_options_mail_login_ok_stores_password_in_data(hass):
     assert entry.options[CONF_IMAP_USER] == "pakete@example.org"
     assert entry.options[CONF_MOVE_PROCESSED] is False
     assert entry.options[CONF_READ_OTP] is True
+    assert entry.options[CONF_PLAIN_NAMES] is True
 
 
 async def test_options_mail_login_rejected_or_unreachable(hass):

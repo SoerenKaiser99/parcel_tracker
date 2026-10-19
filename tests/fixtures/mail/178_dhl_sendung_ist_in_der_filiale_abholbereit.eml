@@ -1,0 +1,68 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the parcel number, the company name, the branch and its street are invented; the
+ language menu, the styles of the layout tables, the opening hours, the pickup code
+ and the footer are cut
+From: "DHL Abholinformation" <abholung@dhl.de>
+To: max@example.org
+Subject: Ihre Beispiel GmbH Sendung ist in der Filiale abholbereit
+Date: Fri, 09 Oct 2026 16:23:26 +0200
+Message-ID: <fixture-178@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+[Onlineversion](https://custcomm.dhl.de/…) | [Datenschutzhinweis zur Übersetzung](https://custcomm.dhl.de/…)
+
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+<tbody>
+<tr>
+<td align="center">
+<p>Hallo Max Mustermann,</p>
+<p>Ihre <b>Beispiel GmbH</b> Sendung liegt ab sofort für Sie <b>7 Werktage</b> in folgender Filiale zur Abholung bereit:</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+  <tbody>
+    <tr>
+      <td align="left" valign="top" width="50%">
+        <table border="0" cellpadding="0" cellspacing="0">
+          <tbody>
+            <tr>
+              <td width="32" valign="middle">
+                <img src="https://storage.content-editor.campaign.optimizely.com/…" width="32" height="32" alt="Adresse" />
+              </td>
+              <td valign="middle">
+                <b>Adresse:</b>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <a href="https://www.dhl.de/…" target="_blank" rel="noopener" title="Standortfinder">Postfiliale 999</a><br />
+        Beispielweg 12<br />
+        12345 Musterstadt<br /><br />
+        <a href="https://www.google.com/…" target="_blank" rel="noopener" title="Route mit Google Maps planen">Route mit Google Maps planen</a>
+      </td>
+      <td align="left" valign="top" width="50%">
+        <b>Geöffnet:</b>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<table width="100%" border="0" cellpadding="0" cellspacing="0">
+  <tbody>
+    <tr>
+      <td align="center">
+        Ihre Sendungsnummer
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        00340999999999990178
+      </td>
+    </tr>
+  </tbody>
+</table>

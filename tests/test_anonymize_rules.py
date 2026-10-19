@@ -593,3 +593,72 @@ def test_salt_file_of_ones_own_or_in_the_out_folder_is_refused(tmp_path, place, 
     assert sorted(p.name for p in (src / "anonymisiert").glob("*")) == (
         ["salt.txt"] if "anonymisiert" in place else []
     )
+
+
+# ----- words glued together -----
+
+def _html_mail(sender: str, subject: str, markup: str) -> bytes:
+    msg = EmailMessage()
+    msg["From"] = sender
+    msg["To"] = "pakete@postfach.example"
+    msg["Subject"] = subject
+    msg["Date"] = DATE
+    msg.set_content(f"<html><body>{markup}</body></html>", subtype="html")
+    return bytes(msg)
+
+
+GIVEN = ("--name", "Jonas Meier", "--street", "Lindenweg 3", "--postcode", "80331",
+         "--city", "München")
+
+
+def test_given_name_and_street_glued_to_the_next_word_are_replaced(tmp_path):
+    """Some senders write their text part without the line breaks of the HTML part, or put
+    inline elements next to each other without a space."""
+    glued = _html_mail(
+        SHOP,
+        "Ihre Bestellung",
+        "<div>Herr <b>Meier</b><span>Ihre Bestellung wurde verschickt.</span></div>"
+        "<div>Lieferadresse:<b>Jonas Meier</b><span>Lindenweg 3</span><span>80331 München</span>"
+        "</div><div>Zustellung in <b>München</b><span>Deutschland</span></div>",
+    )
+    plain = _mail(
+        SHOP,
+        "Ihre Bestellung",
+        "FrauMeierIhr Paket kommt in den LindenwegHeute.\n"
+        "HERRMeier, JONAS MEIERLindenweg 3 in MÜNCHENDeutschland.\n",
+    )
+    done, [(_, first), (_, second)] = _run(tmp_path, [glued, plain], *GIVEN)
+    markup = first.get_body(("html",)).get_content()
+    assert "<p>Herr MustermannIhre Bestellung wurde verschickt.</p>" in markup
+    # (house number and postcode are one run of digits there: invented as a whole)
+    assert re.search(r"<p>Lieferadresse:Max MustermannMusterstraße \d{6} Musterstadt</p>", markup)
+    assert "<p>Zustellung in MusterstadtDeutschland</p>" in markup
+    assert "FrauMustermannIhr Paket kommt in den MusterstraßeHeute.\n" in _text(second)
+    # in capitals: the last capital of a run starts the next word
+    assert "HERRMustermann, Max MustermannMusterstraße 1 in MusterstadtDeutschland.\n" in (
+        _text(second)
+    )
+    for msg in (first, second):
+        _absent(msg, "jonas", "meier", "lindenweg", "80331", "münchen")
+    assert "steht noch eine der eigenen Angaben" not in done.stdout
+
+
+def test_learnt_name_glued_to_the_next_word_is_replaced(tmp_path):
+    known = _mail(SHOP, "Ihre Bestellung", "Hallo Jonas Meier,\n\ndanke.\n")
+    glued = _mail(SHOP, "Ihr Paket", "Herr MeierIhre Bestellung ist da.\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [known, glued])
+    assert "Herr MustermannIhre Bestellung ist da.\n" in _text(second)
+    for msg in (first, second):
+        _absent(msg, "jonas", "meier")
+
+
+def test_a_short_name_is_still_no_part_of_an_ordinary_word(tmp_path):
+    line = (
+        "Das Paket steht daneben, die angegebene Adresse stimmt, ANGEGEBENE AUCH, "
+        "angegebeneAdresse, Benedikt, Waldweg und der Buchenwald bleiben."
+    )
+    raw = _mail(SHOP, "Ihre Bestellung", f"Hallo Bene Wald,\n{line}\nBeneIhr Paket, HerrWald.\n")
+    _, [(_, msg)] = _run(tmp_path, [raw], "--name", "Bene Wald")
+    text = _text(msg)
+    assert line + "\n" in text
+    assert "MaxIhr Paket, HerrMustermann.\n" in text

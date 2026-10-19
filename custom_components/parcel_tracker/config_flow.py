@@ -48,6 +48,7 @@ from .const import (
     CONF_NOTIFY_EVENTS,
     CONF_NOTIFY_SECTION,
     CONF_NOTIFY_TARGETS,
+    CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
@@ -66,6 +67,7 @@ from .const import (
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
     DEFAULT_NOTIFY_EVENTS,
+    DEFAULT_PLAIN_NAMES,
     DEFAULT_POSTCODE,
     DEFAULT_READ_OTP,
     DEFAULT_UPS_BUDGET,
@@ -327,6 +329,10 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                 ): bool,
                 vol.Optional(
                     CONF_READ_OTP, default=current.get(CONF_READ_OTP, DEFAULT_READ_OTP)
+                ): bool,
+                vol.Optional(
+                    CONF_PLAIN_NAMES,
+                    default=current.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True,
                 ): bool,
                 vol.Optional(
                     CONF_MAIL_INTERVAL,
@@ -664,6 +670,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
             country = known_country(user_input.get(CONF_COUNTRY) or stored_country)
+            stored_plain = options.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True
+            plain_names = mail.get(CONF_PLAIN_NAMES, stored_plain) is True
             stored_hide = options.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True
             hide = user_input.get(CONF_HIDE_NAMES, stored_hide) is True
             if postcode and (err := _postcode_error(postcode, country)):
@@ -728,6 +736,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     new_options[CONF_COUNTRY] = country
                 if CONF_HIDE_NAMES in options or hide:
                     new_options[CONF_HIDE_NAMES] = hide
+                if CONF_PLAIN_NAMES in options or plain_names:
+                    new_options[CONF_PLAIN_NAMES] = plain_names
                 if CONF_IMAP_FOLDER in options or folder != DEFAULT_IMAP_FOLDER:
                     # An untouched form writes back exactly what is stored.
                     new_options[CONF_IMAP_FOLDER] = (
