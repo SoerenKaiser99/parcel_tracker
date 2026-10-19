@@ -100,6 +100,7 @@ Nimm diese Absender in die Filterregel auf:
 | `paketankuendigung@dhl.de` | DHL |
 | `zustellung@dhl.de` | DHL |
 | `sendungsupdate@dhl.de` | DHL (meldet einen verschobenen Zustelltag; der neue Tag wird übernommen) |
+| `abholung@dhl.de` | DHL (Paket liegt in der Filiale zur Abholung bereit) |
 | `noreply.odd@dhl.com` | DHL Express („On Demand Delivery“) |
 | `noreply@service.dpd.de` | DPD |
 | `no_reply@dpd.at` | DPD Österreich (Ankündigung, „kommt zwischen … Uhr“ mit Zeitfenster, Zustellung) |
@@ -125,7 +126,7 @@ if address :is "from" [
   "shipment-tracking@amazon.de", "order-update@amazon.de",
   "pickup-point@amazon.de",
   "noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de",
-  "sendungsupdate@dhl.de", "noreply.odd@dhl.com",
+  "sendungsupdate@dhl.de", "abholung@dhl.de", "noreply.odd@dhl.com",
   "noreply@service.dpd.de", "pkginfo@ups.com",
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",
@@ -157,7 +158,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply.odd@dhl.com OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
@@ -269,6 +270,7 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
 === "DHL"
 
     - Den Status liest der Import nur aus dem Betreff, siehe die Tabelle unter [Kein Key? Dann die DHL-Mails](dienste.md#kein-key-dann-die-dhl-mails).
+    - Liegt das Paket zur Abholung bereit („… ist in der Filiale abholbereit“, „Ihr DHL Paket ist ab sofort abholbereit“, auch die Erinnerung „liegt seit 2 Tagen in der Filiale“), übernimmt der Import aus dem Block „Adresse“ bzw. „Adresse der Filiale“ die Filiale oder Packstation mit Straße als Abholort („Postfiliale 999, Beispielweg 12“), ohne Postleitzahl und Ort. Gebaut ist das nach Abholmails aus Filialen; für Packstation, Poststation und Paketshop gab es noch kein Beispiel, dort gilt dieselbe Form des Blocks als Annahme. Er steht auf der Karte, im Attribut `pickup_point` und in der Benachrichtigung. Beginnt der Block nicht mit einer Filiale, Packstation, Poststation oder einem Paketshop, bleibt der Abholort leer, so wird nie eine Empfängeradresse zum Abholort. Mit DHL-Key bleibt dieser Abholort, solange das Paket abholbereit ist: DHL selbst nennt nur den Ort. Einen letzten Abholtag übernimmt der Import nicht, weil die Mail nur „7 Werktage“ nennt.
     - Internationale Nummern liest er nicht nur mit „DE“ am Ende (`CQ…DE`), sondern auch Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37), wie DHL sie bei Sendungen aus dem Ausland nennt (`LE…BE`, `LW…NL`). Das Paket wird ein DHL-Paket, und die Integration fragt es mit dem DHL-Key bei DHL ab. Solche Nummern zählen nur in Mails von DHL.
     - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
     - Steht im Textteil der Mail keine Nummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil: dort auch die Nummer direkt unter „Sendungsstatus einsehen“ bzw. „Sendungsverlauf einsehen“, mit 12 Ziffern oder als Nummer aus dem Ausland (z. B. `LR…NL`, `JJATA…`).

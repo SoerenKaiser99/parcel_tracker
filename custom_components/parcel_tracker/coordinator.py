@@ -1119,9 +1119,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # Still waiting at the pickup point: the place and the last day a mail or an
             # earlier lookup named stay, as long as the carrier names none of its own
             # (Hermes names neither; Amazon's pickup mail does). Any other status drops them.
+            # DHL names only the town, a DHL mail the branch with its street: the place
+            # known before stays (it is the town again if DHL named it before). A parcel
+            # moved on while waiting (a full Packstation, then a branch) keeps the old place
+            # until the next mail names the new one: DHL's town cannot tell them apart.
+            exact = known.pickup_point if key == "dhl" else None
             result = replace(
                 result,
-                pickup_point=result.pickup_point or known.pickup_point,
+                pickup_point=exact or result.pickup_point or known.pickup_point,
                 pickup_until=result.pickup_until or known.pickup_until,
             )
         # 17track only fills what the carrier left empty (place, day/window, history).

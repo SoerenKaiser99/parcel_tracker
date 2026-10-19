@@ -28,6 +28,7 @@ SENDERS = [
     "paketankuendigung@dhl.de",
     "zustellung@dhl.de",
     "sendungsupdate@dhl.de",
+    "abholung@dhl.de",
     "noreply.odd@dhl.com",
     "noreply@service.dpd.de",
     "no_reply@dpd.at",
@@ -904,14 +905,15 @@ def test_docs_list_the_dhl_senders_and_the_domain_rule():
         "paketankuendigung@dhl.de",
         "zustellung@dhl.de",
         "sendungsupdate@dhl.de",  # v0.3.22 (issue 11)
+        "abholung@dhl.de",  # the pickup mail
     ):
         assert f"`{address}`" in senders
         assert f'"{address}"' in senders  # the Sieve example
     assert "Regel auf die ganze Domain `dhl.de`" in senders
     no_key = _section(SERVICES, NO_KEY)
     assert (
-        "`noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de` und"
-        " `sendungsupdate@dhl.de`"
+        "`noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de`,"
+        " `sendungsupdate@dhl.de` und `abholung@dhl.de`"
     ) in no_key
     mails = _tab(MAIL, "DHL")
     assert "12 Ziffern" in mails and "„Ihre Sendungsnummer“" in mails

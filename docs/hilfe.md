@@ -249,7 +249,8 @@ Dazu gibt es `--phone` und `--email`. Ganz ohne Angaben arbeitet das Skript nur 
     - Sendungs- und Bestellnummern (gleiche Form, erfundene Ziffern),
     - Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort,
     - Adressblöcke auch mit österreichischer oder Schweizer Postleitzahl (vier Ziffern) und Straßen in jeder Schreibweise („-straße“, „-strasse“, „-str.“, „-gasse“, „-weg“, „-platz“ …), dazu die Namenszeile über der Straße und Blöcke unter „an folgende Adresse zugestellt:“ (seit v0.3.35),
-    - Namen von Nachbarn, Empfängern und privaten Absendern.
+    - Namen von Nachbarn, Empfängern und privaten Absendern,
+    - die Nummer einer Filiale, Packstation, Poststation oder eines Paketshops (dieselbe Stelle bekommt in allen Mails eines Laufs dieselbe erfundene Nummer) und die Straße darunter oder dahinter, wo immer sie steht.
 
     Technische Kopfzeilen und Anhänge entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus (Betreff mit „WG:“, „Fwd:“ oder „Fw:“ oder ein zitierter Kopfzeilenblock „Von: … Gesendet: …“), nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.
 

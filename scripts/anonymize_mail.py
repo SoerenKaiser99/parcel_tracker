@@ -370,8 +370,9 @@ Macht aus gespeicherten Paketmails (.eml) anonymisierte Beispielmails für ein G
 
 Ersetzt werden außerdem alle Mail-Adressen außer dem Absender, Telefonnummern, Links (nur
 der Servername bleibt), Sendungs-, Bestell- und andere lange Nummern (gleiche Form, erfundene
-Ziffern), Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort sowie Namen von
-Nachbarn, Empfängern und privaten Absendern. Technische Kopfzeilen und Anhänge entfallen.
+Ziffern), Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort, Namen von
+Nachbarn, Empfängern und privaten Absendern sowie Nummer und Straße einer Filiale oder
+Packstation. Technische Kopfzeilen und Anhänge entfallen.
 Frühere Ergebnisse im Zielordner (NNN_*.eml des Skripts und das ZIP) werden vorher gelöscht.
 Das Skript läuft nur lokal und baut keine Netzwerkverbindung auf.
 
@@ -650,6 +651,23 @@ _T_INLINE_ADDRESS = re.compile(
 )
 _T_PLZ_CITY = re.compile(
     rf"(?m)(?P<lead>^[*_> \t]*|[,|·•][ \t]*)(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
+)
+# A place to pick a parcel up at, with its number ("Postfiliale 999", "Packstation 123"): the
+# number tells where the recipient lives, so it is invented like a tracking number (the same
+# place gets the same number in every mail of a run).
+_T_PICKUP = r"(?:post)?filiale|packstation|poststation|paketshop|paketbox"
+_T_PICKUP_NUMBER = re.compile(
+    rf"(?i)(?<![^\W\d_])((?:{_T_PICKUP})[ \t]*(?:nr\.?[ \t]*)?)(\d{{2,6}})(?!\d)"
+)
+# Its street, learnt and then replaced wherever it stands: on the line below the place, up
+# to the line with the postcode (maybe with an addition: "Hauptstr. 3, Supermarkt"), also in
+# a text part that carries HTML ("Postfiliale 999</a><br />"), or in brackets behind it
+# ("Filiale 999 (Hauptstraße 1, 12345 Ort)").
+_T_MARKUP = r"(?:<[^<>\n]{0,300}>|[ \t*_>])*"
+_T_PICKUP_STREET = re.compile(
+    rf"(?im)^{_T_MARKUP}(?:{_T_PICKUP})\b[^\n]{{0,80}}\n{_T_MARKUP}(?P<street>{_T_STREET})"
+    rf"(?![^\W_])[^\n]{{0,80}}\n{_T_MARKUP}(?:D-)?\d{{5}}[ \t]"
+    rf"|(?:{_T_PICKUP})[ \t]*\d{{1,6}}[ \t]*\((?P<inline>{_T_STREET})[ \t]*,[ \t]*(?:D-)?\d{{5}}[ \t]"
 )
 # Quoted header lines of a forwarded mail: the recipients.
 _T_QUOTED_TO = re.compile(r"(?im)^([> \t]*(?:An|To|Cc|Kopie):)[ \t]*\S[^\n]*$")
@@ -1049,6 +1067,20 @@ class _TScrubber:
         ):
             self.cities.add(city)
 
+    def _pickup_street(self, street):
+        """The street of a pickup place (``_T_PICKUP_STREET``): replaced wherever it stands."""
+        bare = re.sub(r"[\s,.]*\d.*$", "", street).strip()
+        if len(bare) >= 4 and re.search(r"[^\W\d_]{3}", bare):
+            self.streets.add(street.strip())
+
+    def _pickup_number(self, match):
+        """An invented number for a pickup place; never with a 0 in front, which together with
+        the postcode behind it ("Packstation 081 12345") would read as a phone number."""
+        real, invented = match.group(2), self._run(match.group(2))
+        if invented[0] == "0":
+            invented = next(d for d in "123456789" if d != real[0]) + invented[1:]
+        return match.group(1) + invented
+
     def _rules(self):
         """The compiled rules of everything learnt, the longest first."""
         if self._learnt is None:
@@ -1260,6 +1292,10 @@ class _TScrubber:
         # Links and addresses first: a replaced name would tear a link apart.
         visible, noted = _T_LINKS.sub(" ", text), set()
         text = _T_LINKS.sub(lambda m: self._link(m, keep, visible, noted), text)
+        if self._learning:
+            for match in _T_PICKUP_STREET.finditer(text):
+                self._pickup_street(match.group("street") or match.group("inline"))
+        text = _T_PICKUP_NUMBER.sub(self._pickup_number, text)
         text = _T_ADDRESS_BLOCK.sub(self._block, text)
         text = _T_ADDRESS_INTRO.sub(self._block, text)
         text = _T_ALI_SHIP_TO.sub(self._ali_ship_to, text)
