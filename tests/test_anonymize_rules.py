@@ -323,6 +323,110 @@ def test_terminal_with_only_empty_answers_needs_the_flag_too(tmp_path):
     assert not (src / "anonymisiert").exists()
 
 
+# ----- more layouts of addresses, forms and recipients -----
+
+def test_name_behind_recipient_without_an_address(tmp_path):
+    raw = _mail(
+        "DPD <noreply@service.dpd.de>", "Ihr Paket kommt heute",
+        "Empfänger:\nTilda Sonnberg\nPaket live verfolgen\n"
+        "[01234567890123](https://my.dpd.de/x)Empfänger:Tilda Sonnberg   [Paket live verfolgen]\n"
+        "Empfänger: DPD Deutschland GmbH\nEmpfänger:\nDeutsche Post\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "tilda", "sonnberg")
+    assert "Empfänger:\nMax Mustermann\nPaket live verfolgen\n" in text
+    assert "Empfänger: DPD Deutschland GmbH\nEmpfänger:\nDeutsche Post\n" in text
+
+
+def test_fields_of_a_form(tmp_path):
+    raw = _mail(
+        SHOP, "Auftragsbestätigung",
+        "Name / Unternehmen: Tilda Sonnberg\nStraßenname: Ahornallee 5\nPLZ & Ort: 80000 Anderswo\n"
+        "Land: Deutschland\n\nVorname:\nTilda\nNachname:\nSonnberg\n\n"
+        "Straßenname:\nPostfach\nKundenname: Paketflitzer Service\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "tilda", "sonnberg", "ahornallee", "80000", "anderswo")
+    assert (
+        "Name / Unternehmen: Max Mustermann\nStraßenname: Musterstraße 1\n"
+        "PLZ & Ort: 12345 Musterstadt\nLand: Deutschland\n\nVorname:\nMax\nNachname:\nMustermann\n"
+    ) in text
+    assert "Straßenname:\nPostfach\nKundenname: Paketflitzer Service\n" in text
+
+
+def test_postcode_behind_a_pickup_place_in_bold(tmp_path):
+    raw = _mail(
+        "DHL <noreply@dhl.de>", "Ihr Paket liegt bereit",
+        "Abgabestelle\n**Packstation 123, ****80000 Anderswo**\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    _absent(msg, "80000", "anderswo")
+    assert ", ****12345 Musterstadt**\n" in _text(msg)
+
+
+def test_first_name_and_place_below_amazons_old_ship_to(tmp_path):
+    raw = _mail(
+        "Amazon.de <versandbestaetigung@amazon.de>", "Ihre Amazon.de-Bestellung wurde versandt",
+        "Die Sendung geht an:\n    Tilda\n    Anderswo\nGesamtbetrag der Bestellung: EUR 18,99\n"
+        "Hallo Tilda, Anderswo freut sich.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "tilda", "anderswo")
+    assert "Die Sendung geht an:\n    Max\n    Musterstadt\nGesamtbetrag der Bestellung:" in text
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        "an folgende Adresse zu:\nTilda Sonnberg\nTilda Sonnberg\nAhornallee 5\n"
+        "DE-80000 Anderswo\n",
+        "Ich habe Ihr Paket erfolgreich zugestellt:\nTilda Sonnberg\nAhornallee 5\n"
+        "DE-80000 Anderswo\n",
+        "Das Paket wurde an folgender Adresse zugestellt (bei einer Wunschzustellung ggf. "
+        "abweichend):\n  Tilda Sonnberg, 0151 2345678\nAhornallee 5\n80000 Anderswo\n",
+        "Ship to\nAhornallee, 5\nAnderswo, Bayern\nTilda Sonnberg (+49)1512345678\n",
+        "Ship to\nAhornallee, 5, Anderswo, Bayern\nPayment method\n",
+        "Lieferanschrift\nAnderswo, Bavaria, Ahornallee 5\nDE\n",
+    ],
+)
+def test_more_address_blocks(tmp_path, block):
+    raw = _mail(SHOP, "Ihre Sendung", f"Ihr Paket kommt.\n{block}Viel Freude damit.\n")
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    _absent(msg, "tilda", "sonnberg", "ahornallee", "80000", "anderswo")
+    assert "Viel Freude damit.\n" in _text(msg)
+
+
+@pytest.mark.parametrize(
+    "place",
+    [
+        "Adresse\nPackstation 123\nLindenstr. 9, Supermarkt\n80000Anderswo\n",
+        "Pickup Paketshop:\nKiosk Beispiel\nBirkenweg 3\nDE-80000 Anderswo\n",
+    ],
+)
+def test_street_of_a_pickup_place_with_more_layouts(tmp_path, place):
+    raw = _mail("DHL <noreply@dhl.de>", "Ihr Paket liegt bereit", f"Abholen bei:\n{place}")
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    _absent(msg, "lindenstr", "birkenweg", "80000", "anderswo")
+
+
+def test_more_fields_of_a_form(tmp_path):
+    raw = _mail(
+        SHOP, "Auftragsbestätigung",
+        "Straße | Nr.: Ahornallee 5\nPlz: 80000\nOrt: Anderswo\nPLZ, Ort: 80000 Anderswo\n"
+        "Ort: 80000 Anderswo\nOrt: Haustür ist zu\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "ahornallee", "80000", "anderswo")
+    assert (
+        "Straße | Nr.: Musterstraße 1\nPlz: 12345\nOrt: Musterstadt\nPLZ, Ort: 12345 Musterstadt\n"
+        "Ort: 12345 Musterstadt\nOrt: Haustür ist zu\n"
+    ) in text
+
+
 # ----- 5: forwarded and private mails -----
 
 def test_forwarded_mail_of_a_private_sender_with_an_own_domain(tmp_path):
@@ -456,7 +560,8 @@ def test_sender_named_in_a_carrier_sentence(tmp_path):
         "Im Auftrag von Ballermann möchten wir Sie mit dieser Benachrichtigung informieren.\n"
         "This message was sent to you at the request of Donnerwetter to notify you.\n"
         "Auf Antrag von Holzwurm Möbel GmbH , um Sie zu informieren.\n"
-        "Von: Kirschbaum\n\nKontrollnummer: 1Z999AA10123456784\n",
+        "Von: Kirschbaum\n\nKontrollnummer: 1Z999AA10123456784\n"
+        "Der Zustellversuch für deine Sendungvon Haselnuss findet am Donnerstag statt.\n",
     )
     _, [(name, msg)] = _run(tmp_path, [raw])
     text = _text(msg)
@@ -466,7 +571,8 @@ def test_sender_named_in_a_carrier_sentence(tmp_path):
     assert "at the request of Beispielversender to notify you.\n" in text
     assert "Auf Antrag von Holzwurm Möbel GmbH , um Sie zu informieren.\n" in text
     assert "Von: Beispielversender\n" in text
-    _absent(msg, "kirschbaum", "ballermann", "donnerwetter")
+    assert "deine Sendungvon Beispielversender findet am Donnerstag statt.\n" in text
+    _absent(msg, "kirschbaum", "ballermann", "donnerwetter", "haselnuss")
 
 
 # ----- --salt: each mail gives the same file in every run, alone or with others -----
