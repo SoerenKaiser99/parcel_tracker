@@ -606,12 +606,25 @@ _T_SENDER_SAME = re.compile(
     r"([^\W\d_][^\n\d,;|(<@]*?)[ \t]*(?=$|[,;|(<])"
 )
 # Neighbours and the person that took the parcel.
+_T_NEIGHBOUR_NAME = (
+    r"(?P<name>(?:[A-ZÄÖÜ]\.[ \t]?)?[A-ZÄÖÜ][^\W\d_]+(?:[-'’][^\W\d_]+)*"
+    r"(?:[ \t]+[A-ZÄÖÜ][^\W\d_]+(?:[-'’][^\W\d_]+)*){0,2})"
+)
 _T_NEIGHBOUR = re.compile(
     r"(?P<label>(?i:\bNachbar\w*|\babgegeben bei|\bEmpfangen von|\bUnterschrift"
     r"|\bentgegengenommen von|\b(?:ü|ue)bergeben an))"
-    r"(?P<gap>[ \t]*[:(]?[ \t]*(?:(?:Herrn?|Frau|Familie|Fam\.)[ \t]+)?)"
-    r"(?P<name>(?:[A-ZÄÖÜ]\.[ \t]?)?[A-ZÄÖÜ][^\W\d_]+(?:[-'’][^\W\d_]+)*"
-    r"(?:[ \t]+[A-ZÄÖÜ][^\W\d_]+(?:[-'’][^\W\d_]+)*){0,2})"
+    # the name behind the label or, behind a colon, on the line below ("Ihr Nachbar:\nNAME")
+    r"(?P<gap>[ \t]*(?:[:(][ \t]*(?:\n[*_ \t]*){0,2})?(?:(?:Herrn?|Frau|Familie|Fam\.)[ \t]+)?)"
+    + _T_NEIGHBOUR_NAME
+    # the neighbour's street in brackets behind the name or on a line of its own below it
+    + r"(?P<address>[ \t]*\([^()\n]{1,60}\)|(?:[ \t]*\n){1,2}[*_ \t]*(?=[^\n]*\d))?"
+)
+# DHL: "Wir haben sie bei NAME (Straße 5) abgegeben." – the name in front of the verb, the
+# neighbour's address in brackets behind it.
+_T_NEIGHBOUR_AT = re.compile(
+    r"(?P<label>\b[Bb]ei)(?P<gap>[ \t]+(?:(?:Herrn?|Frau|Familie|Fam\.)[ \t]+)?)"
+    + _T_NEIGHBOUR_NAME
+    + r"(?P<address>[ \t]*\([^()\n]{1,60}\))?(?P<verb>[ \t]+abgegeben\b)"
 )
 # Amazon: "Vorname – Ort" on the line above the order number.
 _T_AMAZON_LINE = re.compile(
@@ -693,16 +706,50 @@ _T_INVISIBLE = re.compile("[\u00ad\u034f\u200b-\u200f\u202a-\u202e\u2060\ufeff]"
 _T_SELLER = re.compile(r"(?i)(Verk(?:ä|ae)ufer(?:in)?:[ \t]*\n?[ \t]*)([^\n]+)")
 _T_GREETING = (
     r"(?i:Hallo|Hi|Hey|Moin|Servus|Guten (?:Tag|Morgen|Abend)|Liebe[rs]?"
-    r"|Sehr geehrte[rs]?|Dear|Hello)(?:[ \t]+(?i:Herrn?|Frau|Familie|Mr\.?|Mrs\.?|Ms\.?))?"
+    r"|Sehr geehrte(?:[rs]|\(r\)|/r)?|Dear|Hello)"
+    r"(?:[ \t]+(?i:Frau/Herr|Herr/Frau|Herrn?|Frau|Familie|Mr\.?|Mrs\.?|Ms\.?))?"
 )
+# "Liebe Grüße," closes a mail, it greets nobody.
+_T_NO_HELLO = r"(?!(?i:gr(?:ü|ue|u)(?:ß|ss)))"
 _T_HELLO = re.compile(
-    rf"(?m)^(?P<hello>[*_> \t]*{_T_GREETING})[ \t]+"
+    rf"(?m)^(?P<hello>[*_> \t]*{_T_GREETING})[ \t]+{_T_NO_HELLO}"
     r"(?P<name>[^\s,!:*]+(?:[ \t]+[^\s,!:*]+){0,3}?)(?P<end>[ \t]*[,!:*])"
 )
-# Without punctuation only capitalised words count: "Guten Tag Vorname Nachname".
+# Without punctuation only capitalised words count: "Guten Tag Vorname Nachname", also in
+# front of the sentence ("Sehr geehrte/r Vorname Nachname wir bedanken uns …").
 _T_HELLO_BARE = re.compile(
-    rf"(?m)^(?P<hello>[*_> \t]*{_T_GREETING})[ \t]+"
-    r"(?P<name>[A-ZÄÖÜ][^\s,!:*]*(?:[ \t]+[A-ZÄÖÜ][^\s,!:*]*){0,2})(?P<end>[ \t]*)$"
+    rf"(?m)^(?P<hello>[*_> \t]*{_T_GREETING})[ \t]+{_T_NO_HELLO}"
+    r"(?P<name>[A-ZÄÖÜ][^\s,!:*]*(?:[ \t]+[A-ZÄÖÜ][^\s,!:*]*){0,2})(?P<end>[ \t]*)"
+    r"(?:$|(?=[ \t]+[a-zäöüß]))"
+)
+# "Hallo, Vorname," and "Vielen Dank Vorname!": only a name (_t_name_line) counts, the words
+# behind may as well be a sentence ("Hallo, ich hätte eine Frage.").
+_T_HELLO_NAMED = re.compile(
+    r"(?m)^(?P<hello>[*_> \t]*(?:(?i:Hallo|Hi|Hey|Moin|Servus|Guten Tag),"
+    r"|(?i:Vielen Dank|Danke(?: schön)?),?))[ \t]+"
+    r"(?P<name>[A-ZÄÖÜ][^\W\d_]*\.?(?:[ \t]+[A-ZÄÖÜ][^\W\d_]*\.?){0,2})(?P<end>[ \t]*[,!.])"
+)
+# A closing formula on a line of its own, the writer's name on the next line or below one
+# empty line: "Viele Grüße\nVorname Nachname". Only a person counts (_t_person): most mails
+# close with a team or a company ("Ihr DHL Team"), and that stays. The name is replaced as a
+# whole in every mail, not each of its words: an employee's surname may be a brand elsewhere.
+_T_BYE = re.compile(
+    r"(?im)^(?P<bye>[*_> \t]*(?:(?:(?:(?:kind|best|warm)[ \t]+)?regards|best[ \t]+wishes"
+    r"|(?:[^\W\d_]+[ \t]+){0,3}gr(?:ü|ue|u)(?:ß|ss)(?:e|en)?)\b[^\n]{0,40}"
+    r"|(?:mfg|lg|vg)[ \t,!.]*)\n(?:[*_> \t]*\n)?[*_> \t]*)"
+    r"(?P<name>[^\s*_>][^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>(?:\n[^\n]*\S[^\n]*){0,4})"
+)
+# The same with the name on the line of the formula: "VG V. Nachname", "Viele Grüße, Vorname
+# Nachname".
+_T_BYE_SAME = re.compile(
+    r"(?im)^(?P<bye>[*_> \t]*(?:mfg|lg|vg"
+    r"|(?:viele|liebe|beste|freundliche)[ \t]+gr(?:ü|ue)(?:ß|ss)e|gru(?:ß|ss))[ \t]*,?[ \t]+)"
+    r"(?=[A-ZÄÖÜ])(?P<name>[^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>)"
+)
+# A line of the signature below such a name that is a web address and nothing else.
+_T_SIGNED_WEB = re.compile(
+    r"(?im)^([*_> \t]*(?:(?:web|internet|homepage|www)[ \t]*:[ \t]*)?)"
+    r"(?:https?://)?(?:[a-z0-9äöü-]+\.)+[a-z]{2,}(?:/\S*)?[ \t]*$"
 )
 _T_NAME2 = (
     rf"(?:{_T_NAME_TOKEN.pattern})(?:[ \t]+(?:von|van|de|der|zu))?[ \t]+(?:{_T_NAME_TOKEN.pattern})"
@@ -997,8 +1044,9 @@ class _TScrubber:
             self.own.update(name.replace(old, new) for name in surnames)
 
     # ----- first pass -----
-    def learn(self, text, subject="", display="", domain="", recipients=()):
-        """Remember what the rules find in one mail; nothing is returned."""
+    def learn(self, text, subject="", display="", domain="", recipients=(), private=False):
+        """Remember what the rules find in one mail; nothing is returned. ``private`` says
+        that the sender is a person (_t_private)."""
         self._learning, self._learnt = True, None
         try:
             for name in recipients:
@@ -1011,6 +1059,10 @@ class _TScrubber:
                 t.casefold() in domain for t in name.split() if len(t) >= 4
             ):
                 self._note(name, "Beispielversender")
+            if private and _t_person(name):
+                # A person wrote, answered or forwarded the mail: each word of the name is
+                # replaced too, also if the address carries the name.
+                self._person(name)
             for pattern, recipient in _T_SUBJECT_NAMES:
                 for match in pattern.finditer(subject):
                     if _t_person(match.group(1)):
@@ -1132,6 +1184,44 @@ class _TScrubber:
         self._person(" ".join(words), "Mustermann" if titled else "Max")
         return f"{match.group('hello')} Max Mustermann{match.group('end')}"
 
+    def _hello_named(self, match):
+        """"Hallo, NAME," and "Vielen Dank NAME!": only if the words are a name; a first name
+        becomes "Max", a title stays ("Danke, Herr Mustermann,")."""
+        words = match.group("name").split()
+        titled = bool(_T_TITLE.fullmatch(words[0]))
+        if not _t_name_line(match.group("name")) or len(words) == titled:
+            return match.group(0)
+        self._person(" ".join(words[titled:]), "Mustermann" if titled else "Max")
+        name = "Max" if len(words) == 1 else "Max Mustermann"
+        if titled:
+            name = f"{words[0]} Mustermann"
+        return f"{match.group('hello')} {name}{match.group('end')}"
+
+    def _quoted_to(self, match):
+        """The recipients in the quoted header of a forwarded mail: persons with an address
+        are replaced in every mail, the line itself becomes the placeholder address."""
+        for name in re.findall(r"([^<>;]+?)[ \t]*<", match.group(0).split(":", 1)[1]):
+            name = name.strip(" \t\"',")
+            if "," in name:  # "Nachname, Vorname"
+                name = " ".join(reversed([part.strip() for part in name.split(",", 1)]))
+            if _t_person(name):
+                self._person(name)
+        return f"{match.group(1)} {_T_MAIL}"
+
+    def _bye(self, match):
+        """The writer's name below a closing formula: a person, replaced in every mail."""
+        name = match.group("name")
+        if not _t_person(name):
+            return match.group(0)
+        # Only the whole name: the surname of a shop's employee may be a brand elsewhere.
+        self._note(name, "Max Mustermann")
+        # The person's own web address in the signature, only at this place.
+        rest = _T_SIGNED_WEB.sub(r"\1www.example.org", match.group("rest"))
+        if any(found.casefold() == name.casefold() for found in self.learned):
+            # Replaced with everything learnt: a private sender keeps its own placeholder.
+            return f"{match.group('bye')}{name}{match.group('end')}{rest}"
+        return f"{match.group('bye')}Max Mustermann{match.group('end')}{rest}"
+
     def _sender(self, match):
         """A person as sender becomes a placeholder, a company stays; the address never stays."""
         name = match.group(2)
@@ -1185,7 +1275,29 @@ class _TScrubber:
         neighbour = label.startswith(("nachbar", "abgegeben"))
         replacement = "Beispielnachbar" if neighbour else "Max Mustermann"
         self._note(name, replacement)
-        return match.group("label") + match.group("gap") + replacement
+        address, end = match.group("address") or "", match.end()
+        if address.strip(" \t()") and re.fullmatch(_T_STREET, address.strip(" \t()")):
+            self._recipient("", address.strip(" \t()"), "", "")
+            address = " (Musterstraße 1)"
+        elif address and not address.strip(" \t()"):
+            # the line below: only a street with its house number and nothing else
+            found = re.match(rf"({_T_STREET})[ \t]*$", match.string[end:end + 80].split("\n")[0])
+            if found:
+                self._recipient("", found.group(1), "", "")
+        return match.group("label") + match.group("gap") + replacement + address
+
+    def _neighbour_at(self, match):
+        """For "bei NAME (address) abgegeben": a branch or a shop stays, a street in the brackets
+        goes with the name."""
+        name, address = match.group("name"), match.group("address") or ""
+        first = name.split()[0]
+        if _T_NOT_NAME.fullmatch(first) or _t_company(name) or _T_SERVICE.search(name):
+            return match.group(0)
+        self._note(name, "Beispielnachbar")
+        if re.fullmatch(_T_STREET, address.strip(" \t()")):
+            address = " (Musterstraße 1)"
+        return (match.group("label") + match.group("gap") + "Beispielnachbar" + address
+                + match.group("verb"))
 
     def _place(self, match):
         found = match.group(match.re.groups)
@@ -1303,7 +1415,10 @@ class _TScrubber:
         text = _T_DELIVERED_TO.sub(self._delivered, text)
         text = _T_HELLO.sub(self._hello, text)
         text = _T_HELLO_BARE.sub(self._hello, text)
-        text = _T_QUOTED_TO.sub(f"\\1 {_T_MAIL}", text)
+        text = _T_HELLO_NAMED.sub(self._hello_named, text)
+        text = _T_BYE.sub(self._bye, text)
+        text = _T_BYE_SAME.sub(self._bye, text)
+        text = _T_QUOTED_TO.sub(self._quoted_to, text)
         for pattern in (_T_SENDER_BLOCK, _T_SENDER_NEXT, _T_SENDER_INLINE, _T_SENDER_SAME,
                         _T_SELLER):
             text = pattern.sub(self._sender, text)
@@ -1312,6 +1427,7 @@ class _TScrubber:
         text = _T_INLINE_ADDRESS.sub(self._inline, text)
         text = _T_PLZ_CITY.sub("\\g<lead>12345 Musterstadt", text)
         text = _T_NEIGHBOUR.sub(self._neighbour, text)
+        text = _T_NEIGHBOUR_AT.sub(self._neighbour_at, text)
         for pattern, replacement in self.rules:
             text = pattern.sub(replacement, text)
         if not self._learning:
@@ -1768,9 +1884,11 @@ def _t_run(args):
     for path in files:
         try:
             mail = load(path)
+            text, subject = "\n".join(_t_texts(mail)[:2]), _t_header(mail, "Subject")
+            display, address = _t_sender(mail)
             scrubber.learn(
-                "\n".join(_t_texts(mail)[:2]), _t_header(mail, "Subject"),
-                *_t_sender(mail), _t_recipients(mail),
+                text, subject, display, address, _t_recipients(mail),
+                _t_private(mail, address, scrubber, subject, text),
             )
             mails.append((os.path.basename(path), mail))
         except Exception:

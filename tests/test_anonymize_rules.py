@@ -595,6 +595,201 @@ def test_salt_file_of_ones_own_or_in_the_out_folder_is_refused(tmp_path, place, 
     )
 
 
+def test_neighbour_named_in_front_of_the_verb(tmp_path):
+    raw = _mail(
+        "DHL Paket <noreply@dhl.de>",
+        "Ihr Paket wurde zugestellt",
+        "Wir haben sie bei Haselnuss (Ahornallee 5) abgegeben.\n"
+        "Ihr Paket wurde bei Familie Kirschbaum abgegeben.\n"
+        "Die Sendung wurde bei Ihrem Nachbarn Ballermann abgegeben.\n"
+        "Ein Paket haben wir bei D. Donnerwetter (2. Etage) abgegeben.\n"
+        "Wir haben sie bei Ihrem Nachbarn abgegeben.\n"
+        "Wir haben sie bei der Filiale abgegeben.\n"
+        "Wir haben sie bei Hermes PaketShop (Hauptplatz 5) abgegeben.\n"
+        "Wir haben sie bei Paketshop Wolke abgegeben.\n"
+        "Bei Abholung abgegeben.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    for line in (
+        "Wir haben sie bei Beispielnachbar (Musterstraße 1) abgegeben.\n",
+        "Ihr Paket wurde bei Familie Beispielnachbar abgegeben.\n",
+        "Die Sendung wurde bei Ihrem Nachbarn Beispielnachbar abgegeben.\n",
+        "Ein Paket haben wir bei Beispielnachbar (2. Etage) abgegeben.\n",
+        "Wir haben sie bei Ihrem Nachbarn abgegeben.\n",
+        "Wir haben sie bei der Filiale abgegeben.\n",
+        "Wir haben sie bei Hermes PaketShop (Hauptplatz 5) abgegeben.\n",
+        "Wir haben sie bei Paketshop Wolke abgegeben.\n",
+        "Bei Abholung abgegeben.\n",
+    ):
+        assert line in text, line
+    _absent(msg, "haselnuss", "ahornallee", "kirschbaum", "ballermann", "donnerwetter")
+
+
+# ----- names that are learnt without any given value: closing formula, private sender -----
+
+@pytest.mark.parametrize(
+    "closing",
+    [
+        "Viele Grüße\nLena Holzer\n",
+        "Kind regards / Viele Grüße\nLena Holzer\n",
+        "Mit freundlichen Grüßen\n\nLena Holzer\n",
+        "> Liebe Grüße,\n> Lena Holzer\n",
+        "MfG\nLena Holzer\n",
+    ],
+)
+def test_name_below_a_closing_formula_is_replaced_as_a_whole_in_every_mail(tmp_path, closing):
+    raw = _mail(SHOP, "Ihre Frage", f"Das Paket ist unterwegs.\n\n{closing}")
+    other = _mail(
+        SHOP, "Paket unterwegs",
+        "Holzer Dübel wurde versandt.\nRückfragen beantwortet Lena Holzer.\n\n"
+        "Viele Grüße\nIhr Paketflitzer Team\n",
+    )
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
+    assert closing.replace("Lena Holzer", "Max Mustermann") in _text(first)
+    # only the whole name: the surname of a shop's employee may be a brand in another mail
+    assert "Holzer Dübel wurde versandt.\nRückfragen beantwortet Max Mustermann.\n" in _text(second)
+    # "Liebe Grüße," greets nobody: the word of the closing formula is no name
+    assert "Viele Grüße\nIhr Paketflitzer Team\n" in _text(second)
+
+
+@pytest.mark.parametrize(
+    "closing",
+    [
+        "Viele Grüße\nIhr Paketflitzer Team\n",
+        "Mit freundlichen Grüßen\nIhr Sendungsstatus\n",
+        "Viele Grüße\nLena vom Holzwurm Webshop Team\n",
+        "Viele Grüße\nFiliale\nHauptstraße\n",
+        "Viele Grüße aus dem Lager, wo Ihr Paket gerade für den Versand gepackt wird\nHolz Wurm\n",
+    ],
+)
+def test_a_team_or_a_company_below_a_closing_formula_stays(tmp_path, closing):
+    raw = _mail(SHOP, "Paket unterwegs", f"Ihr Paket ist unterwegs.\n\n{closing}")
+    other = _mail(SHOP, "Zugestellt", "Der Holz Wurm hat das Paket der Filiale übergeben.\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
+    assert closing in _text(first)
+    assert "Der Holz Wurm hat das Paket der Filiale übergeben." in _text(second)
+
+
+@pytest.mark.parametrize(
+    ("closing", "expected"),
+    [
+        ("VG T. Sonnberg", "VG Max Mustermann"),
+        ("Viele Grüße, Tilda Sonnberg", "Viele Grüße, Max Mustermann"),
+        ("LG Tilda Sonnberg", "LG Max Mustermann"),
+        ("Viele Grüße Ihr Paketflitzer Team", "Viele Grüße Ihr Paketflitzer Team"),
+    ],
+)
+def test_name_on_the_line_of_the_closing_formula(tmp_path, closing, expected):
+    raw = _mail(SHOP, "Ihre Frage", f"Wo bleibt mein Paket?\n{closing}\n")
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    assert f"Wo bleibt mein Paket?\n{expected}\n" in _text(msg)
+
+
+FORWARDED = (
+    "-------- Weitergeleitete Nachricht --------\n"
+    "Von: DHL <noreply@dhl.de>\nGesendet: Dienstag, 18. Juli 2023 08:00\n{to}"
+    "Betreff: Ihr Paket kommt\n\nGuten Tag,\n\nIhr Paket wurde von Probst angenommen.\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("sender", "subject", "text"),
+    [
+        # the address carries the name: the display name is not learnt as a private sender
+        ("Jörg Probst <joerg.probst@gmx.de>", "Paket", "Wo bleibt das Paket für Probst?\n"),
+        ("Jörg Probst <joerg@probst.example>", "Re: Ihre Frage", "Probst wartet noch.\n"),
+        ("Jörg Probst <joerg@probst.example>", "WG: Ihr Paket kommt", FORWARDED.format(to="")),
+        ("Jörg Probst <jp1987@gmx.de>", "WG: Ihr Paket kommt", FORWARDED.format(to="")),
+        # no display name: the name stands only in the quoted header of the forwarded mail
+        ("jp1987@gmx.de", "WG: Ihr Paket kommt",
+         FORWARDED.format(to="An: Jörg Probst <jp1987@gmx.de>\n")),
+        ("jp1987@gmx.de", "WG: Ihr Paket kommt",
+         FORWARDED.format(to='An: "Probst, Jörg" <jp1987@gmx.de>; Erika Sonne <e@gmx.de>\n')),
+    ],
+)
+def test_person_as_sender_or_quoted_recipient_is_learnt_with_each_word(
+    tmp_path, sender, subject, text,
+):
+    other = _mail(SHOP, "Zugestellt", "Abgeholt von Probst.\nJörg hat unterschrieben.\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [_mail(sender, subject, text), other])
+    _absent(first, "probst", "jörg", "joerg")
+    assert "Abgeholt von Mustermann.\nMax hat unterschrieben.\n" in _text(second)
+
+
+def test_person_in_the_from_header_of_a_shop_keeps_its_words(tmp_path):
+    """No mail of a person: only the whole name is a private sender, a word may be a brand."""
+    raw = _mail("Lena Holzer <versand@kleinerladen.example>", "Dein Paket", "Ist unterwegs.\n")
+    other = _mail(SHOP, "Paket unterwegs", "Holzer Dübel wurde versandt, sagt Lena Holzer.\n")
+    _, [_, (_, second)] = _run(tmp_path, [raw, other])
+    assert "Holzer Dübel wurde versandt, sagt Beispielversender.\n" in _text(second)
+
+
+def test_web_address_in_the_signature_of_a_person_is_replaced(tmp_path):
+    signature = "Viele Grüße\nJörg Probst\njp@probst-holzbau.example\nwww.probst-holzbau.example\n"
+    raw = _mail(
+        "Jörg Probst <jp@probst-holzbau.example>", "Re: Ihre Frage",
+        f"Wo bleibt mein Paket?\n\n{signature}\nMehr dazu auf www.paketflitzer.example\n",
+        to="service@paketflitzer.example",
+    )
+    team = _mail(
+        SHOP, "Paket unterwegs",
+        "Ist unterwegs.\n\nViele Grüße\nIhr Paketflitzer Team\nwww.paketflitzer.example\n",
+    )
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, team])
+    assert "Viele Grüße\nMax Mustermann\nmax@example.org\nwww.example.org\n" in _text(first)
+    # only in the signature of a person: no line of the text, no signature of a team
+    assert "Mehr dazu auf www.paketflitzer.example\n" in _text(first)
+    assert "Viele Grüße\nIhr Paketflitzer Team\nwww.paketflitzer.example\n" in _text(second)
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        ("Sehr geehrte(r) Tilda Sonnberg,", "Sehr geehrte(r) Max Mustermann,"),
+        ("Sehr geehrte(r) Frau/Herr Tilda Sonnberg", "Sehr geehrte(r) Frau/Herr Max Mustermann"),
+        ("Sehr geehrte/r Tilda Sonnberg wir bedanken uns für Ihren Auftrag.",
+         "Sehr geehrte/r Max Mustermann wir bedanken uns für Ihren Auftrag."),
+        ("Hallo, Tilda,", "Hallo, Max,"),
+        ("Vielen Dank Tilda !", "Vielen Dank Max !"),
+        ("Danke, Frau Sonnberg!", "Danke, Frau Mustermann!"),
+        # no name: a sentence stays
+        ("Hallo, ich bräuchte noch eine Rechnung.", "Hallo, ich bräuchte noch eine Rechnung."),
+        ("Hallo, Ihr Paket kommt!", "Hallo, Ihr Paket kommt!"),
+        ("Vielen Dank Für Ihre Bestellung!", "Vielen Dank Für Ihre Bestellung!"),
+        ("Danke Paketflitzer!", "Danke Paketflitzer!"),
+    ],
+)
+def test_more_greetings_with_a_name(tmp_path, line, expected):
+    raw = _mail(SHOP, "Ihre Bestellung", f"{line}\nIhr Paket ist unterwegs.\n")
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    assert f"{expected}\nIhr Paket ist unterwegs.\n" in _text(msg)
+
+
+def test_neighbour_on_the_line_below_the_label(tmp_path):
+    raw = _mail(
+        "DHL <noreply@dhl.de>", "Ihr Paket ist beim Nachbarn",
+        "Ihr Nachbar:\nHaselnuss\nAhornallee 7\n\nIhr Nachbar:\nPackstation 123\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "haselnuss")
+    assert "Ihr Nachbar:\nBeispielnachbar\n" in text
+
+
+def test_neighbour_below_an_empty_line_and_the_neighbours_street(tmp_path):
+    raw = _mail(
+        "DHL <noreply@dhl.de>", "Ihr Paket ist beim Nachbarn",
+        "Ihr Nachbar:\n\nHaselnuss\n\nErlenring 13 \n\n----\n"
+        "Wir haben es Ihrem Nachbarn Haselnuss (Erlenring 13 ) übergeben.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "haselnuss", "erlenring")
+    assert "Ihr Nachbar:\n\nBeispielnachbar\n\n" in text
+    assert "Ihrem Nachbarn Beispielnachbar (Musterstraße 1) übergeben.\n" in text
+
+
 # ----- words glued together -----
 
 def _html_mail(sender: str, subject: str, markup: str) -> bytes:
