@@ -4,7 +4,8 @@ Amazon's mails from "Versendet" on link to the shipment's tracking page
 (https://www.amazon.de/progress-tracker/package?orderId=…&shipmentId=…), behind Amazon's
 own redirect: since about March 2025, in the plain layout of "In Zustellung" since about
 August 2025. The id is the same in every mail about that box: it tells which entry of an
-order a mail goes to. The anonymised fixtures cut every link, so these mails are built here.
+order a mail goes to. Most mails are built here; the fixtures 181-191 are real sequences
+whose links the anonymiser kept as invented ones (the same id for the same box).
 """
 
 from datetime import datetime, timedelta
@@ -24,6 +25,8 @@ from custom_components.parcel_tracker.mail.apply import (
 )
 from custom_components.parcel_tracker.mail.base import ATTEMPT_TEXT, MailUpdate
 from custom_components.parcel_tracker.models import ParcelStatus
+
+from .conftest import FIXTURES, load_mail
 
 ORDER = "999-9156534-2587125"
 OTHER_ORDER = "999-1234567-7654321"
@@ -536,3 +539,35 @@ def test_a_further_box_delivered_long_ago_is_not_announced():
     )
     change = apply_update(parcels, late, NOW)
     assert change.created and not change.announce
+
+
+# ----- real sequences: every mail of an order, in the order they were sent -----
+def _replay(first: int, last: int) -> list:
+    names = sorted(p.name for p in (FIXTURES / "mail").glob("1[89][0-9]_*.eml"))
+    names = [n for n in names if first <= int(n[:3]) <= last]
+    updates = [u for name in names for u in parse_mail(load_mail(name)).updates]
+    parcels: dict = {}
+    for update in sorted(updates, key=lambda u: u.sent_at):
+        apply_update(parcels, update, update.sent_at)
+    return sorted(parcels.values(), key=lambda p: (len(p.number), p.number))
+
+
+def test_three_boxes_of_one_day_stay_apart_though_two_have_the_same_title():
+    # Ordered with four items; three "Versendet" mails on one day, two of them „Gardena…“.
+    # The first box never got a delivery mail: it stays shipped.
+    first, second, third = _replay(181, 188)
+    assert [(p.status, p.shipment_ids) for p in (first, second, third)] == [
+        (SHIPPED, ["TidmkrlPA"]),
+        (DELIVERED, ["TWsgUCqnI"]),
+        (DELIVERED, ["TdHFU2zAu"]),
+    ]
+    assert (second.name, third.name) == ("Gardena… (2)", "Gardena… und 1 weiterer Artikel (3)")
+
+
+def test_the_order_named_after_its_first_item_takes_the_name_of_the_first_box():
+    # The order's mail names each of its four items under the order number; the first box
+    # holds another one, the second box the first item and one more.
+    assert [(p.name, p.status, p.shipment_ids) for p in _replay(189, 191)] == [
+        ("OVNSHVN…", SHIPPED, ["T6DlR8pGJ"]),
+        ("Fasgear 240W… und 1 weiterer Artikel (2)", SHIPPED, ["TXAnNg2hP"]),
+    ]

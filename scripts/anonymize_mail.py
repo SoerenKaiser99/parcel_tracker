@@ -2240,7 +2240,61 @@ def fake(kind, real):
         return "1Z999AA1" + digits[:10]
     if kind == "tba":
         return "TBA" + digits[:12]
+    if kind == "shipment":
+        rest = "".join(_AMZ_ALPHABET[(h >> 6 * i) % 62] for i in range(len(real) - 1))
+        return real[0] + rest
     return real
+
+
+# ----- Amazon: the link to the tracking page -----
+# The mails from "Versendet" on link the box's tracking page with the order and the box's id
+# (shipmentId); the mail import tells the boxes of an order apart by it. Each such link is
+# kept where it stands, as one invented link: the replaced order number and an invented id,
+# the same for the same box in every mail, its first letter kept ("D": sent by the seller).
+# Through Amazon's redirect as well. Any other link is cut to the host as before.
+_AMZ_LINK = re.compile(r"(?i)https://(?:www\.)?amazon\.de(/[^?#\s]*)\?([^#\s]*)")
+_AMZ_TRACKER = "/progress-tracker/package"
+_AMZ_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+
+def _unquote(text):
+    return re.sub(r"%([0-9A-Fa-f]{2})", lambda m: chr(int(m.group(1), 16)), text)
+
+
+def _amz_tracker(link, redirect=True):
+    """(order, id) a link to Amazon's tracking page names, else None (no urllib: the script
+    stays clear of every module that could reach the network)."""
+    match = _AMZ_LINK.fullmatch(html.unescape(link))
+    if match is None:
+        return None
+    path = match.group(1)
+    params = dict(part.partition("=")[::2] for part in match.group(2).split("&"))
+    if redirect and path == "/gp/r.html" and params.get("U"):
+        return _amz_tracker(_unquote(params["U"]), redirect=False)
+    order, shipment = _unquote(params.get("orderId", "")), _unquote(params.get("shipmentId", ""))
+    if path == _AMZ_TRACKER and re.fullmatch(r"\d{3}-\d{7}-\d{7}", order) and re.fullmatch(
+        r"[A-Za-z0-9]{5,20}", shipment
+    ):
+        return order, shipment
+    return None
+
+
+def mark_amazon_trackers(t):
+    """(text, links): each link to the tracking page replaced by a mark that ``scrub`` leaves
+    alone, and the invented links in the order of their marks."""
+    links = []
+
+    def mark(match):
+        if (found := _amz_tracker(match.group(0))) is None:
+            return match.group(0)
+        order, shipment = found
+        links.append(
+            f"https://www.amazon.de{_AMZ_TRACKER}?orderId={fake('order', order)}"
+            f"&packageIndex=0&shipmentId={fake('shipment', shipment)}"
+        )
+        return f"\x00{len(links) - 1}\x00"
+
+    return re.sub(r"https?://[^\s<>\]\)\"]+", mark, t), links
 
 
 def scrub(t):
@@ -2310,7 +2364,9 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
         # The text first: parcel numbers are counted in the order of the mail texts.
         text = scrub_gls(text)
         subject = scrub_gls_values(subject)
-    links = []
+    links, tracked = [], []
+    if a.endswith("@amazon.de"):
+        text, tracked = mark_amazon_trackers(text)
     if ali:
         in_subject = re.search(r"(?<!\d)\d{12,20}(?!\d)", subject)
         text = scrub_aliexpress(text, len(in_subject.group(0)) if in_subject else 0)
@@ -2336,7 +2392,7 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
     out["Subject"] = subject
     out["Date"] = evt_date(evt_count) if evt else str(m["Date"])
     out["Message-ID"] = mid
-    text = scrub(text)
+    text = re.sub(r"\x00(\d+)\x00", lambda m: tracked[int(m.group(1))], scrub(text))
     # The orders of an AliExpress parcel: one invented link each, as the mail has them.
     link = "https://www.aliexpress.com/p/tracking/index.html?tradeOrderId="
     if was_html:
