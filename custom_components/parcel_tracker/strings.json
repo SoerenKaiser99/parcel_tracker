@@ -80,7 +80,7 @@
               "imap_folder": "The folder of the mailbox that is read – only this one. Keep \"INBOX\" for a dedicated parcel mailbox. A folder of your main mailbox works too, but then Home Assistant knows the password of that whole mailbox. Leave empty to keep the stored folder.",
               "move_processed": "Folders Paket-Tracker-Verarbeitet and Paket-Tracker-Nicht-erkannt.",
               "read_otp": "The card shows a code only after a tap and a confirmation. It never goes into the history.",
-              "plain_names": "A DHL subject “Ihre <name> Sendung …” names the parcel after the name in it, also for a small shop or a private person. Names of private people can then show up on the card, in the calendar, in the sensors and in the notifications. Off by default. “Hide names” still wins: it shows only the carrier name."
+              "plain_names": "A DHL subject “Ihre … Sendung …” names the parcel after the name in it, also for a small shop or a private person. Names of private people can then show up on the card, in the calendar, in the sensors and in the notifications. Off by default. “Hide names” still wins: it shows only the carrier name."
             }
           },
           "ups": {
