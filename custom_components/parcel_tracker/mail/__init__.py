@@ -138,7 +138,9 @@ def forwarded_original(msg: EmailMessage) -> EmailMessage | None:
     return original_message(msg, _known)
 
 
-def parse_mail(msg: EmailMessage, read_otp: bool = False) -> MailResult:
+def parse_mail(
+    msg: EmailMessage, read_otp: bool = False, plain_names: bool = False
+) -> MailResult:
     """Route a mail to its parser. Parser exceptions propagate to the caller.
 
     A forward whose original sender we know is parsed as that original (see
@@ -146,13 +148,13 @@ def parse_mail(msg: EmailMessage, read_otp: bool = False) -> MailResult:
     """
     original = forwarded_original(msg)
     if original is None:
-        return _route(msg, read_otp)
-    result = _route(original, read_otp)
+        return _route(msg, read_otp, plain_names)
+    result = _route(original, read_otp, plain_names)
     result.amazon = False
     return result
 
 
-def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
+def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
     address, _ = sender(msg)
     if is_ignored(address):
         return MailResult(ignored=True)
@@ -185,7 +187,7 @@ def _route(msg: EmailMessage, read_otp: bool) -> MailResult:
             return MailResult(updates=updates, amazon=real_amazon)
         return MailResult(updates=parse_generic(msg))
     if (domain == DHL_DOMAIN or domain.endswith(f".{DHL_DOMAIN}")) and (
-        updates := parse_dhl_mail(msg)
+        updates := parse_dhl_mail(msg, plain_names)
     ):
         return MailResult(updates=updates)
     if (domain == DHL_COM_DOMAIN or domain.endswith(f".{DHL_COM_DOMAIN}")) and (

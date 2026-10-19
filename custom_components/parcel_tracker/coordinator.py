@@ -55,6 +55,7 @@ from .const import (
     CONF_MOVE_PROCESSED,
     CONF_NOTIFY_EVENTS,
     CONF_NOTIFY_TARGETS,
+    CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
     DEFAULT_HIDE_NAMES,
@@ -62,6 +63,7 @@ from .const import (
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
     DEFAULT_NOTIFY_EVENTS,
+    DEFAULT_PLAIN_NAMES,
     DEFAULT_READ_OTP,
     DHL_DAILY_SOFT_LIMIT,
     DHL_FALLBACK_TRIES,
@@ -145,7 +147,9 @@ class _ParsedMail:
     forwarded: bool = False
 
 
-def _parse_one(raw: bytes, read_otp: bool, now: datetime) -> _ParsedMail:
+def _parse_one(
+    raw: bytes, read_otp: bool, now: datetime, plain_names: bool = False
+) -> _ParsedMail:
     item = _ParsedMail()
     try:
         msg = email.message_from_bytes(raw, policy=policy.default)
@@ -162,15 +166,17 @@ def _parse_one(raw: bytes, read_otp: bool, now: datetime) -> _ParsedMail:
         except (TypeError, ValueError):
             item.stale = False  # no usable Date: let the parser decide
         if not item.stale:
-            item.result = parse_mail(msg, read_otp)
+            item.result = parse_mail(msg, read_otp, plain_names)
     except Exception as err:  # noqa: BLE001 - reported per mail by the coordinator
         item.error = err
     return item
 
 
-def _parse_mails(raws: list[bytes], read_otp: bool, now: datetime) -> list[_ParsedMail]:
+def _parse_mails(
+    raws: list[bytes], read_otp: bool, now: datetime, plain_names: bool = False
+) -> list[_ParsedMail]:
     """Parse mails (blocking, runs in the executor)."""
-    return [_parse_one(raw, read_otp, now) for raw in raws]
+    return [_parse_one(raw, read_otp, now, plain_names) for raw in raws]
 
 
 class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
@@ -278,6 +284,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     @property
     def _read_otp(self) -> bool:
         return self.entry.options.get(CONF_READ_OTP, DEFAULT_READ_OTP)
+
+    @property
+    def _plain_names(self) -> bool:
+        return self.entry.options.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True
 
     @property
     def _notify_targets(self) -> list[str]:
@@ -566,7 +576,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         if not mails:
             return
         parsed = await self.hass.async_add_executor_job(
-            _parse_mails, [raw for _, raw in mails], self._read_otp, now
+            _parse_mails, [raw for _, raw in mails], self._read_otp, now, self._plain_names
         )
         async with self._lock:
             dispositions = [
@@ -641,7 +651,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         unloaded in the meantime.
         """
         now = dt_util.utcnow()
-        [item] = await self.hass.async_add_executor_job(_parse_mails, [raw], self._read_otp, now)
+        [item] = await self.hass.async_add_executor_job(
+            _parse_mails, [raw], self._read_otp, now, self._plain_names
+        )
         async with self._lock:
             if self._stopped:
                 return None
@@ -1108,9 +1120,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # Still waiting at the pickup point: the place and the last day a mail or an
             # earlier lookup named stay, as long as the carrier names none of its own
             # (Hermes names neither; Amazon's pickup mail does). Any other status drops them.
+            # DHL names only the town, a DHL mail the branch with its street: the place
+            # known before stays (it is the town again if DHL named it before). A parcel
+            # moved on while waiting (a full Packstation, then a branch) keeps the old place
+            # until the next mail names the new one: DHL's town cannot tell them apart.
+            exact = known.pickup_point if key == "dhl" else None
             result = replace(
                 result,
-                pickup_point=result.pickup_point or known.pickup_point,
+                pickup_point=exact or result.pickup_point or known.pickup_point,
                 pickup_until=result.pickup_until or known.pickup_until,
             )
         # 17track only fills what the carrier left empty (place, day/window, history).

@@ -1,0 +1,70 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (--salt); the
+ name, the street, the items, the reference and the digits of the card are
+ replaced by hand
+From: "eBay" <ebay@ebay.com>
+To: max@example.org
+Subject: Ihre Bestellung wurde =?utf-8?q?best=C3=A4tigt?=
+Date: Sun, 22 Mar 2026 13:02:29 -0700
+Message-ID: <beispiel-5ece5704fef4@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Lieferung ca.: Fr, 27. Mär - Do, 02. Apr. Den aktuellen Status finden Sie in der Versandbestätigung.</p>
+<p>Vielen Dank! Ihre Bestellung wurde bestätigt.</p>
+<p>Einzelheiten zum Kauf ansehen</p>
+<p>Ihre Bestellung wird verschickt an:</p>
+<p>Max Mustermann</p>
+<p>Musterstraße 1</p>
+<p>55531944</p>
+<p>12345 Musterstadt</p>
+<p>Deutschland</p>
+<p>Lieferung ca.:</p>
+<p>Fr, 27. Mär - Do, 02. Apr</p>
+<p>Einzelheiten zu Ihrem Kauf</p>
+<p>Ihre Bestellung ist eingegangen. Wir benachrichtigen Sie, wenn sie verschickt wird. Wenn Ihre Artikel in getrennten Sendungen verschickt werden, erhalten Sie von uns mehrere Versand-Updates.</p>
+<p>Beispiel-Zulaufschlauch Aquastop 1,6m</p>
+<p>Preis:</p>
+<p>EUR 7,95</p>
+<p>EUR 7,95</p>
+<p>Artikelnr.:</p>
+<p>097209577403</p>
+<p>097209577403</p>
+<p>Bestellnummer:</p>
+<p>14-38252-53407</p>
+<p>14-38252-53407</p>
+<p>Verkäufer:</p>
+<p>beispielshop</p>
+<p>beispielshop</p>
+<p>eBay-Käuferschutz</p>
+<p>Beispiel-Magnetventil für Waschmaschine</p>
+<p>Preis:</p>
+<p>EUR 9,95</p>
+<p>EUR 9,95</p>
+<p>Artikelnr.:</p>
+<p>675788922619</p>
+<p>675788922619</p>
+<p>Bestellnummer:</p>
+<p>14-38252-53407</p>
+<p>14-38252-53407</p>
+<p>Verkäufer:</p>
+<p>beispielshop</p>
+<p>beispielshop</p>
+<p>eBay-Käuferschutz</p>
+<p>Lieferstatus</p>
+<p>Gesamtbetrag:</p>
+<p>Zwischensumme (2 Artikel)</p>
+<p>EUR 17,90</p>
+<p>Versand</p>
+<p>EUR 13,90</p>
+<p>Gesamtbetrag wird abgebucht von</p>
+<p>x -0000</p>
+<p>EUR 31,80</p>
+<p>Wie hilfreich ist diese E-Mail?</p>
+<p>E-Mail-Referenznr.: [#00000000000000000000000000000000]</p>
+<p>E-Mail-Einstellungen aktualisieren oder mehr erfahren zum Schutz Ihres eBay-Kontos.</p>
+<p>Bei Fragen kontaktieren Sie uns bitte.</p>
+<p>eBay GmbH, Musterstraße 1, 12345 Musterstadt, Deutschland</p>
+<p>© 6338-8441 eBay Inc. oder Tochtergesellschaften</p>
+</body></html>

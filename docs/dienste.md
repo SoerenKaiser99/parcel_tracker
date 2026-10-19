@@ -66,7 +66,7 @@ Ohne DHL-Key läuft die Integration trotzdem: DPD, GLS und Hermes brauchen keine
 So kommen DHL-Pakete ohne Key von selbst in die Übersicht:
 
 1. Im (kostenlosen) DHL-Kundenkonto die E-Mail-Benachrichtigungen zu Sendungen einschalten.
-2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de` und `sendungsupdate@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen. Siehe [E-Mail-Import](mail-import.md#filterregel-anlegen).
+2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de`, `sendungsupdate@dhl.de` und `abholung@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen. Siehe [E-Mail-Import](mail-import.md#filterregel-anlegen).
 3. Fertig: Die Integration legt die Pakete aus den Mails an und führt den Status mit – samt Liefertag, wenn die Mail ihn nennt. Mit Key kämen nur Ort und Verlauf dazu.
 
 Den Status liest der Import nur aus dem Betreff der DHL-Mail:
@@ -78,7 +78,7 @@ Den Status liest der Import nur aus dem Betreff der DHL-Mail:
 | „kommt heute“, „wird heute zugestellt“ | „In Zustellung“ für den Tag der Mail |
 | „wird gleich zugestellt“ | „In Zustellung“ für den Tag der Mail, mit der eigenen Zeile „Wird gleich zugestellt“ im Verlauf |
 | „wurde zugestellt“, auch „wurde an den gewünschten Ablageort zugestellt“, „liegt im Briefkasten“, „liegt nebenan“ | „Zugestellt“ |
-| „Liegt zur Abholung bereit“, „liegt seit … Tagen in der Filiale“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“ |
+| „Liegt zur Abholung bereit“, „liegt seit … Tagen in der Filiale“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“, mit Filiale bzw. Packstation und Straße als Abholort, wenn die Mail sie nennt |
 | „wurde leider auf dem Transportweg beschädigt“ | „Unterwegs“, mit der eigenen Zeile „Verpackung beschädigt“ im Verlauf |
 | jede andere Mail, deren Betreff von einer „Sendung“ spricht (Zustellfoto, gescheiterter Zustellversuch, Neuigkeiten) | nur „Unterwegs“ ohne Tag; nie einen Status zurück |
 | Umfrage (Betreff mit Fragezeichen) oder Betreff ohne „Sendung“ | legt das Paket nur an |
@@ -199,7 +199,7 @@ Liefert der Paketdienst gar nichts (z. B. DHL ohne API-Key, UPS ohne API-Zugang)
 Diese vier kennt die Integration **nur aus Mails**. Eine Anmeldung beim Shop gibt es nicht. Abgefragt wird nur die Sendungsnummer des Paketdienstes, sobald eine Mail sie verrät.
 
 - **Amazon:** Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Amazon-Nummern (`TBA…`) lassen sich nicht direkt verfolgen.
-- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer. Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
+- **eBay:** Pro Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer, ab der Kaufbestätigung als „Bestellt“. Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
 - **AliExpress:** Pro Bestellung entsteht ein Paket mit der Nummer `ALI` + Bestellnummer. Nennt eine „Packstück“-Mail eine DHL- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann live beim Paketdienst abgefragt (DHL mit API-Key).
 
 - **Eventim:** Pro Ticketbestellung mit Postversand entsteht ein Eintrag mit der Nummer `EVT` + Bestellnummer, benannt nach der Veranstaltung. Die Versandbenachrichtigung setzt „Versendet“ und den Lieferzeitraum. Eventim nennt keine Sendungsnummer und schickt keine „Zugestellt“-Mail: Die Bestellung endet mit [„Erhalten“](karte.md#erhalten) auf der Karte oder von selbst nach dem Lieferzeitraum. Tickets zum Selbstausdrucken oder fürs Handy werden nicht angelegt.
