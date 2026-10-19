@@ -189,6 +189,7 @@
     "unknown_carrier": {"message": "Unknown carrier."},
     "not_tracked": {"message": "This parcel isn't in the list."},
     "already_delivered": {"message": "This parcel is already delivered."},
+    "cancelled": {"message": "This order was cancelled, nothing more is coming."},
     "track17_off": {"message": "No 17track API key set. Add one in the Parcel Tracker options."},
     "track17_carrier": {"message": "17track couldn't recognise the carrier of this number."},
     "track17_quota": {"message": "Your 17track quota is used up."},

@@ -31,7 +31,7 @@ from .base import (
     unrelay,
 )
 from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_de_mail, parse_dpd_mail
-from .ebay import EBAY_SENDER, parse_ebay
+from .ebay import EBAY_SENDER, is_cancel_request, parse_ebay
 from .eventim import (
     EVENTIM_DOMAIN,
     EVENTIM_PRESENTS_DOMAIN,
@@ -161,6 +161,8 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
     if address == EBAY_SENDER:
         # eBay mails never go to the generic parser: their item numbers look like
         # tracking numbers. Unknown subjects are simply unrecognised.
+        if is_cancel_request(msg):
+            return MailResult(ignored=True)
         return MailResult(updates=parse_ebay(msg))
     domain = domain_of(address)
     if domain == ALIEXPRESS_DOMAIN or domain.endswith(f".{ALIEXPRESS_DOMAIN}"):

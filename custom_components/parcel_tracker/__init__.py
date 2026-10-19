@@ -243,7 +243,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except KeyError as err:
             raise _err("not_tracked") from err
         except ValueError as err:
-            raise _err("already_delivered") from err
+            raise _err("cancelled" if str(err) == "cancelled" else "already_delivered") from err
 
     async def refresh(call: ServiceCall) -> None:
         try:

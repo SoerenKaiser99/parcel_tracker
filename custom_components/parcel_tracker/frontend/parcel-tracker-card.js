@@ -135,6 +135,7 @@ const SERVICE_ERRORS = {
   unknown_carrier: "Unbekannter Carrier.",
   not_tracked: "Dieses Paket ist nicht in der Liste.",
   already_delivered: "Dieses Paket ist schon zugestellt.",
+  cancelled: "Diese Bestellung ist storniert, es kommt nichts mehr.",
   track17_off: "Kein 17track-API-Key eingetragen. Trag ihn in den Optionen von Paket Tracker ein.",
   track17_carrier: "17track hat den Carrier dieser Nummer nicht erkannt.",
   track17_quota: "Das 17track-Kontingent ist erschöpft.",

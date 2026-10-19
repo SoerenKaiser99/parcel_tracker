@@ -573,7 +573,7 @@ def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
         return ordered
     if _further_shipment(siblings, update, key):
         return None
-    open_ = [p for p in free if p.status is not ParcelStatus.DELIVERED]
+    open_ = [p for p in free if p.status not in CLOSED_STATUSES]
     return (open_ or free)[0]
 
 
@@ -1050,7 +1050,8 @@ def _cancels_all(parcel: Parcel, update: MailUpdate) -> bool:
     """Does the cancellation take all of the order?
 
     A mail about the order does (it names no item). One about items only if the order is
-    that one item: its title names it and no further one ("… und 2 weitere Artikel").
+    that one item: its title names it (cut short counts, see ``_names_item``) and no
+    further one ("… und 2 weitere Artikel").
     """
     if update.title is None:
         return True
@@ -1058,7 +1059,7 @@ def _cancels_all(parcel: Parcel, update: MailUpdate) -> bool:
     return (
         title is not None
         and not names_more_items(title)
-        and title_key(title) == title_key(update.title)
+        and _names_item(parcel, title_key(update.title))
     )
 
 

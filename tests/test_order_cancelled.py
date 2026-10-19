@@ -1,4 +1,4 @@
-"""A shop cancels an order: the status "Storniert" (Amazon, AliExpress)."""
+"""A shop cancels an order: the status "Storniert" (Amazon, eBay, AliExpress)."""
 
 import json
 import shutil
@@ -50,6 +50,13 @@ AMAZON_ITEMS = "156_order_update_erfolgreiche_stornierung_vo.eml"
 ALIEXPRESS_OVERDUE = "157_aliexpress_stornierte_bestellung_wegen_b.eml"
 # Tells no reason: also after a dispute or a refund of an order that arrived long ago.
 ALIEXPRESS_CLOSED = "142_aliexpress_your_order_is_closed.eml"
+# eBay, a real sequence: ordered, the buyer asks to break the purchase off (only read: the
+# seller may say no), the seller agrees.
+EBAY_ORDERED = "192_ebay_bestellung_bestaetigt_baustrahler.eml"
+EBAY_REQUEST = "193_ebay_ok_sie_moechten_den_kauf_abbrechen.eml"
+EBAY_BROKEN_OFF = "194_ebay_kauf_wurde_abgebrochen.eml"
+# Amazon's order mail naming the items of each day under the order number again.
+AMAZON_SEVERAL = "189_bestellbestaetigung_bestellt.eml"
 
 NOW = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
 TODAY = NOW.astimezone(BERLIN).date()
@@ -80,6 +87,7 @@ def _cancel(number=ORDER, carrier="amazon", title=None) -> MailUpdate:
         (AMAZON, ORDER, "amazon", TITLE),
         (AMAZON_ORDER, "AMZ99938310205529571", "amazon", None),  # (None: the whole order)
         (AMAZON_ITEMS, "AMZ99936398346041064", "amazon", ROBOT),
+        (EBAY_BROKEN_OFF, "EBAY582584515534", "ebay", None),
         (ALIEXPRESS_OVERDUE, "ALI9999999999990001", "aliexpress", None),
     ],
 )
@@ -104,11 +112,14 @@ def test_closed_tells_no_reason_and_is_only_read():
     assert result.ignored and not result.updates
 
 
-def test_an_ebay_purchase_broken_off_is_no_cancellation():
-    # eBay orders begin with the shipping mail, never "Bestellt": nothing to cancel yet.
-    msg = load_mail("104_ebay_ihre_sendung_ist_jetzt_beim_versand.eml")
-    msg.replace_header("Subject", "Kauf 99-99999-99999 wurde abgebrochen")
-    assert parse_mail(msg).updates == []
+def test_the_request_to_break_off_an_ebay_purchase_is_only_read():
+    result = parse_mail(load_mail(EBAY_REQUEST))
+    assert result.ignored and not result.updates
+
+
+def test_an_amazon_order_mail_naming_its_items_one_by_one_is_one_order_of_them_all():
+    updates = parse_mail(load_mail(AMAZON_SEVERAL)).updates
+    assert {u.title for u in updates} == {"Fasgear 240W… und 3 weitere Artikel"}
 
 
 def test_other_mails_are_never_a_cancellation():
@@ -138,6 +149,7 @@ def test_a_cancellation_forwarded_by_hand_is_read_like_amazons_own_mail():
         (AMAZON, ORDER, "amazon", TITLE),
         (AMAZON_ORDER, "AMZ99938310205529571", "amazon", SANDING),  # (also with further items)
         (AMAZON_ITEMS, "AMZ99936398346041064", "amazon", "Beispiel-Saugroboter mit Wischfunk…"),
+        (EBAY_BROKEN_OFF, "EBAY582584515534", "ebay", "Beispiel-Akku-Baustrahler"),
         (ALIEXPRESS_OVERDUE, "ALI9999999999990001", "aliexpress", None),
     ],
 )
@@ -158,6 +170,20 @@ def test_the_mail_closes_the_open_order_as_cancelled(name, number, carrier, titl
     assert (event.text, event.timestamp) == (CANCELLED_TEXT, parse_mail(mail).updates[0].sent_at)
     assert order.last_change_at == NOW
     assert len(parcels) == 1
+
+
+def _replay(*names):
+    parcels = {}
+    for name in names:
+        for update in parse_mail(load_mail(name)).updates:
+            apply_update(parcels, update, update.sent_at)
+    return parcels
+
+
+def test_an_ebay_purchase_broken_off_after_the_request_is_cancelled():
+    [order] = _replay(EBAY_ORDERED, EBAY_REQUEST, EBAY_BROKEN_OFF).values()
+    assert (order.number, order.status) == ("EBAY582584515534", ParcelStatus.CANCELLED)
+    assert [e.text for e in order.result.events] == [CANCELLED_TEXT, "Bestellt"]
 
 
 def test_a_cancelled_order_is_done_but_never_delivered():
@@ -261,6 +287,23 @@ def test_an_item_cancellation_leaves_an_order_with_more_or_other_items(title):
     assert order.to_dict() == before
 
 
+def test_an_item_cut_short_in_the_subject_still_names_the_order():
+    order = _order(title="Beispiel-Lautsprecher Bluetooth")
+    assert apply_update({ORDER: order}, _cancel(title="Beispiel…"), NOW).parcel is order
+    assert order.status is ParcelStatus.CANCELLED
+
+
+def test_an_item_cancellation_leaves_an_order_whose_mail_named_its_items_one_by_one():
+    [order] = _replay(AMAZON_SEVERAL).values()
+    item = MailUpdate(order.number, "amazon", ParcelStatus.CANCELLED, NOW,
+                      title="Midori 15 cm Aluminium Lineal – schwarz")
+    before = order.to_dict()
+    assert apply_update({order.number: order}, item, NOW) is None  # three more still come
+    assert order.to_dict() == before
+    assert apply_update({order.number: order}, replace(item, title=None), NOW).parcel is order
+    assert order.status is ParcelStatus.CANCELLED
+
+
 def test_the_cancellation_of_the_whole_order_closes_it_with_all_its_items():
     order = _order(title=f"{TITLE} und 1 weiterer Artikel")
     assert apply_update({ORDER: order}, _cancel(), NOW).parcel is order
@@ -326,6 +369,18 @@ def test_a_mail_sent_before_the_cancellation_does_not_open_the_order(sent, title
     ordered = MailUpdate(ORDER, "amazon", ParcelStatus.PRE_TRANSIT, sent, title=title)
     assert apply_update(parcels, ordered, NOW) is None  # read late, e.g. forwarded by hand
     assert order.to_dict() == before and len(parcels) == 1
+
+
+def test_a_new_box_goes_to_the_open_entry_not_to_the_cancelled_one():
+    # Neither entry knows a shipment yet; the mail names one and no item.
+    cancelled = _order()
+    shipped = _order(f"{ORDER}P2", status=ParcelStatus.IN_TRANSIT, title="Beispiel-Netzteil 65 W")
+    parcels = {cancelled.number: cancelled, shipped.number: shipped}
+    apply_update(parcels, _cancel(), NOW)
+    box = MailUpdate(ORDER, "amazon", ParcelStatus.OUT_FOR_DELIVERY, SENT + timedelta(hours=2),
+                     shipment_id="TNeu12345")
+    assert apply_update(parcels, box, NOW).parcel is shipped
+    assert (cancelled.status, shipped.shipment_ids) == (ParcelStatus.CANCELLED, ["TNeu12345"])
 
 
 def test_an_open_shipment_comes_before_the_cancelled_one():

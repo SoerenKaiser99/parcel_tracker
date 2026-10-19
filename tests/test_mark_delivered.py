@@ -487,6 +487,27 @@ async def test_service_marks_the_parcel(hass, entry):
     assert [p["manual_delivered"] for p in diagnostics["parcels"]] == [True]
 
 
+async def test_a_cancelled_order_cannot_be_marked(hass, hass_storage, freezer):
+    _calls, events = await _prepared(hass, freezer)
+    coord = await _coordinator(hass, hass_storage, [_order(status=ParcelStatus.CANCELLED)])
+    await _refresh(hass, coord)
+    await _start(hass)
+    before = coord.store.parcels[ORDER].to_dict()
+    with pytest.raises(ValueError, match="cancelled"):
+        await coord.async_mark_delivered(ORDER)  # nothing comes: never "delivered today"
+    assert coord.store.parcels[ORDER].to_dict() == before
+    assert events == []
+    await coord.async_shutdown()
+
+
+async def test_the_service_tells_a_cancelled_order_apart(hass, entry):
+    parcel = entry.runtime_data.store.parcels[DHL]
+    parcel.result = _result(ParcelStatus.CANCELLED, "Storniert")
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(DOMAIN, "mark_delivered", {"number": DHL}, blocking=True)
+    assert (err.value.translation_domain, err.value.translation_key) == (DOMAIN, "cancelled")
+
+
 async def test_service_errors(hass, entry):
     with pytest.raises(ServiceValidationError) as err:
         await hass.services.async_call(

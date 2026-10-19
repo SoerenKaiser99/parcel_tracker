@@ -102,11 +102,13 @@ def test_docs_explain_cancelled_orders():
     _all_have(amazon, ("„Ihre Bestellung wurde storniert.“", "„Artikel … storniert: …“",
                        "„… Stornierung von Artikeln …“", "„Storniert“", "`cancelled`",
                        "ohne Benachrichtigung", "genau aus diesem Artikel",
-                       "Storniert wird nur, was noch nicht versendet ist"))
+                       "Storniert wird nur, was noch nicht versendet ist",
+                       "nach Liefertagen getrennt"))
     aliexpress = _tab(MAIL, "AliExpress")
     assert "„Stornierte Bestellung wegen überfälligem Versand“" in aliexpress
     assert "„Your order … is closed“ (die Mail sagt nicht" in aliexpress  # only read
-    assert "abgebrochen" not in _tab(MAIL, "eBay")
+    _all_have(_tab(MAIL, "eBay"), ("„Kauf … wurde abgebrochen“",
+                                   "„OK - Sie möchten den Kauf abbrechen“ wird nur als gelesen"))
     assert "| `cancelled` |" in TEXTS[SENSORS] and "| `cancelled` |" in TEXTS[AUTOMATIONS]
     assert "`cancelled`" in _section(NOTIFY, "Wann wird gesendet?")
     assert "| „Storniert“ |" in TEXTS[CARD]

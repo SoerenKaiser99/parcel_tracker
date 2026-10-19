@@ -16,6 +16,7 @@ from .base import (
     at,
     body_text,
     carrier_for,
+    names_more_items,
     part_links,
     relative_day,
     resolve_dates,
@@ -417,6 +418,12 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     # An order the mail names as several shipments has several ids, and which link is
     # whose is not told: none of them gets one (the item tells them apart, as without).
     numbers = [match.group(2) for match in orders]
+    # The order's mail names the items of each day under the number again: still one
+    # order, named as the subject names it ("… und 3 weitere Artikel"), so that cancelling
+    # one item does not close all of it (``apply._cancels_all``).
+    if status is ParcelStatus.PRE_TRANSIT and len(set(numbers)) == 1 and len(numbers) > 1:
+        whole = subject_title(subj)
+        from_subject = whole if whole and names_more_items(whole) else None
     shipments = {o: s for o, s in _shipments(msg).items() if numbers.count(o) == 1}
     updates = []
     above = 0

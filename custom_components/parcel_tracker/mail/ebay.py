@@ -32,6 +32,11 @@ EBAY_SENDER = "ebay@ebay.com"
 # "[EXTERN]" or "*** SPAM ***" of a mail gateway may stand in front), but only in upper case
 # and with the colon, as eBay writes it ("Ihr Paket zugestellt: …" is no eBay subject)
 _DELIVERED = re.compile(r"(?<![^\W\d_])(?:BESTELLUNG|PAKET) ZUGESTELLT:\s*(?P<title>.+)$")
+# "Kauf … wurde abgebrochen" (the seller agreed to the buyer's request): the whole order,
+# closed if nothing of it left yet (see ``apply._cancel_order``). The request itself ("OK -
+# Sie möchten den Kauf abbrechen") tells nothing yet: the seller may say no.
+_CANCELLED = re.compile(r"Kauf (?P<order>\d{2}-\d{5}-\d{5}) wurde abgebrochen")
+_CANCEL_REQUEST = re.compile(r"Sie möchten den Kauf abbrechen")
 # "Update zur Bestellung: …": the seller shipped (or is about to) and names the number.
 _UPDATE = re.compile(r"Update zur Bestellung:\s*(?P<title>.+)$")
 _TRACKING = re.compile(r"Sendungsnummer:[ \t]*\n?[ \t]*(?P<number>[0-9A-Z]{8,30})(?![0-9A-Z])")
@@ -122,11 +127,17 @@ def _hint(text: str) -> str | None:
     return carrier_key(name) or shorten(name, 30)
 
 
+def is_cancel_request(msg: EmailMessage) -> bool:
+    """The buyer asked to break off the purchase: only read, nothing changes yet."""
+    return bool(_CANCEL_REQUEST.search(subject(msg)))
+
+
 def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
     """'Bestellung bestätigt' and its other wordings (ordered, with the days the seller
     names), 'beim Versanddienstleister' / 'Update zur Bestellung' (in transit),
-    'Zustellversuch' (in transit again, in its own words) or 'BESTELLUNG ZUGESTELLT' /
-    'PAKET ZUGESTELLT' (delivered). Without a title in the body the subject's is taken.
+    'Zustellversuch' (in transit again, in its own words), 'BESTELLUNG ZUGESTELLT' /
+    'PAKET ZUGESTELLT' (delivered) or 'Kauf … wurde abgebrochen' (cancelled). Without a
+    title in the body the subject's is taken.
 
     The update and the attempt name the carrier's number. It goes with the order only if
     the number tells its carrier on its own (DHL "00340…"/"JJD…", UPS, Hermes "H…"): then
@@ -134,6 +145,9 @@ def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
     left alone.
     """
     subj = subject(msg)
+    if cancelled := _CANCELLED.search(subj):
+        number = order_number(cancelled.group("order"))
+        return [MailUpdate(number, "ebay", ParcelStatus.CANCELLED, sent_at(msg))]
     status = _status(subj)
     if status is None:
         return []
