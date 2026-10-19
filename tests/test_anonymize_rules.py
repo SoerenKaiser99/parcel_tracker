@@ -662,3 +662,29 @@ def test_a_short_name_is_still_no_part_of_an_ordinary_word(tmp_path):
     text = _text(msg)
     assert line + "\n" in text
     assert "MaxIhr Paket, HerrMustermann.\n" in text
+
+
+def test_a_name_that_changes_case_inside_keeps_its_parts(tmp_path):
+    line = (
+        "Bestellt bei AliExpress und eBay, bezahlt mit PayPal, Navi von TomTom, Monitor von "
+        "BenQ, eBayBestellung und AliExpressPaket."
+    )
+    raw = _mail(
+        SHOP,
+        "Ihre Bestellung",
+        f"Hallo Ali Bay,\n{line}\nAliIhr Paket, HerrBay, BenQuelle, Herr LangeBayreuther.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw], "--name", "Ali Bay;Ben Pal;Tom Express;Jonas Lange")
+    text = _text(msg)
+    assert line + "\n" in text
+    # only the whole name is spared, not a name that ends in its first part
+    assert "MaxIhr Paket, HerrMustermann, MaxQuelle, Herr MustermannBayreuther.\n" in text
+
+
+def test_a_name_of_two_letters_is_no_part_of_a_glued_word(tmp_path):
+    line = "Die ToDo-Liste und das iPadJo bleiben."
+    raw = _mail(SHOP, "Ihre Bestellung", f"Hallo Jo Do,\n{line}\n")
+    _, [(_, msg)] = _run(tmp_path, [raw], "--name", "Jo Do")
+    text = _text(msg)
+    assert "Hallo Max Mustermann,\n" in text
+    assert line + "\n" in text

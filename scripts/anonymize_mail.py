@@ -409,10 +409,24 @@ _T_LOWER, _T_UPPER = (
     "".join(char for char in map(chr, range(0x250)) if kind(char))
     for kind in (str.islower, str.isupper)
 )
-_T_CASE_CHANGE = (
-    rf"(?-i:(?<=[{_T_LOWER}])(?=[{_T_UPPER}])|(?<=[{_T_UPPER}])(?=[{_T_UPPER}][{_T_LOWER}]))"
+_T_CASE_CHANGE = rf"(?<=[{_T_LOWER}])(?=[{_T_UPPER}])|(?<=[{_T_UPPER}])(?=[{_T_UPPER}][{_T_LOWER}])"
+_T_W0, _T_W1 = r"(?<![^\W\d_])", r"(?![^\W\d_])"  # no letter before / behind
+# Names in mails that change case inside: no boundary there, or "Ali" and "Bay" would turn
+# AliExpress into MaxExpress and eBay into eMustermann (and the eBay parser would lose the title).
+# Only the name as a whole word, glued ones included: "Herr LangeBayreuther" is no eBay.
+_T_CASED_NAMES = (
+    "AliExpress", "BenQ", "BerryBase", "DeLonghi", "eBay", "GoGreen", "iPhone", "ManoMano",
+    "MasterCard", "MediaMarkt", "myDPD", "myHermes", "PaketShop", "PayPal", "SanDisk", "TomTom",
+    "WunschZustellung",
 )
-_T_B0, _T_B1 = rf"(?:(?<![^\W\d_])|{_T_CASE_CHANGE})", rf"(?:(?![^\W\d_])|{_T_CASE_CHANGE})"
+_T_IN_CASED_NAME = "|".join(
+    rf"(?<=(?:{_T_W0}|{_T_CASE_CHANGE}){re.escape(name[:at])})"
+    rf"(?={re.escape(name[at:])}(?:{_T_W1}|{_T_CASE_CHANGE}))"
+    for name in _T_CASED_NAMES
+    for at in (change.start() for change in re.finditer(_T_CASE_CHANGE, name))
+)
+_T_GLUED = rf"(?-i:(?:{_T_CASE_CHANGE})(?!{_T_IN_CASED_NAME}))"
+_T_B0, _T_B1 = rf"(?:{_T_W0}|{_T_GLUED})", rf"(?:{_T_W1}|{_T_GLUED})"
 _T_UMLAUT = {"ä": "a", "ö": "o", "ü": "u"}
 _T_DIGRAPH = {"ae": "ä", "oe": "ö", "ue": "ü"}
 # "=" and "%" belong to the local part: bounce+user=gmx.de@shop.example is one address.
@@ -869,8 +883,8 @@ def _t_given(values):
             replacement = "Mustermann" if i == len(tokens) - 1 else "Max"
             if len(token) >= 3:
                 add(_T_B0 + parts[i] + "(?:'?s)?" + _T_B1, replacement)
-            elif len(token) == 2:  # too short for any spelling: exactly as typed
-                add(_T_B0 + re.escape(token) + _T_B1, replacement, 0)
+            elif len(token) == 2:  # too short for any spelling or a glued word: exactly as typed
+                add(_T_W0 + re.escape(token) + _T_W1, replacement, 0)
     for street in values["street"]:
         if usable("street", street, 4):
             rules.append(_t_street(street))
