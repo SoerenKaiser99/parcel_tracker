@@ -379,6 +379,50 @@ def test_without_ids_the_first_box_takes_over_the_ordered_entry_as_well():
     }
 
 
+# ----- a new id while an entry has none (its mails were read without the link) -----
+def test_a_new_id_naming_another_item_of_the_box_takes_the_entry_without_id():
+    parcels = _run(_mail(SHIPPED, ALPHA), _mail(DELIVERED, BETA, FIRST, 10))
+    assert _boxes(parcels) == {NUMBER: (ALPHA, DELIVERED, [FIRST])}
+
+
+def test_a_new_id_delivers_an_entry_without_id_closed_without_a_delivery_mail():
+    parcels = _run(_mail(SHIPPED, ALPHA))
+    close_unconfirmed(parcels[NUMBER], NOW)
+    _run(_mail(DELIVERED, None, FIRST, 10), parcels=parcels)
+    assert _boxes(parcels) == {NUMBER: (ALPHA, DELIVERED, [FIRST])}
+    assert not parcels[NUMBER].assumed_delivered
+
+
+def test_a_new_id_leaves_an_entry_without_id_marked_as_received_as_it_is():
+    parcels = _run(_mail(SHIPPED, ALPHA))
+    mark_received(parcels[NUMBER], NOW)
+    assert apply_update(parcels, _mail(DELIVERED, None, FIRST, 10), NOW) is None
+    assert list(parcels) == [NUMBER]
+    assert parcels[NUMBER].result.status_text == MANUAL_TEXT
+
+
+def test_a_new_id_shipping_another_item_is_still_a_further_box():
+    parcels = _run(_mail(SHIPPED, ALPHA), _mail(SHIPPED, BETA, FIRST, 10))
+    assert _boxes(parcels) == {
+        NUMBER: (ALPHA, SHIPPED, []),
+        f"{NUMBER}P2": (f"{BETA} (2)", SHIPPED, [FIRST]),
+    }
+
+
+def test_a_new_id_skips_an_entry_with_another_id():
+    # The second box's "Versendet" mail came in the old layout, without the link.
+    parcels = _run(
+        _mail(ORDERED, ALPHA),
+        _mail(SHIPPED, "Betamarke Kab…", FIRST, 10),
+        _mail(SHIPPED, "Alphamarke…", None, 11),
+        _mail(DELIVERED, None, SECOND, 12),
+    )
+    assert _boxes(parcels) == {
+        NUMBER: ("Betamarke Kab…", SHIPPED, [FIRST]),
+        f"{NUMBER}P2": ("Alphamarke… (2)", DELIVERED, [SECOND]),
+    }
+
+
 # ----- the number of a further entry -----
 @pytest.mark.parametrize("ids", [True, False], ids=["with-ids", "without-ids"])
 def test_a_further_box_after_a_removed_entry_in_between_takes_a_free_number(ids):

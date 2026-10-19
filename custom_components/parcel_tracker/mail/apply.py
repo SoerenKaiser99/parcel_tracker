@@ -507,6 +507,18 @@ def _only_ordered(parcel: Parcel) -> bool:
     return all(e.text == ordered for e in result.events if e.text not in closing)
 
 
+def _further_shipment(siblings: list[Parcel], update: MailUpdate, key: str | None) -> bool:
+    """A mail no entry of the order took is a further shipment: "Versendet" with an item,
+    once every entry is shipped (a postponed delivery is news about a box there is)."""
+    return (
+        key is not None
+        and update.carrier not in SINGLE_PARCEL_SHOPS
+        and not update.postponed
+        and update.status is ParcelStatus.IN_TRANSIT
+        and all(_step(p.status) >= _step(ParcelStatus.IN_TRANSIT) for p in siblings)
+    )
+
+
 def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
     """The entry of an order a mail that names its shipment (Amazon's id) goes to.
 
@@ -514,25 +526,35 @@ def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
     two boxes of one item ("2 x …" sent on two days) are two entries, and a box whose
     title grows ("… und 2 weitere Artikel") stays one. Older versions kept every id with
     the entry its mail went to, so two entries may hold the same one: then the one that
-    names the mail's item, else the first. An id no entry has yet is a box that is new
-    here. It takes an entry no box was told for yet:
+    names the mail's item, else the first.
 
-    - the one that names its item, or else the order itself while no box was told for it
+    An id no entry has yet is a box that is new here. While every entry has an id of its
+    own, it is a further shipment. Otherwise it may be the box of an entry whose mails
+    named no id (read before the ids were kept, or without the link): only those count,
+    one with another id is another box. Of those it takes
+
+    - the one that names its item, else the order itself while no box was told for it
       (``_only_ordered``: the first box takes it over);
-    - for a mail that names no item (an old "Zugestellt" mail), the first open one, or
-      else the order itself as above.
+    - else what a mail without id would take: none for a further shipment
+      (``_further_shipment``), else the first open one, else the first.
 
     None if there is none: the box is a further shipment, an entry of its own (the caller
-    makes it), whatever its status and title.
+    makes it).
     """
     shipment = update.shipment_id
     key = title_key(update.title) if update.title else None
     if held := [p for p in siblings if shipment in p.shipment_ids]:
         return next((p for p in held if _names_item(p, key)), held[0])
-    free = [p for p in siblings if not p.shipment_ids]
-    open_ = (p for p in free if p.status is not ParcelStatus.DELIVERED)
-    named = (p for p in free if _names_item(p, key)) if key is not None else open_
-    return next(named, None) or next((p for p in free if _only_ordered(p)), None)
+    if not (free := [p for p in siblings if not p.shipment_ids]):
+        return None
+    if key is not None and (named := next((p for p in free if _names_item(p, key)), None)):
+        return named
+    if ordered := next((p for p in free if _only_ordered(p)), None):
+        return ordered
+    if _further_shipment(siblings, update, key):
+        return None
+    open_ = [p for p in free if p.status is not ParcelStatus.DELIVERED]
+    return (open_ or free)[0]
 
 
 def _take_over(target: Parcel, update: MailUpdate) -> None:
@@ -575,14 +597,7 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
         target = next((p for p in siblings if _same_item(p, key)), None)
         further_shipment = False
     if target is None and siblings and not further_shipment:
-        # (a postponed delivery is news about a shipment there is, never a further one)
-        further_shipment = (
-            key is not None
-            and update.carrier not in SINGLE_PARCEL_SHOPS
-            and not update.postponed
-            and update.status is ParcelStatus.IN_TRANSIT
-            and all(_step(p.status) >= _step(ParcelStatus.IN_TRANSIT) for p in siblings)
-        )
+        further_shipment = _further_shipment(siblings, update, key)
         if not further_shipment:
             open_ = [p for p in siblings if p.status is not ParcelStatus.DELIVERED]
             target = (open_ or siblings)[0]
