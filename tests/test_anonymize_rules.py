@@ -366,6 +366,46 @@ def test_every_forward_and_reply_prefix_marks_the_sender_as_private(tmp_path, pr
     assert str(msg["From"]) == "Max Mustermann <max@example.org>"
 
 
+# ----- officers of a company in its legal footer -----
+
+@pytest.mark.parametrize(
+    ("footer", "expected"),
+    [
+        ("Geschäftsführer: Tilda Sonnberg, Dr. Kuno Haselnuss (CEO). Amtsgericht Anderswo HRB 1",
+         "Geschäftsführer: Erika Beispiel, Dr. Erika Beispiel (CEO). Amtsgericht Anderswo HRB 1"),
+        ("Vertreten durch die Geschäftsführung der Paketflitzer GmbH Tilda Sonnberg, "
+         "Frank-Kuno Feldhase",
+         "Vertreten durch die Geschäftsführung der Paketflitzer GmbH Erika Beispiel, "
+         "Erika Beispiel"),
+        ("Vorsitzender des Aufsichtsrates: Kuno van Haselnuss Registergericht Anderswo HRB 1",
+         "Vorsitzender des Aufsichtsrates: Erika Beispiel Registergericht Anderswo HRB 1"),
+        ("Vorstand Dr. Kuno Haselnuss, Vorsitz Tilda Sonnberg Ole Feldhase",
+         "Vorstand Dr. Erika Beispiel, Vorsitz Erika Beispiel Erika Beispiel"),
+        ("Persönlich haftende Gesellschafter: - Paketflitzer Beteiligungs GmbH, Sitz: Anderswo",
+         "Persönlich haftende Gesellschafter: - Paketflitzer Beteiligungs GmbH, Sitz: Anderswo"),
+    ],
+)
+def test_officers_of_a_company_in_its_legal_footer(tmp_path, footer, expected):
+    raw = _mail(SHOP, "Ihr Paket", f"Ihr Paket kommt.\n\n{footer}\n")
+    other = _mail(SHOP, "Zugestellt", "Kuno Haselnuss grüßt. Kuno und Feldhase bleiben.\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
+    assert f"{expected}\n" in _text(first)
+    # the whole name in every mail, not its words: a surname may be a brand
+    if "Kuno Haselnuss" in footer:
+        assert "Erika Beispiel grüßt. Kuno und Feldhase bleiben.\n" in _text(second)
+
+
+def test_officer_above_the_company_address_is_no_recipient(tmp_path):
+    raw = _mail(
+        SHOP, "Ihre Rechnung",
+        "Dein Paketflitzer-Team\nGeschäftsführer Tilda Sonnberg\nAhornallee 5\nD-80000 Anderswo\n",
+    )
+    other = _mail(SHOP, "Impressum", "Geschäftsführer und Vorstand grüßen.\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
+    assert "Geschäftsführer Erika Beispiel\n" in _text(first)
+    assert "Geschäftsführer und Vorstand grüßen.\n" in _text(second)
+
+
 # ----- 7 to 9: phone numbers, drop-off permissions, encoded sender addresses -----
 
 def test_phone_number_with_three_separators(tmp_path):

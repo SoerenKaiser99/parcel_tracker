@@ -576,7 +576,10 @@ _T_NOT_NAME = re.compile(
     r"|ablageort|wunschort|abstellort|zusteller\w*|bote\w*|fahrer\w*|besteller\w*"
     r"|k(?:ä|ae)ufer\w*|verk(?:ä|ae)ufer\w*|nutzer\w*|user|gast|mitglied|interessent\w*"
     r"|damen|herren|person|dritte\w*|angeh(?:ö|oe)rige\w*|ehepartner\w*|max|mustermann"
-    r"|beispielversender|beispielnachbar|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    r"|beispielversender|beispielnachbar|beispiel|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    # officers of a company in front of their names ("Geschäftsführer Vorname Nachname")
+    r"|gesch(?:ä|ae)ftsf(?:ü|ue)hr\w*|vorstand\w*|vorsitz\w*|inhaber\w*|direktor\w*"
+    r"|gesellschafter\w*"
     # status words a mail may put above an address ("Abholbereit\nHauptstraße 1\n…")
     r"|abholbereit|zugestellt|hinterlegt|abholort|abholung|abholstation|bereit|abgestellt"
     r"|abgegeben|trafik|zustellung|zustellort|lieferung|lieferort|sendung|paket|status"
@@ -617,6 +620,25 @@ _T_NEIGHBOUR = re.compile(
 _T_AMAZON_LINE = re.compile(
     r"(?m)^([ \t]*)([^\W\d_][^\n–—-]{1,30}?)([ \t]+[–—-][ \t]+)([^\W\d_][^\n]{1,40}?)"
     r"([ \t]*\n(?:[ \t]*\n)*[ \t]*Bestell(?:nr\b|nummer))"
+)
+# The officers of a company in its legal footer ("Geschäftsführer: …", "Vorstand: …",
+# "Vorsitzender des Aufsichtsrates: …"): public, but the names of persons all the same. The
+# list ends at the register court or another part of the footer.
+_T_OFFICERS = re.compile(
+    r"(?i:\b(?:gesch(?:ä|ae)ftsf(?:ü|ue)hr(?:er(?:in|innen)?|ung"
+    r"|ende[rn]?[ \t]+(?:Direktor(?:en|in)?|Gesellschafter(?:in)?))"
+    r"|vorstand|vorsitzende[rs]?[ \t]+des[ \t]+aufsichtsrat(?:e?s)"
+    r"|aufsichtsrat(?:svorsitzende[rs]?)?|inhaber(?:in)?|vertreten[ \t]+durch"
+    r"|managing[ \t]+directors?|directors?)\b)"
+    r"(?P<list>(?:(?!\b(?:Sitz|Amtsgericht|Registergericht|Handelsregister\w*|HR[AB]|USt|Umsatz"
+    r"\w*|Steuer\w*|WEEE|Telefon|Tel|E-Mail|Auf diese)\b)[^\n]){1,300})"
+)
+# One name in such a list, with its titles: "Dr. Vorname Nachname", "Vorname de Nachname".
+_T_OFFICER = re.compile(
+    r"(?<![^\W\d_])(?P<title>(?:(?:Dr|Prof)\.[ \t]*)*)"
+    r"(?P<name>[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*"
+    r"(?:[ \t]+(?:[dD]e|[vV]an|[vV]on|der|zu|Di|Da|Le|La|[A-ZÄÖÜ]\.))*"
+    r"[ \t]+[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*)(?![^\W\d_])"
 )
 # An address without a label: [name line,] street with house number, postcode and city.
 _T_STREET = (
@@ -1193,6 +1215,24 @@ class _TScrubber:
             self._note(found, "Garage")
         return (match.group(1) if match.re is _T_PLACE_NEXT else "") + "Ablageort: Garage"
 
+    def _officers(self, match):
+        """The persons in a list of a company's officers; a company in it stays."""
+        names, pos, out = match.group("list"), 0, ""
+        while True:
+            found = _T_OFFICER.search(names, pos)
+            if not found:
+                break
+            if _t_person(found.group("name")):
+                self._note(found.group("name"), "Erika Beispiel")
+                out += names[pos:found.start()] + found.group("title") + "Erika Beispiel"
+                pos = found.end()
+            else:
+                # "DHL Paket GmbH Vorname Nachname": try again from the next word
+                step = found.start("name") + len(found.group("name").split()[0])
+                out += names[pos:step]
+                pos = step
+        return match.group(0)[:match.start("list") - match.start()] + out + names[pos:]
+
     # ----- numbers, links -----
     def label(self, msg, number):
         """What stands for a mail in its file name, Message-ID and MIME boundary: its number in
@@ -1311,6 +1351,7 @@ class _TScrubber:
         text = _T_PLAIN_BLOCK.sub(self._plain, text)
         text = _T_INLINE_ADDRESS.sub(self._inline, text)
         text = _T_PLZ_CITY.sub("\\g<lead>12345 Musterstadt", text)
+        text = _T_OFFICERS.sub(self._officers, text)
         text = _T_NEIGHBOUR.sub(self._neighbour, text)
         for pattern, replacement in self.rules:
             text = pattern.sub(replacement, text)
