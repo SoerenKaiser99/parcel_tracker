@@ -46,7 +46,8 @@ def test_mail_translations_present():
     section = strings["options"]["step"]["init"]["sections"]["mail"]
     assert set(section["data"]) == {
         "mail_enabled", "imap_host", "imap_port", "imap_security", "imap_user",
-        "imap_password", "imap_folder", "move_processed", "read_otp", "mail_interval",
+        "imap_password", "imap_folder", "move_processed", "read_otp", "plain_names",
+        "mail_interval",
     }
     assert {
         "imap_auth", "imap_cannot_connect", "imap_password_missing", "folder_not_found",

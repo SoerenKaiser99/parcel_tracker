@@ -25,6 +25,7 @@ from custom_components.parcel_tracker.const import (
     CONF_MAIL_INTERVAL,
     CONF_NOTIFY_EVENTS,
     CONF_NOTIFY_TARGETS,
+    CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
@@ -68,6 +69,7 @@ OPTIONS = {
     CONF_IMAP_HOST: IMAP_HOST,
     CONF_IMAP_USER: IMAP_USER,
     CONF_READ_OTP: True,
+    CONF_PLAIN_NAMES: True,
     CONF_MAIL_INTERVAL: 7,
     CONF_UPS_BUDGET: 250,
 }
@@ -308,6 +310,7 @@ async def test_diagnostics_entry_is_redacted_but_still_tells_the_settings(
     assert options[CONF_IMAP_HOST] == IMAP_HOST
     assert options[CONF_KEEP_DELIVERED_DAYS] == 3
     assert options[CONF_READ_OTP] is True
+    assert options[CONF_PLAIN_NAMES] is True
     assert options[CONF_MAIL_INTERVAL] == 7
     assert options[CONF_UPS_BUDGET] == 250
 

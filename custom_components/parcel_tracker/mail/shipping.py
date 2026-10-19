@@ -18,9 +18,11 @@ from .base import (
     html_body_text,
     html_text,
     is_forwarded,
+    names_carrier,
     sender,
     sent_at,
     shop_of,
+    shorten,
     subject,
     upcoming_date,
 )
@@ -152,7 +154,21 @@ def _dhl_numbers(text: str) -> list[str]:
     return numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
 
 
-def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
+def _plain_name(text: str) -> str | None:
+    """The name DHL puts into "Ihre <Name> Sendung", without the naming gate.
+
+    Only for the option "Absendernamen aus DHL-Mails übernehmen" (issue #35): small shops
+    and private senders pass here although ``company_name`` turns them down. DHL cuts a long
+    name off with "..": that mark is dropped. A name that is none (a carrier, no letter at
+    all) gives None.
+    """
+    name = " ".join(text.split()).rstrip(" .\u2026")
+    if len(name) < 2 or not re.search(r"[^\W\d_]", name) or names_carrier(name):
+        return None
+    return shorten(name)
+
+
+def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpdate]:
     """DHL notification: number, status, day or today's window, the shop the subject names.
 
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
@@ -164,7 +180,8 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
     "Sendung" means "on its way" without a day; a question (survey) and
     a subject without "Sendung" tell no status. A pick-up code is never read. An Amazon shipment
     keeps its fixed name (and is merged into the open Amazon order when unambiguous); any other
-    shop only names the parcel if it passes the naming gate and the mail was not forwarded. The
+    shop only names the parcel if it passes the naming gate and the mail was not forwarded
+    (with ``plain_names`` the name in the subject needs no gate, see ``_plain_name``). The
     international variant ("in den nächsten 2 Werktagen von der Österreichischen Post
     zugestellt") names no day, so none is set.
     """
@@ -192,6 +209,8 @@ def parse_dhl_mail(msg: EmailMessage) -> list[MailUpdate]:
         shop_name = shop_of(shop)
         if not is_forwarded(msg):
             title = company_name(shop)
+            if title is None and plain_names:
+                title = _plain_name(shop)
     status, ahead = _dhl_status(subj)
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
