@@ -13,7 +13,6 @@ from .base import (
     DELAY_TEXT,
     MONTHS,
     MailUpdate,
-    at,
     body_text,
     carrier_for,
     part_links,
@@ -24,6 +23,7 @@ from .base import (
     subject,
     title_key,
     upcoming_date,
+    window_at,
 )
 
 SHIPPING_SENDER = "versandbestaetigung@amazon.de"
@@ -191,13 +191,11 @@ def _eta(text: str, sent: datetime) -> dict[str, date | datetime | None]:
     """The delivery day ``text`` names, as the eta fields of a MailUpdate ({} without one)."""
     if eta := _ETA.search(text):
         day = relative_day(eta.group("day"), sent)
-        if not eta.group("h1"):
+        if not eta.group("h1") or not (
+            times := window_at(day, eta.group("h1", "m1", "h2", "m2"))
+        ):
             return {"eta_date": day}
-        return {
-            "eta_date": day,
-            "eta_from": at(day, int(eta.group("h1")), int(eta.group("m1") or 0)),
-            "eta_to": at(day, int(eta.group("h2")), int(eta.group("m2") or 0)),
-        }
+        return {"eta_date": day, "eta_from": times[0], "eta_to": times[1]}
     for line in _ETA_DATES.finditer(text):
         if resolved := resolve_dates(line.group("rest"), sent.date()):
             return {"eta_date": resolved[0], "eta_latest": resolved[1]}

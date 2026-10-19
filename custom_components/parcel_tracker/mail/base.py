@@ -569,6 +569,15 @@ def at(day: date, hour: int, minute: int) -> datetime:
     return datetime.combine(day, time(hour, minute), tzinfo=BERLIN)
 
 
+def window_at(day: date, parts: Iterable[str | None]) -> tuple[datetime, datetime] | None:
+    """A delivery window on a day from the hour, minute, hour and minute a pattern read (a
+    missing minute is 0), or None for an impossible time or a reversed window."""
+    h1, m1, h2, m2 = (int(part or 0) for part in parts)
+    if max(h1, h2) > 23 or max(m1, m2) > 59 or (h1, m1) >= (h2, m2):
+        return None
+    return at(day, h1, m1), at(day, h2, m2)
+
+
 def upcoming_date(day: int, month: int | None, ref: date) -> date | None:
     """First date with this day (and month) not more than a week before ``ref``."""
     for offset in range(13):

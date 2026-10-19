@@ -25,6 +25,7 @@ from .base import (
     shorten,
     subject,
     upcoming_date,
+    window_at,
 )
 from .forward import MONTHS_ABBR
 
@@ -40,7 +41,10 @@ KNOWN_SENDER_DOMAINS = frozenset({"amazon.de", "dhl.de", "ups.com", *DPD_DOMAINS
 
 # Read only in a mail for today. The layouts up to 2024-08 write "und" or "bis" and leave out
 # "heute" ("Ihr Paket kommt zwischen 14:45 bis 16:15"), or break the line inside the window.
-_DHL_WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s*(?:[–-]|und|bis)\s*(\d{1,2}):(\d{2})")
+# "heute" or "kommt" in front keeps service hours ("Mo-Fr zwischen 08:00 und 18:00") out.
+_DHL_WINDOW = re.compile(
+    r"(?:heute|kommt)\s+zwischen\s+(\d{1,2}):(\d{2})\s*(?:[–-]|und|bis)\s*(\d{1,2}):(\d{2})"
+)
 # (the newer layout puts "**—" between "voraussichtlich" and "am" in its text part)
 _DHL_DAY = re.compile(
     r"voraussichtlich[\s*_–—-]*am\s+\w+,\s+den\s+(\d{1,2})\.(?:(\d{1,2})\.)?"
@@ -208,7 +212,8 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
 
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
     unterwegs", "kommt morgen" (the day after the mail), "kommt heute" / "wird heute
-    zugestellt" / "wird gleich zugestellt" (told in its own words), "wurde … zugestellt",
+    zugestellt" / "wird gleich zugestellt" (told in its own words) / "kommt früher als
+    geplant", "wurde … zugestellt",
     "liegt am gewünschten Ablageort" / "liegt im Briefkasten" / "liegt nebenan" and, for a
     Packstation or branch, "liegt zur Abholung
     bereit" / "wurde an Packstation … zugestellt" (with the branch and its street as the
@@ -253,8 +258,7 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
     if status is ParcelStatus.OUT_FOR_DELIVERY:
         eta_date = sent.date()
         if window := _DHL_WINDOW.search(text):
-            eta_from = at(eta_date, int(window.group(1)), int(window.group(2)))
-            eta_to = at(eta_date, int(window.group(3)), int(window.group(4)))
+            eta_from, eta_to = window_at(eta_date, window.groups()) or (None, None)
     elif ahead:
         eta_date = sent.date() + timedelta(days=ahead)
     elif "ist unterwegs" in subj.lower() and (day := _DHL_DAY.search(text)):

@@ -23,6 +23,7 @@ from .base import (
     sent_at,
     shop_of,
     subject,
+    window_at,
 )
 
 GLS_SENDER = "no-reply@gls-pakete.de"
@@ -126,10 +127,9 @@ def _eta(lines: list[str], ref: date) -> tuple[date, datetime | None, datetime |
             if resolved := resolve_dates(candidate.strip(" ,"), ref):
                 day = resolved[0]
                 window = _WINDOW.search("\n".join(lines[offset + 1 : offset + 3]))
-                if not window:
-                    return day, None, None
-                hours = [int(part) for part in window.groups()]
-                return day, at(day, hours[0], hours[1]), at(day, hours[2], hours[3])
+                if window and (times := window_at(day, window.groups())):
+                    return day, *times
+                return day, None, None
     return None
 
 
