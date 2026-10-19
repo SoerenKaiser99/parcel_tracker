@@ -57,6 +57,8 @@ EBAY_REQUEST = "193_ebay_ok_sie_moechten_den_kauf_abbrechen.eml"
 EBAY_BROKEN_OFF = "194_ebay_kauf_wurde_abgebrochen.eml"
 # Amazon's order mail naming the items of each day under the order number again.
 AMAZON_SEVERAL = "189_bestellbestaetigung_bestellt.eml"
+# Amazon's order mail about two orders, the first of two items (a saw blade, a charger).
+AMAZON_ORDERS = "124_bestellbestaetigung_bestellt.eml"
 
 NOW = datetime(2026, 10, 7, 10, 0, tzinfo=UTC)
 TODAY = NOW.astimezone(BERLIN).date()
@@ -65,6 +67,7 @@ ORDER = "AMZ99974120133366279"
 TITLE = "Beispiel-Sirup Himbeer 1 Liter (Glas…"
 ROBOT = "Beispiel-Saugroboter mit Wischfunktion, Hindernisüberwindun…"
 SANDING = "Beispiel-Schleifnetz… und 4 weitere Artikel"
+BEAM = "Beispiel-Akku-Baustrahler 5000 Hybrid Blau"
 NODE = shutil.which("node")
 
 
@@ -87,7 +90,7 @@ def _cancel(number=ORDER, carrier="amazon", title=None) -> MailUpdate:
         (AMAZON, ORDER, "amazon", TITLE),
         (AMAZON_ORDER, "AMZ99938310205529571", "amazon", None),  # (None: the whole order)
         (AMAZON_ITEMS, "AMZ99936398346041064", "amazon", ROBOT),
-        (EBAY_BROKEN_OFF, "EBAY582584515534", "ebay", None),
+        (EBAY_BROKEN_OFF, "EBAY999090900990", "ebay", BEAM),
         (ALIEXPRESS_OVERDUE, "ALI9999999999990001", "aliexpress", None),
     ],
 )
@@ -149,7 +152,7 @@ def test_a_cancellation_forwarded_by_hand_is_read_like_amazons_own_mail():
         (AMAZON, ORDER, "amazon", TITLE),
         (AMAZON_ORDER, "AMZ99938310205529571", "amazon", SANDING),  # (also with further items)
         (AMAZON_ITEMS, "AMZ99936398346041064", "amazon", "Beispiel-Saugroboter mit Wischfunk…"),
-        (EBAY_BROKEN_OFF, "EBAY582584515534", "ebay", "Beispiel-Akku-Baustrahler"),
+        (EBAY_BROKEN_OFF, "EBAY999090900990", "ebay", "Beispiel-Akku-Baustrahler"),
         (ALIEXPRESS_OVERDUE, "ALI9999999999990001", "aliexpress", None),
     ],
 )
@@ -182,8 +185,23 @@ def _replay(*names):
 
 def test_an_ebay_purchase_broken_off_after_the_request_is_cancelled():
     [order] = _replay(EBAY_ORDERED, EBAY_REQUEST, EBAY_BROKEN_OFF).values()
-    assert (order.number, order.status) == ("EBAY582584515534", ParcelStatus.CANCELLED)
+    assert (order.number, order.status) == ("EBAY999090900990", ParcelStatus.CANCELLED)
     assert [e.text for e in order.result.events] == [CANCELLED_TEXT, "Bestellt"]
+
+
+def test_an_ebay_purchase_of_more_items_stays_when_one_is_broken_off():
+    number = "EBAY999090900990"
+    order = _order(number, "ebay", title=f"{BEAM} und 1 weiterer Artikel")
+    [update] = parse_mail(load_mail(EBAY_BROKEN_OFF)).updates
+    assert apply_update({number: order}, update, NOW) is None  # the other item still comes
+    assert order.status is ParcelStatus.PRE_TRANSIT
+
+
+def test_an_ebay_purchase_broken_off_without_its_item_in_the_text_is_all_of_it():
+    msg = load_mail(EBAY_BROKEN_OFF)
+    msg.set_content(msg.get_content().replace(f"<p>{BEAM}</p>", ""), subtype="html")
+    [update] = parse_mail(msg).updates
+    assert (update.number, update.title) == ("EBAY999090900990", None)
 
 
 def test_a_cancelled_order_is_done_but_never_delivered():
@@ -302,6 +320,19 @@ def test_an_item_cancellation_leaves_an_order_whose_mail_named_its_items_one_by_
     assert order.to_dict() == before
     assert apply_update({order.number: order}, replace(item, title=None), NOW).parcel is order
     assert order.status is ParcelStatus.CANCELLED
+
+
+def test_an_item_cancellation_leaves_an_order_of_more_items_in_a_mail_about_several():
+    parcels = _replay(AMAZON_ORDERS)
+    blade, saw = parcels["AMZ99927581034893895"], parcels["AMZ99900481738659171"]
+    sent = blade.result.events[0].timestamp + timedelta(hours=1)
+    item = MailUpdate(blade.number, "amazon", ParcelStatus.CANCELLED, sent,
+                      title="Bosch Professional 1x Expert…")
+    assert apply_update(parcels, item, sent) is None  # the charger still comes
+    assert blade.status is ParcelStatus.PRE_TRANSIT
+    item = replace(item, number=saw.number, title="Bosch PRO 18V System Akku…")
+    assert apply_update(parcels, item, sent).parcel is saw  # the only item of its order
+    assert saw.status is ParcelStatus.CANCELLED
 
 
 def test_the_cancellation_of_the_whole_order_closes_it_with_all_its_items():

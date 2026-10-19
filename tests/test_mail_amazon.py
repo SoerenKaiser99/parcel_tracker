@@ -124,10 +124,11 @@ def test_one_mail_with_three_orders_gives_three_updates():
 
 def test_orders_in_amazons_own_text_part_are_named_after_their_first_item():
     # "* title" lines instead of "[title]<link>"; the subject names only the first order.
+    # An order of more items says so, like a subject does.
     updates = parse_amazon(load_mail("124_bestellbestaetigung_bestellt.eml"), False)
     assert [u.number for u in updates] == ["AMZ99927581034893895", "AMZ99900481738659171"]
     assert [u.title for u in updates] == [
-        "Bosch Professional 1x Expert ‘Hollow Brick’ S 1543 HM Säbel…",
+        "Bosch Professional 1x Expert ‘Hollow… und 1 weiterer Artikel",
         "Bosch PRO 18V System Akku Säbelsäge GSA 18V-24 (inkl. S922E…",
     ]
     assert all(u.status is ParcelStatus.PRE_TRANSIT for u in updates)

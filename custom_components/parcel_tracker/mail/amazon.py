@@ -184,6 +184,14 @@ def subject_title(subj: str) -> str | None:
     return shorten(title)
 
 
+def _with_more(first: str, more: int) -> str:
+    """An order's title: its first item and how many more it holds ("… und 2 weitere Artikel")."""
+    if not more:
+        return shorten(first)
+    suffix = f" und {more} {'weiterer' if more == 1 else 'weitere'} Artikel"
+    return shorten(first, 60 - len(suffix)) + suffix
+
+
 def subject_status(subj: str) -> ParcelStatus | None:
     """Status from the subject prefix before ':', or from a subject that tells a cancellation."""
     if subj.strip().lower().startswith((_ORDER_CANCELLED, _ITEMS_CANCELLED)):
@@ -425,6 +433,15 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         whole = subject_title(subj)
         from_subject = whole if whole and names_more_items(whole) else None
     shipments = {o: s for o, s in _shipments(msg).items() if numbers.count(o) == 1}
+    ends = [m.start() for m in orders[1:]] + [len(text)]
+    # An order the body names is named like one the subject names: its first item and how
+    # many more there are ("… und 2 weitere Artikel"), so that cancelling one item does not
+    # close all of it (``apply._cancels_all``). In the order's mail an order named again
+    # (one day each) is still the one order; in the others each mention is a box of its own.
+    items: dict[str | int, int] = {}
+    for index, match in enumerate(orders):
+        key = match.group(2) if status is ParcelStatus.PRE_TRANSIT else index
+        items[key] = items.get(key, 0) + len(_ITEM.findall(text, match.end(), ends[index]))
     updates = []
     above = 0
     for index, match in enumerate(orders):
@@ -433,13 +450,15 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
             # of the order before it (the first one: the first day of the mail).
             eta = _eta(text[above : match.start()], sent) or eta
             above = match.end()
-        end = orders[index + 1].start() if index + 1 < len(orders) else len(text)
+        end = ends[index]
         item = _ITEM.search(text, match.end(), end)
         listed = item.group("title") or item.group("listed") if item else None
         if listed is None and match.group("plain"):
             # (the plain layout names the items on the lines below the number)
             listed = _plain_title(subj, text[match.end() : end])
-        title = from_subject or (shorten(listed) if listed else None)
+        key = match.group(2) if status is ParcelStatus.PRE_TRANSIT else index
+        more = max(items[key] - 1, 0)
+        title = from_subject or (_with_more(listed, more) if listed else None)
         updates.append(
             MailUpdate(
                 number=order_number(match.group(2)),
@@ -471,11 +490,8 @@ def _legacy_title(subj: str) -> str | None:
     raw = quoted.group(1).strip()
     core = raw.rstrip(".…").strip()
     title = f"{core}…" if core != raw else core
-    if more := _LEGACY_MORE.search(subj):
-        count = more.group(1)
-        suffix = f" und {count} {'weiterer' if count == '1' else 'weitere'} Artikel"
-        return shorten(title, 60 - len(suffix)) + suffix
-    return shorten(title)
+    more = _LEGACY_MORE.search(subj)
+    return _with_more(title, int(more.group(1)) if more else 0)
 
 
 def parse_amazon_legacy(msg: EmailMessage, with_order: bool = False) -> list[MailUpdate]:

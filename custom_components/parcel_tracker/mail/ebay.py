@@ -32,10 +32,13 @@ EBAY_SENDER = "ebay@ebay.com"
 # "[EXTERN]" or "*** SPAM ***" of a mail gateway may stand in front), but only in upper case
 # and with the colon, as eBay writes it ("Ihr Paket zugestellt: …" is no eBay subject)
 _DELIVERED = re.compile(r"(?<![^\W\d_])(?:BESTELLUNG|PAKET) ZUGESTELLT:\s*(?P<title>.+)$")
-# "Kauf … wurde abgebrochen" (the seller agreed to the buyer's request): the whole order,
-# closed if nothing of it left yet (see ``apply._cancel_order``). The request itself ("OK -
-# Sie möchten den Kauf abbrechen") tells nothing yet: the seller may say no.
+# "Kauf … wurde abgebrochen" (the seller agreed to the buyer's request): closed if nothing
+# of it left yet and it is the item the mail names above the order number (see
+# ``apply._cancel_order``). The request itself ("OK - Sie möchten den Kauf abbrechen")
+# tells nothing yet: the seller may say no.
 _CANCELLED = re.compile(r"Kauf (?P<order>\d{2}-\d{5}-\d{5}) wurde abgebrochen")
+# (eBay names the item twice, like every value: any other line above the number is none)
+_CANCELLED_ITEM = re.compile(r"^(?P<title>[^\n]+)\n(?P=title)\nBestellnummer:", re.M)
 _CANCEL_REQUEST = re.compile(r"Sie möchten den Kauf abbrechen")
 # "Update zur Bestellung: …": the seller shipped (or is about to) and names the number.
 _UPDATE = re.compile(r"Update zur Bestellung:\s*(?P<title>.+)$")
@@ -147,7 +150,11 @@ def parse_ebay(msg: EmailMessage) -> list[MailUpdate]:
     subj = subject(msg)
     if cancelled := _CANCELLED.search(subj):
         number = order_number(cancelled.group("order"))
-        return [MailUpdate(number, "ebay", ParcelStatus.CANCELLED, sent_at(msg))]
+        # (an order of more items stays: the rest of it still comes; without the item in
+        # the text it is the whole order)
+        item = _CANCELLED_ITEM.search(body_text(msg))
+        title = shorten(item.group("title")) if item else None
+        return [MailUpdate(number, "ebay", ParcelStatus.CANCELLED, sent_at(msg), title=title)]
     status = _status(subj)
     if status is None:
         return []
