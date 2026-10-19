@@ -502,6 +502,8 @@ _T_PLACE_PHRASE = re.compile(
 _T_RECIPIENT = (
     r"(?:(?:Zustell|Liefer|Versand|Rechnungs)-?(?:adresse|anschrift)|Empf(?:ä|ae)nger(?:in)?"
     r"|Geliefert an|Lieferung an|Versand an|Die Sendung geht an"
+    # eBay: "Ihre Bestellung wird verschickt an:", older mails "Versandziel:"
+    r"|(?:Ihre Bestellung )?wird verschickt (?:an|nach)|Versandziel"
     r"|Ship(?:ping)?[ -]?(?:To|Address)|Deliver(?:y(?: Address)?| to))"
 )
 _T_COUNTRY = r"(?:Deutschland|Germany|Österreich|Austria|Schweiz|DE|AT|CH)"
@@ -690,6 +692,16 @@ _T_QUOTED_KIND = {
     "gesendet": "date", "sent": "date", "datum": "date", "date": "date",
 }
 _T_INVISIBLE = re.compile("[\u00ad\u034f\u200b-\u200f\u202a-\u202e\u2060\ufeff]")
+# eBay: the buyer's name and user name in the footer ("… von eBay an NAME (NUTZER) gesendet",
+# "… von eBay gesendet an NAME (NUTZER)"), the user name (or the name) in the subject of a
+# purchase confirmation and in "Willkommen zurück, NUTZER!".
+_T_EBAY_FOOTER = re.compile(
+    r"(?i)(\bvon eBay (?:an|gesendet an)[ \t]+)([^()\n]{3,60}?)([ \t]*\()([^()\s]{3,64})(\))"
+)
+_T_EBAY_HANDLE = re.compile(
+    r"(?im)^(?P<head>)(?P<who>[^,\n]{3,64})(?=, Ihre Bestellung wurde bestätigt)"
+    r"|(?P<hi>\bWillkommen zurück, )(?P<user>[^\s!,]{3,64})(?=!)"
+)
 _T_SELLER = re.compile(r"(?i)(Verk(?:ä|ae)ufer(?:in)?:[ \t]*\n?[ \t]*)([^\n]+)")
 _T_GREETING = (
     r"(?i:Hallo|Hi|Hey|Moin|Servus|Guten (?:Tag|Morgen|Abend)|Liebe[rs]?"
@@ -907,6 +919,9 @@ def _t_address_parts(block):
     """(name, street, postcode, city) of the lines of an address; "" for what is not found."""
     lines = [" ".join(line.split()).strip("*_, ") for line in block.split("\n")]
     lines = [line for line in lines if line]
+    # eBay puts the country above the name
+    while len(lines) > 1 and re.fullmatch(rf"(?i){_T_COUNTRY}", lines[0]):
+        lines.pop(0)
     # five digits anywhere, four (Austria, Switzerland) only in front of the place
     code = re.compile(r"(?<!\d)\d{5}(?!\d)|^(?:(?:A|CH|D)[- ])?(?P<four>\d{4})(?=[ \t]+[^\W\d_])")
     at = next((i for i, line in enumerate(lines) if code.search(line)), None)
@@ -1148,6 +1163,28 @@ class _TScrubber:
         address = match.re is _T_SENDER_BLOCK and match.group(3)
         return match.group(1) + name + ("\nBeispielweg 2\n00000 Beispielstadt" if address else "")
 
+    def _ebay_footer(self, match):
+        """eBay's footer: the buyer's name and user name, replaced in every mail."""
+        name, user = match.group(2), match.group(4)
+        if _t_person(name):
+            self._person(name)
+        self._note(user, "beispielnutzer", r".")
+        return f"{match.group(1)}Max Mustermann{match.group(3)}beispielnutzer{match.group(5)}"
+
+    def _ebay_handle(self, match):
+        """The buyer's user name (or name) in a purchase confirmation."""
+        if match.group("hi") is not None:
+            self._note(match.group("user"), "beispielnutzer", r".")
+            return match.group("hi") + "beispielnutzer"
+        who = match.group("who").strip()
+        if _t_person(who):
+            self._person(who)
+            return "Max Mustermann"
+        if " " in who or _t_company(who):
+            return match.group(0)
+        self._note(who, "beispielnutzer", r".")
+        return "beispielnutzer"
+
     def _amazon(self, match):
         self._person(match.group(2))
         self._recipient("", "", "", match.group(4).strip())
@@ -1307,6 +1344,8 @@ class _TScrubber:
         for pattern in (_T_SENDER_BLOCK, _T_SENDER_NEXT, _T_SENDER_INLINE, _T_SENDER_SAME,
                         _T_SELLER):
             text = pattern.sub(self._sender, text)
+        text = _T_EBAY_FOOTER.sub(self._ebay_footer, text)
+        text = _T_EBAY_HANDLE.sub(self._ebay_handle, text)
         text = _T_AMAZON_LINE.sub(self._amazon, text)
         text = _T_PLAIN_BLOCK.sub(self._plain, text)
         text = _T_INLINE_ADDRESS.sub(self._inline, text)
@@ -1317,8 +1356,8 @@ class _TScrubber:
         if not self._learning:
             for found in sorted(self.learned, key=len, reverse=True):
                 source = re.escape(found)
-                if self.learned[found] == "beispielshop":
-                    # a seller's handle only as a whole word ("versand" never in
+                if self.learned[found] in ("beispielshop", "beispielnutzer"):
+                    # a user name only as a whole word ("versand" never in
                     # "Versanddienstleister"; "shop.24" never in "myshop.24" or "shop.245")
                     source = rf"(?<![\w.-]){source}(?![\w-]|\.\w)"
                 text = re.sub(source, self.learned[found], text, flags=re.I)
