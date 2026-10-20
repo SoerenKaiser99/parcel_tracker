@@ -32,7 +32,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
-### v0.3.40 (20.10.2026)
+### v0.3.40 (2026-10-20)
 
 - **Geschenkmodus:** ein Schalter neben „Pakete“ auf der Karte. Pakete, die im Modus entstehen, heißen „Geschenk · …“ und zeigen keinen Namen, keinen Mail-Titel und keine Links, auch nicht im Kalender, in Sensoren und in Benachrichtigungen. Wer Geschenke sehen darf, legst du unter Konfigurieren fest; nur diese Personen schalten den Modus aus und sehen den echten Namen. Wähle sie zuerst, sonst lässt sich der Modus nur per Automation ausschalten. Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer.
 - Neuer Dienst `parcel_tracker.set_gift`, um Pakete (auch alle offenen) als Geschenk zu kennzeichnen oder wieder sichtbar zu machen.

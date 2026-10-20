@@ -1519,15 +1519,16 @@ def test_changelog_has_a_section_for_every_release_newest_first():
         ["git", "tag", "--list", "v0.*"], cwd=ROOT, capture_output=True, encoding="utf-8",
         check=True,
     ).stdout.split()
-    assert tags, "the repository has no release tags"
+    # A shallow CI checkout has no tags: then only order and format are checked.
     versions = re.findall(r"^### (v\d+\.\d+\.\d+)(?: \(([^)]+)\))?$", CHANGELOG, re.M)
     listed = [version for version, _ in versions]
     assert "v0.3.40" in listed
-    assert set(tags) <= set(listed)
+    if tags:
+        assert set(tags) <= set(listed)
     assert len(listed) == len(set(listed))
     assert listed == sorted(listed, key=_version_key, reverse=True)
     for version, date in versions:
-        pattern = r"\d{2}\.\d{2}\.\d{4}" if version == "v0.3.40" else r"\d{4}-\d{2}-\d{2}"
+        pattern = r"\d{4}-\d{2}-\d{2}"
         assert re.fullmatch(pattern, date), version
 
 
