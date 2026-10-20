@@ -526,8 +526,11 @@ _T_ADDRESS_LINE = re.compile(
 # "… an folgende Adresse zugestellt:" (DPD Austria), also at the end of a sentence: the
 # lines below it up to the line with the postcode (four or five digits), at most four lines.
 _T_ADDRESS_INTRO = re.compile(
-    r"(?im)^([^\n]{0,80}?\b(?:an[ \t]+)?(?:die[ \t]+)?folgende[n]?[ \t]+(?:Adresse|Anschrift)"
-    r"(?:[ \t]+(?:zugestellt|geliefert|gesendet|versendet|verschickt))?[*_ \t]*:[*_ \t]*\n)"
+    r"(?im)^([^\n]{0,80}?\b(?:(?:an[ \t]+)?(?:die[ \t]+)?folgende[nr]?[ \t]+(?:Adresse|Anschrift)"
+    r"(?:[ \t]+(?:zugestellt|geliefert|gesendet|versendet|verschickt|zu))?"
+    # "(bei einer Wunschzustellung ggf. abweichend)"; DPD in 2020: "Ich habe Ihr Paket
+    # erfolgreich zugestellt:"
+    r"(?:[ \t]*\([^()\n]{0,80}\))?|Ihr Paket erfolgreich zugestellt)[*_ \t]*:[*_ \t]*\n)"
     rf"(?:[^\n]*\n){{0,3}}?(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*"
     r"|[ \t]*(?:(?:A|CH|D)[- ])?\d{4}[ \t]+[^\W\d_][^\n]*)"
 )
@@ -536,10 +539,22 @@ _T_ADDRESS_INTRO = re.compile(
 # block has as many lines as the address needs (street, addition, town, state, postcode),
 # so it is read up to the line with the phone number, never beyond the next label.
 _T_ALI_SHIP_TO = re.compile(
-    r"(?im)^(Versand nach[ \t]*\n)"
-    r"(?:(?P<lines>(?:(?![^\n]*\(\+\d+\)|Zahlungsmethode\b)[^\n]*\n){0,12})"
-    r"(?P<name>(?!Zahlungsmethode\b)[^\n(]*)\(\+\d+\)[^\n]*"
+    r"(?im)^((?:Versand nach|Ship to|Lieferanschrift)[ \t]*\n)"
+    r"(?:(?P<lines>(?:(?![^\n]*\(\+\d+\)|Zahlungsmethode\b|Payment method\b)[^\n]*\n){0,12})"
+    r"(?P<name>(?!Zahlungsmethode\b|Payment method\b)[^\n(]*)\(\+\d+\)[^\n]*"
     r"|(?P<single>[^\n]+))"
+)
+# Amazon until 2025: "Die Sendung geht an:", the first name and the place on the lines below.
+_T_AMAZON_SHIP_TO = re.compile(
+    r"(?im)^([*_ \t]*Die Sendung geht an:[*_ \t]*\n[ \t]*)([^\n]{2,40}?)([ \t]*\n[ \t]*)"
+    r"([^\n\d]{2,40}?)([ \t]*\n[ \t]*(?:Gesamtbetrag|Bestellnummer))"
+)
+# The recipient's name behind "Empfänger:" or on the line below it, without an address (DPD).
+_T_RECIPIENT_NAME = re.compile(
+    r"((?i:Empf(?:ä|ae)nger(?:in)?)[*_ \t]*:[*_ \t]*(?:\n[*_ \t]*)?)"
+    r"((?:[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*|[A-ZÄÖÜ]\.)"
+    r"(?:[ \t]+(?:von|van|de|der|zu))?[ \t]+[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*)"
+    r"(?![^\W\d_])"
 )
 # GLS delivery mail: "*an NAME*" and the address lines up to the next rule or empty line.
 _T_DELIVERED_TO = re.compile(
@@ -595,11 +610,12 @@ _T_SENDER_NEXT = re.compile(r"(?i)(Paket von(?: dem Absender)?[ \t]*\n\s*)([^\n]
 # "Paket von NAME." and UPS' "auf Antrag von NAME , um ...": up to four capitalised words in
 # front of a verb, a comma or the end.
 _T_SENDER_INLINE = re.compile(
-    r"(?m)((?:(?:Sendung|Paket|Päckchen|Lieferung|Antrag|Auftrag) von|(?:request|behalf) of) )"
+    # Hermes glues the words together in its text part: "deine Sendungvon NAME findet …"
+    r"(?m)((?:(?:Sendung|Paket|Päckchen|Lieferung|Antrag|Auftrag) ?von|(?:request|behalf) of) )"
     r"(?!(?:Ihnen|Ihre[mnrs]?|Dir|Deine[mnrs]?|Uns|Unsere[mnrs]?|Montag|Dienstag|Mittwoch"
     r"|Donnerstag|Freitag|Samstag|Sonnabend|Sonntag|Heute|Gestern|Morgen)\b)"
     r"((?:[A-ZÄÖÜ][^\s,:]* ){0,3}?[A-ZÄÖÜ](?:[^\s,:]*[^\s,:.])?)"
-    r"(?= (?:wurde|wird|kommt|ist|befindet|mit der|hat|liegt|konnte|kann|möchten|to)\b"
+    r"(?= (?:wurde|wird|kommt|ist|befindet|findet|mit der|hat|liegt|konnte|kann|möchten|to)\b"
     r"|[ \t]?[,.]?[ \t]*$|[ \t]?[,.][ \t])"
 )
 # "Absender: NAME" / "Versender: NAME" / "Von: NAME" on one line.
@@ -627,7 +643,7 @@ _T_STREET = (
     # Austria: staircase and door ("12/3/7", "3/Top 5", "1/Stiege 2/Tür 4")
     r"(?:[ \t]?/[ \t]?(?:(?:Top|Stiege|Stg\.?|Tür|Haus)[ \t]?)?\d{1,4}(?:[ \t]?[a-zA-Z]\b)?){0,3}"
 )
-_T_PLZ = r"(?:D[- ])?(?!12345[ \t]+Musterstadt|00000[ \t]+Beispielstadt)\d{5}"
+_T_PLZ = r"(?:DE?[- ])?(?!12345[ \t]+Musterstadt|00000[ \t]+Beispielstadt)\d{5}"
 # Austria and Switzerland: four digits ("A-6789", "CH-8999"); only below a street line that
 # names a street (four digits alone are too often a year or an amount).
 _T_PLZ4 = r"(?:(?:A|CH)[- ])?\d{4}(?!\d)"
@@ -652,7 +668,17 @@ _T_INLINE_ADDRESS = re.compile(
     rf"(?P<plz>{_T_PLZ}|{_T_PLZ4})[ \t]+(?P<city>{_T_CITY})"
 )
 _T_PLZ_CITY = re.compile(
-    rf"(?m)(?P<lead>^[*_> \t]*|[,|·•][ \t]*)(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
+    rf"(?m)(?P<lead>^[*_> \t]*|[,|·•][*_ \t]*)(?P<plz>{_T_PLZ})"
+    # also glued to the place ("12345Musterstadt")
+    rf"(?:[ \t]+|(?=[A-ZÄÖÜ][a-zäöüß]))(?P<city>{_T_CITY})"
+)
+# Fields of a form, the value behind the label or on the line below it.
+_T_FORM = re.compile(
+    r"(?im)^(?P<label>[*_ \t]*(?P<kind>(?:Vor|Nach|Familien|Kunden|Empf(?:ä|ae)nger)name"
+    r"|Name[ \t]*/[ \t]*(?:Unternehmen|Firma)"
+    r"|Stra(?:ß|ss)e(?:nname)?(?:[ \t]*(?:&|und|/|\|)[ \t]*(?:Hausnummer|Haus-?Nr\.?|Nr\.?))?"
+    r"|PLZ(?:[ \t]*(?:&|und|/|,|\|)[ \t]*Ort)?|Postleitzahl|Wohnort|Ort|Stadt)"
+    r"[*_ \t]*:[*_ \t]*(?:\n[*_ \t]*)?)(?P<value>[^\n]*?)[ \t]*$"
 )
 # A place to pick a parcel up at, with its number ("Postfiliale 999", "Packstation 123"): the
 # number tells where the recipient lives, so it is invented like a tracking number (the same
@@ -667,8 +693,10 @@ _T_PICKUP_NUMBER = re.compile(
 # ("Filiale 999 (Hauptstraße 1, 12345 Ort)").
 _T_MARKUP = r"(?:<[^<>\n]{0,300}>|[ \t*_>])*"
 _T_PICKUP_STREET = re.compile(
-    rf"(?im)^{_T_MARKUP}(?:{_T_PICKUP})\b[^\n]{{0,80}}\n{_T_MARKUP}(?P<street>{_T_STREET})"
-    rf"(?![^\W_])[^\n]{{0,80}}\n{_T_MARKUP}(?:D-)?\d{{5}}[ \t]"
+    rf"(?im)^{_T_MARKUP}(?:pickup[ \t]+)?(?:{_T_PICKUP})\b[^\n]{{0,80}}\n"
+    # DPD names the shop on a line of its own above its street
+    rf"(?:{_T_MARKUP}[^\n\d]{{2,60}}\n)?{_T_MARKUP}(?P<street>{_T_STREET})"
+    rf"(?![^\W_])[^\n]{{0,80}}\n{_T_MARKUP}(?:DE?-)?\d{{5}}(?:[ \t]|(?=[^\W\d_]))"
     rf"|(?:{_T_PICKUP})[ \t]*\d{{1,6}}[ \t]*\((?P<inline>{_T_STREET})[ \t]*,[ \t]*(?:D-)?\d{{5}}[ \t]"
 )
 # Quoted header lines of a forwarded mail: the recipients.
@@ -1128,6 +1156,9 @@ class _TScrubber:
         return match.group(1) + "Max Mustermann, Musterstraße 1, 12345 Musterstadt"
 
     def _ali_ship_to(self, match):
+        # "Lieferanschrift" is a label of other mails too: a block an earlier rule replaced stays
+        if re.match(r"[ \t]*(?:Max Mustermann|Musterstraße 1)\b", match.group(0).split("\n", 1)[1]):
+            return match.group(0)
         if match.group("single") is not None:
             self._note(match.group("single"), "Musterstraße 1, Musterstadt")
             return match.group(1) + "Musterstraße 1, Musterstadt"
@@ -1140,6 +1171,54 @@ class _TScrubber:
         self._recipient(*_t_address_parts(match.group(2) + "\n" + match.group(4)))
         return match.group(1) + "Max Mustermann" + match.group(3) + (
             "Musterstraße 1\n12345 Musterstadt\n" if match.group(4) else "")
+
+    def _recipient_name(self, match):
+        """A person's name behind "Empfänger:", without an address."""
+        name = match.group(2)
+        if not _t_person(name):
+            return match.group(0)
+        self._person(name)
+        return match.group(1) + "Max Mustermann"
+
+    def _amazon_ship_to(self, match):
+        self._person(match.group(2).strip())
+        self._recipient("", "", "", match.group(4).strip())
+        return f"{match.group(1)}Max{match.group(3)}Musterstadt{match.group(5)}"
+
+    def _form(self, match):
+        """A field of a form: name, street, or postcode and place."""
+        kind, value = match.group("kind").casefold(), match.group("value")
+        if kind.startswith(("plz", "postleitzahl", "ort", "wohnort", "stadt")):
+            found = re.fullmatch(rf"({_T_PLZ}|{_T_PLZ4})[ \t]+({_T_CITY})", value)
+            if found:
+                self._recipient("", "", re.sub(r"\D", "", found.group(1)), found.group(2))
+                return match.group("label") + "12345 Musterstadt"
+            if kind.startswith(("plz", "postleitzahl")) and re.fullmatch(_T_PLZ, value):
+                self._recipient("", "", re.sub(r"\D", "", value), "")
+                return match.group("label") + "12345"
+            if kind.startswith("plz") or kind.startswith("postleitzahl") or not (
+                re.fullmatch(_T_CITY, value) and not _T_SERVICE.search(value)
+                and not any(_T_NOT_NAME.fullmatch(word) for word in value.split())
+            ):
+                return match.group(0)
+            self._recipient("", "", "", value)
+            return match.group("label") + "Musterstadt"
+        if kind.startswith("stra"):
+            found = re.match(_T_STREET, value)
+            if not found:
+                return match.group(0)
+            self._recipient("", found.group(0), "", "")
+            return match.group("label") + "Musterstraße 1"
+        if not _t_name_line(value):
+            return match.group(0)
+        if kind.startswith("vor"):
+            self._person(value)
+            return match.group("label") + "Max"
+        if kind.startswith(("nach", "familien")):
+            self._person(value, "Mustermann")
+            return match.group("label") + "Mustermann"
+        self._person(value)
+        return match.group("label") + "Max Mustermann"
 
     def _hello(self, match):
         words = [word for word in match.group("name").split() if not re.search(r"\d", word)]
@@ -1333,11 +1412,13 @@ class _TScrubber:
             for match in _T_PICKUP_STREET.finditer(text):
                 self._pickup_street(match.group("street") or match.group("inline"))
         text = _T_PICKUP_NUMBER.sub(self._pickup_number, text)
+        text = _T_AMAZON_SHIP_TO.sub(self._amazon_ship_to, text)
         text = _T_ADDRESS_BLOCK.sub(self._block, text)
         text = _T_ADDRESS_INTRO.sub(self._block, text)
         text = _T_ALI_SHIP_TO.sub(self._ali_ship_to, text)
         text = _T_ADDRESS_LINE.sub(self._line, text)
         text = _T_DELIVERED_TO.sub(self._delivered, text)
+        text = _T_RECIPIENT_NAME.sub(self._recipient_name, text)
         text = _T_HELLO.sub(self._hello, text)
         text = _T_HELLO_BARE.sub(self._hello, text)
         text = _T_QUOTED_TO.sub(f"\\1 {_T_MAIL}", text)
@@ -1347,6 +1428,7 @@ class _TScrubber:
         text = _T_EBAY_FOOTER.sub(self._ebay_footer, text)
         text = _T_EBAY_HANDLE.sub(self._ebay_handle, text)
         text = _T_AMAZON_LINE.sub(self._amazon, text)
+        text = _T_FORM.sub(self._form, text)
         text = _T_PLAIN_BLOCK.sub(self._plain, text)
         text = _T_INLINE_ADDRESS.sub(self._inline, text)
         text = _T_PLZ_CITY.sub("\\g<lead>12345 Musterstadt", text)
