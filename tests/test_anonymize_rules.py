@@ -97,6 +97,52 @@ def test_address_blocks_with_other_labels_and_postcode_layouts(tmp_path):
     _absent(msg, "erika", "sonnenschein", "alten hafen", "anderswo", "67890")
 
 
+# ----- eBay: purchase confirmations and messages, each mail on its own -----
+
+EBAY = "eBay <ebay@ebay.com>"
+TILDA = ("tilda", "sonnberg", "ahornallee", "80000", "anderswo", "kugelfisch77")
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        # the current layout: the country above the name, a phone number above the postcode
+        "Ihre Bestellung wird verschickt an:\nDeutschland\nTilda Sonnberg\nAhornallee 5\n"
+        "0151 2345678\n80000 Anderswo\n",
+        "Ihre Bestellung wird verschickt nach:\nTilda Sonnberg\nAhornallee 5, 0151 2345678\n"
+        "Anderswo 80000\n",
+        "Versandziel:\nTilda Sonnberg\nAhornallee 5\n80000 Anderswo\n",
+    ],
+)
+def test_ebay_purchase_confirmation_keeps_no_name_address_or_user_name(tmp_path, block):
+    raw = _mail(
+        EBAY, "kugelfisch77, Ihre Bestellung wurde bestätigt.",
+        "Willkommen zurück, kugelfisch77! Danke, dass Sie wieder bei uns gekauft haben.\n"
+        f"{block}\nDiese Nachricht wurde von eBay an Tilda Sonnberg (kugelfisch77) gesendet.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, *TILDA)
+    assert msg["Subject"] == "beispielnutzer, Ihre Bestellung wurde bestätigt."
+    assert "Willkommen zurück, beispielnutzer! Danke" in text
+    assert "Max Mustermann\nMusterstraße 1\n12345 Musterstadt" in text
+    assert "von eBay an Max Mustermann (beispielnutzer) gesendet." in text
+
+
+def test_ebay_message_keeps_no_name_or_user_name_of_the_buyer(tmp_path):
+    raw = _mail(
+        "eBay - kugelfisch77 <member@ebay.com>",
+        "kugelfisch77 hat eine Nachricht gesendet zu Akku-Laubbläser #123456789012",
+        "Hallo, ich bräuchte noch eine Rechnung.\nVG T. Sonnberg\n- kugelfisch77\n\n"
+        "Diese Nachricht wurde von eBay gesendet an Tilda Sonnberg (kugelfisch77). Mehr.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, *TILDA)
+    assert "\n- beispielnutzer\n" in text
+    assert msg["Subject"].startswith("beispielnutzer hat eine Nachricht gesendet zu")
+
+
 # ----- 2: private senders -----
 
 def test_private_sender_names_in_sentences_and_label_lines(tmp_path):
