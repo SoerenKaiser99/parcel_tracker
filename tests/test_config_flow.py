@@ -600,7 +600,20 @@ async def test_options_saves_mail_interval(hass):
     assert entry.options[CONF_MAIL_INTERVAL] == 15
 
 
-@pytest.mark.parametrize("minutes", [0, 61])
+async def test_options_accepts_the_longest_mail_interval_of_a_day(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    with patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(**{CONF_MAIL_INTERVAL: 1440})
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_MAIL_INTERVAL] == 1440
+
+
+@pytest.mark.parametrize("minutes", [0, 1441])
 async def test_options_rejects_mail_interval_out_of_range(hass, minutes):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)

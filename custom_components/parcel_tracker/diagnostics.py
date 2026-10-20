@@ -228,6 +228,8 @@ async def async_get_config_entry_diagnostics(
         "country": entry_country(entry),
         # Whether "Namen ausblenden" is on; names themselves are never part of this file.
         "hide_names": coordinator.hide_names,
+        # Only how many persons may see gifts, never who.
+        "gift_viewers": len(coordinator.gift_viewer_user_ids()),
         "entry": {"data": _redact(entry.data), "options": _redact(entry.options)},
         "carriers": {
             "active": list(coordinator.carriers),

@@ -2,12 +2,12 @@
 
 [![Version](https://img.shields.io/github/v/release/SoerenKaiser99/parcel_tracker?label=Version)](https://github.com/SoerenKaiser99/parcel_tracker/releases/latest) [![Downloads](https://img.shields.io/github/downloads/SoerenKaiser99/parcel_tracker/total?label=Downloads)](https://github.com/SoerenKaiser99/parcel_tracker/releases) [![Doku](https://img.shields.io/badge/Doku-Anleitung-blue)](https://soerenkaiser99.github.io/parcel_tracker/)
 
-**Ausführliche Anleitung mit Rezepten:** [soerenkaiser99.github.io/parcel_tracker](https://soerenkaiser99.github.io/parcel_tracker/)
+**Ausführliche Anleitung mit Rezepten:** [soerenkaiser99.github.io/parcel_tracker](https://soerenkaiser99.github.io/parcel_tracker/) · **Alle Versionen:** [CHANGELOG](https://github.com/SoerenKaiser99/parcel_tracker/blob/main/CHANGELOG.md)
 
 Home-Assistant-Integration, die Pakete von DHL, DPD, GLS, Hermes und (optional) UPS verfolgt, Amazon-, eBay- und AliExpress-Bestellungen sowie Eventim-Tickets mit Postversand aus E-Mails übernimmt und alles auf einer eigenen Dashboard-Karte zeigt.
 
 <p>
-  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-hell.png" width="260" alt="Die Paket-Tracker-Karte im hellen Design: zwölf Pakete von DHL, DPD, GLS, Hermes, UPS, Amazon, eBay, AliExpress und 17track mit Status, Fortschrittsbalken und Liefertermin">
+  <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-hell.png" width="260" alt="Die Paket-Tracker-Karte im hellen Design: zwölf Pakete von DHL, DPD, GLS, Hermes, UPS, Amazon, eBay, AliExpress und 17track mit Status, Fortschrittsbalken und Liefertermin, im Kopf der Schalter „Geschenkmodus“ und ein Paket als Geschenk mit Geschenkbox">
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-detail.png" width="260" alt="Die Karte mit geöffneter Eingabe für eine neue Sendung und einem aufgeklappten DHL-Paket: Verlauf der Sendung, die Sendungsnummer mit dem Symbol „Sendung verfolgen“ dahinter und die Knöpfe „Details über 17track holen“, „Erhalten“, „Umbenennen“ und „Löschen“">
   <img src="https://raw.githubusercontent.com/SoerenKaiser99/parcel_tracker/main/docs/images/karte-dunkel.png" width="260" alt="Die Paket-Tracker-Karte im dunklen Design">
 </p>
@@ -33,9 +33,9 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Automationen**: fünf Auslöser im Automations-Editor ohne YAML und das Event `parcel_tracker_status_changed` – [Automationen](https://soerenkaiser99.github.io/parcel_tracker/automationen/)
 - **Rezepte**: elf Beispiele für Automationen und Karten zum Kopieren – [Rezepte](https://soerenkaiser99.github.io/parcel_tracker/rezepte/)
 - **Sensoren und Kalender**: `sensor.paket_<nummer>` pro Paket, `sensor.pakete_heute`, vier Zählsensoren und `calendar.pakete` – [Sensoren, Kalender und Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/)
-- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track` – [Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/#dienste)
+- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` – [Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/#dienste)
 - **17track** (optional): ergänzt Ort, Zeitfenster und Verlauf und verfolgt Carrier ohne eigene Anbindung, z. B. FedEx – [17track](https://soerenkaiser99.github.io/parcel_tracker/dienste/#17track-optional)
-- **Namen ausblenden** (optional): Pakete heißen überall nur nach dem Paketdienst, für Geschenke auf einem gemeinsamen Dashboard – [Namen ausblenden](https://soerenkaiser99.github.io/parcel_tracker/datenschutz/#namen-ausblenden)
+- **Namen ausblenden** (optional): Pakete heißen überall nur nach dem Paketdienst, für Geschenke auf einem gemeinsamen Dashboard; dazu der Geschenkmodus, in dem nur festgelegte Personen sehen, was in einem Paket steckt – [Namen ausblenden](https://soerenkaiser99.github.io/parcel_tracker/datenschutz/#namen-ausblenden)
 
 ## Für Deutschland gebaut
 

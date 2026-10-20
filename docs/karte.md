@@ -139,6 +139,19 @@ Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ i
 
 Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
 
+### Geschenkmodus
+
+Neben „Pakete“ im Kartenkopf steht ein Geschenk-Symbol: der Schalter „Geschenkmodus“ (er gehört zu `switch.paket_tracker_geschenkmodus`). Ältere Versionen der Integration haben ihn nicht, dann zeigt die Karte ihn auch nicht. Alles zum Modus und seinen Grenzen: [Geschenkmodus](datenschutz.md#geschenkmodus).
+
+!!! warning "Wähle zuerst, wer Geschenke sehen darf"
+    Unter **Konfigurieren** im Bereich „Geschenkmodus (optional)“ legst du fest, wer Geschenke sehen darf. Ist niemand gewählt, kann den Modus über die Karte keiner mehr ausschalten, nur eine Automation ([so geht's](automationen.md#geschenkmodus-per-automation-schalten)). Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant, sonst gelten sie als der Elternteil, mit dem sie angemeldet sind.
+
+**Einschalten.** Ein Tipp auf das Symbol fragt zuerst: „Auch die N offenen Pakete verbergen?“ Offen heißt: weder zugestellt noch storniert und noch kein Geschenk. „Ja, verbergen“ schaltet den Modus ein und kennzeichnet auch diese Pakete, „Nein, nur neue Pakete“ schaltet nur ein. Sind keine Pakete offen, gibt es „Einschalten“. Mit „Abbrechen“ oder ++esc++ passiert nichts. Wer nicht zu den Personen gehört, die Geschenke sehen dürfen, bekommt in der Rückfrage zusätzlich den Hinweis, zuerst zu wählen, wer das darf.
+
+**Ausschalten** kann nur, wer Geschenke sehen darf, mit einem Tipp, ohne Rückfrage. Alle anderen sehen bei eingeschaltetem Modus nur das Zeichen „Geschenkmodus“ ohne Knopf.
+
+**Ein Geschenk in der Liste.** Es heißt z. B. „Geschenk · DHL-Paket …2557“ und zeigt keine Links. Vorne in der Zeile steht ein Geschenk-Symbol. Wer Geschenke sehen darf, tippt darauf: Der echte Name erscheint nur in dieser Zeile und auf diesem Gerät, mit dem Link zur Sendung und dem Knopf „Nicht mehr verbergen“. Ein zweiter Tipp verbirgt ihn wieder. „Umbenennen“ und „Löschen“ fehlen bei einem Geschenk für alle anderen; „Erhalten“ bleibt.
+
 ## Optionen der Karte
 
 Die Karte hat zwei eigene Optionen: `add_form` und `show`. Beide trägst du im YAML der Karte ein (Karte bearbeiten).

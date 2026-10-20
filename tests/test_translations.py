@@ -329,3 +329,14 @@ def test_mail_connection_translations():
     issue = german["issues"]["imap_insecure"]
     assert "ohne geprüfte Verschlüsselung" in issue["description"]
     assert "nur im eigenen Netz" in issue["description"]
+
+
+def test_set_gift_service_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        strings = _load(name)
+        assert {
+            "gift_not_allowed", "gift_target", "gift_remove_not_allowed", "gift_rename_not_allowed",
+        } <= set(strings["exceptions"])
+        assert set(strings["services"]["set_gift"]["fields"]) == {
+            "number", "open_parcels", "gift",
+        }

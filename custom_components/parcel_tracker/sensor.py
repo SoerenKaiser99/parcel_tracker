@@ -99,7 +99,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_options = [s.value for s in ParcelStatus]
     _attr_translation_key = "parcel"
     _attr_icon = "mdi:package-variant-closed"
-    _unrecorded_attributes = frozenset({"events", "status_text", "delivery_code"})
+    _unrecorded_attributes = frozenset(
+        {"events", "status_text", "delivery_code", "name", "tracking_url", "amazon_shipment"}
+    )
 
     def __init__(self, coordinator: ParcelCoordinator, number: str) -> None:
         super().__init__(coordinator)
@@ -164,9 +166,12 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "tracking_carrier": p.tracking_carrier,
             # The carrier's public tracking page (None: shop order without a carrier
             # number, 17track only, carrier unknown); the card links to it.
-            "tracking_url": tracking_url(p),
+            # (a gift gives out neither this nor the shipment id)
+            "tracking_url": None if p.gift else tracking_url(p),
             # Amazon's id of the order's newest shipment (from its mails); the card shows it.
-            "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids else None,
+            "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids and not p.gift else None,
+            # Marked as a gift (Geschenkmodus): shown by its gift name, no links.
+            "gift": p.gift,
             "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
             "track17": p.track17,
@@ -211,7 +216,10 @@ class TodaySensor(_SummarySensor):
 
     _attr_translation_key = "today"
     _attr_icon = "mdi:truck-delivery"
-    _unrecorded_attributes = frozenset({"integration_version"})
+    # The lists carry the names: not in the history (a gift's name must not be kept).
+    _unrecorded_attributes = frozenset(
+        {"integration_version", "parcels", "possible", "delivered_today", "awaiting_pickup"}
+    )
 
     def __init__(self, coordinator: ParcelCoordinator) -> None:
         super().__init__(coordinator)
@@ -273,6 +281,8 @@ class GroupCountSensor(_SummarySensor):
         self.entity_id = entity_id
         self._attr_name = name
         self._attr_icon = icon
+
+    _unrecorded_attributes = frozenset({"parcels"})
 
     def _parcels(self) -> list[Parcel]:
         return getattr(self._summary(), self._group)

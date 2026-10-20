@@ -12,6 +12,8 @@ from homeassistant.core import HomeAssistant, callback, split_entity_id, valid_e
 from homeassistant.data_entry_flow import section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -32,6 +34,8 @@ from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
+    CONF_GIFT_SECTION,
+    CONF_GIFT_VIEWERS,
     CONF_HIDE_NAMES,
     CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
@@ -58,6 +62,7 @@ from .const import (
     CONF_UPS_ENABLED,
     CONF_UPS_SECTION,
     COUNTRIES,
+    DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_IMAP_FOLDER,
     DEFAULT_IMAP_HOST,
@@ -262,6 +267,33 @@ def _notify_section(
     )
 
 
+def _stored_viewers(current: Mapping[str, Any]) -> list[str]:
+    """The stored gift viewers (person entity IDs); nobody if nothing usable is stored."""
+    stored = current.get(CONF_GIFT_VIEWERS, DEFAULT_GIFT_VIEWERS)
+    if not isinstance(stored, (list, tuple)):
+        return []
+    return list(dict.fromkeys(v for v in stored if isinstance(v, str) and v))
+
+
+def _gift_section(current: Mapping[str, Any]) -> section:
+    """Collapsible 'gift mode' block of the options form: who may see gifts.
+
+    Prefilled through ``default`` with the stored persons, so an untouched form
+    sends back what is stored.
+    """
+    viewers = _stored_viewers(current)
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(CONF_GIFT_VIEWERS, default=viewers): EntitySelector(
+                    EntitySelectorConfig(domain="person", multiple=True)
+                ),
+            }
+        ),
+        {"collapsed": not viewers},
+    )
+
+
 def _ups_section(current: Mapping[str, Any]) -> section:
     """Collapsible 'UPS live status' block of the options form.
 
@@ -354,6 +386,7 @@ def _schema(
     notify: Mapping[str, Any] | None = None,
     notify_available: Sequence[SelectOptionDict] = (),
     hide_names: bool = False,
+    gift: Mapping[str, Any] | None = None,
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
@@ -393,6 +426,8 @@ def _schema(
         fields[vol.Optional(CONF_UPS_SECTION)] = _ups_section(ups)
     if notify is not None:
         fields[vol.Optional(CONF_NOTIFY_SECTION)] = _notify_section(notify, notify_available)
+    if gift is not None:
+        fields[vol.Optional(CONF_GIFT_SECTION)] = _gift_section(gift)
     return vol.Schema(fields)
 
 
@@ -666,6 +701,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 events = [event for event in NOTIFY_EVENTS if event in chosen]
             else:
                 events = _stored_events(options)
+            gift = user_input.get(CONF_GIFT_SECTION) or {}
+            if isinstance(gift.get(CONF_GIFT_VIEWERS), list):
+                viewers = _stored_viewers(gift)
+            else:
+                viewers = _stored_viewers(options)
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
@@ -736,6 +776,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     new_options[CONF_COUNTRY] = country
                 if CONF_HIDE_NAMES in options or hide:
                     new_options[CONF_HIDE_NAMES] = hide
+                if CONF_GIFT_VIEWERS in options or viewers:
+                    new_options[CONF_GIFT_VIEWERS] = viewers
                 if CONF_PLAIN_NAMES in options or plain_names:
                     new_options[CONF_PLAIN_NAMES] = plain_names
                 if CONF_IMAP_FOLDER in options or folder != DEFAULT_IMAP_FOLDER:
@@ -780,6 +822,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
         mail_shown = {**current, **((user_input or {}).get(CONF_MAIL_SECTION) or {})}
         ups_shown = {**current, **((user_input or {}).get(CONF_UPS_SECTION) or {})}
         notify_shown = {**current, **((user_input or {}).get(CONF_NOTIFY_SECTION) or {})}
+        gift_shown = {**current, **((user_input or {}).get(CONF_GIFT_SECTION) or {})}
         return self.async_show_form(
             step_id="init",
             data_schema=_schema(
@@ -792,6 +835,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 notify=notify_shown,
                 notify_available=_available_targets(self.hass),
                 hide_names=True,
+                gift=gift_shown,
             ),
             errors=errors,
         )

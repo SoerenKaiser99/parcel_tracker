@@ -18,6 +18,7 @@ from custom_components.parcel_tracker.carriers.track17 import Quota
 from custom_components.parcel_tracker.const import (
     CONF_COUNTRY,
     CONF_DHL_API_KEY,
+    CONF_GIFT_SECTION,
     CONF_HIDE_NAMES,
     CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
@@ -278,11 +279,13 @@ def test_frontend_prefills_the_sections(hass):
     current = {**DATA, **OPTIONS}
     fields = to_field_list(
         _schema(current, True, suggested_postcode="20095", mail=current, ups=current,
-                track17=True, notify=current),
+                track17=True, notify=current, gift=current),
         custom_serializer=cv.custom_serializer,
     )
     sections = {f["name"]: f for f in fields if f.get("type") == "expandable"}
-    assert set(sections) == {CONF_MAIL_SECTION, CONF_UPS_SECTION, CONF_NOTIFY_SECTION}
+    assert set(sections) == {
+        CONF_MAIL_SECTION, CONF_UPS_SECTION, CONF_NOTIFY_SECTION, CONF_GIFT_SECTION,
+    }
     for field in sections.values():
         assert "default" not in field
     initial = _frontend_initial(fields)

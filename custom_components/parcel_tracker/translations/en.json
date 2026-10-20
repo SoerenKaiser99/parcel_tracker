@@ -112,6 +112,16 @@
               "notify_targets": "Notify entities (e.g. the Home Assistant app on your phone) and classic notify services such as Pushover, listed as “Dienst notify.…”. Without a target nothing is sent.",
               "notify_events": "The status changes you are notified about."
             }
+          },
+          "gift": {
+            "name": "Gift mode (optional)",
+            "description": "Who may see what is inside a gift.",
+            "data": {
+              "gift_viewers": "Who may see gifts?"
+            },
+            "data_description": {
+              "gift_viewers": "Only these people see what is inside a parcel in gift mode. Wall tablets and children's phones need a user of their own in Home Assistant."
+            }
           }
         }
       }
@@ -183,6 +193,11 @@
     }
   },
   "exceptions": {
+    "gift_mode_not_allowed": {"message": "Only someone who may see gifts can turn off the gift mode."},
+    "gift_not_allowed": {"message": "Only someone who may see gifts can make a gift visible again."},
+    "gift_remove_not_allowed": {"message": "Only someone who may see gifts can delete a gift."},
+    "gift_rename_not_allowed": {"message": "Only someone who may see gifts can rename a gift."},
+    "gift_target": {"message": "Give either a tracking number or choose all open parcels."},
     "duplicate": {"message": "This parcel is already in the list."},
     "amazon": {"message": "Amazon tracking numbers (TBA…) can't be tracked directly. Forward the Amazon mails to the parcel mailbox instead."},
     "empty": {"message": "Enter a tracking number."},
@@ -207,6 +222,9 @@
     }
   },
   "entity": {
+    "switch": {
+      "gift_mode": {"name": "Gift mode"}
+    },
     "sensor": {
       "parcel": {
         "state": {
@@ -286,6 +304,15 @@
       "name": "Refresh",
       "description": "Poll now, including the mailbox if configured.",
       "fields": {"number": {"name": "Tracking number", "description": "Empty for all parcels."}}
+    },
+    "set_gift": {
+      "name": "Mark as gift",
+      "description": "Mark a parcel, or all parcels not delivered yet, as a gift, or make it visible again (marking is open to everyone, only making it visible again is limited to people who may see gifts).",
+      "fields": {
+        "number": {"name": "Tracking number", "description": "Parcel to change. Leave empty when choosing all open parcels."},
+        "open_parcels": {"name": "All open parcels", "description": "Change every parcel that is not delivered yet instead of one."},
+        "gift": {"name": "Gift", "description": "On marks as gift, off makes it visible again."}
+      }
     },
     "track_17track": {
       "name": "Track via 17track",

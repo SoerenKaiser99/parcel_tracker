@@ -32,6 +32,7 @@ ENTITIES = (
         "track17_quota",
         "Paket Tracker 17track-Kontingent",
     ),
+    ("switch.paket_tracker_geschenkmodus", "gift_mode", "Geschenkmodus"),
     (f"sensor.paket_{NUMBER}", NUMBER, "Oma"),
     ("calendar.pakete", "calendar", "Pakete"),
 )

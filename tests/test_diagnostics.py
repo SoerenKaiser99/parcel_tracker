@@ -115,6 +115,7 @@ TOP_LEVEL = [
     "home_assistant_version",
     "country",
     "hide_names",
+    "gift_viewers",
     "entry",
     "carriers",
     "ups_budget",

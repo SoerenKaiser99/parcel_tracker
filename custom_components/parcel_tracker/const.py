@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.39"
+VERSION = "0.3.40"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -25,6 +25,8 @@ CONF_READ_OTP = "read_otp"
 CONF_PLAIN_NAMES = "plain_names"
 CONF_MAIL_INTERVAL = "mail_interval"
 CONF_UPS_SECTION = "ups"
+CONF_GIFT_SECTION = "gift"
+CONF_GIFT_VIEWERS = "gift_viewers"
 CONF_UPS_ENABLED = "ups_enabled"
 CONF_UPS_CLIENT_ID = "ups_client_id"
 CONF_UPS_CLIENT_SECRET = "ups_client_secret"
@@ -45,6 +47,8 @@ POSTCODE_DIGITS = {"de": 5, "at": 4, "ch": 4}
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
 DEFAULT_HIDE_NAMES = False
+# Person entities that may see what is in a gift (Geschenkmodus); nobody by default.
+DEFAULT_GIFT_VIEWERS: tuple = ()
 MIN_KEEP_DELIVERED_DAYS = 1
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30
@@ -66,7 +70,7 @@ DEFAULT_READ_OTP = False
 DEFAULT_PLAIN_NAMES = False
 DEFAULT_MAIL_INTERVAL = 5
 MIN_MAIL_INTERVAL = 1
-MAX_MAIL_INTERVAL = 60
+MAX_MAIL_INTERVAL = 1440
 DEFAULT_UPS_BUDGET = 100
 MIN_UPS_BUDGET = 0
 MAX_UPS_BUDGET = 10000

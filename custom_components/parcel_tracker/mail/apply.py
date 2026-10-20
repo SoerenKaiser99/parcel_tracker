@@ -396,7 +396,11 @@ def _new_number(parcels: dict[str, Parcel], siblings: list[Parcel], order: str) 
 
 
 def _take_shop_facts(
-    parcels: dict[str, Parcel], parcel: Parcel, update: MailUpdate, now: datetime
+    parcels: dict[str, Parcel],
+    parcel: Parcel,
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
 ) -> bool:
     """Carrier hint and carrier number a shop mail names; True if the order changed.
 
@@ -442,7 +446,7 @@ def _take_shop_facts(
             _fold(parcels, own, parcel, keep=True)
             changed = True
     elif parcel.tracking_ref != number and parcel.carrier in SINGLE_PARCEL_SHOPS:
-        _further_parcel(parcels, parcel, update, now)
+        _further_parcel(parcels, parcel, update, now, gift)
     return changed
 
 
@@ -472,14 +476,20 @@ def _remember_shipment(parcel: Parcel, update: MailUpdate) -> None:
 
 
 def _further_parcel(
-    parcels: dict[str, Parcel], order: Parcel, update: MailUpdate, now: datetime
+    parcels: dict[str, Parcel],
+    order: Parcel,
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
 ) -> None:
     """The second box of an order that has a carrier number already: a parcel of its own.
 
     Named after the shop only ("AliExpress-Sendung": which items are in it is not told),
     with the status of the mail. It belongs to this order, so it is never folded into
-    another one (``Parcel.order_checked``). Nothing if the number is tracked already,
-    on its own or by another order, or if no carrier of ours has such a number.
+    another one (``Parcel.order_checked``). It is a gift if the order is one, whatever the
+    mode is now (``gift``): the second box of a gift must not tell what is in it. Nothing if
+    the number is tracked already, on its own or by another order, or if no carrier of ours
+    has such a number.
     """
     number, carrier = update.tracking_ref, update.tracking_carrier
     if (
@@ -490,7 +500,9 @@ def _further_parcel(
     ):
         return
     name = f"{CARRIER_NAMES[order.carrier]}-Sendung"
-    extra = Parcel(number, carrier, "mail", name, now, now, order_checked=True)
+    extra = Parcel(
+        number, carrier, "mail", name, now, now, order_checked=True, gift=gift or order.gift
+    )
     parcels[number] = extra
     status = update.status if _step(update.status) < _step(ParcelStatus.DELIVERED) else None
     words = MailUpdate(number, carrier, status, update.sent_at, status_text=update.status_text)
@@ -598,7 +610,9 @@ def _take_over(target: Parcel, update: MailUpdate) -> None:
         target.name = update.title
 
 
-def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
+def _apply_order(
+    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, gift: bool = False
+) -> Change | None:
     """A shop order ("AMZ…"/"EBAY…"/"ALI…"/"EVT…"): one parcel per order, suffix for further
     shipments (never for AliExpress and Eventim: their mails name an order's items in turn).
 
@@ -634,9 +648,19 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
         else:
             # (a further box whose mail names no item, see ``_by_shipment``)
             name = _shop_box(update.carrier, index) if index > 1 else None
-        target = Parcel(number, update.carrier, "mail", name, now, now, mail_title=update.title)
+        # A further box of a gift order is a gift as well, also when the mode is off by now.
+        target = Parcel(
+            number,
+            update.carrier,
+            "mail",
+            name,
+            now,
+            now,
+            mail_title=update.title,
+            gift=gift or any(p.gift for p in siblings),
+        )
         parcels[number] = target
-        _take_shop_facts(parcels, target, update, now)
+        _take_shop_facts(parcels, target, update, now, gift)
         _remember_shipment(target, update)
         _forward(target, update, now)
         # A first status is no news - but a further box of an order that is delivered as
@@ -660,7 +684,7 @@ def _apply_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) 
             target.name = _numbered(update.title, index)
     old = target.status
     own = parcels.get(update.tracking_ref) if update.tracking_ref else None
-    facts = _take_shop_facts(parcels, target, update, now)
+    facts = _take_shop_facts(parcels, target, update, now, gift)
     _remember_shipment(target, update)
     # A carrier's parcel of that number was folded into the order just now. If it was
     # delivered, its delivery was announced (``_delivery_told``) and nothing about it
@@ -925,6 +949,7 @@ def _fold(parcels: dict[str, Parcel], parcel: Parcel, order: Parcel, keep: bool 
     """
     if parcel.name and parcel.name_manual:
         order.name, order.name_manual = parcel.name, True
+    order.gift = order.gift or parcel.gift
     order.tracking_ref = parcel.number
     order.tracking_carrier = parcel.carrier
     if keep:
@@ -1114,7 +1139,9 @@ def _mail_name(update: MailUpdate) -> str | None:
     return title if title and not is_carrier_title(title) else None
 
 
-def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
+def _apply_tracking(
+    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, gift: bool = False
+) -> Change | None:
     number = update.number.upper()
     name = _mail_name(update)
     target = parcels.get(number) or next(
@@ -1146,7 +1173,7 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
             _forward(target, update, now)
             return Change(target, old, False)
     if target is None:
-        target = Parcel(number, update.carrier, "mail", name, now, now)
+        target = Parcel(number, update.carrier, "mail", name, now, now, gift=gift)
         parcels[number] = target
         _forward(target, update, now)
         # A first status is no news - but a delivery whose mail names a shop or a company
@@ -1176,12 +1203,17 @@ def _apply_tracking(parcels: dict[str, Parcel], update: MailUpdate, now: datetim
     return Change(target, old, False) if forwarded or named else None
 
 
-def apply_update(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
-    """Create or advance the matching parcel in ``parcels`` (mutated in place)."""
+def apply_update(
+    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, gift: bool = False
+) -> Change | None:
+    """Create or advance the matching parcel in ``parcels`` (mutated in place).
+
+    ``gift``: the Geschenkmodus is on, so every parcel created here is a gift.
+    """
     if update.carrier in SHOP_CARRIERS:
         if update.status is ParcelStatus.CANCELLED:
             return _cancel_order(parcels, update, now)
         if not update.number:
             return _apply_orderless(parcels, update, now)
-        return _apply_order(parcels, update, now)
-    return _apply_tracking(parcels, update, now)
+        return _apply_order(parcels, update, now, gift)
+    return _apply_tracking(parcels, update, now, gift)

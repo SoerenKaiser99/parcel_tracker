@@ -88,6 +88,16 @@ def test_multi_order_mail_creates_one_parcel_per_order():
     assert len(parcels) == 3
 
 
+def test_further_shipment_of_a_gift_order_is_a_gift_with_the_mode_off():
+    parcels: dict[str, Parcel] = {}
+    [first] = _updates("074_versandbestaetigung_versendet.eml")
+    apply_update(parcels, first, NOW, gift=True)
+    assert parcels[PLAETTCHEN].gift is True
+    change = apply_update(parcels, replace(first, title="Magnethalter…"), NOW, gift=False)
+    assert change.parcel.number == f"{PLAETTCHEN}P2"
+    assert change.parcel.gift is True
+
+
 def test_further_shipment_of_same_order_gets_suffix():
     parcels: dict[str, Parcel] = {}
     [first] = _updates("074_versandbestaetigung_versendet.eml")

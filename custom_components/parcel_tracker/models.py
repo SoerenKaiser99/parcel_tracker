@@ -207,6 +207,10 @@ class Parcel:
     # it is delivered and stays exactly as marked, whatever a carrier, 17track or a mail
     # says afterwards. Persisted; a parcel stored by an older version has no mark.
     manual_delivered: bool = False
+    # The user marked the parcel as a gift ("Geschenkmodus"): it is shown as
+    # "Geschenk · <neutral name>" everywhere (see ``display_name``), also against a typed
+    # name. Persisted; a parcel stored by an older version is no gift.
+    gift: bool = False
     # When the newest mail that told a shop order's status was sent, also one that only
     # repeated the status and left no line in the history (see ``mail.apply._forward``).
     # What a mail read late is measured against once the order was closed on its own.
@@ -284,6 +288,7 @@ class Parcel:
             "gls_probes": self.gls_probes,
             "name_manual": self.name_manual,
             "manual_delivered": self.manual_delivered,
+            "gift": self.gift,
             "last_mail_at": _iso(self.last_mail_at),
             "delivery_announced": self.delivery_announced,
             "carrier_status": self.carrier_status.value if self.carrier_status else None,
@@ -323,6 +328,7 @@ class Parcel:
             gls_probes=_count(data.get("gls_probes")),
             name_manual=data.get("name_manual") is True,
             manual_delivered=data.get("manual_delivered") is True,
+            gift=data.get("gift") is True,
             last_mail_at=_dt(data.get("last_mail_at")),
             delivery_announced=(
                 mark if isinstance(mark := data.get("delivery_announced"), bool) else None
@@ -363,13 +369,21 @@ def neutral_name(parcel: Parcel) -> str:
     return f"{kind} {short_number(parcel.number)}"
 
 
+def gift_name(parcel: Parcel) -> str:
+    """'Geschenk · DHL-Paket …2557': how a gift is shown, whatever its name is."""
+    return f"Geschenk · {neutral_name(parcel)}"
+
+
 def display_name(parcel: Parcel, hide_names: bool) -> str | None:
     """The name a parcel is shown by, None if it has none.
 
     With "Namen ausblenden" (``hide_names``) only a name the user typed in is shown;
     every other parcel gets its neutral name, whatever a mail called it. The stored
-    name and mail title are never changed by this.
+    name and mail title are never changed by this. A gift (``Parcel.gift``) is always shown
+    by its gift name, also against a name the user typed in.
     """
+    if parcel.gift:
+        return gift_name(parcel)
     if not hide_names:
         return parcel.name
     if parcel.name and parcel.name_manual:

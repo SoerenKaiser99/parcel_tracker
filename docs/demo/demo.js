@@ -16,6 +16,9 @@
 //   ?edit=1       pretend the dashboard is being edited (preview): a hidden card stays and
 //                 says in one line why it would be hidden
 //   ?shot=1       only the card (used for the README screenshots)
+//
+// Geschenkmodus: the switch is on, one parcel is a gift and the demo user is a gift viewer
+// (the mock answers the card's WebSocket commands), so the gift box shows the real name.
 (function () {
   "use strict";
   const params = new URLSearchParams(location.search);
@@ -49,7 +52,10 @@
         + '<circle cx="17" cy="17.5" r="1.8"/>',
       "mdi:receipt-text-outline":
         '<path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+      "mdi:gift":
+        '<path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13"/><path d="M12 7C10 3 6 4 7.5 6.5 8.3 7 12 7 12 7s3.7 0 4.5-.5C18 4 14 3 12 7z"/>',
     };
+    drawings["mdi:gift-outline"] = drawings["mdi:gift"];
     const box = '<path d="M12 3 20 7v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10M8 5l8 4"/>';
     customElements.define("ha-icon", class extends HTMLElement {
       connectedCallback() {
@@ -108,7 +114,7 @@
       status_text: null, last_update: UPDATED, stale: false, last_error: null,
       progress: STEP[state], delivered_at: null, events: [],
       tracking_ref: null, tracking_carrier: null, shipping_carrier_hint: null,
-      delivery_code: null, track17: false, track17_carrier: null,
+      delivery_code: null, track17: false, track17_carrier: null, gift: false,
       friendly_name: name,
     };
     delete extra.eta_days;
@@ -116,6 +122,8 @@
     attrs.tracking_url = attrs.tracking_ref
       ? trackingUrl(attrs.tracking_carrier, attrs.tracking_ref)
       : trackingUrl(carrier, number);
+    // A gift (Geschenkmodus) gives out no link, like sensor.py.
+    if (attrs.gift) attrs.tracking_url = null;
     return { state, attributes: attrs };
   }
 
@@ -143,8 +151,10 @@
       eta_days: 1, location: "Depot Beispielstadt",
       events: [event(0, 5, 40, "Das Paket ist im Zustelldepot eingetroffen.", "Beispielstadt")],
     }),
-    parcel("pre_transit", "hermes", "H9999999999999999903", "Geburtstagsgeschenk", {
-      eta_days: 2, eta_latest: day(4),
+    // A gift (Geschenkmodus): shown by its gift name; the real one is in GIFT_NAMES below,
+    // the card gets it through the WebSocket command parcel_tracker/gift_name.
+    parcel("pre_transit", "hermes", "H9999999999999999903", "Geschenk · Hermes-Paket …9903", {
+      eta_days: 2, eta_latest: day(4), gift: true,
       events: [event(0, 8, 10, "Die Sendung wurde Hermes elektronisch angekündigt.")],
     }),
     // Waits at a pickup point: the row says "Abholbereit" instead of a day.
@@ -205,6 +215,10 @@
     }),
   ];
   const PARCELS = params.has("empty") ? [] : ALL_PARCELS;
+  // The real names of gifts, as the integration keeps them (number -> name, mail title).
+  const GIFT_NAMES = { H9999999999999999903: ["Geburtstagsgeschenk", "Ihre Bestellung: Brettspiel"] };
+  const GIFT_ENTITY = "switch.paket_tracker_geschenkmodus";
+  const SHOPS = ["amazon", "ebay", "aliexpress", "eventim"];
 
   // --- the mock hass ----------------------------------------------------------------
   const states = {};
@@ -270,12 +284,61 @@
     friendly_name: "Pakete abholbereit", parcels: pickup });
   add("sensor.paket_tracker_17track_kontingent", "187", {
     friendly_name: "Paket Tracker 17track-Kontingent", total: 200, used: 13 });
+  add(GIFT_ENTITY, "on", { friendly_name: "Geschenkmodus" });
+
+  // A changed sensor gets a new time, so the card draws anew.
+  const touch = (entity_id) => {
+    const changed = new Date().toISOString();
+    states[entity_id] = { ...states[entity_id], last_updated: changed, last_changed: changed };
+  };
+  const sensorOf = (number) => `sensor.paket_${String(number).toLowerCase()}`;
+  // set_gift as the integration does it: a gift shows its gift name and no link.
+  const setGift = (p, gift) => {
+    const a = p.attributes;
+    if (a.gift === gift) return;
+    if (gift) {
+      GIFT_NAMES[a.number] = [a.name, null];
+      Object.assign(a, { gift: true, tracking_url: null,
+        name: `Geschenk · ${a.carrier_name}-${SHOPS.includes(a.carrier) ? "Bestellung" : "Paket"} …${a.number.slice(-4)}` });
+    } else {
+      const real = GIFT_NAMES[a.number] ? GIFT_NAMES[a.number][0] : a.name;
+      Object.assign(a, { gift: false, name: real, tracking_url: a.tracking_ref
+        ? trackingUrl(a.tracking_carrier, a.tracking_ref) : trackingUrl(a.carrier, a.number) });
+    }
+    touch(sensorOf(a.number));
+  };
 
   const hass = {
     states,
     entities,
+    // The demo user is a gift viewer.
+    user: { id: "demo", name: "Demo", is_admin: true },
+    callWS: (msg) => {
+      if (msg.type === "parcel_tracker/gift_viewer") return Promise.resolve({ viewer: true });
+      if (msg.type === "parcel_tracker/gift_name") {
+        const p = PARCELS.find((x) => x.attributes.number === msg.number);
+        if (!p) return Promise.reject({ code: "not_found", message: "Parcel not found" });
+        const [name, mail_title] = GIFT_NAMES[msg.number] || [p.attributes.name, null];
+        return Promise.resolve({ name, mail_title,
+          tracking_url: trackingUrl(p.attributes.carrier, p.attributes.number) });
+      }
+      return Promise.reject({ code: "unknown_command", message: "Unknown command." });
+    },
     callService: (domain, service, data) => {
       console.log(`[Demo] Dienst ${domain}.${service} (nicht ausgeführt)`, data);
+      // The Geschenkmodus works in the demo: the switch and set_gift change the mock.
+      if (domain === "switch" && data.entity_id === GIFT_ENTITY) {
+        states[GIFT_ENTITY].state = service === "turn_on" ? "on" : "off";
+        touch(GIFT_ENTITY);
+        card.hass = { ...hass };
+      }
+      if (service === "set_gift") {
+        const targets = data.open_parcels
+          ? PARCELS.filter((p) => p.state !== "delivered")
+          : PARCELS.filter((p) => p.attributes.number === data.number);
+        targets.forEach((p) => setGift(p, data.gift));
+        card.hass = { ...hass };
+      }
       // ?added=…: pretend the integration created the parcel, as it does without a key.
       if (service === "add_parcel" && params.has("added")) {
         const p = parcel("unknown", ADDED.carrier, data.number, data.name || null, {

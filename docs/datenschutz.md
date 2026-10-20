@@ -145,6 +145,52 @@ Bei Namen, die vor v0.3.24 vergeben wurden, weiß die Integration nicht, wer sie
     - Wer die Dateien von Home Assistant lesen kann, sieht dort auch die gespeicherten Namen.
     - Der Schalter ist für den Blick aufs Dashboard gedacht.
 
+## Geschenkmodus
+
+Für Familien in der Weihnachtszeit: Während der Geschenkmodus läuft, zeigt das Dashboard nicht, was in einem neuen Paket steckt. Anders als „Namen ausblenden“ (alle Pakete, immer) gilt der Modus nur für Pakete, die man als Geschenk kennzeichnet, und nur bestimmte Personen sehen, was drin ist. Die Karte und ihre Bedienung stehen unter [Die Karte](karte.md#geschenkmodus).
+
+### Wer was darf
+
+Wer Geschenke sehen darf, legst du unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** im Bereich **Geschenkmodus (optional)** fest: Das sind Personen von Home Assistant (`person`-Entitäten), die ein Benutzerkonto haben.
+
+| Aktion | Wer darf das |
+|---|---|
+| Geschenkmodus einschalten, Pakete als Geschenk kennzeichnen | jeder |
+| Geschenkmodus ausschalten | nur wer Geschenke sehen darf – und ein Aufruf ohne Benutzer (Automation) |
+| Den echten Namen auf der Karte ansehen, ein Geschenk wieder sichtbar machen, umbenennen oder löschen | nur wer Geschenke sehen darf – und Aufrufe ohne Benutzer |
+
+!!! warning "Wähle zuerst, wer Geschenke sehen darf"
+    Ist niemand gewählt, kann den Modus über die Oberfläche **niemand** mehr ausschalten – nur eine Automation, siehe [Geschenkmodus per Automation schalten](automationen.md#geschenkmodus-per-automation-schalten). Lege die Personen deshalb fest, bevor du den Modus einschaltest.
+
+!!! warning "Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer"
+    Home Assistant erkennt, wer die Karte öffnet, nur am angemeldeten Benutzer. Ein Wandtablet oder das Handy eines Kindes, das mit dem Konto der Eltern angemeldet ist, gilt als dieser Elternteil. Gib solchen Geräten einen **eigenen Benutzer** in Home Assistant, der nicht zu den Personen gehört, die Geschenke sehen dürfen.
+
+### Was ein Geschenk verbirgt
+
+Ein Geschenk heißt überall `Geschenk · DHL-Paket …2557` (der neutrale Name wie bei „Namen ausblenden“, mit dem Vorsatz „Geschenk · “). Das gilt für Karte, Sensoren, Kalender, Event und Benachrichtigungen. Das Kennzeichen gewinnt gegen „Namen ausblenden“ und gegen einen von Hand eingetippten Namen.
+
+- **Verborgen:** der Name (auch ein von Hand vergebener), der Mail-Titel, die Links zur Sendungsverfolgung und zur Bestellung und Amazons Kennung der Sendung (`amazon_shipment`).
+- **Sichtbar:** Status, Liefertag, Zeitfenster, Ort, Abholort und der Verlauf des Paketdienstes. Darin steht kein Artikel.
+- **Benachrichtigungen** gehen an alle eingerichteten Ziele, mit dem Namen des Geschenks.
+
+Einmal Geschenk, immer Geschenk: Das Kennzeichen bleibt, auch wenn der Modus ausgeschaltet wird und das Paket zugestellt ist. Es geht nur von Hand weg, über „Nicht mehr verbergen“ auf der Karte oder den Dienst [`parcel_tracker.set_gift`](sensoren.md#parcel_trackerset_gift), und das darf nur, wer Geschenke sehen darf.
+
+Der echte Name kommt nur über eine Abfrage, die den angemeldeten Benutzer prüft, auf die Karte dieses einen Geräts. Er wird nicht gespeichert und nicht an andere Geräte geschickt.
+
+### Der Schalter
+
+Der Schalter `switch.paket_tracker_geschenkmodus` ist eine Konfigurations-Entität. Home Assistant gibt solche Entitäten Sprachassistenten nicht von selbst frei, und das soll so bleiben.
+
+!!! danger "Den Schalter nicht für Assist, Alexa oder Google freigeben"
+    Diese Assistenten rufen Schalter ohne Benutzer oder als Besitzer des Kontos auf. Beides darf den Modus ausschalten. Ein Kind könnte ihn per Sprache ausschalten. Gib den Schalter nicht von Hand frei.
+
+### Grenzen
+
+!!! warning "Es geht um das Offensichtliche auf dem Dashboard, nicht um Admins"
+    - Was der Verlauf von Home Assistant (Logbuch, Historie) schon aufgezeichnet hat, bleibt dort. Kennzeichnest du ein Paket erst später als Geschenk, löscht das die alten Einträge nicht. Von dieser Version an zeichnet der Recorder die Attribute `name`, `tracking_url` und `amazon_shipment` und die Listen der Zusammenfassungs- und Zählsensoren nicht mehr auf. Der Anzeigename der Entität (`sensor.paket_<nummer>`) und der Eintrag in `calendar.pakete` bleiben aber im Verlauf: Ein Paket, das du erst später als Geschenk kennzeichnest, behält dort seinen früheren Namen. Schalte den Modus am besten ein, bevor du bestellst. Ältere Einträge bleiben, bis sie ablaufen oder du sie löschst.
+    - Der echte Name bleibt im Speicher der Integration. Wer die Dateien von Home Assistant lesen kann (Admins), findet ihn dort.
+    - Wer das Paket-Postfach lesen kann, liest alles.
+
 ## Zustell-Codes
 
 Manche Amazon-Lieferungen gibt der Fahrer nur gegen einen Code heraus (Einmalpasswort). Die Option **Zustell-Codes (Einmalpasswörter) mitlesen** im Bereich E-Mail-Import ist von Haus aus **aus**.

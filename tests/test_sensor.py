@@ -163,6 +163,7 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     # The newest of Amazon's shipments of the order.
     assert expired.attributes["amazon_shipment"] == "UhIjKl9mN"
     assert "delivery_code" in ParcelSensor._unrecorded_attributes
+    assert {"name", "tracking_url", "amazon_shipment"} <= ParcelSensor._unrecorded_attributes
 
 
 async def test_sensor_exposes_eta_latest(hass):
@@ -375,8 +376,10 @@ async def test_today_lists_the_parcels_delivered_today(hass, freezer):
         "eta_to": None,
     }
     assert set(today.attributes["delivered_today"][0]) == set(today.attributes["parcels"][0])
-    # Recorded like ``parcels`` and ``possible``: only the version is kept out of the history.
-    assert TodaySensor._unrecorded_attributes == frozenset({"integration_version"})
+    # The version and the lists with names are kept out of the history.
+    assert TodaySensor._unrecorded_attributes == frozenset(
+        {"integration_version", "parcels", "possible", "delivered_today", "awaiting_pickup"}
+    )
 
 
 async def test_today_without_delivered_parcels_has_an_empty_list(hass, freezer):
@@ -468,8 +471,8 @@ async def test_three_summary_sensors_count_what_the_today_sensor_lists(hass, fre
     assert today.state == "1"
     assert set(today.attributes) == {
         "parcels", "possible", "possible_count", "delivered_today", "delivered_today_count",
-        "awaiting_pickup", "awaiting_pickup_count", "integration_version", "friendly_name",
-        "icon",
+        "awaiting_pickup", "awaiting_pickup_count", "integration_version",
+        "friendly_name", "icon",
     }
     for state, name, icon in (
         (active, "Pakete unterwegs", "mdi:truck-fast"),

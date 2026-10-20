@@ -14,6 +14,7 @@ Diese Seite ist zum Nachschlagen: jede Entität mit Zustand und Attributen, der 
 | [`sensor.pakete_abholbereit`](#die-vier-zahlsensoren) | Anzahl der abholbereiten Pakete |
 | [`sensor.paket_tracker_17track_kontingent`](#sensorpaket_tracker_17track_kontingent) | verbleibende 17track-Nummern |
 | [`calendar.pakete`](#kalender) | Kalender mit den erwarteten Zustellterminen |
+| [`switch.paket_tracker_geschenkmodus`](#switchpaket_tracker_geschenkmodus) | Geschenkmodus an oder aus |
 
 Die Entitäts-IDs sind fest. Die ID eines Paket-Sensors entsteht aus der Nummer des Pakets und ändert sich auch mit „Namen ausblenden“ nicht.
 
@@ -44,7 +45,8 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `carrier` | Kürzel des Paketdienstes oder Shops: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` |
 | `carrier_name` | Anzeigename, z. B. `DHL` |
 | `number` | Nummer des Pakets |
-| `name` | Name, wie er angezeigt wird (mit „Namen ausblenden“ der neutrale Name) |
+| `name` | Name, wie er angezeigt wird (mit „Namen ausblenden“ der neutrale Name, bei einem Geschenk `Geschenk · …`) |
+| `gift` | `true`, wenn das Paket ein Geschenk ist (siehe [Geschenkmodus](datenschutz.md#geschenkmodus)), sonst `false` |
 | `eta_date` | erwarteter Liefertag (bei einer Lieferspanne ihr erster Tag) |
 | `eta_latest` | letzter Tag einer Lieferspanne |
 | `eta_from`, `eta_to` | Beginn und Ende des Zeitfensters |
@@ -64,15 +66,15 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `events` | Verlauf: Liste aus `timestamp`, `text` und `location` |
 | `tracking_ref` | Sendungsnummer des Paketdienstes, die eine Shop-Bestellung übernommen hat |
 | `tracking_carrier` | Paketdienst zu `tracking_ref` |
-| `tracking_url` | Adresse der Sendungsverfolgung beim Paketdienst, bei einer Amazon-Bestellung ohne dessen Nummer bei Amazon; leer, wenn es keine gibt |
-| `amazon_shipment` | Amazons Kennung der neuesten Sendung einer Amazon-Bestellung (aus den Mails ab „Versendet“); leer ohne |
+| `tracking_url` | Adresse der Sendungsverfolgung beim Paketdienst, bei einer Amazon-Bestellung ohne dessen Nummer bei Amazon; leer, wenn es keine gibt und bei einem Geschenk |
+| `amazon_shipment` | Amazons Kennung der neuesten Sendung einer Amazon-Bestellung (aus den Mails ab „Versendet“); leer ohne und bei einem Geschenk |
 | `shipping_carrier_hint` | Versanddienstleister, den eine Shop-Mail genannt hat |
 | `delivery_code` | Zustell-Code, nur mit eingeschalteter Option und nur bis zum Liefertag |
 | `track17` | `true`, wenn das Paket bei 17track angemeldet ist |
 | `track17_carrier` | Paketdienst, den 17track erkannt hat |
 
 !!! info "Nicht im Verlauf von Home Assistant"
-    Die Attribute `events`, `status_text` und `delivery_code` zeichnet der Recorder nicht auf.
+    Die Attribute `events`, `status_text`, `delivery_code`, `name`, `tracking_url` und `amazon_shipment` zeichnet der Recorder nicht auf.
 
 !!! warning "Der Zustell-Code ist als Attribut lesbar"
     Verdeckt ist der Code nur auf der Karte. Wer Zugriff auf die Entitäts-Attribute oder die API von Home Assistant hat, kann ihn im Klartext lesen. Siehe [Zustell-Codes](datenschutz.md#zustell-codes).
@@ -129,6 +131,17 @@ Zeigt die verbleibenden 17track-Nummern. Ohne 17track-Key ist der Sensor nicht v
 | `used` | verbrauchte Nummern |
 
 Der Sensor wird beim Start, nach jeder Anmeldung und einmal täglich aktualisiert. Mehr unter [17track](dienste.md#17track-optional).
+
+## `switch.paket_tracker_geschenkmodus`
+
+Der Geschenkmodus: Eingeschaltet, werden neue Pakete als Geschenk gekennzeichnet. Der Schalter heißt „Geschenkmodus“, hat das Symbol `mdi:gift` und gehört zu keinem Gerät. Er ist eine Konfigurations-Entität und wird Sprachassistenten nicht von selbst freigegeben.
+
+- Einschalten darf jeder.
+- Ausschalten darf nur, wer Geschenke sehen darf, und ein Aufruf ohne Benutzer, also eine Automation. Alle anderen bekommen die Meldung „Nur wer Geschenke sehen darf, kann den Geschenkmodus ausschalten.“. Auch `switch.toggle` und `homeassistant.turn_off` unterliegen dem.
+- Der Zustand bleibt über Neustarts erhalten.
+- Gib den Schalter nicht für Assist, Alexa oder Google frei: Sie rufen ihn ohne Benutzer oder als Besitzer des Kontos auf.
+
+Wie du ihn per Automation schaltest: [Geschenkmodus per Automation schalten](automationen.md#geschenkmodus-per-automation-schalten). Alles zum Modus: [Geschenkmodus](datenschutz.md#geschenkmodus).
 
 ## Kalender
 
@@ -223,6 +236,18 @@ Schickt ein Paket an 17track, um Ort, Zeitfenster und Verlauf zu ergänzen. **Ve
 
 Nicht möglich bei zugestellten Paketen und bei Bestellungen, solange keine Sendungsnummer des Paketdienstes bekannt ist.
 
+### `parcel_tracker.set_gift`
+
+Markiert ein Paket oder alle offenen Pakete (weder zugestellt noch storniert) als Geschenk oder macht sie wieder sichtbar.
+
+| Feld | Pflicht | Inhalt |
+|---|---|---|
+| `number` | nein | Nummer eines Pakets; nicht zusammen mit `open_parcels` |
+| `open_parcels` | nein | `true` für alle offenen Pakete, also weder zugestellt noch storniert (Standard `false`) |
+| `gift` | ja | `true` markiert als Geschenk, `false` macht es wieder sichtbar |
+
+Markieren darf jeder. Wieder sichtbar machen dürfen nur Personen, die Geschenke sehen dürfen, und Aufrufe ohne Benutzer (Automationen). Ohne `number` und ohne `open_parcels` oder mit beidem gibt es einen Fehler.
+
 ### Fehlermeldungen der Dienste
 
 | Meldung | Wann |
@@ -235,6 +260,8 @@ Nicht möglich bei zugestellten Paketen und bei Bestellungen, solange keine Send
 | „Kein 17track-API-Key eingetragen. Trag ihn in den Optionen von Paket Tracker ein.“ | 17track ohne Key |
 | „17track hat den Carrier dieser Nummer nicht erkannt.“ | „Andere (über 17track)“ ohne Treffer |
 | „Das 17track-Kontingent ist erschöpft.“ | keine 17track-Nummer mehr übrig |
+| „Nur wer Geschenke sehen darf, kann ein Geschenk wieder sichtbar machen.“ | `set_gift` mit `gift: false` von jemandem, der Geschenke nicht sehen darf |
+| „Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete.“ | `set_gift` ohne `number` und `open_parcels` oder mit beidem |
 | „Dieses Paket lässt sich nicht an 17track schicken (zugestellt oder noch keine Sendungsnummer).“ | siehe oben |
 
 ## Event und Auslöser

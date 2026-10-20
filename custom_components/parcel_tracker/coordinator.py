@@ -14,6 +14,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.start import async_at_started
@@ -49,6 +50,7 @@ from .const import (
     CARRIER_AUTO,
     CARRIER_BROKEN_AFTER,
     CARRIER_OTHER,
+    CONF_GIFT_VIEWERS,
     CONF_HIDE_NAMES,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
@@ -58,6 +60,7 @@ from .const import (
     CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
+    DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
@@ -111,6 +114,7 @@ from .mail.imap import (
     MailboxClient,
 )
 from .models import (
+    CLOSED_STATUSES,
     NO_ETA_STATUSES,
     PROGRESS_STEP,
     Parcel,
@@ -260,6 +264,78 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def hide_names(self) -> bool:
         """The option "Namen ausblenden": parcels are shown by their carrier only."""
         return self.entry.options.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True
+
+    @property
+    def gift_mode(self) -> bool:
+        """The Geschenkmodus is on: every parcel that is added now is a gift."""
+        return self.store.gift_mode
+
+    async def async_set_gift_mode(self, on: bool, user_id: str | None) -> None:
+        """Turn the Geschenkmodus on or off.
+
+        On is open to everybody. Off needs a gift viewer; a call without a user (an
+        automation, the system) may do it as well.
+        """
+        if not on and user_id is not None and not self.is_gift_viewer(user_id):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="gift_mode_not_allowed"
+            )
+        if self.store.gift_mode != on:
+            self.store.gift_mode = on
+            await self.store.async_save()
+        self.async_update_listeners()
+
+    async def async_set_gift(
+        self, number: str | None, open_parcels: bool, gift: bool, user_id: str | None
+    ) -> None:
+        """Mark a parcel (or every parcel not delivered yet) as a gift, or take it back.
+
+        Marking is open to everybody; un-marking needs a gift viewer (a call without a
+        user may do it). KeyError for a number that is not tracked, ValueError when
+        neither or both of number and open_parcels are given.
+        """
+        if (number is None) == (not open_parcels):
+            raise ValueError("number_or_open")
+        if not gift and user_id is not None and not self.is_gift_viewer(user_id):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="gift_not_allowed"
+            )
+        async with self._lock:
+            if number is not None:
+                targets = [self.store.parcels[normalize(number)]]
+            else:
+                targets = [
+                    p for p in self.store.parcels.values() if p.status not in CLOSED_STATUSES
+                ]
+            changed = False
+            for parcel in targets:
+                if parcel.gift != gift:
+                    parcel.gift = gift
+                    changed = True
+            if changed:
+                await self.store.async_save()
+                self.async_set_updated_data(dict(self.store.parcels))
+
+    def gift_viewer_user_ids(self) -> set[str]:
+        """User IDs of the persons chosen as gift viewers (Geschenkmodus).
+
+        Read from the ``user_id`` of each person's state; a person that was removed,
+        has no state or no user is skipped.
+        """
+        chosen = self.entry.options.get(CONF_GIFT_VIEWERS, DEFAULT_GIFT_VIEWERS)
+        if not isinstance(chosen, (list, tuple)):
+            return set()
+        ids: set[str] = set()
+        for entity_id in chosen:
+            state = self.hass.states.get(entity_id) if isinstance(entity_id, str) else None
+            user_id = state.attributes.get("user_id") if state else None
+            if isinstance(user_id, str) and user_id:
+                ids.add(user_id)
+        return ids
+
+    def is_gift_viewer(self, user_id: str | None) -> bool:
+        """Whether this user may see gifts (never for a call without a user)."""
+        return user_id is not None and user_id in self.gift_viewer_user_ids()
 
     def display_name(self, parcel: Parcel) -> str | None:
         """The name a parcel is shown by (sensors, calendar, event, notification)."""
@@ -628,7 +704,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             if item.message_id:
                 self.store.remember_message(item.message_id)
             for update in result.updates:
-                if change := apply_update(self.store.parcels, update, now):
+                if change := apply_update(self.store.parcels, update, now, self.gift_mode):
                     self._mail_changed(change)
         except Exception as err:  # noqa: BLE001 - one odd mail must not stop the import
             if self._unrecognized(item):
@@ -1603,6 +1679,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 track17=True,
                 track17_carrier=code,
                 track17_next_at=now + TRACK17_FIRST_POLL,
+                gift=self.gift_mode,
             )
             self.store.add(parcel)
             await self.store.async_save()
@@ -1695,6 +1772,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             name_manual=given is not None,  # typed in: shown with "Namen ausblenden" too
             added_at=now,
             last_change_at=now,
+            gift=self.gift_mode,
         )
         async with self._lock:
             if self._gls_twin(parcel) is not None:
@@ -1747,15 +1825,25 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             None,
         )
 
-    async def async_remove(self, number: str) -> None:
+    def _guard_gift(self, parcel: Parcel, user_id: str | None, key: str) -> None:
+        """A gift is changed only by a gift viewer or a call without a user."""
+        if parcel.gift and user_id is not None and not self.is_gift_viewer(user_id):
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key=key)
+
+    async def async_remove(self, number: str, user_id: str | None = None) -> None:
         async with self._lock:  # not while a refresh or a registration works on the parcels
+            # Removing a gift would drop its mark: a mail would bring it back as no gift.
+            if (parcel := self.store.parcels.get(normalize(number))) is not None:
+                self._guard_gift(parcel, user_id, "gift_remove_not_allowed")
             self.store.remove(normalize(number))  # KeyError: not tracked
             self._announced.pop(normalize(number), None)
             self._forget_idle_carriers()
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
 
-    async def async_rename(self, number: str, name: str | None) -> None:
+    async def async_rename(
+        self, number: str, name: str | None, user_id: str | None = None
+    ) -> None:
         """Give a parcel the name the user typed in; an empty one takes its name away.
 
         The card prefills the field with the name it shows. Saved as it is, nothing
@@ -1764,6 +1852,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         does not replace the stored name.
         """
         parcel = self.store.parcels[normalize(number)]
+        self._guard_gift(parcel, user_id, "gift_rename_not_allowed")
         given = (name or "").strip() or None
         if given is not None and given in (parcel.name, self.display_name(parcel)):
             return

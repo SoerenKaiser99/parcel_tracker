@@ -44,3 +44,16 @@ track_17track:
       required: true
       selector:
         text:
+set_gift:
+  fields:
+    number:
+      selector:
+        text:
+    open_parcels:
+      default: false
+      selector:
+        boolean:
+    gift:
+      required: true
+      selector:
+        boolean:

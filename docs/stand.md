@@ -31,6 +31,7 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | DPD-Ankündigung „Bald ist Ihr DPD Paket da“ (Versender als Name, Lieferschätzung in Werktagen) | umgesetzt nach anonymisierten Beispielmails eines Testers |
 | Mails von GLS Österreich und DPD Österreich, internationale DHL-Nummern (`CQ…DE`) | umgesetzt nach anonymisierten Beispielmails von Testern |
 | Benachrichtigungen (Optionen und Blueprint) | umgesetzt, an Benachrichtigungs-Entitäten und klassische Dienste (z. B. Pushover) |
+| Geschenkmodus (v0.3.40): Schalter, Option „Wer darf Geschenke sehen?“, Kennzeichen am Paket, Karte mit Geschenkbox, Dienst `set_gift` | umgesetzt, durch automatische Tests abgedeckt; im Alltag noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
 | Land (Deutschland, Österreich, Schweiz) | umgesetzt für PLZ-Länge und GLS-Abfrage |
 | Bestellungen ohne Zustellmail (Amazon, eBay, AliExpress, Eventim) | umgesetzt: Ein zugestelltes Carrier-Paket schließt die passende Bestellung, überfällige Bestellungen, zu denen kein Paketdienst gefragt werden kann, werden „Abgeschlossen ohne Zustellbestätigung“ |
 
@@ -52,10 +53,12 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 
 | Vorhaben | Stand |
 |---|---|
+| **Personen zuordnen, Benachrichtigung nur an den Besteller** ([#39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39)) | Ein Paket einer Person zuordnen (über die Weiterleitungsadresse der Mail) und die Meldung nur an den Besteller schicken. Der Geschenkmodus liefert die Grundlage; eigene Meldungen mit Namen an Geschenk-Seher kommen damit später |
 | DPD-Live-Abfrage für Österreich | offen |
 | Push-Schnittstelle von DHL (DHL meldet Statusänderungen von sich aus) | geprüft, wartet auf Klärung des Zugangs für Privatnutzer |
 | **Barcode-Scan** (Wunsch aus [Issue #2](https://github.com/SoerenKaiser99/parcel_tracker/issues/2)) | Sendungsnummer mit der Handykamera vom Label erfassen – geplant über den Scanner der Home-Assistant-App bzw. die Barcode-Erkennung des Browsers, ohne Fremdbibliothek. Braucht Beispiel-Scans je Paketdienst, weil auf den Labels oft mehr als die Sendungsnummer steht |
 | **International** | Karte auch auf Englisch, weitere Amazon-Länder im Mail-Import, nationale Paketdienste (Beispiele: Österreichische Post, Royal Mail, PostNL, USPS) – erst sinnvoll mit anonymisierten Beispielmails von Testern aus den jeweiligen Ländern |
+| **Absender aus der DHL-Abfrage** | Den Absender eines DHL-Pakets aus der offiziellen API übernehmen, statt ihn nur aus den Mails zu lesen |
 
 Was in Österreich und der Schweiz heute geht und was nicht, steht unter [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).
 

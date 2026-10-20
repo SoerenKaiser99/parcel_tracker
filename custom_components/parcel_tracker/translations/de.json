@@ -112,6 +112,16 @@
               "notify_targets": "Benachrichtigungs-Entitäten (z. B. die Home-Assistant-App auf dem Handy) und klassische Dienste wie Pushover, in der Liste als „Dienst notify.…“. Ohne Ziel wird nichts gesendet.",
               "notify_events": "Bei welchen Statuswechseln benachrichtigt wird."
             }
+          },
+          "gift": {
+            "name": "Geschenkmodus (optional)",
+            "description": "Wer sehen darf, was in einem Geschenk steckt.",
+            "data": {
+              "gift_viewers": "Wer darf Geschenke sehen?"
+            },
+            "data_description": {
+              "gift_viewers": "Nur diese Personen sehen im Geschenkmodus, was in einem Paket ist. Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant."
+            }
           }
         }
       }
@@ -183,6 +193,11 @@
     }
   },
   "exceptions": {
+    "gift_mode_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann den Geschenkmodus ausschalten."},
+    "gift_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk wieder sichtbar machen."},
+    "gift_remove_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk löschen."},
+    "gift_rename_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk umbenennen."},
+    "gift_target": {"message": "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete."},
     "duplicate": {"message": "Dieses Paket ist schon in der Liste."},
     "amazon": {"message": "Amazon-Nummern (TBA…) lassen sich nicht direkt verfolgen. Leite die Amazon-Mails ins Paket-Postfach weiter."},
     "empty": {"message": "Gib eine Sendungsnummer ein."},
@@ -207,6 +222,9 @@
     }
   },
   "entity": {
+    "switch": {
+      "gift_mode": {"name": "Geschenkmodus"}
+    },
     "sensor": {
       "parcel": {
         "state": {
@@ -286,6 +304,15 @@
       "name": "Aktualisieren",
       "description": "Jetzt abfragen, auch das Postfach, falls eingerichtet.",
       "fields": {"number": {"name": "Sendungsnummer", "description": "Leer für alle Pakete."}}
+    },
+    "set_gift": {
+      "name": "Als Geschenk markieren",
+      "description": "Ein Paket oder alle noch nicht zugestellten Pakete als Geschenk markieren oder wieder sichtbar machen (Markieren darf jeder, nur das Wiedersichtbarmachen ist auf Personen beschränkt, die Geschenke sehen dürfen).",
+      "fields": {
+        "number": {"name": "Sendungsnummer", "description": "Zu änderndes Paket. Leer lassen, wenn alle offenen Pakete gewählt sind."},
+        "open_parcels": {"name": "Alle offenen Pakete", "description": "Statt eines Pakets alle noch nicht zugestellten Pakete ändern."},
+        "gift": {"name": "Geschenk", "description": "An markiert als Geschenk, aus macht es wieder sichtbar."}
+      }
     },
     "track_17track": {
       "name": "Über 17track verfolgen",

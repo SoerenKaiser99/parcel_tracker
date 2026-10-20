@@ -7,6 +7,7 @@ the user typed in stays visible.
 """
 
 import json
+import re
 from datetime import datetime, timedelta
 from email.message import EmailMessage
 from unittest.mock import patch
@@ -407,5 +408,7 @@ def test_the_card_names_a_parcel_by_its_name_attribute_only():
     ``name`` (else the number), and it reads neither a mail title nor a friendly name."""
     source = BUNDLED_CARD.read_text(encoding="utf-8")
     assert "esc(a.name || a.number)" in source
-    assert "mail_title" not in source
+    # A mail title only comes for a gift viewer, in the answer of parcel_tracker/gift_name
+    # (Geschenkmodus), never from the sensor's attributes.
+    assert set(re.findall(r"[\w.]*mail_title", source)) == {"info.mail_title"}
     assert "friendly_name" not in source
