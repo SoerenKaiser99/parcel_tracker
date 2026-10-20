@@ -376,10 +376,13 @@ async def test_today_lists_the_parcels_delivered_today(hass, freezer):
         "eta_to": None,
     }
     assert set(today.attributes["delivered_today"][0]) == set(today.attributes["parcels"][0])
-    # The version and the lists with names are kept out of the history.
+    # The version, the lists with names and the persons are kept out of the history.
     assert TodaySensor._unrecorded_attributes == frozenset(
-        {"integration_version", "parcels", "possible", "delivered_today", "awaiting_pickup"}
-    )
+        {
+            "integration_version", "parcels", "possible", "delivered_today", "awaiting_pickup",
+            "persons", "default_owner",
+        }
+    )  # fmt: skip
 
 
 async def test_today_without_delivered_parcels_has_an_empty_list(hass, freezer):
@@ -472,7 +475,7 @@ async def test_three_summary_sensors_count_what_the_today_sensor_lists(hass, fre
     assert set(today.attributes) == {
         "parcels", "possible", "possible_count", "delivered_today", "delivered_today_count",
         "awaiting_pickup", "awaiting_pickup_count", "integration_version",
-        "friendly_name", "icon",
+        "persons", "default_owner", "friendly_name", "icon",
     }
     for state, name, icon in (
         (active, "Pakete unterwegs", "mdi:truck-fast"),

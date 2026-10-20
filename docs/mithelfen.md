@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 20. Oktober 2026, Version 0.3.40. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 20. Oktober 2026, Version 0.3.41. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -66,6 +66,8 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **Symbole hinter den Nummern** | Öffnet der Lieferwagen hinter der Sendungsnummer die Sendungsverfolgung und der Beleg hinter der Bestellnummer die Bestellseite? Lassen sich die kleinen Symbole am Handy gut treffen? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Symbol „Bestellung öffnen“ bei eBay** | Öffnet es die richtige Bestellseite? Bei Amazon ist das bestätigt. | im Forum |
 | **Sendungs- und Bestellnummer im aufgeklappten Paket** | Steht unter dem Verlauf „Sendungsnummer: …“, bei einer Bestellung „Bestellnummer: …“ so wie beim Shop? Lässt sich die Nummer am Handy markieren und kopieren? Neu seit v0.3.34. | im Forum |
+| **Personen zuordnen: Erkennung** | Landet ein Paket bei der richtigen Person, wenn die Weiterleitung an eine Plus-Adresse, einen Alias oder die eigene Adresse geht? Bei welchem Anbieter und welcher Weiterleitung? Neu seit v0.3.41. | im Forum |
+| **Personen zuordnen: Karte und Meldungen** | Zeigt die Karte mit `person: person.…` nur die Pakete dieser Person? Wirkt die Auswahl „Gehört“, und geht die Meldung nur an die Ziele des Besitzers? Neu seit v0.3.41. | im Forum |
 | **Geschenkmodus: Karte** | Fragt der Schalter neben „Pakete“ beim Einschalten, ob die offenen Pakete auch verborgen werden sollen? Heißen neue Pakete danach „Geschenk · …“, ohne Links, und zeigt ein Tipp auf die Geschenkbox (nur für Geschenk-Seher) den echten Namen? Neu seit v0.3.40. | im Forum |
 | **Geschenkmodus: Schalter** | Wird `switch.paket_tracker_geschenkmodus` angelegt und bleibt nach einem Neustart in seinem Zustand? Neu seit v0.3.40. | im Forum |
 | **Geschenkmodus: wer darf ausschalten** | Kann mit der Option „Wer darf Geschenke sehen?“ nur eine gewählte Person den Modus ausschalten, auch mit `switch.toggle`, und ein Wandtablet mit eigenem Benutzer nicht? Klappt es per Automation? Neu seit v0.3.40. | im Forum |
@@ -90,6 +92,8 @@ Der Mail-Import kann nur lesen, was er schon einmal als Beispiel gesehen hat. Vo
 | **AliExpress** | englische Mails; „Paket … wird zugestellt“ und „Lieferprobleme für Packstück …“ (bisher nur „Paket … wurde zugestellt“ als Beispiel); Mails, die bei dir unter „Nicht erkannt“ landen |
 | **Eventim** | Versandbenachrichtigungen und Bestellbestätigungen mit einer anderen Liefermethode als „Standardversand (Deutschland)“, z. B. Einschreiben oder Express; Mails von `bestellstatus@eventim.de`, die bei dir unter „Nicht erkannt“ landen |
 | **Österreichische Post, Schweizer Post** | Ankündigung, in Zustellung, zugestellt – damit diese Dienste überhaupt dazukommen können |
+
+**Für die Personen-Zuordnung:** Gesucht ist je Anbieter (Gmail, Outlook, Posteo, mailbox.org, GMX, web.de, eigener Server) eine anonymisierte, weitergeleitete Mail. Gemeint ist die Kopie, die im Paket-Postfach ankommt, nicht die Mail aus dem Hauptpostfach. Nur daran sehen wir, welche Kopfzeilen die Weiterleitung setzt (`Delivered-To`, `X-Original-To`, `X-Forwarded-For` …). Das Skript behält diese Kopfzeilen, ersetzt aber jede Adresse durch eine erfundene (`adresse1@example.org`, ein Plus-Teil bleibt als `+person1`). Dazu im Issue kurz schreiben: Anbieter, Weiterleitung per Regel oder von Hand, und ob du eine Plus-Adresse, einen Alias oder deine eigene Adresse genutzt hast.
 
 !!! danger "Nie eine rohe Mail hochladen"
     In jeder Paketmail stehen dein Name, deine Adresse und Nummern. Dafür gibt es ein kleines Skript, das alles ersetzt. Die fünf Schritte stehen unter [Beispielmails einreichen](hilfe.md#beispielmails-einreichen). Lies die fertigen Dateien einmal selbst durch, bevor du sie anhängst.

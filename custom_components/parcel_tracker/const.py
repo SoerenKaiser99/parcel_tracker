@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.40"
+VERSION = "0.3.41"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -36,6 +36,22 @@ CONF_NOTIFY_SECTION = "notify"
 CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_TARGETS = "notify_targets"
 CONF_NOTIFY_EVENTS = "notify_events"
+# Persons (#39): a list of {"person": <person entity ID>, "addresses": [<lower case
+# mail addresses>], "notify_targets": [<targets as CONF_NOTIFY_TARGETS>]}; only stored
+# once a person has been set up.
+CONF_PERSONS = "persons"
+CONF_PERSON = "person"
+# Picks a person already in ``persons`` (also one no longer in Home Assistant).
+CONF_CONFIGURED_PERSON = "configured_person"
+CONF_ADDRESSES = "addresses"
+CONF_REMOVE_PERSON = "remove"
+# Who a parcel belongs to when its mail names no or several persons: a person entity
+# ID, only stored when it is not "all" (DEFAULT_OWNER: everybody, as before persons).
+CONF_DEFAULT_OWNER = "default_owner"
+DEFAULT_OWNER = "all"
+# Addresses several persons share ("familie@…"): a mail to one of them belongs to
+# everybody, whatever else it names. Lower case; only stored when there is one.
+CONF_SHARED_ADDRESSES = "shared_addresses"
 
 # Countries on offer (ISO 3166-1 alpha-2, lower case: selector option values double as
 # translation keys, which hassfest only accepts as [a-z0-9-_]+). An entry without one

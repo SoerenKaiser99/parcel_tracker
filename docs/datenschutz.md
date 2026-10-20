@@ -191,6 +191,15 @@ Der Schalter `switch.paket_tracker_geschenkmodus` ist eine Konfigurations-Entit�
     - Der echte Name bleibt im Speicher der Integration. Wer die Dateien von Home Assistant lesen kann (Admins), findet ihn dort.
     - Wer das Paket-Postfach lesen kann, liest alles.
 
+## Personen
+
+Die Personen-Zuordnung ist optional. Sie legt fest, wem ein Paket gehört, nicht wer es sehen darf.
+
+- Der Besitzer steht für **jeden Benutzer** von Home Assistant im Attribut `owner` des Paket-Sensors und im Feld `owner` des Ereignisses `parcel_tracker_status_changed`. `owner_detected` ist `true`, wenn eine Person aus einer Mail erkannt oder von Hand gesetzt wurde, und `false`, wenn der Besitzer aus der Standard-Person kommt oder von Hand „allen“ gesetzt wurde.
+- Der Filter `person` der Karte ist nur eine Anzeige. Die Sensoren aller Pakete bleiben für jeden Benutzer lesbar.
+- Ein Wandtablet oder das Handy eines Kindes braucht einen **eigenen Benutzer** in Home Assistant, wie beim [Geschenkmodus](#geschenkmodus). Sonst gilt es als der Benutzer, mit dem es angemeldet ist.
+- Die Mailadressen, die du einer Person einträgst, stehen in den Optionen der Integration. Die Adressen aus den Mails werden nur verglichen, nie gespeichert oder ins Log geschrieben. Der Diagnose-Download nennt nur, wie viele Personen und Adressen eingerichtet sind.
+
 ## Zustell-Codes
 
 Manche Amazon-Lieferungen gibt der Fahrer nur gegen einen Code heraus (Einmalpasswort). Die Option **Zustell-Codes (Einmalpasswörter) mitlesen** im Bereich E-Mail-Import ist von Haus aus **aus**.

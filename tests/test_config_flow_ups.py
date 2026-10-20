@@ -19,6 +19,8 @@ from custom_components.parcel_tracker.const import (
     DOMAIN,
 )
 
+from .conftest import open_options
+
 VALIDATE = "custom_components.parcel_tracker.config_flow.UpsCarrier.validate"
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 
@@ -28,7 +30,7 @@ def _input(**ups):
 
 
 async def _configure(hass, entry, user_input, **validate):
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(VALIDATE, **validate) as check, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
         await hass.async_block_till_done()
@@ -38,7 +40,7 @@ async def _configure(hass, entry, user_input, **validate):
 async def test_defaults_without_ups(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     assert CONF_UPS_SECTION in result["data_schema"].schema
     result, check = await _configure(
         hass, entry, {CONF_POSTCODE: "10115", CONF_KEEP_DELIVERED_DAYS: 3}
@@ -150,7 +152,7 @@ async def test_switch_defaults_to_whether_a_client_id_is_stored(hass):
 
     empty = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     empty.add_to_hass(hass)
-    enabled, _ = defaults(await hass.config_entries.options.async_init(empty.entry_id))
+    enabled, _ = defaults(await open_options(hass, empty))
     assert enabled is False
     await hass.config_entries.async_remove(empty.entry_id)
     configured = MockConfigEntry(
@@ -159,7 +161,7 @@ async def test_switch_defaults_to_whether_a_client_id_is_stored(hass):
     )
     configured.add_to_hass(hass)
     enabled, client_id = defaults(
-        await hass.config_entries.options.async_init(configured.entry_id)
+        await open_options(hass, configured)
     )
     assert enabled is True
     assert client_id.default() == "id"  # visibly prefilled, not a suggested value
@@ -180,7 +182,7 @@ async def test_enabled_without_any_client_id_configures_nothing(hass):
 async def test_budget_out_of_range(hass, budget):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with pytest.raises(vol.Invalid):
         await hass.config_entries.options.async_configure(
             result["flow_id"], _input(**{CONF_UPS_BUDGET: budget})

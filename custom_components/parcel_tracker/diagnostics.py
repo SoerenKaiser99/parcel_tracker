@@ -222,6 +222,7 @@ async def async_get_config_entry_diagnostics(
     coordinator: ParcelCoordinator = entry.runtime_data
     state = coordinator.diagnostics()
     budget = coordinator.store.ups_budget
+    persons = coordinator.persons()
     return {
         "integration_version": VERSION,
         "home_assistant_version": HA_VERSION,
@@ -230,6 +231,13 @@ async def async_get_config_entry_diagnostics(
         "hide_names": coordinator.hide_names,
         # Only how many persons may see gifts, never who.
         "gift_viewers": len(coordinator.gift_viewer_user_ids()),
+        # Only how many persons and addresses are set up, never who or which.
+        "persons": {
+            "persons": len(persons),
+            "addresses": sum(len(person.addresses) for person in persons),
+            "default_owner": coordinator.default_owner is not None,
+            "shared_addresses": len(coordinator.shared_addresses()),
+        },
         "entry": {"data": _redact(entry.data), "options": _redact(entry.options)},
         "carriers": {
             "active": list(coordinator.carriers),

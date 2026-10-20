@@ -33,6 +33,16 @@ Home Assistant kennt zwei Arten von Zielen. Beide stehen in derselben Auswahl un
 
 **Ziel verschwunden:** Ein gewähltes Ziel, das es in Home Assistant nicht mehr gibt (Gerät entfernt, Integration gelöscht oder gerade nicht geladen), bleibt gewählt und steht mit dem Zusatz „nicht mehr vorhanden“ in der Auswahl, bis du es abwählst. Beim Senden wird es übersprungen, ebenso ein Ziel, das gerade nicht verfügbar ist.
 
+### An wen geht die Meldung?
+
+Sind [Personen eingerichtet](mail-import.md#pakete-personen-zuordnen), hängt das Ziel vom Besitzer des Pakets ab:
+
+- Hat der Besitzer eigene Ziele (**Benachrichtigungen an** im Formular der Person), geht die Meldung nur dorthin.
+- Hat er keine, oder gehört das Paket allen, gehen die Meldungen an die oben gewählten Ziele, wie ohne Personen.
+- Liegen Bestellungen zweier Personen in einem Paket (gleiche Sendungsnummer), bekommt jede Person die Meldung einmal. Dieselbe Person bekommt sie nicht doppelt.
+
+Welche Ereignisse gemeldet werden, gilt für alle gleich.
+
 ### Ereignisse
 
 | Ereignis | Voreingestellt (ab v0.3.26) |

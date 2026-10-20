@@ -763,13 +763,15 @@ def test_docs_pass_on_which_mail_providers_dhl_accepts():
     _all_have(section, (
         "von Hand geprüft",
         "Bots",
-        "gmx.de und web.de",
-        "Gmail",
-        "hotmail.com und outlook.com",
-        # two testers were refused with a gmx.de address: no promise for freemail
         "unter eigener Domain",
+        # new from DHL: freemail is not blocked, but checked harder; no throwaway addresses
+        "nicht grundsätzlich",
+        "strenger",
+        "Wegwerf-Adressen",
         "Eine Garantie gibt es bei Freemail-Adressen nicht",
     ))
+    assert "bessere Chancen" not in section
+    assert "gmx.de und web.de" not in section
     # The older, blanket warning named GMX and web.de among the refused ones.
     assert "Gmail, GMX, web.de" not in "".join(TEXTS.values())
 
@@ -1263,7 +1265,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 20. Oktober 2026, Version 0.3.40." in text
+    assert "*Stand: 20. Oktober 2026, Version 0.3.41." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1472,14 +1474,17 @@ def test_docs_say_the_mail_interval_reaches_1440_minutes():
 def test_roadmap_names_the_person_assignment_and_the_dhl_sender():
     status = TEXTS[STATUS]
     _all_have(status, [
-        "**Personen zuordnen, Benachrichtigung nur an den Besteller**",
+        "Personen zuordnen (v0.3.41",
         "issues/39",
         "Geschenkmodus (v0.3.40)",
     ])
     open_items = _section(STATUS, "Offen")
     rows = [line for line in open_items.splitlines() if line.startswith("| ")]
-    assert "Personen zuordnen" in rows[1]  # the first item, right below the header
+    assert "Personen zuordnen" not in open_items  # built in v0.3.41
     assert rows[-1].startswith("| **Absender aus der DHL-Abfrage**")
+    unconfirmed = _section(STATUS, "Umgesetzt, aber noch nicht bestätigt")
+    _all_have(unconfirmed, ["Personen zuordnen (v0.3.41", "issues/39", "`set_owner`"])
+    _all_have(open_items, ["Laut DHL", "jeder Nutzer selbst"])
 
 
 def test_helping_page_asks_to_confirm_the_v0340_changes():
@@ -1522,7 +1527,7 @@ def test_changelog_has_a_section_for_every_release_newest_first():
     # A shallow CI checkout has no tags: then only order and format are checked.
     versions = re.findall(r"^### (v\d+\.\d+\.\d+)(?: \(([^)]+)\))?$", CHANGELOG, re.M)
     listed = [version for version, _ in versions]
-    assert "v0.3.40" in listed
+    assert "v0.3.41" in listed
     if tags:
         assert set(tags) <= set(listed)
     assert len(listed) == len(set(listed))
@@ -1535,3 +1540,67 @@ def test_changelog_has_a_section_for_every_release_newest_first():
 def test_readme_links_the_changelog():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "(https://github.com/SoerenKaiser99/parcel_tracker/blob/main/CHANGELOG.md)" in readme
+
+
+# ----- v0.3.41: Personen zuordnen -----
+def test_mail_import_explains_the_person_assignment():
+    section = _section(MAIL, "Pakete Personen zuordnen")
+    _all_have(section, [
+        "**Personen**", "**Unklare Pakete gehören**", "**Gemeinsame Adressen (gehören allen)**",
+        "`Delivered-To`", "`X-Original-To`", "`X-Forwarded-For`", "`Resent-To`",
+        "„WG:“, „Fwd:“ oder „FW:“ (nicht „AW:“ oder „Re:“)", "kein bekannter Shop oder Paketdienst",
+        "ist das Paket unklar und gehört der Person bei **Unklare Pakete gehören**",
+        "`pakete+anna@example.org` ist nicht `pakete@example.org`",
+        "Gespeichert wird nur ein erkannter oder von Hand gesetzter Besitzer",
+        "überschreibt keine Mail",
+        "Oft reicht die eigene Adresse",
+        "`parcel_tracker.set_owner`",
+    ])
+    table = [line for line in section.splitlines() if line.startswith("| ") and "---" not in line]
+    names = " ".join(line.split("|")[1] for line in table[1:])
+    for provider in ("Gmail", "Outlook", "Posteo", "mailbox.org", "GMX, web.de", "Eigener Server"):
+        assert provider in names, provider
+    assert "Plus-Adresse" in table[1] and "Alias-Adresse" in " ".join(table)
+    # only invented addresses in the section
+    for address in re.findall(r"[\w.+-]+@[\w.-]+", section):
+        assert address.endswith("@example.org"), address
+
+
+def test_card_docs_describe_the_person_options_and_the_owner_select():
+    text = TEXTS[CARD]
+    assert "vier eigene Optionen: `add_form`, `show`, `person` und `include_unassigned`" in text
+    section = _section(CARD, "Gehört: pro Paket und Filter")
+    _all_have(section, [
+        "**Gehört**", "**Standard (Name)**", "**allen**", "ganze Box",
+        "person: person.anna", "include_unassigned: true", "Standard `true`",
+        "Keine Pakete für Anna.", "nur eine Anzeige",
+    ])
+
+
+def test_notification_and_privacy_docs_cover_the_owner():
+    notify = _section(NOTIFY, "An wen geht die Meldung?")
+    _all_have(notify, ["nur dorthin", "gehört das Paket allen", "wie ohne Personen"])
+    privacy = _section(PRIVACY, "Personen")
+    _all_have(privacy, [
+        "**jeden Benutzer**", "`owner`", "`owner_detected`", "**eigenen Benutzer**",
+        "nur eine Anzeige", "nie gespeichert",
+    ])
+
+
+def test_sensor_docs_list_the_owner_attributes_and_service():
+    sensors = TEXTS[SENSORS]
+    _all_have(sensors, ["| `owner` |", "| `owner_detected` |", "### `parcel_tracker.set_owner`"])
+    service = _section(SENSORS, "`parcel_tracker.set_owner`")
+    _all_have(service, ["ganze Box", "`all`", "Geschenk"])
+    assert "| `owner` | nein |" in _section(SENSORS, "`parcel_tracker.add_parcel`")
+    assert "| `owner` |" in _section(AUTOMATIONS, "Felder des Events")
+
+
+def test_helping_page_asks_for_anonymised_forwarded_mails_per_provider():
+    text = TEXTS[HELPING]
+    _all_have(text, [
+        "**Personen zuordnen: Erkennung**", "**Personen zuordnen: Karte und Meldungen**",
+        "je Anbieter", "Paket-Postfach", "`adresse1@example.org`", "`+person1`",
+    ])
+    anonymiser = TEXTS["hilfe.md"]
+    _all_have(anonymiser, ["`Delivered-To`", "`adresse1@example.org`", "`+person1`"])

@@ -116,6 +116,7 @@ TOP_LEVEL = [
     "country",
     "hide_names",
     "gift_viewers",
+    "persons",
     "entry",
     "carriers",
     "ups_budget",
@@ -950,3 +951,39 @@ async def test_diagnostics_tell_how_mails_are_filed_without_host_user_or_folder(
     text = _dump(result)
     assert IMAP_USER not in text
     assert "pakete.tester" not in text
+
+
+async def test_diagnostics_count_persons_and_addresses_only(hass, hass_storage, freezer):
+    """How many persons and addresses; never an address or a person."""
+    entry = await _setup(hass, hass_storage, freezer)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["persons"] == {
+        "persons": 0, "addresses": 0, "default_owner": False, "shared_addresses": 0
+    }  # fmt: skip
+    hass.config_entries.async_update_entry(
+        entry,
+        options={
+            **entry.options,
+            "persons": [
+                {
+                    "person": "person.erika",
+                    "addresses": ["erika@example.org", "pakete+erika@example.org"],
+                    "notify_targets": ["notify.mobile_app_erika"],
+                },
+                {"person": "person.max", "addresses": ["max@example.org"], "notify_targets": []},
+            ],
+            "default_owner": "person.max",
+            "shared_addresses": ["familie@example.org"],
+        },
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["persons"] == {
+        "persons": 2, "addresses": 3, "default_owner": True, "shared_addresses": 1
+    }  # fmt: skip
+    assert result["entry"]["options"]["persons"] == REDACTED
+    assert result["entry"]["options"]["shared_addresses"] == REDACTED
+    assert result["entry"]["options"]["default_owner"] == REDACTED
+    text = _dump(result)
+    for private in ("erika", "max@", "person.", "example.org", "mobile_app"):
+        assert private not in text, private

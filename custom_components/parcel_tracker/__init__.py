@@ -215,7 +215,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def add(call: ServiceCall) -> None:
         try:
             await _coordinator(hass).async_add(
-                call.data["number"], call.data.get("carrier", CARRIER_AUTO), call.data.get("name")
+                call.data["number"],
+                call.data.get("carrier", CARRIER_AUTO),
+                call.data.get("name"),
+                call.data.get("owner"),
             )
         except UnsupportedNumber as err:
             raise _err(err.reason) from err
@@ -256,6 +259,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except KeyError as err:
             raise _err("not_tracked") from err
 
+    async def set_owner(call: ServiceCall) -> None:
+        try:
+            await _coordinator(hass).async_set_owner(
+                call.data["number"], call.data["person"], call.context.user_id
+            )
+        except KeyError as err:
+            raise _err("not_tracked") from err
+
     async def track_17track(call: ServiceCall) -> None:
         try:
             await _coordinator(hass).async_track17(call.data["number"])
@@ -280,6 +291,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             raise _err("gift_target") from err
 
     number = vol.All(cv.string, vol.Length(min=1))
+    owner_id = vol.Any("all", vol.Match(r"^person\.[a-z0-9_]+$"))
     hass.services.async_register(
         DOMAIN, "add_parcel", add,
         schema=vol.Schema({
@@ -288,6 +300,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 [CARRIER_AUTO, *SELECTABLE_CARRIERS, CARRIER_OTHER]
             ),
             vol.Optional("name"): cv.string,
+            vol.Optional("owner"): owner_id,
         }),
     )
     hass.services.async_register(
@@ -314,6 +327,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             vol.Optional("number"): number,
             vol.Optional("open_parcels", default=False): cv.boolean,
             vol.Required("gift"): cv.boolean,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_owner", set_owner,
+        schema=vol.Schema({
+            vol.Required("number"): number,
+            vol.Required("person"): owner_id,
         }),
     )
     async_register_websocket(hass)

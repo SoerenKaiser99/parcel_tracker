@@ -47,15 +47,15 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Eventim-Tickets mit Postversand (Bestellbestätigung und Versandbenachrichtigung von `bestellstatus@eventim.de`) | umgesetzt nach Beispielmails (v0.3.30); gesehen wurde bisher nur „Standardversand (Deutschland)“, andere Liefermethoden wie Einschreiben oder Express sind ohne Beispiel gebaut |
 | Knopf „Erhalten“ und Dienst `parcel_tracker.mark_delivered` (ein Paket von Hand als erhalten markieren) | umgesetzt (v0.3.30); im Alltag noch nicht bestätigt |
 | 17track: Anreicherung bei DPD und GLS | noch ohne Live-Fall (bei einem DHL-Paket live gesehen) |
+| Personen zuordnen (v0.3.41, [#39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39)): Person aus den Kopfzeilen der Mail erkennen, Karte mit Auswahl „Gehört“ und Filter `person`, Dienst `set_owner`, Meldungen nur an den Besitzer | umgesetzt, durch automatische Tests abgedeckt; mit echten Mails verschiedener Anbieter noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
 | Land Österreich: GLS-Abfrage | mit echten Paketen noch nicht getestet |
 
 ## Offen
 
 | Vorhaben | Stand |
 |---|---|
-| **Personen zuordnen, Benachrichtigung nur an den Besteller** ([#39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39)) | Ein Paket einer Person zuordnen (über die Weiterleitungsadresse der Mail) und die Meldung nur an den Besteller schicken. Der Geschenkmodus liefert die Grundlage; eigene Meldungen mit Namen an Geschenk-Seher kommen damit später |
 | DPD-Live-Abfrage für Österreich | offen |
-| Push-Schnittstelle von DHL (DHL meldet Statusänderungen von sich aus) | geprüft, wartet auf Klärung des Zugangs für Privatnutzer |
+| Push-Schnittstelle von DHL (DHL meldet Statusänderungen von sich aus) | geprüft, nicht umgesetzt: Laut DHL müsste sie jeder Nutzer selbst bei DHL beantragen. Die Integration fragt deshalb weiter ab |
 | **Barcode-Scan** (Wunsch aus [Issue #2](https://github.com/SoerenKaiser99/parcel_tracker/issues/2)) | Sendungsnummer mit der Handykamera vom Label erfassen – geplant über den Scanner der Home-Assistant-App bzw. die Barcode-Erkennung des Browsers, ohne Fremdbibliothek. Braucht Beispiel-Scans je Paketdienst, weil auf den Labels oft mehr als die Sendungsnummer steht |
 | **International** | Karte auch auf Englisch, weitere Amazon-Länder im Mail-Import, nationale Paketdienste (Beispiele: Österreichische Post, Royal Mail, PostNL, USPS) – erst sinnvoll mit anonymisierten Beispielmails von Testern aus den jeweiligen Ländern |
 | **Absender aus der DHL-Abfrage** | Den Absender eines DHL-Pakets aus der offiziellen API übernehmen, statt ihn nur aus den Mails zu lesen |

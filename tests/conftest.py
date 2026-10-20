@@ -78,3 +78,11 @@ def load_mail(name: str) -> EmailMessage:
 def hass_config_dir(hass_tmp_config_dir: str) -> str:
     """Isolated temp config dir so tests never touch the shared testing_config."""
     return hass_tmp_config_dir
+
+
+async def open_options(hass, entry):
+    """Open the options and pick "Einstellungen" in the menu: the settings form."""
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    return await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "settings"}
+    )

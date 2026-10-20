@@ -1030,6 +1030,7 @@ class _TScrubber:
         self.fixed = salt is not None
         self._salt = secrets.token_hex(16) if salt is None else salt
         self._runs = {}
+        self._mailboxes, self._tags = {}, {}  # real address / plus part (lower case) -> number
         # what must not be readable in a result: every value and every part of a name
         self._check = {v.casefold() for key in values for v in values[key] if len(v) >= 3}
         self._check.update(t.casefold() for v in values["name"] for t in v.split() if len(t) >= 3)
@@ -1450,6 +1451,17 @@ class _TScrubber:
         text = _T_PLACE_PHRASE.sub("\\1 Garage \\2", text)
         return _T_GENERIC.sub(lambda m: self._generic(m, keep), text)
 
+    def mailbox(self, real):
+        """The invented address of a real one: ``adresse1@example.org`` for the first address
+        of the run; a plus part stays as ``+person1`` (the same plus part, the same number)."""
+        local, _, host = real.strip().lower().rpartition("@")
+        base, plus, tag = local.partition("+")
+        number = self._mailboxes.setdefault(f"{base}@{host}", len(self._mailboxes) + 1)
+        if not plus:
+            return f"adresse{number}@example.org"
+        tag_number = self._tags.setdefault(tag, len(self._tags) + 1)
+        return f"adresse{number}+person{tag_number}@example.org"
+
     def left(self, text):
         """True if a given value can still be read in ``text``."""
         text = text.casefold()
@@ -1622,6 +1634,25 @@ def _t_passed_on(msg):
     )
 
 
+_T_KEPT_ADDRESSES = (
+    "To", "Cc", "Delivered-To", "X-Original-To", "X-Forwarded-To", "X-Forwarded-For",
+    "Resent-From", "Resent-To",
+)
+
+
+def _t_address_headers(msg, out, scrubber):
+    """Copy the headers that tell for whom a mail was meant, in their order, with every
+    address invented (no display names). The detection of the owner reads exactly these."""
+    wanted = {name.lower(): name for name in _T_KEPT_ADDRESSES}
+    for key, value in msg.items():
+        name = wanted.get(str(key).lower())
+        found = re.findall(_T_ADDRESS, " ".join(str(value).split())) if name else []
+        if found:
+            out.add_header(name, ", ".join(scrubber.mailbox(a) for a in found))
+    if "To" not in out:
+        out["To"] = _T_MAIL
+
+
 def _t_set(out, name, value):
     try:
         out[name] = value
@@ -1723,7 +1754,7 @@ def _t_build(msg, number, scrubber):
         _t_set(out, "From", f'"{display}" <{address}>' if display else address)
         if "From" not in out:
             _t_set(out, "From", address)
-    out["To"] = _T_MAIL
+    _t_address_headers(msg, out, scrubber)
     subject = " ".join(scrubber.scrub(raw_subject, keep).split())
     _t_set(out, "Subject", subject)
     if evt:

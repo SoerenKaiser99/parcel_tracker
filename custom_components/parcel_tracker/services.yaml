@@ -12,6 +12,9 @@ add_parcel:
     name:
       selector:
         text:
+    owner:
+      selector:
+        text:
 remove_parcel:
   fields:
     number:
@@ -57,3 +60,13 @@ set_gift:
       required: true
       selector:
         boolean:
+set_owner:
+  fields:
+    number:
+      required: true
+      selector:
+        text:
+    person:
+      required: true
+      selector:
+        text:

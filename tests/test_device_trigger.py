@@ -105,6 +105,7 @@ def _event(entry_id, new, old="in_transit", assumed=False, manual=False):
         "location": "Bonn",
         "assumed": assumed,
         "manual": manual,
+        "owner": None,
     }
 
 

@@ -16,12 +16,13 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
 - **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`).
 - **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist.
+- **Personen zuordnen (optional):** die Integration erkennt an den Kopfzeilen der Mail, wem ein Paket gehört (Plus-Adresse, Alias oder eigene Adresse). Die Karte filtert mit `person` und lässt den Besitzer wählen, Meldungen gehen nur an dessen Ziele.
 - **Namen ausblenden:** alle Pakete heißen nur nach dem Paketdienst und den letzten Stellen der Nummer.
 - **Benachrichtigungen (optional):** bei „in Zustellung“, „zugestellt“, „abholbereit“ und Problem, an Benachrichtigungs-Entitäten und klassische Dienste. Dazu ein Blueprint für eigene Texte.
 - **Sensoren:** `sensor.paket_<nummer>` pro Paket, `sensor.pakete_heute` und vier Zählsensoren (unterwegs, möglich, zugestellt heute, abholbereit).
 - **Kalender:** `calendar.pakete` mit den erwarteten Zustellterminen.
 - **Schalter:** `switch.paket_tracker_geschenkmodus` für den Geschenkmodus.
-- **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track` und `set_gift`.
+- **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` und `set_owner`.
 - **Event und Auslöser:** das Event `parcel_tracker_status_changed` und fünf Auslöser im Automations-Editor ohne YAML.
 - **Abholbereit:** Packstation, Filiale und PaketShop mit Abholort und letztem Abholtag.
 - **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert.
@@ -31,6 +32,17 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.41 (2026-10-20)
+
+- **Personen zuordnen:** Im Menü „Konfigurieren“ gibt es jetzt den Eintrag „Personen“. Für jede Home-Assistant-Person trägst du Mailadressen und Benachrichtigungs-Ziele ein. Die Integration liest `Delivered-To`, `X-Original-To`, `To`, `Cc`, `X-Forwarded-To`, `X-Forwarded-For`, `Resent-From` und `Resent-To` und ordnet das Paket der Person zu, deren Adresse darin steht. Nennt die Mail keine, mehrere oder eine gemeinsame Adresse, gehört das Paket der Person bei „Unklare Pakete gehören“ (Standard: allen) ([#39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39)).
+- Neue Attribute `owner` und `owner_detected` am Paket-Sensor, neues Feld `owner` im Event `parcel_tracker_status_changed`.
+- Neuer Dienst `parcel_tracker.set_owner`; `parcel_tracker.add_parcel` nimmt ein optionales `owner`. Ein von Hand gesetzter Besitzer wird nie von einer Mail überschrieben.
+- Benachrichtigungen zu einem Paket gehen nur an die Ziele des Besitzers, wenn für die Person Ziele eingetragen sind; sonst wie bisher an die allgemeinen Ziele.
+- Neue Attribute `persons` und `default_owner` am Sensor „Pakete heute“ (nur Entitäten, keine Adressen).
+- Karte: Auswahl „Gehört“ im aufgeklappten Paket und in der Eingabe, nur wenn Personen eingerichtet sind und nur mit diesen Personen; ohne eingerichtete Personen verhält sich die Karte wie bisher. Neue Optionen `person` und `include_unassigned`.
+- Anonymisier-Skript: behält die Empfänger-Kopfzeilen mit erfundenen Adressen (`adresse1@example.org`, Plus-Teil als `+person1`), damit sich die Erkennung an eingereichten Mails prüfen lässt.
+- Doku: DHL-Key-Antrag korrigiert (Freemail-Adressen sind laut DHL nicht gesperrt, Wegwerf-Adressen werden abgelehnt).
 
 ### v0.3.40 (2026-10-20)
 

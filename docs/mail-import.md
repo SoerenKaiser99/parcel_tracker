@@ -85,6 +85,52 @@ Lehnt der Mailserver die Anmeldung ab? Viele Anbieter verlangen für IMAP nicht 
 - Wird das Zertifikat des Servers später nicht mehr akzeptiert (abgelaufen, ausgetauscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant.
 - Gibt es den eingestellten Ordner später nicht mehr (umbenannt oder gelöscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant, ohne den Namen des Ordners. Trag dann unter **Konfigurieren** den richtigen Ordner ein.
 
+## Pakete Personen zuordnen
+
+Mehrere Personen im Haushalt, ein Paket-Postfach: Die Integration kann ein Paket der Person zuordnen, für die es bestellt wurde. Das ist optional. Ohne eingerichtete Personen bleibt alles wie bisher.
+
+### Einrichten
+
+1. **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** öffnen und **Personen** wählen. (Der Eintrag **Einstellungen** führt zu allen anderen Optionen.)
+2. Unter **Person** eine neue Person aus Home Assistant wählen. Eine schon eingerichtete Person wählst du unter **Eingerichtete Person**, auch um sie zu ändern oder zu entfernen. Mit **Absenden** folgt ein Formular für diese Person:
+    - **Adressen (eine pro Zeile):** die Adressen, an denen die Person ihre Pakete erkennt, siehe unten.
+    - **Benachrichtigungen an:** wohin die Meldungen zu ihren Paketen gehen, siehe [Benachrichtigungen](benachrichtigungen.md#an-wen-geht-die-meldung). Das Handy, das in Home Assistant als Geräte-Tracker der Person eingetragen ist, wird vorgeschlagen, wenn es ein Ziel dafür gibt.
+3. Bei **Unklare Pakete gehören** wählst du, wem ein Paket gehört, wenn die Mail keine eindeutige Person nennt. Standard: **allen**.
+4. Bei **Gemeinsame Adressen (gehören allen)** trägst du Adressen ein, die mehreren Personen gehören, z. B. `familie@example.org`. Steht eine davon in einer Mail, ist das Paket unklar und gehört der Person bei **Unklare Pakete gehören**.
+
+### Woran die Integration die Person erkennt
+
+Sie liest die Kopfzeilen der Mail: `Delivered-To`, `X-Original-To`, `To`, `Cc`, `X-Forwarded-To`, `X-Forwarded-For`, `Resent-From` und `Resent-To`. Steht dort mehrmals dieselbe Kopfzeile, zählt jede. Bei einer von Hand weitergeleiteten Mail zählt zusätzlich die Adresse, von der die Weiterleitung kommt. Das gilt bei einem Betreff mit „WG:“, „Fwd:“ oder „FW:“ (nicht „AW:“ oder „Re:“) oder bei einer weitergeleiteten Original-Mail, und nur, wenn der Absender kein bekannter Shop oder Paketdienst ist.
+
+- Steht genau die Adresse **einer** Person darin, gehört das Paket ihr.
+- Steht keine, stehen die Adressen mehrerer Personen darin oder steht eine gemeinsame Adresse darin, ist das Paket **unklar**. Es gehört dann der Person bei **Unklare Pakete gehören**, standardmäßig allen.
+- Adressen werden ohne Beachtung der Groß- und Kleinschreibung verglichen, sonst aber genau: `pakete+anna@example.org` ist nicht `pakete@example.org`.
+
+Gespeichert wird nur ein erkannter oder von Hand gesetzter Besitzer. Die Person bei **Unklare Pakete gehören** gilt erst beim Lesen. Änderst du die Option, ändert sich das auch für offene Pakete, und eine spätere eindeutige Mail kann dem Paket weiter seinen echten Besitzer geben. Einen von Hand gesetzten Besitzer (auch „allen“) überschreibt keine Mail. Weitere Pakete derselben Bestellung übernehmen den Besitzer samt dieser Markierung. Entfernst du eine Person hier (oder benennst ihre Entität um), gelten ihre Pakete als unklar und gehören der Person bei **Unklare Pakete gehören**. Gespeichert bleibt der alte Besitzer trotzdem: Richtest du die Person wieder ein, gehören ihr die Pakete wieder. Eine spätere Mail ändert solche Pakete nicht; ordne sie bei Bedarf von Hand neu zu. Zu einer Mail werden die Adressen nur verglichen, nie gespeichert oder ins Log geschrieben.
+
+Von Hand ändern geht auf der [Karte](karte.md#gehort-pro-paket-und-filter) oder mit dem Dienst [`parcel_tracker.set_owner`](sensoren.md#parcel_trackerset_owner).
+
+### Welche Adresse bekommt jede Person?
+
+Am sichersten ist eine eigene Adresse pro Person, die im Paket-Postfach ankommt. Die Weiterleitung jeder Person geht dann an ihre Adresse.
+
+| Anbieter des Paket-Postfachs | Weg | Beispiel |
+|---|---|---|
+| Gmail | Plus-Adresse | `pakete+anna@example.org` |
+| Outlook | Plus-Adresse | `pakete+anna@example.org` |
+| Posteo | Plus-Adresse | `pakete+anna@example.org` |
+| mailbox.org | Plus-Adresse | `pakete+anna@example.org` |
+| GMX, web.de | Alias-Adresse (in den Einstellungen des Postfachs anlegen) | `anna-pakete@example.org` |
+| Eigener Server | Alias oder Plus-Adresse, je nach Server | `anna@example.org` |
+
+Die Angaben können sich beim Anbieter ändern. Prüf bei deinem Anbieter, ob er Plus-Adressen oder Aliase anbietet.
+
+!!! tip "Oft reicht die eigene Adresse"
+    Eine Weiterleitung behält meistens die ursprüngliche Zieladresse in `Delivered-To` oder `X-Original-To`. Dann erkennt die Integration die Person schon an ihrer eigenen Mailadresse, ohne Plus-Adresse oder Alias. Ob das bei deinem Anbieter so ist, hängt von seiner Weiterleitung ab. Sieh in einer Mail im Paket-Postfach nach („Quelltext anzeigen“) oder schick eine anonymisierte Beispielmail, siehe [Wie ihr helfen könnt](mithelfen.md).
+
+!!! warning "Eine Grenze"
+    Eine Weiterleitungsregel, die keine der genannten Kopfzeilen setzt und an die gemeinsame Adresse geht, ist nicht erkennbar. Das Paket ist dann unklar. Dafür gibt es die eigene Plus-Adresse oder den Alias.
+
 ## Filterregel anlegen
 
 Nimm diese Absender in die Filterregel auf:

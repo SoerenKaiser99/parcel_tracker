@@ -154,7 +154,7 @@ Neben „Pakete“ im Kartenkopf steht ein Geschenk-Symbol: der Schalter „Gesc
 
 ## Optionen der Karte
 
-Die Karte hat zwei eigene Optionen: `add_form` und `show`. Beide trägst du im YAML der Karte ein (Karte bearbeiten).
+Die Karte hat vier eigene Optionen: `add_form`, `show`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).
 
 ### `add_form` – die Eingabe
 
@@ -244,6 +244,28 @@ type: custom:parcel-tracker-card
 add_form: never
 show: today_possible
 ```
+
+### Gehört: pro Paket und Filter
+
+Sind in der Integration [Personen eingerichtet](mail-import.md#pakete-personen-zuordnen), zeigt ein aufgeklapptes Paket die Zeile **Gehört** mit einer Auswahl. Zur Wahl stehen nur die dort eingerichteten Personen, nicht jede Person aus Home Assistant. Ohne eingerichtete Personen fehlt die Auswahl überall, und die Karte fügt Pakete ohne Besitzer hinzu, wie bisher. Bei einem Geschenk sehen die Auswahl nur Geschenk-Seher.
+
+- **allen** und jede eingerichtete Person stehen zur Wahl. Ein Wechsel ruft den Dienst [`parcel_tracker.set_owner`](sensoren.md#parcel_trackerset_owner) auf und gilt für die ganze Box, also für alle Einträge mit derselben Sendungsnummer (z. B. mehrere Amazon-Bestellungen in einem Paket).
+- **Standard (Name)** steht oben, solange das Paket keinen eigenen Besitzer hat und die Person aus **Unklare Pakete gehören** gilt. Wählst du diese Person, bekommt das Paket sie als eigenen Besitzer.
+- In der Eingabe für neue Pakete steht zuerst **Standard (…)**: Das Paket bekommt keinen eigenen Besitzer, es gilt **Unklare Pakete gehören**. Dahinter folgen die eingerichteten Personen und, wenn **Unklare Pakete gehören** eine Person ist, **allen**. Gehören unklare Pakete allen, heißt der erste Eintrag **Standard (allen)** und ein eigenes **allen** gibt es nicht. Die Auswahl steht auf der Person des angemeldeten Benutzers, sonst auf **Standard**.
+
+Zwei Optionen zeigen auf der Karte nur die Pakete einer Person:
+
+```yaml
+type: custom:parcel-tracker-card
+person: person.anna
+include_unassigned: true
+```
+
+- `person`: nur die Pakete dieser Person. Alles, was keine Personen-Entität ist, schaltet den Filter aus. Die Schilder oben rechts und die Zahlen zählen nur diese Pakete. Ist nichts da, steht „Keine Pakete für Anna.“
+- `include_unassigned`: Standard `true`. Dann zeigt die Karte zusätzlich die Pakete, die allen gehören. Mit `false` bleiben nur die der Person.
+
+!!! warning "Der Filter ist nur eine Anzeige"
+    Die Pakete aller Personen bleiben als Sensoren sichtbar. Siehe [Datenschutz](datenschutz.md#personen).
 
 ### Sichtbarkeit von Home Assistant nutzen
 

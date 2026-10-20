@@ -501,7 +501,17 @@ def _further_parcel(
         return
     name = f"{CARRIER_NAMES[order.carrier]}-Sendung"
     extra = Parcel(
-        number, carrier, "mail", name, now, now, order_checked=True, gift=gift or order.gift
+        number,
+        carrier,
+        "mail",
+        name,
+        now,
+        now,
+        order_checked=True,
+        gift=gift or order.gift,
+        # The order's owner with its hand mark ("everybody" set by hand stays so).
+        owner=order.owner,
+        owner_manual=order.owner_manual,
     )
     parcels[number] = extra
     status = update.status if _step(update.status) < _step(ParcelStatus.DELIVERED) else None
@@ -610,8 +620,38 @@ def _take_over(target: Parcel, update: MailUpdate) -> None:
         target.name = update.title
 
 
+def _inherit_owner(box: Parcel, siblings: list[Parcel], owner: str | None) -> None:
+    """A further box belongs to whom the order belongs: a detected or hand-set owner,
+    with its hand mark; "everybody" set by hand on the order keeps the box everybody's
+    (and a mail never claims it). The mail's owner only if the order has neither."""
+    owned = next((p for p in siblings if p.owner), None)
+    if owned is not None:
+        box.owner, box.owner_manual = owned.owner, owned.owner_manual
+    elif any(p.owner_manual for p in siblings):
+        box.owner, box.owner_manual = None, True
+    else:
+        box.owner = owner
+
+
+def _claim(parcel: Parcel, owner: str | None) -> None:
+    """Give a parcel the owner a mail names, if it has none yet.
+
+    The first detected owner wins: a later mail that names another person does not move
+    the parcel (a forward of the same mail to somebody else must not take it away). An
+    owner set by hand (``owner_manual``, also "everybody") is never touched by a mail.
+    Only detected and hand-set owners are stored; the default person for unclear mails
+    is not (the coordinator's ``effective_owner`` adds it when it is read).
+    """
+    if owner is not None and parcel.owner is None and not parcel.owner_manual:
+        parcel.owner = owner
+
+
 def _apply_order(
-    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, gift: bool = False
+    parcels: dict[str, Parcel],
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
+    owner: str | None = None,
 ) -> Change | None:
     """A shop order ("AMZ…"/"EBAY…"/"ALI…"/"EVT…"): one parcel per order, suffix for further
     shipments (never for AliExpress and Eventim: their mails name an order's items in turn).
@@ -659,6 +699,7 @@ def _apply_order(
             mail_title=update.title,
             gift=gift or any(p.gift for p in siblings),
         )
+        _inherit_owner(target, siblings, owner)
         parcels[number] = target
         _take_shop_facts(parcels, target, update, now, gift)
         _remember_shipment(target, update)
@@ -675,6 +716,7 @@ def _apply_order(
             and now - update.sent_at <= NEW_DELIVERY_MAX_AGE
         )
         return Change(target, None, True, announce=news)
+    _claim(target, owner)
     _take_over(target, update)
     if target.mail_title is None and update.title:
         target.mail_title = update.title
@@ -847,7 +889,7 @@ def _merge_candidate(
 
 
 def _apply_orderless(
-    parcels: dict[str, Parcel], update: MailUpdate, now: datetime
+    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, owner: str | None = None
 ) -> Change | None:
     """A shop's status mail that names no order (AliExpress "Packstück" with a number no
     carrier of ours has): the status goes to the one open order that fits
@@ -855,6 +897,7 @@ def _apply_orderless(
     target = _merge_candidate(parcels, update)
     if target is None:
         return None
+    _claim(target, owner)
     old = target.status
     return Change(target, old, False) if _forward(target, update, now) else None
 
@@ -950,6 +993,10 @@ def _fold(parcels: dict[str, Parcel], parcel: Parcel, order: Parcel, keep: bool 
     if parcel.name and parcel.name_manual:
         order.name, order.name_manual = parcel.name, True
     order.gift = order.gift or parcel.gift
+    # The order's owner wins (also "everybody" set on it by hand), else the carrier
+    # parcel's; the hand mark goes with the owner.
+    if order.owner is None and not order.owner_manual:
+        order.owner, order.owner_manual = parcel.owner, parcel.owner_manual
     order.tracking_ref = parcel.number
     order.tracking_carrier = parcel.carrier
     if keep:
@@ -1140,7 +1187,11 @@ def _mail_name(update: MailUpdate) -> str | None:
 
 
 def _apply_tracking(
-    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, gift: bool = False
+    parcels: dict[str, Parcel],
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
+    owner: str | None = None,
 ) -> Change | None:
     number = update.number.upper()
     name = _mail_name(update)
@@ -1165,6 +1216,7 @@ def _apply_tracking(
         delivered = update.status is ParcelStatus.DELIVERED and not update.eta_date
         target = _merge_candidate(parcels, update, _mail_day(update) if delivered else None)
         if target is not None:
+            _claim(target, owner)
             old = target.status
             target.tracking_ref = number
             target.tracking_carrier = update.carrier
@@ -1173,7 +1225,7 @@ def _apply_tracking(
             _forward(target, update, now)
             return Change(target, old, False)
     if target is None:
-        target = Parcel(number, update.carrier, "mail", name, now, now, gift=gift)
+        target = Parcel(number, update.carrier, "mail", name, now, now, gift=gift, owner=owner)
         parcels[number] = target
         _forward(target, update, now)
         # A first status is no news - but a delivery whose mail names a shop or a company
@@ -1185,6 +1237,7 @@ def _apply_tracking(
             and now - update.sent_at <= NEW_DELIVERY_MAX_AGE
         )
         return Change(target, None, True, announce=news)
+    _claim(target, owner)
     old = target.status
     named = False
     # Older versions stored a carrier's display name ("DHL Zustell-Update") as the name: it
@@ -1204,16 +1257,23 @@ def _apply_tracking(
 
 
 def apply_update(
-    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, gift: bool = False
+    parcels: dict[str, Parcel],
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
+    owner: str | None = None,
 ) -> Change | None:
     """Create or advance the matching parcel in ``parcels`` (mutated in place).
 
     ``gift``: the Geschenkmodus is on, so every parcel created here is a gift.
+    ``owner``: the person the mail's headers name (None: unclear). A parcel created here
+    gets it; one that exists gets it only while it has no owner (``_claim``). Setting the
+    owner alone is no change that is told.
     """
     if update.carrier in SHOP_CARRIERS:
         if update.status is ParcelStatus.CANCELLED:
             return _cancel_order(parcels, update, now)
         if not update.number:
-            return _apply_orderless(parcels, update, now)
-        return _apply_order(parcels, update, now, gift)
-    return _apply_tracking(parcels, update, now, gift)
+            return _apply_orderless(parcels, update, now, owner)
+        return _apply_order(parcels, update, now, gift, owner)
+    return _apply_tracking(parcels, update, now, gift, owner)

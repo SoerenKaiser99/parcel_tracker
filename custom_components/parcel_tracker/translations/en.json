@@ -38,6 +38,10 @@
   "options": {
     "step": {
       "init": {
+        "title": "Paket Tracker",
+        "menu_options": {"settings": "Settings", "persons": "Persons"}
+      },
+      "settings": {
         "title": "Parcel Tracker options",
         "data": {
           "dhl_api_key": "DHL API key (optional)",
@@ -124,6 +128,36 @@
             }
           }
         }
+      },
+      "persons": {
+        "title": "Persons",
+        "description": "Pick a person to set up their addresses and notifications. Parcels whose mail names no person or several persons belong to the choice below.",
+        "data": {
+          "configured_person": "Person set up",
+          "person": "Person",
+          "default_owner": "Unclear parcels belong to",
+          "shared_addresses": "Shared addresses (belong to everyone)"
+        },
+        "data_description": {
+          "configured_person": "Change or remove a person set up here, also one no longer in Home Assistant.",
+          "person": "Set up a new person. Leave both empty to only save the fields below.",
+          "default_owner": "Everyone (as before) or one of the persons set up here.",
+          "shared_addresses": "Addresses that belong to several persons, e.g. family@… Parcels to these addresses belong to everyone."
+        }
+      },
+      "person": {
+        "title": "Person",
+        "description": "Addresses and notifications of {person}.",
+        "data": {
+          "addresses": "Addresses (one per line)",
+          "notify_targets": "Notify",
+          "remove": "Remove person"
+        },
+        "data_description": {
+          "addresses": "The person's own mail address, their forwarding address (e.g. parcels+name@…) or the sender address when forwarding by hand. To remove all addresses, remove the person.",
+          "notify_targets": "Notifications about this person's parcels only go here. Empty: to the general targets.",
+          "remove": "Removes the addresses and notifications of this person."
+        }
       }
     },
     "error": {
@@ -143,7 +177,9 @@
       "ups_secret_missing": "Enter the UPS Client Secret.",
       "track17_invalid_key": "17track rejected this API key.",
       "track17_cannot_connect": "Couldn't reach 17track. Try again later.",
-      "notify_no_target": "Choose at least one target for the notifications."
+      "notify_no_target": "Choose at least one target for the notifications.",
+      "address_twice": "An address already belongs to another person or to the shared addresses.",
+      "address_invalid": "An entry is not a mail address."
     }
   },
   "issues": {
@@ -197,6 +233,8 @@
     "gift_not_allowed": {"message": "Only someone who may see gifts can make a gift visible again."},
     "gift_remove_not_allowed": {"message": "Only someone who may see gifts can delete a gift."},
     "gift_rename_not_allowed": {"message": "Only someone who may see gifts can rename a gift."},
+    "gift_owner_not_allowed": {"message": "Only someone who may see gifts can change who a gift belongs to."},
+    "owner_unknown": {"message": "This person is not set up in Paket Tracker."},
     "gift_target": {"message": "Give either a tracking number or choose all open parcels."},
     "duplicate": {"message": "This parcel is already in the list."},
     "amazon": {"message": "Amazon tracking numbers (TBA…) can't be tracked directly. Forward the Amazon mails to the parcel mailbox instead."},
@@ -249,6 +287,8 @@
     "calendar": {"deliveries": {"name": "Parcels"}}
   },
   "selector": {
+    "default_owner": {"options": {"all": "everyone"}},
+    "configured_person": {"options": {"stale": "no longer in Home Assistant"}},
     "country": {
       "options": {
         "de": "Germany",
@@ -279,7 +319,8 @@
       "fields": {
         "number": {"name": "Tracking number", "description": "As printed, spaces allowed."},
         "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, ups or other (via 17track, needs a 17track API key)."},
-        "name": {"name": "Name", "description": "Optional label."}
+        "name": {"name": "Name", "description": "Optional label."},
+        "owner": {"name": "Owner", "description": "Optional: the person the parcel belongs to (a person set up under Persons, such as person.anna, or all for everybody)."}
       }
     },
     "remove_parcel": {
@@ -312,6 +353,14 @@
         "number": {"name": "Tracking number", "description": "Parcel to change. Leave empty when choosing all open parcels."},
         "open_parcels": {"name": "All open parcels", "description": "Change every parcel that is not delivered yet instead of one."},
         "gift": {"name": "Gift", "description": "On marks as gift, off makes it visible again."}
+      }
+    },
+    "set_owner": {
+      "name": "Set owner",
+      "description": "Hand a parcel to a person, or to everybody. A mail never changes an owner set this way.",
+      "fields": {
+        "number": {"name": "Tracking number", "description": "Parcel to change."},
+        "person": {"name": "Person", "description": "A person set up under Persons (person.…) or all"}
       }
     },
     "track_17track": {

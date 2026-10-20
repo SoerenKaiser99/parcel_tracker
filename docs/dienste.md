@@ -22,7 +22,7 @@ Die kurze Antwort: DPD, GLS und Hermes funktionieren sofort. DHL und UPS brauche
 
 ## DHL
 
-Abgefragt wird über die offizielle API „Shipment Tracking – Unified“. Die Schnittstelle kennt alle DHL-Sendungen: DHL Paket in Deutschland, aber auch Express und eCommerce. Mit Key und hinterlegter PLZ liefert DHL zusätzliche Details, z. B. den Standort.
+Abgefragt wird über die offizielle API „Shipment Tracking – Unified“. Die Schnittstelle kennt alle DHL-Sendungen: DHL Paket in Deutschland, aber auch Express und eCommerce. Mit Key und hinterlegter PLZ liefert DHL zusätzliche Details, z. B. den Standort. Die Integration fragt DHL selbst ab. Meldungen, die DHL von sich aus schickt, müsste laut DHL jeder Nutzer selbst bei DHL beantragen. Deshalb bleibt es beim Abfragen.
 
 **Der Key ist optional – nicht darauf versteifen.** DHL prüft jeden Antrag selbst. Ohne passende Angaben wird er manchmal abgelehnt. Wer keinen Key bekommt, verliert wenig: siehe [Kein Key? Dann die DHL-Mails](#kein-key-dann-die-dhl-mails).
 
@@ -46,7 +46,8 @@ Den Key trägst du bei der Einrichtung ein oder später unter **Einstellungen �
 Laut DHL werden die Anträge von Hand geprüft, weil Bots die Schnittstelle missbrauchen.
 
 - Am zuverlässigsten klappt es bisher mit einer Adresse unter eigener Domain, die zum angegebenen Firmennamen passt.
-- Adressen bei gmx.de und web.de haben laut DHL bessere Chancen als Gmail, hotmail.com und outlook.com. Sie wurden bei Testern aber ebenfalls abgelehnt.
+- Freemail-Adressen wie Gmail, Outlook, GMX oder web.de sperrt DHL laut DHL nicht grundsätzlich. Weil sie aber oft missbraucht werden, prüft DHL sie strenger.
+- Wegwerf-Adressen (Adressen für den einmaligen Gebrauch) lehnt DHL ab. Nimm eine Adresse, die du dauerhaft nutzt.
 - Eine Garantie gibt es bei Freemail-Adressen nicht.
 
 Klappt es nicht: Der Key ist kein Muss, die DHL-Mails reichen.

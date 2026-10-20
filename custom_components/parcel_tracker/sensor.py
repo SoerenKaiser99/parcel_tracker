@@ -172,6 +172,12 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids and not p.gift else None,
             # Marked as a gift (Geschenkmodus): shown by its gift name, no links.
             "gift": p.gift,
+            # The person the parcel belongs to (entity id), None for everybody: the owner
+            # a mail named or the user set, else the default person ("Unklare Pakete
+            # gehören"). ``owner_detected``: the parcel has an owner of its own (a person
+            # set up under "Personen"; one removed there counts as none).
+            "owner": self.coordinator.effective_owner(p),
+            "owner_detected": self.coordinator.has_own_owner(p),
             "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
             "track17": p.track17,
@@ -218,7 +224,15 @@ class TodaySensor(_SummarySensor):
     _attr_icon = "mdi:truck-delivery"
     # The lists carry the names: not in the history (a gift's name must not be kept).
     _unrecorded_attributes = frozenset(
-        {"integration_version", "parcels", "possible", "delivered_today", "awaiting_pickup"}
+        {
+            "integration_version",
+            "parcels",
+            "possible",
+            "delivered_today",
+            "awaiting_pickup",
+            "persons",
+            "default_owner",
+        }
     )
 
     def __init__(self, coordinator: ParcelCoordinator) -> None:
@@ -245,6 +259,11 @@ class TodaySensor(_SummarySensor):
             # The card compares this with its own version: a browser that still runs the
             # card from before an update shows a hint to reload the page.
             "integration_version": VERSION,
+            # The persons set up under "Personen" (entity ids only, never an address)
+            # and the one unclear parcels go to (None: everybody). The card offers
+            # "Gehört" only with persons set up, and only these persons.
+            "persons": [p.person for p in self.coordinator.persons()],
+            "default_owner": self.coordinator.effective_default_owner(),
         }
 
 

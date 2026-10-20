@@ -25,6 +25,8 @@ from custom_components.parcel_tracker.const import (
 )
 from custom_components.parcel_tracker.mail.imap import ImapAuthError, ImapUnavailable
 
+from .conftest import open_options
+
 VALIDATE = "custom_components.parcel_tracker.config_flow.DhlCarrier.validate_key"
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 
@@ -114,7 +116,7 @@ async def test_reauth(hass):
 async def test_options(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -132,7 +134,7 @@ async def test_options_keeps_existing_key(hass):
         data={CONF_DHL_API_KEY: "old", CONF_POSTCODE: "10115"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -151,7 +153,7 @@ async def test_options_keeps_key_on_empty_string(hass):
         data={CONF_DHL_API_KEY: "old", CONF_POSTCODE: "10115"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(VALIDATE) as mock_validate, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -172,7 +174,7 @@ async def test_options_new_key_validated(hass):
         data={CONF_DHL_API_KEY: "old", CONF_POSTCODE: "10115"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
 
     # Test: new valid key
     with patch(VALIDATE, return_value=True) as mock_validate, patch(SETUP, return_value=True):
@@ -187,7 +189,7 @@ async def test_options_new_key_validated(hass):
     mock_validate.assert_called_once()
 
     # Test: new invalid key
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(VALIDATE, return_value=False):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -229,7 +231,7 @@ async def test_options_clears_postcode(hass):
     """Submitting the options form without a postcode clears a previously stored one."""
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -248,7 +250,7 @@ async def test_options_single_update_when_key_changes(hass):
         data={CONF_DHL_API_KEY: "old", CONF_POSTCODE: "10115"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(VALIDATE, return_value=True), patch(SETUP, return_value=True):
         with patch(
             "homeassistant.config_entries.ConfigEntries.async_update_entry",
@@ -281,7 +283,7 @@ async def test_reauth_effective_after_options_saved(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_DHL_API_KEY: "old", CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(VALIDATE, return_value=True), patch(SETUP, return_value=True):
         await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -330,7 +332,7 @@ def _mail_input(**mail):
 async def test_options_mail_defaults_and_disabled_without_user(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     assert CONF_MAIL_SECTION in result["data_schema"].schema
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
@@ -352,7 +354,7 @@ async def test_options_mail_defaults_and_disabled_without_user(hass):
 async def test_options_mail_login_ok_stores_password_in_data(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -378,7 +380,7 @@ async def test_options_mail_login_ok_stores_password_in_data(hass):
 async def test_options_mail_login_rejected_or_unreachable(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN, side_effect=ImapAuthError("no")):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(imap_user="u", imap_password="bad")
@@ -399,7 +401,7 @@ async def test_options_mail_empty_password_keeps_stored_one(hass):
         options={CONF_IMAP_USER: "u"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(imap_user="u", imap_password="")
@@ -413,7 +415,7 @@ async def test_options_mail_empty_password_keeps_stored_one(hass):
 async def test_options_mail_user_without_any_password(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN) as login:
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(imap_user="u")
@@ -429,7 +431,7 @@ async def test_options_saving_postcode_skips_login_check(hass):
         options={CONF_IMAP_HOST: "imap.example.org", CONF_IMAP_USER: "u"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with (
         patch(CHECK_LOGIN, side_effect=ImapUnavailable("down")) as login,
         patch(SETUP, return_value=True),
@@ -463,7 +465,7 @@ async def test_options_changed_login_is_checked(hass, mail):
         options={CONF_IMAP_HOST: "imap.example.org", CONF_IMAP_USER: "u"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN, side_effect=ImapUnavailable("down")) as login:
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
@@ -481,7 +483,7 @@ async def test_options_mail_off_removes_user_and_password(hass):
         options={CONF_IMAP_USER: "u"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(mail_enabled=False, imap_user="u")
@@ -504,7 +506,7 @@ async def test_options_empty_or_missing_user_keeps_mail_import(hass, mail):
         options={CONF_IMAP_USER: "u"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(**mail)
@@ -524,7 +526,7 @@ async def test_options_mail_switch_defaults_to_whether_a_user_is_stored(hass):
 
     empty = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     empty.add_to_hass(hass)
-    assert switch_default(await hass.config_entries.options.async_init(empty.entry_id)) is False
+    assert switch_default(await open_options(hass, empty)) is False
     await hass.config_entries.async_remove(empty.entry_id)
     configured = MockConfigEntry(
         domain=DOMAIN,
@@ -532,7 +534,7 @@ async def test_options_mail_switch_defaults_to_whether_a_user_is_stored(hass):
         options={CONF_IMAP_USER: "u"},
     )
     configured.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(configured.entry_id)
+    result = await open_options(hass, configured)
     assert switch_default(result) is True
     section = result["data_schema"].schema[CONF_MAIL_SECTION].schema.schema
     user = next(key for key in section if key == CONF_IMAP_USER)
@@ -543,7 +545,7 @@ async def test_options_mail_switch_defaults_to_whether_a_user_is_stored(hass):
 async def test_options_mail_enabled_without_any_user_configures_nothing(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(mail_enabled=True)
@@ -559,7 +561,7 @@ async def test_options_new_user_sets_mail_import_up_even_with_switch_off(hass):
     """Nothing stored yet: the switch (default off) must not swallow a new login."""
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(mail_enabled=False, imap_user="u", imap_password="pw")
@@ -574,7 +576,7 @@ async def test_options_new_user_sets_mail_import_up_even_with_switch_off(hass):
 async def test_options_login_check_uses_verifying_tls(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with (
         patch("custom_components.parcel_tracker.config_flow.MailboxClient") as client,
         patch(SETUP, return_value=True),
@@ -590,7 +592,7 @@ async def test_options_login_check_uses_verifying_tls(hass):
 async def test_options_saves_mail_interval(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(**{CONF_MAIL_INTERVAL: 15})
@@ -603,7 +605,7 @@ async def test_options_saves_mail_interval(hass):
 async def test_options_accepts_the_longest_mail_interval_of_a_day(hass):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(**{CONF_MAIL_INTERVAL: 1440})
@@ -617,7 +619,7 @@ async def test_options_accepts_the_longest_mail_interval_of_a_day(hass):
 async def test_options_rejects_mail_interval_out_of_range(hass, minutes):
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with pytest.raises(vol.Invalid):
         await hass.config_entries.options.async_configure(
             result["flow_id"], _mail_input(**{CONF_MAIL_INTERVAL: minutes})
@@ -631,7 +633,7 @@ async def test_options_changing_only_interval_skips_login_check(hass):
         options={CONF_IMAP_HOST: "imap.example.org", CONF_IMAP_USER: "u"},
     )
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with (
         patch(CHECK_LOGIN, side_effect=ImapUnavailable("down")) as login,
         patch(SETUP, return_value=True),

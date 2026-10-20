@@ -9,6 +9,7 @@ from custom_components.parcel_tracker.const import (
     DOMAIN,
 )
 
+from .conftest import open_options
 from .test_config_flow_untouched import (
     DATA,
     OPTIONS,
@@ -33,7 +34,7 @@ def _chosen(*persons):
 
 async def test_untouched_form_stores_no_gift_viewers(hass):
     entry = _entry(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     initial = _frontend_initial(_fields(result))
     assert initial[CONF_GIFT_SECTION] == {CONF_GIFT_VIEWERS: []}
     result, checks = await _save(hass, entry, _frontend_initial)
@@ -50,7 +51,7 @@ async def test_two_persons_are_stored_as_a_list_and_prefilled_again(hass):
     result, _ = await _save(hass, entry, _chosen(ANNA, BEN))
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options == {**OPTIONS, CONF_GIFT_VIEWERS: [ANNA, BEN]}
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     initial = _frontend_initial(_fields(result))
     assert initial[CONF_GIFT_SECTION] == {CONF_GIFT_VIEWERS: [ANNA, BEN]}
     result, _ = await _save(hass, entry, _frontend_initial)

@@ -411,4 +411,6 @@ def test_the_card_names_a_parcel_by_its_name_attribute_only():
     # A mail title only comes for a gift viewer, in the answer of parcel_tracker/gift_name
     # (Geschenkmodus), never from the sensor's attributes.
     assert set(re.findall(r"[\w.]*mail_title", source)) == {"info.mail_title"}
-    assert "friendly_name" not in source
+    # The only friendly name it reads is a person's (the select „Gehört“), never a parcel's.
+    persons = source[source.index("function personsOf("):source.index("const OWNER_ALL =")]
+    assert source.count("friendly_name") == persons.count("friendly_name") == 2

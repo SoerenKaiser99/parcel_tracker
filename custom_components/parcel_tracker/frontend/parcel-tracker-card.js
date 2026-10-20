@@ -1,7 +1,7 @@
 const CARRIER_ICONS = {"dhl": {"path": "M4.22 10.303l-.767 1.043h4.18c.21 0 .208.078.105.218-.105.142-.28.39-.386.534-.054.073-.154.207.171.207h1.71l.505-.69c.314-.426.028-1.312-1.095-1.312H4.22zM11.424 10.303l-1.475 2.002h5.39l1.473-2.002H14.61l-.843 1.146h-.985l.846-1.146h-2.203zM17.529 10.303l-1.474 2.002h2.334l1.472-2.002H17.53zM4.684 11.603l-1.54 2.094h3.754c1.24 0 1.932-.844 2.145-1.136h-2.56c-.326 0-.226-.133-.172-.207.107-.143.283-.388.388-.53.104-.14.107-.22-.105-.22h-1.91zM9.762 12.562l-.836 1.136h2.203l.836-1.136H9.762zM12.947 12.562l-.836 1.136h2.203l.836-1.136h-2.203zM15.865 12.562s-.159.22-.238.326c-.276.374-.033.81.87.81h3.538l.834-1.136h-5.004z", "color": "#FFCC00", "mark": "#D40511"}, "dpd": {"path": "M16.01 10.71a.364.364 0 01-.343-.006l-.558-.331a.43.43 0 01-.182-.312l-.014-.65a.363.363 0 01.165-.3l6.7-3.902L12.377.085A.799.799 0 0012 0a.798.798 0 00-.377.085l-9.4 5.124 10.53 6.13c.098.054.172.181.172.295v8.944c0 .112-.08.241-.178.294l-.567.315c-.171.062-.256.043-.361 0l-.569-.315a.362.362 0 01-.175-.294v-7.973a.223.223 0 00-.095-.156L1.702 7.048v10.579c0 .236.167.528.371.648l9.556 5.636c.102.06.237.09.371.089a.745.745 0 00.371-.09l9.557-5.635a.835.835 0 00.37-.648V7.047Z", "color": "#DC0032"}, "amazon": {"path": "M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z", "color": "#FF9900"}, "ups": {"path": "M11.668 14.544l-.028-5.226c.138-.055.387-.111.608-.111.995 0 1.41.774 1.41 2.682 0 1.853-.47 2.765-1.438 2.765-.22 0-.441-.055-.552-.11zM3.124 7.438c4.203-3.843 9.29-4.866 14.018-4.866 1.3 0 2.544.083 3.76.194h-.028v11.253c0 2.184-.774 3.926-2.295 5.171-1.355 1.134-5.447 2.959-6.581 3.456-1.161-.525-5.253-2.378-6.581-3.456-1.493-1.244-2.295-3.014-2.295-5.171V7.438zm12.664 2.599c.028.912.276 1.576 1.687 2.406.747.442 1.051.747 1.051 1.272 0 .581-.387.94-1.023.94-.553 0-1.189-.304-1.631-.691v1.576c.553.304 1.217.525 1.88.525 1.687 0 2.433-1.189 2.461-2.267.028-.995-.249-1.742-1.659-2.571-.608-.387-1.134-.636-1.106-1.244 0-.581.525-.802.995-.802.581 0 1.161.332 1.521.691V8.378c-.304-.221-.94-.581-1.88-.553-1.135.028-2.296.829-2.296 2.212zm-5.834 9.484h1.714l-.028-3.594c.166.028.415.083.774.083 1.908 0 2.986-1.687 2.986-4.175 0-2.461-1.106-4.009-3.152-4.009-.94 0-1.687.221-2.295.608v11.087zm-5.945-6.166c0 1.797.829 2.71 2.516 2.71 1.051 0 1.908-.249 2.571-.691V7.991H7.41v6.387c-.194.138-.47.221-.802.221-.774 0-.885-.719-.885-1.189V7.991H4.009v5.364zM22.12 2.295v11.723c0 2.516-.94 4.645-2.765 6.111-1.549 1.3-6.332 3.429-7.355 3.871-1.023-.442-5.806-2.571-7.355-3.843-1.797-1.465-2.765-3.594-2.765-6.111V2.295C4.756.747 8.074 0 12 0s7.244.747 10.12 2.295zm-.304.221c-2.71-1.465-6-2.184-9.788-2.184s-7.079.746-9.788 2.184v11.502c0 2.433.912 4.452 2.627 5.862 1.576 1.3 6.581 3.484 7.161 3.76.581-.249 5.585-2.433 7.161-3.733 1.714-1.41 2.627-3.429 2.627-5.862V2.516zm-2.433 20.295c0 .47-.387.829-.829.829a.831.831 0 0 1-.829-.829c0-.47.387-.829.829-.829.441 0 .801.359.829.829zm-.166 0a.679.679 0 0 0-.664-.691c-.359 0-.664.332-.664.691 0 .359.304.664.664.664a.673.673 0 0 0 .664-.664zm-.553.055c.028.055.304.442.304.442h-.221s-.276-.387-.276-.415h-.028v.415h-.194v-.995l.304-.028c.249 0 .332.166.332.304s-.083.25-.221.277zm.027-.276c0-.055 0-.138-.166-.138h-.083v.304h.028c.194 0 .221-.083.221-.166z", "color": "var(--primary-text-color)"}, "ebay": {"path": "M6.056 12.132v-4.92h1.2v3.026c.59-.703 1.402-.906 2.202-.906 1.34 0 2.828.904 2.828 2.855 0 .233-.015.457-.06.668.24-.953 1.274-1.305 2.896-1.344.51-.018 1.095-.018 1.56-.018v-.135c0-.885-.556-1.244-1.53-1.244-.72 0-1.245.3-1.305.81h-1.275c.136-1.29 1.5-1.62 2.686-1.62 1.064 0 1.995.27 2.415 1.02l-.436-.84h1.41l2.055 4.125 2.055-4.126H24l-3.72 7.305h-1.346l1.07-2.04-2.33-4.38c.13.255.2.555.2.93v2.46c0 .346.01.69.04 1.005H16.8a6.543 6.543 0 01-.046-.765c-.603.734-1.32.96-2.32.96-1.48 0-2.272-.78-2.272-1.695 0-.15.015-.284.037-.405-.3 1.246-1.36 2.086-2.767 2.086-.87 0-1.694-.315-2.2-.93 0 .24-.015.494-.04.734h-1.18c.02-.39.04-.855.04-1.245v-1.05h-4.83c.065 1.095.818 1.74 1.853 1.74.718 0 1.355-.3 1.568-.93h1.24c-.24 1.29-1.61 1.725-2.79 1.725C.95 15.009 0 13.822 0 12.232c0-1.754.982-2.91 3.116-2.91 1.688 0 2.93.886 2.94 2.806v.005zm9.137.183c-1.095.034-1.77.233-1.77.95 0 .465.36.97 1.305.97 1.26 0 1.935-.69 1.935-1.814v-.13c-.45 0-.99.006-1.484.022h.012zm-6.06 1.875c1.11 0 1.876-.806 1.876-2.02s-.768-2.02-1.893-2.02c-1.11 0-1.89.806-1.89 2.02s.765 2.02 1.875 2.02h.03zm-4.35-2.514c-.044-1.125-.854-1.546-1.725-1.546-.944 0-1.694.474-1.815 1.546z", "color": "#E53238"}};
 // The version of the integration this file ships with. The browser keeps an old card after
 // an update until the page is reloaded: sensor.pakete_heute names the installed version.
-const CARD_VERSION = "0.3.40";
+const CARD_VERSION = "0.3.41";
 const CARRIER_LABEL = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", ups: "UPS", amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", eventim: "Eventim", other: "17track" };
 // Simple Icons' "hermes" is not used for the parcel service, it has no GLS logo, and
 // "other" has no logo: a coloured dot with letters instead. AliExpress and Eventim likewise.
@@ -147,6 +147,8 @@ const SERVICE_ERRORS = {
   gift_remove_not_allowed: "Nur wer Geschenke sehen darf, kann ein Geschenk löschen.",
   gift_rename_not_allowed: "Nur wer Geschenke sehen darf, kann ein Geschenk umbenennen.",
   gift_target: "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete.",
+  gift_owner_not_allowed: "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört.",
+  owner_unknown: "Diese Person ist im Paket Tracker nicht eingerichtet.",
 };
 
 // Geschenkmodus. Without the switch (an older integration) nothing of it shows; the card asks the integration once per
@@ -272,15 +274,24 @@ function sureToday(today, number) {
 // come today for sure, possible_count those whose delivery window only includes today,
 // delivered_today_count those delivered today. "heute" is always there, the other two only
 // with a count (a sensor from before v0.3.10 has no delivered_today_count).
-function todayBadges(st) {
+// With the card option `person` (`keep`: the numbers the card shows) the badges count only
+// the parcels of the sensor's lists that the card shows; a list the sensor lacks keeps its count.
+function todayBadges(st, keep = null) {
   const count = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : 0);
   const a = st && st.attributes ? st.attributes : {};
-  const possible = count(a.possible_count);
-  const delivered = count(a.delivered_today_count);
-  const badges = [{ kind: "sure", text: `${st ? count(st.state) : 0} heute`, title: "Kommt heute sicher" }];
+  const mine = (list, n) => (keep ? keptCount(list, keep, n) : n);
+  const possible = count(mine(a.possible, a.possible_count));
+  const delivered = count(mine(a.delivered_today, a.delivered_today_count));
+  const badges = [{ kind: "sure", text: `${st ? count(mine(a.parcels, st.state)) : 0} heute`, title: "Kommt heute sicher" }];
   if (possible) badges.push({ kind: "possible", text: `${possible} möglich`, title: "Lieferzeitraum schließt heute ein" });
   if (delivered) badges.push({ kind: "delivered", text: `${delivered} zugestellt`, title: "Heute zugestellt" });
   return badges;
+}
+
+// How many entries of a sensor's list (items with a `number`) the card shows; `fallback`
+// when the list is not there.
+function keptCount(list, keep, fallback) {
+  return Array.isArray(list) ? list.filter((p) => p && keep.has(p.number)).length : fallback;
 }
 
 // role="img" lets the label (count and explanation) stand for the badge's short text.
@@ -421,24 +432,103 @@ function readCount(value) {
 // Whether the card has something to show for its option. The counts come from the
 // integration's sensors; a count that cannot be read (an integration from before v0.3.11
 // has no sensor.pakete_unterwegs) keeps the card visible rather than hiding it for good.
-function shouldShow(mode, hass) {
+// With the card option `person` (`keep`: the numbers the card shows) only those parcels count.
+function shouldShow(mode, hass, keep = null) {
   if (mode === "always" || !SHOW_MODES.includes(mode)) return true;
   const states = hass && hass.states ? hass.states : {};
+  const mine = (list, n) => (keep ? keptCount(list, keep, n) : n);
   let counts;
   if (mode === "active") {
     const active = states[ACTIVE_ENTITY];
-    counts = [active ? readCount(active.state) : null];
+    counts = [active ? readCount(mine((active.attributes || {}).parcels, active.state)) : null];
   } else {
     const today = states[TODAY_ENTITY];
     const a = today && today.attributes ? today.attributes : {};
-    counts = [today ? readCount(today.state) : null, readCount(a.delivered_today_count)];
-    if (mode === "today_possible") counts.push(readCount(a.possible_count));
+    counts = [today ? readCount(mine(a.parcels, today.state)) : null,
+      readCount(mine(a.delivered_today, a.delivered_today_count))];
+    if (mode === "today_possible") counts.push(readCount(mine(a.possible, a.possible_count)));
   }
   return counts.some((n) => n === null) || counts.some((n) => n > 0);
 }
 
 // The one line a hidden card shows while the dashboard is edited.
 const hiddenNote = (mode) => `Ausgeblendet, solange nichts ansteht (show: ${mode})`;
+
+// Card option person: only the parcels of this person (attribute `owner`, the effective
+// owner), with include_unassigned (default true) also everybody's (owner null). Anything but
+// a person entity id: no filter.
+function ownerFilter(config) {
+  const person = config && typeof config.person === "string" ? config.person.trim() : "";
+  if (!/^person\.[a-z0-9_]+$/.test(person)) return null;
+  return { person, unassigned: config.include_unassigned !== false };
+}
+
+const ownedBy = (filter, a) => !filter || a.owner === filter.person
+  || (filter.unassigned && a.owner == null);
+
+// The persons of Home Assistant (person.* in hass.states), by name: [{id, name, user}].
+function personsOf(hass) {
+  const states = hass && hass.states ? hass.states : {};
+  return Object.keys(states).filter((id) => id.startsWith("person.") && states[id])
+    .map((id) => {
+      const a = states[id].attributes || {};
+      return { id, name: a.friendly_name ? String(a.friendly_name) : id, user: a.user_id };
+    })
+    .sort((x, y) => x.name.localeCompare(y.name, "de") || x.id.localeCompare(y.id));
+}
+
+// The persons set up in the integration („Personen“; attribute `persons` of
+// sensor.pakete_heute) that Home Assistant has, by name. None set up, or an integration from
+// before: none – then the card says nothing about owners and sends none (as v0.3.40).
+function ownerPersons(hass) {
+  const today = hass && hass.states ? hass.states[TODAY_ENTITY] : null;
+  const ids = today && today.attributes && Array.isArray(today.attributes.persons)
+    ? today.attributes.persons : [];
+  return personsOf(hass).filter((p) => ids.includes(p.id));
+}
+
+// The person unclear parcels go to (attribute `default_owner`), null: everybody („allen“).
+function defaultOwnerOf(hass) {
+  const today = hass && hass.states ? hass.states[TODAY_ENTITY] : null;
+  const owner = today && today.attributes ? today.attributes.default_owner : null;
+  return typeof owner === "string" && owner.startsWith("person.") ? owner : null;
+}
+
+const OWNER_ALL = "all";
+const OWNER_ALL_LABEL = "allen";
+const OWNER_LABEL = "Gehört";
+
+// „Standard“: no owner of its own, the default person („Unklare Pakete gehören“) applies.
+const OWNER_STANDARD = "";
+const OWNER_STANDARD_LABEL = "Standard";
+
+const personName = (persons, id) => {
+  const p = persons.find((x) => x.id === id);
+  return p ? p.name : id;
+};
+
+// The options of a select „Gehört“: `standard` (a label, or null for none) first, then
+// „allen“ and every person; `value` is selected. An owner that is no person any more stays
+// selectable by its id.
+function ownerOptions(persons, value, standard = null) {
+  const list = persons.slice();
+  if (value !== OWNER_ALL && value !== OWNER_STANDARD && !list.some((p) => p.id === value)) {
+    list.push({ id: value, name: value });
+  }
+  const opt = (id, name) => `<option value="${esc(id)}"${id === value ? " selected" : ""}>${esc(name)}</option>`;
+  return (standard == null ? "" : opt(OWNER_STANDARD, standard))
+    + opt(OWNER_ALL, OWNER_ALL_LABEL) + list.map((p) => opt(p.id, p.name)).join("");
+}
+
+// The options of the add form's „Gehört“: „Standard (…)“ first (sends no owner), then every
+// person. „allen“ only with a default person: while unclear parcels belong to everybody,
+// „Standard (allen)“ is the same.
+function addOwnerOptions(persons, value, defaultOwner) {
+  const opt = (id, name) => `<option value="${esc(id)}"${id === value ? " selected" : ""}>${esc(name)}</option>`;
+  const standard = `${OWNER_STANDARD_LABEL} (${defaultOwner ? personName(persons, defaultOwner) : OWNER_ALL_LABEL})`;
+  return opt(OWNER_STANDARD, standard) + persons.map((p) => opt(p.id, p.name)).join("")
+    + (defaultOwner ? opt(OWNER_ALL, OWNER_ALL_LABEL) : "");
+}
 
 const ADD_LABEL = "Sendung hinzufügen";
 const CLOSE_LABEL = "Eingabe schließen";
@@ -462,6 +552,7 @@ class ParcelTrackerCard extends HTMLElement {
     this._config = config || {};
     this._mode = addFormMode(this._config);
     this._show = showMode(this._config);
+    this._filter = ownerFilter(this._config);
     // Open or closed is kept per card and across renders, not stored anywhere.
     this._formOpen = this._mode === "button" && this._formOpen === true;
     this._open = new Set();
@@ -472,6 +563,8 @@ class ParcelTrackerCard extends HTMLElement {
     this._t17ask = new Set(); // numbers awaiting the 17track confirmation
     this._addAsk = false; // adding with "Andere (über 17track)" awaits confirmation
     this._addAskText = null; // the question currently shown in #addask
+    this._ownTouched = false; // the add form's „Gehört“ was changed by hand
+    this._ownHtml = null; // the options currently in #own
     this._added = null; // {key, before}: the parcel just added through the form
     this._pendingFocus = null; // {number, a} to focus after the next render
     // Geschenkmodus: whether this user may see gifts (asked once per user), the real names
@@ -500,7 +593,7 @@ class ParcelTrackerCard extends HTMLElement {
   // hui-card then takes the card out of the layout, so no gap stays in masonry and
   // sections views. While hidden the card still gets `hass` and shows itself again.
   _syncVisibility() {
-    const wanted = shouldShow(this._show, this._hass);
+    const wanted = shouldShow(this._show, this._hass, this._keep());
     const editing = this._preview === true || this._editMode === true;
     // An open add form is being typed into: the card stays until it is closed. So does
     // a card that still shows the note about the parcel just added.
@@ -546,6 +639,8 @@ class ParcelTrackerCard extends HTMLElement {
       this._viewerAsked = undefined;
       this._viewerTries = 0;
       this._viewer = false;
+      // The add form's „Gehört“ starts again with the new user's person.
+      this._ownTouched = false;
       // Whatever the user before had open or typed (a revealed name in the rename field, too)
       // is not shown to the next one.
       for (const kept of [this._revealed, this._renaming, this._open, this._confirming,
@@ -596,7 +691,9 @@ class ParcelTrackerCard extends HTMLElement {
       + "|quota:" + (h.states[QUOTA_ENTITY] ? `${h.states[QUOTA_ENTITY].state}@${h.states[QUOTA_ENTITY].last_updated}` : "")
       + "|gift:" + (h.states[GIFT_ENTITY] ? `${h.states[GIFT_ENTITY].state}@${h.states[GIFT_ENTITY].last_updated}` : "")
       + "|viewer:" + (this._viewer ? "1" : "0")
-      + "|rev:" + Array.from(this._revealed.keys()).sort().join(",");
+      + "|rev:" + Array.from(this._revealed.keys()).sort().join(",")
+      + "|persons:" + personsOf(h).map((p) => `${p.id}=${p.name}=${p.user}`).join(",")
+      + "|user:" + (h.user && h.user.id != null ? h.user.id : "");
   }
 
   _parcels() {
@@ -607,6 +704,17 @@ class ParcelTrackerCard extends HTMLElement {
       .filter((st) => st && st.attributes && st.attributes.number != null)
       .sort((x, y) => ORDER(x.state, x.attributes) - ORDER(y.state, y.attributes)
         || (hasDate(x.attributes) ? x.attributes.days_until : 99) - (hasDate(y.attributes) ? y.attributes.days_until : 99));
+  }
+
+  // The parcels the card shows: all, or with the option `person` that person's.
+  _shown() {
+    return this._parcels().filter((st) => ownedBy(this._filter, st.attributes));
+  }
+
+  // The numbers the card shows when it filters (option `person`), else null.
+  _keep() {
+    if (!this._filter || !this._hass) return null;
+    return new Set(this._shown().map((st) => st.attributes.number));
   }
 
   _build() {
@@ -698,6 +806,10 @@ class ParcelTrackerCard extends HTMLElement {
         .giftinfo a.go { display:inline-flex; padding:3px 6px; border-radius:6px; color:var(--primary-color); --mdc-icon-size:18px; }
         .giftinfo .muted { color:var(--secondary-text-color); }
         .giftinfo button { padding:4px 10px; font-size:12px; }
+        .ownrow { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; color:var(--secondary-text-color); }
+        .ownrow select { flex:1 1 auto; }
+        .owner { align-items:center; font-size:13px; }
+        .owner select { padding:4px 8px; font-size:13px; }
       </style>
       <ha-card>
         <div class="hint muted" id="hidden-note" hidden></div>
@@ -728,6 +840,10 @@ class ParcelTrackerCard extends HTMLElement {
             <input id="num" placeholder="Sendungsnummer" autocomplete="off">
             <select id="car"><option value="auto">Automatisch</option><option value="dhl">DHL</option><option value="dpd">DPD</option><option value="gls">GLS</option><option value="hermes">Hermes</option><option value="ups">UPS</option></select>
           </div>
+          <div class="ownrow" id="own-row" hidden>
+            <label for="own">${OWNER_LABEL}:</label>
+            <select id="own"></select>
+          </div>
           <div class="row">
             <input id="nm" placeholder="Name (optional), z. B. Druckerpatronen">
             <button id="add">Hinzufügen</button>
@@ -747,6 +863,7 @@ class ParcelTrackerCard extends HTMLElement {
     $("add").addEventListener("click", () => this._add());
     $("num").addEventListener("keydown", (e) => { if (e.key === "Enter") this._add(); });
     $("car").addEventListener("change", () => this._dismissAddAsk());
+    $("own").addEventListener("change", () => { this._ownTouched = true; });
     $("toggle").addEventListener("click", () => {
       this._setFormOpen(!this._formOpen);
       if (this._formOpen) $("num").focus();
@@ -843,12 +960,17 @@ class ParcelTrackerCard extends HTMLElement {
     // Another parcel is being added: the note about the one before ends here.
     this._setAdded(null);
     const before = new Set(this._parcels().map((st) => st.attributes.number));
+    // Without persons set up in the integration nothing is said about an owner (as before).
+    const owner = ownerPersons(this._hass).length && $("own").value ? $("own").value : null;
     try {
       await this._hass.callService("parcel_tracker", "add_parcel", {
         number, carrier, ...($("nm").value.trim() ? { name: $("nm").value.trim() } : {}),
+        ...(owner ? { owner } : {}),
       }, undefined, false);
       this._setError("");
       $("num").value = ""; $("nm").value = ""; $("car").value = "auto";
+      this._ownTouched = false;
+      this._syncOwnerSelect();
       if (this._formOpen) {
         // Done: collapse again. The focused field is hidden now, so the plus takes the focus.
         this._setFormOpen(false);
@@ -977,6 +1099,45 @@ class ParcelTrackerCard extends HTMLElement {
       : `<span class="muted">Kein Name bekannt</span>`;
     const links = [[trackingUrl(info), TRACK_LINK], [orderUrl(a.number), ORDER_LINK]].map(pageLink).join("");
     return `<div class="giftinfo" role="group" aria-label="Inhalt">${words}${links}<button type="button" data-a="gift-unhide" data-number="${esc(a.number)}">Nicht mehr verbergen</button></div>`;
+  }
+
+  // The add form's „Gehört“: „Standard (…)“ and every person set up in the integration,
+  // preselected with the person of the logged-in user (else „Standard“) until changed by
+  // hand. Hidden while no person is set up there.
+  _syncOwnerSelect() {
+    if (!this._root || !this._hass) return;
+    const $ = (id) => this._root.getElementById(id);
+    const persons = ownerPersons(this._hass);
+    const defaultOwner = defaultOwnerOf(this._hass);
+    $("own-row").hidden = !persons.length;
+    const user = this._hass.user && this._hass.user.id != null ? this._hass.user.id : null;
+    const mine = persons.find((p) => user != null && p.user === user);
+    const fallback = mine ? mine.id : OWNER_STANDARD;
+    const sel = $("own");
+    const current = sel.value;
+    const valid = current === OWNER_STANDARD || (current === OWNER_ALL && defaultOwner !== null)
+      || persons.some((p) => p.id === current);
+    const value = this._ownTouched && valid ? current : fallback;
+    if (value !== current) this._ownTouched = false;
+    const html = addOwnerOptions(persons, value, defaultOwner);
+    if (html !== this._ownHtml) {
+      this._ownHtml = html;
+      sel.innerHTML = html;
+    }
+    sel.value = value;
+  }
+
+  // „Gehört: …“ in an expanded parcel. Not without persons set up in the integration, and
+  // not for a gift the user may not see (the integration refuses the change anyway).
+  _ownerHtml(a) {
+    const persons = ownerPersons(this._hass);
+    if (!persons.length || (isGift(a) && !this._viewer)) return "";
+    // The default person (no owner of its own): „Standard (Name)“, the person listed apart,
+    // so choosing the person stores it as the parcel's own.
+    const standard = a.owner != null && a.owner_detected !== true;
+    const value = standard ? OWNER_STANDARD : a.owner == null ? OWNER_ALL : String(a.owner);
+    const label = standard ? `${OWNER_STANDARD_LABEL} (${personName(persons, String(a.owner))})` : null;
+    return `<div class="actions owner"><label for="owner-${esc(a.number)}">${OWNER_LABEL}:</label><select id="owner-${esc(a.number)}" data-a="owner" data-number="${esc(a.number)}" aria-label="${OWNER_LABEL}">${ownerOptions(persons, value, label)}</select></div>`;
   }
 
   _icon(carrier) {
@@ -1198,6 +1359,17 @@ class ParcelTrackerCard extends HTMLElement {
         this._renderList();
       }
     });
+    const owner = item.querySelector('[data-a="owner"]');
+    if (owner) {
+      owner.addEventListener("change", async () => {
+        // „Standard (…)“ is only there while it is the state: nothing to store.
+        if (owner.value === OWNER_STANDARD) return;
+        // Done: the parcel's sensor brings the new owner. Refused: back to the one it has.
+        if (await this._call("set_owner", { number: num, person: owner.value })) return;
+        this._pendingFocus = { number: num, a: "owner" };
+        this._renderList();
+      });
+    }
     on("remove", () => { this._renaming.delete(num); this._receiving.delete(num); this._confirming.add(num); this._renderList(); });
     on("remove-cancel", () => { this._confirming.delete(num); this._renderList(); });
     on("remove-confirm", async () => {
@@ -1223,9 +1395,10 @@ class ParcelTrackerCard extends HTMLElement {
     const t17 = track17State(this._hass);
     this._syncOther(t17);
     this._renderAddAsk(t17);
-    const parcels = this._parcels();
+    this._syncOwnerSelect();
+    const parcels = this._shown();
     const today = this._hass.states[TODAY_ENTITY];
-    this._root.getElementById("today").innerHTML = badgesHtml(todayBadges(today));
+    this._root.getElementById("today").innerHTML = badgesHtml(todayBadges(today, this._keep()));
     this._root.getElementById("reload").hidden = !needsReload(today);
     this._renderGiftHead();
     list.innerHTML = "";
@@ -1258,7 +1431,7 @@ class ParcelTrackerCard extends HTMLElement {
       item.innerHTML = `
         ${isGift(a) ? `<div class="gline">${this._giftBoxHtml(a)}${toggle}</div>` : toggle}
         <div class="sub">${sub}</div>${this._giftInfoHtml(a)}${bar}${stale}
-        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${numbersHtml(a)}${note}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
+        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${numbersHtml(a)}${note}${this._ownerHtml(a)}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
       item.querySelector(".row-toggle").addEventListener("click", () => {
         if (open) {
           this._open.delete(a.number);
@@ -1273,7 +1446,12 @@ class ParcelTrackerCard extends HTMLElement {
       this._wireActions(item, a);
       list.appendChild(item);
     }
-    if (!parcels.length) list.innerHTML = `<div class="sub">${emptyText(this._mode)}</div>`;
+    if (!parcels.length) {
+      const empty = this._filter
+        ? `Keine Pakete für ${esc(personName(personsOf(this._hass), this._filter.person))}.`
+        : emptyText(this._mode);
+      list.innerHTML = `<div class="sub">${empty}</div>`;
+    }
     if (focusKey) {
       for (const el of list.querySelectorAll("[data-a]")) {
         if (el.dataset.number === focusKey.number && el.dataset.a === focusKey.a) {

@@ -16,9 +16,14 @@
 //   ?edit=1       pretend the dashboard is being edited (preview): a hidden card stays and
 //                 says in one line why it would be hidden
 //   ?shot=1       only the card (used for the README screenshots)
+//   ?person=person.anna  card option person: only Anna's parcels and everybody's
+//                 (?unassigned=0: card option include_unassigned: false, only Anna's)
 //
 // Geschenkmodus: the switch is on, one parcel is a gift and the demo user is a gift viewer
 // (the mock answers the card's WebSocket commands), so the gift box shows the real name.
+//
+// Persons: two invented persons, Anna (the demo user) and Ben. Some parcels are theirs (a
+// mail named them), the rest belongs to everybody; „Gehört“ in an expanded parcel changes it.
 (function () {
   "use strict";
   const params = new URLSearchParams(location.search);
@@ -115,7 +120,7 @@
       progress: STEP[state], delivered_at: null, events: [],
       tracking_ref: null, tracking_carrier: null, shipping_carrier_hint: null,
       delivery_code: null, track17: false, track17_carrier: null, gift: false,
-      friendly_name: name,
+      owner: null, owner_detected: false, friendly_name: name,
     };
     delete extra.eta_days;
     Object.assign(attrs, extra);
@@ -130,7 +135,7 @@
   const ALL_PARCELS = [
     // Comes today for sure: in delivery, with a fixed day and a time window.
     parcel("out_for_delivery", "dhl", "00340999999999999901", "Druckerpatronen", {
-      eta_days: 0, eta_from: stamp(0, 14, 0), eta_to: stamp(0, 16, 0),
+      eta_days: 0, owner: "person.anna", owner_detected: true, eta_from: stamp(0, 14, 0), eta_to: stamp(0, 16, 0),
       location: "Zustellbasis Musterstadt",
       events: [
         event(0, 8, 31, "Die Sendung wurde in das Zustellfahrzeug geladen.", "Musterstadt"),
@@ -141,7 +146,7 @@
       ],
     }),
     parcel("in_transit", "dpd", "09999999999901", "Laufschuhe", {
-      eta_days: 1, location: "Depot Musterstadt", location_source: "17track", track17: true,
+      eta_days: 1, owner: "person.ben", owner_detected: true, location: "Depot Musterstadt", location_source: "17track", track17: true,
       events: [
         event(0, 7, 20, "Im Paketzustellzentrum", "Musterstadt"),
         event(-1, 19, 5, "Unterwegs", "Beispielstadt"),
@@ -154,11 +159,12 @@
     // A gift (Geschenkmodus): shown by its gift name; the real one is in GIFT_NAMES below,
     // the card gets it through the WebSocket command parcel_tracker/gift_name.
     parcel("pre_transit", "hermes", "H9999999999999999903", "Geschenk · Hermes-Paket …9903", {
-      eta_days: 2, eta_latest: day(4), gift: true,
+      eta_days: 2, eta_latest: day(4), gift: true, owner: "person.ben", owner_detected: true,
       events: [event(0, 8, 10, "Die Sendung wurde Hermes elektronisch angekündigt.")],
     }),
     // Waits at a pickup point: the row says "Abholbereit" instead of a day.
     parcel("awaiting_pickup", "ups", "1Z9999999999999904", "Schreibtischlampe", {
+      owner: "person.anna", owner_detected: true,
       pickup_point: "Paketshop Musterdorf", pickup_until: stamp(6, 18, 0),
       events: [
         event(0, 7, 50, "Zur Abholung bereit", "Musterdorf"),
@@ -177,7 +183,7 @@
     }),
     // Possible today: the delivery window ("Bis …") starts today, no fixed day yet.
     parcel("in_transit", "ebay", "EBAY999999999906", "Fahrradklingel", {
-      eta_days: 0, eta_latest: day(2), shipping_carrier_hint: "hermes",
+      eta_days: 0, owner: "person.ben", owner_detected: true, eta_latest: day(2), shipping_carrier_hint: "hermes",
       events: [event(-1, 15, 20, "Versendet")],
     }),
     parcel("in_transit", "other", "999999999907", "Ersatzteil Kaffeemaschine", {
@@ -271,6 +277,10 @@
     awaiting_pickup_count: pickup.length,
     // CARD_VERSION is the card's own constant: equal means "no reload needed".
     integration_version: params.has("hint") ? `${CARD_VERSION}-neu` : CARD_VERSION,
+    // The persons set up under „Personen“ (the card offers „Gehört“ only with them) and the
+    // default person for unclear parcels: none, they belong to everybody („allen“).
+    persons: ["person.anna", "person.ben"],
+    default_owner: null,
   });
   // The count sensors: not delivered yet, possible today, delivered today, ready for pickup.
   const active = PARCELS.filter((p) => p.state !== "delivered").map(item);
@@ -285,6 +295,11 @@
   add("sensor.paket_tracker_17track_kontingent", "187", {
     friendly_name: "Paket Tracker 17track-Kontingent", total: 200, used: 13 });
   add(GIFT_ENTITY, "on", { friendly_name: "Geschenkmodus" });
+  // The persons of Home Assistant (invented): Anna is the demo user.
+  states["person.anna"] = { entity_id: "person.anna", state: "home", last_updated: UPDATED,
+    attributes: { friendly_name: "Anna", user_id: "demo" } };
+  states["person.ben"] = { entity_id: "person.ben", state: "not_home", last_updated: UPDATED,
+    attributes: { friendly_name: "Ben", user_id: "demo-ben" } };
 
   // A changed sensor gets a new time, so the card draws anew.
   const touch = (entity_id) => {
@@ -311,8 +326,8 @@
   const hass = {
     states,
     entities,
-    // The demo user is a gift viewer.
-    user: { id: "demo", name: "Demo", is_admin: true },
+    // The demo user (Anna) is a gift viewer.
+    user: { id: "demo", name: "Anna", is_admin: true },
     callWS: (msg) => {
       if (msg.type === "parcel_tracker/gift_viewer") return Promise.resolve({ viewer: true });
       if (msg.type === "parcel_tracker/gift_name") {
@@ -339,10 +354,22 @@
         targets.forEach((p) => setGift(p, data.gift));
         card.hass = { ...hass };
       }
+      // set_owner as the integration does it: the owner is the parcel's own now.
+      if (service === "set_owner") {
+        const p = PARCELS.find((x) => x.attributes.number === data.number);
+        if (p) {
+          Object.assign(p.attributes, { owner: data.person === "all" ? null : data.person,
+            owner_detected: data.person !== "all" });
+          touch(sensorOf(data.number));
+          card.hass = { ...hass };
+        }
+      }
       // ?added=…: pretend the integration created the parcel, as it does without a key.
       if (service === "add_parcel" && params.has("added")) {
         const p = parcel("unknown", ADDED.carrier, data.number, data.name || null, {
-          last_error: "missing_key", last_update: null });
+          last_error: "missing_key", last_update: null,
+          owner: data.owner && data.owner !== "all" ? data.owner : null,
+          owner_detected: !!data.owner && data.owner !== "all" });
         add(`sensor.paket_${data.number.toLowerCase()}`, p.state, p.attributes);
         card.hass = hass;
       }
@@ -359,6 +386,8 @@
     type: "custom:parcel-tracker-card",
     ...(addForm === "always" || addForm === "never" ? { add_form: addForm } : {}),
     ...(params.has("show") ? { show: params.get("show") } : {}),
+    ...(params.has("person") ? { person: params.get("person") } : {}),
+    ...(params.get("unassigned") === "0" ? { include_unassigned: false } : {}),
   });
   // Home Assistant sets this while the dashboard is edited.
   if (params.has("edit")) card.preview = true;

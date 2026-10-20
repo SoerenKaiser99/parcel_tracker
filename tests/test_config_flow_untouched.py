@@ -55,6 +55,8 @@ from custom_components.parcel_tracker.mail.imap import (
     ImapUnavailable,
 )
 
+from .conftest import open_options
+
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 FLOW = "custom_components.parcel_tracker.config_flow."
 CHECKS = {
@@ -134,7 +136,7 @@ def _defaults_only(fields: list[dict]) -> dict:
 
 async def _save(hass, entry, user_input):
     """Submit the options form; every online check would fail if it were called."""
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     if callable(user_input):
         user_input = user_input(_fields(result))
     with (
@@ -154,7 +156,7 @@ async def _save(hass, entry, user_input):
 async def test_sections_without_user_and_client_id_keep_the_stored_logins(hass):
     """The payload of the v0.3.3 bug: sections with only their defaulted keys."""
     entry = _entry(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     user_input = {
         CONF_TRACK17_API_KEY: "new-17track-key",
         CONF_POSTCODE: "20095",
@@ -256,7 +258,7 @@ async def test_untouched_form_keeps_entities_and_classic_services(hass, present)
         ],
     }
     hass.config_entries.async_update_entry(entry, options=dict(options))
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     initial = _frontend_initial(_fields(result))
     assert initial[CONF_NOTIFY_SECTION] == {
         CONF_NOTIFY_ENABLED: True,
@@ -306,7 +308,7 @@ async def test_untouched_form_of_an_entry_from_before_notifications(hass):
     before = {k: v for k, v in OPTIONS.items() if not k.startswith("notify_")}
     entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(before))
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     initial = _frontend_initial(_fields(result))
     assert initial[CONF_NOTIFY_SECTION] == {
         CONF_NOTIFY_ENABLED: False,
@@ -330,7 +332,7 @@ async def test_untouched_form_of_an_entry_without_country_stores_no_country(hass
     and save neither adds a country nor touches the 5-digit postcode."""
     hass.config.country = "AT"  # the country of Home Assistant is only a prefill at setup
     entry = _entry(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     initial = _frontend_initial(_fields(result))
     assert initial[CONF_COUNTRY] == "de"
     assert initial[CONF_POSTCODE] == "20095"
@@ -358,7 +360,7 @@ async def test_untouched_form_with_a_stored_country_changes_nothing(
         options[CONF_COUNTRY] = country
     entry = MockConfigEntry(domain=DOMAIN, data=dict(data), options=dict(options))
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     initial = _frontend_initial(_fields(result))
     assert initial[CONF_COUNTRY] == country
     assert initial[CONF_POSTCODE] == postcode
@@ -381,7 +383,7 @@ async def test_untouched_form_of_an_entry_from_before_hide_names(hass):
     """An entry saved before v0.3.24 has no such setting: the form shows the switch
     off, and open and save does not add it (see ``test_untouched_form_changes_nothing``)."""
     entry = _entry(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     fields = _fields(result)
     names = [field["name"] for field in fields]
     # A plain switch right below the keep days, in front of the sections.
@@ -411,7 +413,7 @@ async def test_untouched_form_keeps_hide_names(hass, stored, payload):
     options = {**OPTIONS, CONF_HIDE_NAMES: stored}
     entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     assert _frontend_initial(_fields(result))[CONF_HIDE_NAMES] is stored
     result, checks = await _save(hass, entry, payload)
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -452,7 +454,7 @@ async def test_untouched_form_of_an_entry_from_before_the_folder(hass):
     """An entry saved before v0.3.29 has no folder: the form shows INBOX, and open and
     save neither stores a folder nor asks the mail server."""
     entry = _entry(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     fields = _fields(result)
     mail = next(f for f in fields if f["name"] == CONF_MAIL_SECTION)
     names = [f["name"] for f in mail["schema"]]
@@ -496,7 +498,7 @@ async def test_untouched_missing_or_emptied_folder_keeps_the_stored_one(hass, st
     options = dict(OPTIONS) if stored is None else {**OPTIONS, CONF_IMAP_FOLDER: stored}
     entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION][CONF_IMAP_FOLDER]
     assert shown == (stored or "INBOX")
     result, checks = await _save(hass, entry, payload)
@@ -526,7 +528,7 @@ async def _save_folder(hass, entry, payload, check=None):
         if check is not None:
             raise check
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with (
         patch(CHECKS["imap"], autospec=True, side_effect=check_login),
         patch(CHECKS["ups"], side_effect=AssertionError),
@@ -656,7 +658,7 @@ async def test_untouched_form_of_an_entry_from_before_port_and_security(hass):
     """An entry saved before v0.3.32 has neither: the form shows 993 and the verifying
     TLS, and open and save stores nothing new and does not ask the mail server."""
     entry = _entry(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     fields = {f["name"]: f for f in _mail_fields(result)}
     names = list(fields)
     # Right below the server, in front of the login.
@@ -706,7 +708,7 @@ async def test_untouched_or_missing_port_and_security_keep_what_is_stored(hass, 
     options = {**OPTIONS, **stored}
     entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION]
     assert shown[CONF_IMAP_PORT] == stored.get(CONF_IMAP_PORT, 993)
     assert shown[CONF_IMAP_SECURITY] == stored.get(CONF_IMAP_SECURITY, "ssl")
@@ -727,7 +729,7 @@ async def _save_mail(hass, entry, payload, check=None):
         if check is not None:
             raise check
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with (
         patch(CHECKS["imap"], autospec=True, side_effect=check_login),
         patch(CHECKS["ups"], side_effect=AssertionError),
@@ -777,7 +779,7 @@ async def test_the_login_check_uses_a_context_that_fits_the_mode(hass):
                 domain=DOMAIN, data=dict(DATA), options={**OPTIONS, CONF_IMAP_SECURITY: "plain"}
             )
         entry.add_to_hass(hass)
-        result = await hass.config_entries.options.async_init(entry.entry_id)
+        result = await open_options(hass, entry)
         with (
             patch(CHECKS["imap"], autospec=True, side_effect=check_login),
             patch(SETUP, return_value=True),
@@ -878,7 +880,7 @@ async def test_a_stored_port_nobody_can_use_is_shown_as_the_default_and_kept(has
     options = {**OPTIONS, CONF_IMAP_PORT: 0, CONF_IMAP_SECURITY: "tls13"}
     entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     shown = _frontend_initial(_fields(result))[CONF_MAIL_SECTION]
     assert (shown[CONF_IMAP_PORT], shown[CONF_IMAP_SECURITY]) == (993, "ssl")
     result, checks = await _save(hass, entry, _frontend_initial)
