@@ -34,6 +34,9 @@ _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
 ATTEMPT_TEXT = "Zustellung versucht"
 DELAY_TEXT = "Lieferung verspätet"
 PROBLEM_TEXT = "Lieferprobleme"
+# AliExpress's word for an order the seller is about to ship: still "Bestellt", nothing has
+# left yet (see ``apply._never_shipped``).
+READY_TEXT = "Versandbereit"
 
 
 @dataclass
@@ -596,6 +599,11 @@ def title_key(title: str) -> str:
     core = _MORE.sub("", title.replace("…", "").replace("...", ""))
     core = re.sub(r"\s+", " ", core.replace("‑", "-")).strip().lower()
     return core[:15]
+
+
+def names_more_items(title: str) -> bool:
+    """Does an order's title name further items ("… und 2 weitere Artikel")?"""
+    return bool(_MORE.search(title))
 
 
 _WEEKDAYS = {"mo": 0, "di": 1, "mi": 2, "do": 3, "fr": 4, "sa": 5, "so": 6}

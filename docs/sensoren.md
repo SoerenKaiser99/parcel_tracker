@@ -34,6 +34,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `awaiting_pickup` | Abholbereit |
 | `delivered` | Zugestellt |
 | `exception` | Problem |
+| `cancelled` | Storniert (nur Shop-Bestellungen) |
 | `unknown` | Unbekannt |
 
 ### Attribute
@@ -200,7 +201,7 @@ Die Nummer im Beispiel ist erfunden.
 - Die Markierung gilt: Der Paketdienst wird nicht mehr abgefragt, und keine spätere Mail und keine Antwort von 17track ändert Status, Zeitpunkt oder Text. Zurücknehmen lässt sie sich nicht.
 - Die Markierung gilt für genau diesen Eintrag: Eine Bestellung, zu der das Paket gehören könnte, schließt sie nicht.
 - Das Event feuert mit `manual: true`, eine Benachrichtigung gibt es nicht.
-- Fehler: „Dieses Paket ist nicht in der Liste.“ bei einer unbekannten Nummer, „Dieses Paket ist schon zugestellt.“ bei einem zugestellten Paket. Eine Bestellung, die nur „Abgeschlossen ohne Zustellbestätigung“ ist, lässt sich markieren: Sie wird damit bestätigt, `delivered_at` bleibt leer, und sie zählt nicht als heute zugestellt.
+- Fehler: „Dieses Paket ist nicht in der Liste.“ bei einer unbekannten Nummer, „Dieses Paket ist schon zugestellt.“ bei einem zugestellten Paket, „Diese Bestellung ist storniert, es kommt nichts mehr.“ bei einer stornierten Bestellung (wie auf der Karte, wo ihr der Knopf fehlt). Eine Bestellung, die nur „Abgeschlossen ohne Zustellbestätigung“ ist, lässt sich markieren: Sie wird damit bestätigt, `delivered_at` bleibt leer, und sie zählt nicht als heute zugestellt.
 
 ### `parcel_tracker.refresh`
 

@@ -1775,7 +1775,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     async def async_mark_delivered(self, number: str) -> None:
         """Mark a parcel as received by hand ("Erhalten", see ``mark_received``).
 
-        KeyError for a number that is not tracked, ValueError for a parcel that is
+        KeyError for a number that is not tracked, ValueError "cancelled" for an order the
+        shop cancelled (nothing comes, as the card has no button for it either) and
+        "already_delivered" for a parcel that is
         delivered already (an order closed without a delivery mail is not: marking it
         confirms the delivery, and only that - it does not count as delivered today
         and is kept no longer than before). The hand mark wins from now on: the parcel
@@ -1788,6 +1790,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         async with self._lock:  # not while a refresh or a mail works on the parcels
             parcel = self.store.parcels[normalize(number)]
             old = parcel.status
+            if old is ParcelStatus.CANCELLED:
+                raise ValueError("cancelled")
             if old is ParcelStatus.DELIVERED and not parcel.assumed_delivered:
                 raise ValueError("already_delivered")
             now = dt_util.utcnow()

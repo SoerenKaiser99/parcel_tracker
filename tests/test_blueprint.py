@@ -21,6 +21,9 @@ ROOT = Path(__file__).parent.parent
 RELATIVE = "parcel_tracker/paket_benachrichtigung.yaml"
 PATH = ROOT / "blueprints" / "automation" / RELATIVE
 NUMBER = "00340434161094042557"
+# No status to be told about: no parcel is "unknown" on purpose, and a cancelled order is
+# never announced (see test_order_cancelled).
+NOT_OFFERED = (ParcelStatus.UNKNOWN, ParcelStatus.CANCELLED)
 EVENT = {
     "number": NUMBER,
     "name": "Kopfhörer",
@@ -69,7 +72,7 @@ def test_blueprint_inputs():
     select = statuses["selector"]["select"]
     assert select["multiple"] is True
     assert [option["value"] for option in select["options"]] == [
-        s.value for s in ParcelStatus if s is not ParcelStatus.UNKNOWN
+        s.value for s in ParcelStatus if s not in NOT_OFFERED
     ]
     assert inputs["notify_service"]["default"] == "notify.notify"
     assert list(inputs["notify_service"]["selector"]) == ["text"]
@@ -135,7 +138,7 @@ async def test_defaults_send_a_plain_text_without_app_data(hass):
 
 async def test_every_status_has_a_default_text(hass):
     calls = async_mock_service(hass, "notify", "notify")
-    statuses = [s.value for s in ParcelStatus if s is not ParcelStatus.UNKNOWN]
+    statuses = [s.value for s in ParcelStatus if s not in NOT_OFFERED]
     await _automation(hass, statuses=statuses)
     for status in statuses:
         await _fire(hass, new_status=status, old_status="unknown")
