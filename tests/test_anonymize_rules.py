@@ -387,12 +387,67 @@ def test_every_forward_and_reply_prefix_marks_the_sender_as_private(tmp_path, pr
 )
 def test_officers_of_a_company_in_its_legal_footer(tmp_path, footer, expected):
     raw = _mail(SHOP, "Ihr Paket", f"Ihr Paket kommt.\n\n{footer}\n")
-    other = _mail(SHOP, "Zugestellt", "Kuno Haselnuss grüßt. Kuno und Feldhase bleiben.\n")
+    _, [(_, first)] = _run(tmp_path, [raw])
+    assert f"{expected}\n" in _text(first)
+
+
+@pytest.mark.parametrize(
+    ("footer", "expected"),
+    [
+        ("Inhaber: Tilda Sonnberg | Hammerwerk Profi",
+         "Inhaber: Erika Beispiel | Hammerwerk Profi"),
+        ("Inhaber: Tilda Sonnberg · Hammerwerk Profi Fachhändler",
+         "Inhaber: Erika Beispiel · Hammerwerk Profi Fachhändler"),
+        ("Inhaber: Tilda Sonnberg – Hammerwerk Profi Fachhändler",
+         "Inhaber: Erika Beispiel – Hammerwerk Profi Fachhändler"),
+        ("Inhaber der Kundenkarte ist Tilda Sonnberg. Hammerwerk Profi Akku 18 V",
+         "Inhaber der Kundenkarte ist Erika Beispiel. Hammerwerk Profi Akku 18 V"),
+        ("Inhaber: Prof. Dr. Tilda A. Sonnberg, Paketflitzer GmbH & Co. KG Kuno Haselnuss",
+         "Inhaber: Prof. Dr. Erika Beispiel, Paketflitzer GmbH & Co. KG Erika Beispiel"),
+        # a separator between names goes on, a new list after it starts again
+        ("Geschäftsführung: Tilda Sonnberg | Dr. Kuno Haselnuss (CEO) | Frank-Kuno Feldhase"
+         " | Vorsitzender des Aufsichtsrates: Ole Feldhase | Hammerwerk Profi",
+         "Geschäftsführung: Erika Beispiel | Dr. Erika Beispiel (CEO) | Erika Beispiel"
+         " | Vorsitzender des Aufsichtsrates: Erika Beispiel | Hammerwerk Profi"),
+        ("Geschäftsführer: Tilda Sonnberg Datenschutzerklärung / Privacy Policy"
+         " ( https://paketflitzer.example )",
+         "Geschäftsführer: Erika Beispiel Datenschutzerklärung / Privacy Policy"
+         " ( https://paketflitzer.example )"),
+    ],
+)
+def test_officers_end_at_the_sentence_and_are_not_learnt(tmp_path, footer, expected):
+    raw = _mail(SHOP, "Ihr Paket", f"Ihr Paket kommt.\n\n{footer}\n")
+    other = _mail(SHOP, "Versendet", "1x Hammerwerk Profi Akku, Tilda Sonnberg\n")
     _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
     assert f"{expected}\n" in _text(first)
-    # the whole name in every mail, not its words: a surname may be a brand
-    if "Kuno Haselnuss" in footer:
-        assert "Erika Beispiel grüßt. Kuno und Feldhase bleiben.\n" in _text(second)
+    # replaced where it stands only: what follows "Inhaber" may be a brand
+    assert "1x Hammerwerk Profi Akku, Tilda Sonnberg\n" in _text(second)
+
+
+@pytest.mark.parametrize(
+    ("footer", "expected"),
+    [
+        ("Vertreten durch den Vorstand der Paketflitzer GmbH\n"
+         "Tilda Sonnberg, Dr. Kuno Haselnuss, Frank-Kuno Feldhase \n",
+         "Vertreten durch den Vorstand der Paketflitzer GmbH\n"
+         "Erika Beispiel, Dr. Erika Beispiel, Erika Beispiel \n"),
+        ("<p>Vertreten durch die Geschäftsführung der Paketflitzer GmbH</p>\n"
+         "<p>Tilda Sonnberg, Dr. Kuno Ole Haselnuss-Feldhase</p>\n<p>Paketflitzer GmbH</p>\n",
+         "<p>Vertreten durch die Geschäftsführung der Paketflitzer GmbH</p>\n"
+         "<p>Erika Beispiel, Dr. Erika Beispiel</p>\n<p>Paketflitzer GmbH</p>\n"),
+        ("Geschäftsführung:\nTilda Sonnberg\nDr. Kuno Haselnuss (CEO)\nAhornallee 5\n",
+         "Geschäftsführung:\nErika Beispiel\nDr. Erika Beispiel (CEO)\nAhornallee 5\n"),
+        # a sentence with the word in it is no heading
+        ("Der Inhaber der Kundenkarte kann sie sperren\nHammerwerk Profi\n",
+         "Der Inhaber der Kundenkarte kann sie sperren\nHammerwerk Profi\n"),
+        ("Inhaber der Paketflitzer GmbH\nHammerwerk Profi, Paketflitzer Werkzeug\n",
+         "Inhaber der Paketflitzer GmbH\nHammerwerk Profi, Paketflitzer Werkzeug\n"),
+    ],
+)
+def test_officers_in_the_lines_below_their_heading(tmp_path, footer, expected):
+    raw = _mail(SHOP, "Ihr Paket", f"Ihr Paket kommt.\n\n{footer}")
+    _, [(_, first)] = _run(tmp_path, [raw])
+    assert expected in _text(first)
 
 
 def test_officer_above_the_company_address_is_no_recipient(tmp_path):
