@@ -70,6 +70,7 @@ Jede Zeile zeigt den Paketdienst, den Namen, den Status, einen Fortschrittsbalke
 | „Abholbereit“ | liegt in Packstation, Filiale oder PaketShop |
 | „Zugestellt heute“, „Zugestellt gestern“, „Zugestellt am …“ | zugestellt |
 | „Abgeschlossen (ohne Zustellbestätigung)“ | Bestellung ohne Zustellmail, siehe [E-Mail-Import](mail-import.md#bestellungen-ohne-zustellmail) |
+| „Storniert“ | Der Shop hat die Bestellung storniert, sie steht ausgegraut am Ende der Liste, siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird) |
 | „Noch kein Termin“ | Das Paket hat einen Status, aber noch keinen Zustelltag |
 | „Termin überschritten“ | Der genannte Liefertag ist vorbei |
 | „Kein Live-Status“ | Der Paketdienst lässt sich nicht abfragen, weil der DHL-API-Key oder die UPS-Zugangsdaten fehlen |
@@ -137,13 +138,26 @@ Was dann gilt:
 !!! warning "Zurücknehmen geht nicht"
     Ein Paket, das als erhalten markiert ist, bleibt es. Deshalb die Rückfrage. Hast du dich vertippt, lösch das Paket und trag es neu ein.
 
-Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket fehlt der Knopf.
+Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket und einer stornierten Bestellung fehlt der Knopf.
 
 Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
 
+### Geschenkmodus
+
+Neben „Pakete“ im Kartenkopf steht ein Geschenk-Symbol: der Schalter „Geschenkmodus“ (er gehört zu `switch.paket_tracker_geschenkmodus`). Ältere Versionen der Integration haben ihn nicht, dann zeigt die Karte ihn auch nicht. Alles zum Modus und seinen Grenzen: [Geschenkmodus](datenschutz.md#geschenkmodus).
+
+!!! warning "Wähle zuerst, wer Geschenke sehen darf"
+    Unter **Konfigurieren** im Bereich „Geschenkmodus (optional)“ legst du fest, wer Geschenke sehen darf. Ist niemand gewählt, kann den Modus über die Karte keiner mehr ausschalten, nur eine Automation ([so geht's](automationen.md#geschenkmodus-per-automation-schalten)). Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant, sonst gelten sie als der Elternteil, mit dem sie angemeldet sind.
+
+**Einschalten.** Ein Tipp auf das Symbol fragt zuerst: „Auch die N offenen Pakete verbergen?“ Offen heißt: weder zugestellt noch storniert und noch kein Geschenk. „Ja, verbergen“ schaltet den Modus ein und kennzeichnet auch diese Pakete, „Nein, nur neue Pakete“ schaltet nur ein. Sind keine Pakete offen, gibt es „Einschalten“. Mit „Abbrechen“ oder ++esc++ passiert nichts. Wer nicht zu den Personen gehört, die Geschenke sehen dürfen, bekommt in der Rückfrage zusätzlich den Hinweis, zuerst zu wählen, wer das darf.
+
+**Ausschalten** kann nur, wer Geschenke sehen darf, mit einem Tipp, ohne Rückfrage. Alle anderen sehen bei eingeschaltetem Modus nur das Zeichen „Geschenkmodus“ ohne Knopf.
+
+**Ein Geschenk in der Liste.** Es heißt z. B. „Geschenk · DHL-Paket …2557“ und zeigt keine Links. Vorne in der Zeile steht ein Geschenk-Symbol. Wer Geschenke sehen darf, tippt darauf: Der echte Name erscheint nur in dieser Zeile und auf diesem Gerät, mit dem Link zur Sendung und dem Knopf „Nicht mehr verbergen“. Ein zweiter Tipp verbirgt ihn wieder. „Umbenennen“ und „Löschen“ fehlen bei einem Geschenk für alle anderen; „Erhalten“ bleibt.
+
 ## Optionen der Karte
 
-Die Karte hat zwei eigene Optionen: `add_form` und `show`. Beide trägst du im YAML der Karte ein (Karte bearbeiten).
+Die Karte hat vier eigene Optionen: `add_form`, `show`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).
 
 ### `add_form` – die Eingabe
 
@@ -233,6 +247,28 @@ type: custom:parcel-tracker-card
 add_form: never
 show: today_possible
 ```
+
+### Gehört: pro Paket und Filter
+
+Sind in der Integration [Personen eingerichtet](mail-import.md#pakete-personen-zuordnen), zeigt ein aufgeklapptes Paket die Zeile **Gehört** mit einer Auswahl. Zur Wahl stehen nur die dort eingerichteten Personen, nicht jede Person aus Home Assistant. Ohne eingerichtete Personen fehlt die Auswahl überall, und die Karte fügt Pakete ohne Besitzer hinzu, wie bisher. Bei einem Geschenk sehen die Auswahl nur Geschenk-Seher.
+
+- **allen** und jede eingerichtete Person stehen zur Wahl. Ein Wechsel ruft den Dienst [`parcel_tracker.set_owner`](sensoren.md#parcel_trackerset_owner) auf und gilt für die ganze Box, also für alle Einträge mit derselben Sendungsnummer (z. B. mehrere Amazon-Bestellungen in einem Paket).
+- **Standard (Name)** steht oben, solange das Paket keinen eigenen Besitzer hat und die Person aus **Unklare Pakete gehören** gilt. Wählst du diese Person, bekommt das Paket sie als eigenen Besitzer.
+- In der Eingabe für neue Pakete steht zuerst **Standard (…)**: Das Paket bekommt keinen eigenen Besitzer, es gilt **Unklare Pakete gehören**. Dahinter folgen die eingerichteten Personen und, wenn **Unklare Pakete gehören** eine Person ist, **allen**. Gehören unklare Pakete allen, heißt der erste Eintrag **Standard (allen)** und ein eigenes **allen** gibt es nicht. Die Auswahl steht auf der Person des angemeldeten Benutzers, sonst auf **Standard**.
+
+Zwei Optionen zeigen auf der Karte nur die Pakete einer Person:
+
+```yaml
+type: custom:parcel-tracker-card
+person: person.anna
+include_unassigned: true
+```
+
+- `person`: nur die Pakete dieser Person. Alles, was keine Personen-Entität ist, schaltet den Filter aus. Die Schilder oben rechts und die Zahlen zählen nur diese Pakete. Ist nichts da, steht „Keine Pakete für Anna.“
+- `include_unassigned`: Standard `true`. Dann zeigt die Karte zusätzlich die Pakete, die allen gehören. Mit `false` bleiben nur die der Person.
+
+!!! warning "Der Filter ist nur eine Anzeige"
+    Die Pakete aller Personen bleiben als Sensoren sichtbar. Siehe [Datenschutz](datenschutz.md#personen).
 
 ### Sichtbarkeit von Home Assistant nutzen
 

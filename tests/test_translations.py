@@ -43,10 +43,11 @@ def test_german_copy_rules():
 
 def test_mail_translations_present():
     strings = _load("strings.json")
-    section = strings["options"]["step"]["init"]["sections"]["mail"]
+    section = strings["options"]["step"]["settings"]["sections"]["mail"]
     assert set(section["data"]) == {
         "mail_enabled", "imap_host", "imap_port", "imap_security", "imap_user",
-        "imap_password", "imap_folder", "move_processed", "read_otp", "mail_interval",
+        "imap_password", "imap_folder", "move_processed", "read_otp", "plain_names",
+        "mail_interval",
     }
     assert {
         "imap_auth", "imap_cannot_connect", "imap_password_missing", "folder_not_found",
@@ -54,7 +55,7 @@ def test_mail_translations_present():
     } <= set(strings["options"]["error"])
     assert {"imap_auth", "amazon_unrecognized", "imap_insecure"} <= set(strings["issues"])
     german = _load("translations/de.json")["options"]
-    mail = german["step"]["init"]["sections"]["mail"]
+    mail = german["step"]["settings"]["sections"]["mail"]
     assert mail["data"]["imap_folder"] == "Ordner"
     assert "INBOX" in mail["data_description"]["imap_folder"]
     assert german["error"]["folder_not_found"] == "Diesen Ordner gibt es im Postfach nicht."
@@ -63,7 +64,7 @@ def test_mail_translations_present():
 def test_ups_translations_present():
     for name in ("strings.json", "translations/de.json"):
         strings = _load(name)
-        section = strings["options"]["step"]["init"]["sections"]["ups"]
+        section = strings["options"]["step"]["settings"]["sections"]["ups"]
         assert set(section["data"]) == {
             "ups_enabled", "ups_client_id", "ups_client_secret", "ups_monthly_budget",
         }
@@ -86,7 +87,7 @@ def test_track17_issue_translations_present():
 
 def test_track17_option_translations_present():
     for name in ("strings.json", "translations/de.json"):
-        init = _load(name)["options"]["step"]["init"]
+        init = _load(name)["options"]["step"]["settings"]
         assert "track17_api_key" in init["data"]
         assert "track17_api_key" in init["data_description"]
         assert {"track17_invalid_key", "track17_cannot_connect"} <= set(
@@ -117,7 +118,7 @@ def test_switch_translations_present():
     labels = {"strings.json": ("Mail import enabled", "UPS API enabled"),
               "translations/de.json": ("E-Mail-Import aktiv", "UPS-API aktiv")}
     for name, (mail_label, ups_label) in labels.items():
-        sections = _load(name)["options"]["step"]["init"]["sections"]
+        sections = _load(name)["options"]["step"]["settings"]["sections"]
         assert sections["mail"]["data"]["mail_enabled"] == mail_label
         assert sections["ups"]["data"]["ups_enabled"] == ups_label
         assert "mail_enabled" in sections["mail"]["data_description"]
@@ -137,7 +138,7 @@ def test_notify_translations_present():
     }
     for name, (title, enabled, targets, events) in labels.items():
         strings = _load(name)
-        section = strings["options"]["step"]["init"]["sections"]["notify"]
+        section = strings["options"]["step"]["settings"]["sections"]["notify"]
         assert section["name"] == title
         assert section["data"] == {
             "notify_enabled": enabled, "notify_targets": targets, "notify_events": events,
@@ -152,11 +153,11 @@ def test_notify_translations_present():
         assert "notify_url" not in json.dumps(strings)
         assert strings["options"]["error"]["notify_no_target"]
     # Both kinds of targets are named: entities and classic services such as Pushover.
-    english = _load("strings.json")["options"]["step"]["init"]["sections"]["notify"]
+    english = _load("strings.json")["options"]["step"]["settings"]["sections"]["notify"]
     assert "entities" in english["data_description"]["notify_targets"]
     assert "classic notify services" in english["data_description"]["notify_targets"]
     assert "Pushover" in english["data_description"]["notify_targets"]
-    german = _load("translations/de.json")["options"]["step"]["init"]["sections"]["notify"]
+    german = _load("translations/de.json")["options"]["step"]["settings"]["sections"]["notify"]
     assert "Entitäten" in german["data_description"]["notify_targets"]
     assert "klassische Dienste" in german["data_description"]["notify_targets"]
     assert "Pushover" in german["data_description"]["notify_targets"]
@@ -193,7 +194,7 @@ def test_country_translations_present():
     for name, (label, options) in labels.items():
         strings = _load(name)
         assert strings["selector"]["country"]["options"] == options
-        for step in (strings["config"]["step"]["user"], strings["options"]["step"]["init"]):
+        for step in (strings["config"]["step"]["user"], strings["options"]["step"]["settings"]):
             assert step["data"]["country"] == label
             assert list(step["data"]).index("country") + 1 == list(step["data"]).index("postcode")
             assert "country" in step["data_description"]
@@ -261,11 +262,11 @@ def test_hide_names_translations_present():
     where it applies and that a typed-in name stays."""
     for name, label in (("strings.json", "Hide names"), ("translations/de.json",
                                                          "Namen ausblenden")):
-        init = _load(name)["options"]["step"]["init"]
+        init = _load(name)["options"]["step"]["settings"]
         assert init["data"]["hide_names"] == label
         assert init["data_description"]["hide_names"]
         assert "hide_names" not in _load(name)["config"]["step"]["user"]["data"]
-    text = _load("translations/de.json")["options"]["step"]["init"]["data_description"][
+    text = _load("translations/de.json")["options"]["step"]["settings"]["data_description"][
         "hide_names"
     ]
     for word in ("DHL-Paket", "Amazon-Bestellung", "Karte", "Kalender", "Sensoren",
@@ -301,12 +302,12 @@ def test_mail_connection_translations():
     for name in ("strings.json", "translations/de.json"):
         strings = _load(name)
         assert set(strings["selector"]["imap_security"]["options"]) == set(const.IMAP_SECURITIES)
-        described = strings["options"]["step"]["init"]["sections"]["mail"]["data_description"]
+        described = strings["options"]["step"]["settings"]["sections"]["mail"]["data_description"]
         # The usual ports, so nobody has to guess after choosing "unencrypted".
         assert "993" in described["imap_port"] and "143" in described["imap_port"]
         assert set(strings["issues"]["imap_insecure"]) == {"title", "description"}
     german = _load("translations/de.json")
-    mail = german["options"]["step"]["init"]["sections"]["mail"]
+    mail = german["options"]["step"]["settings"]["sections"]["mail"]
     assert mail["data"]["imap_port"] == "Port"
     assert german["selector"]["imap_security"]["options"] == {
         "ssl": "Verschlüsselt (TLS, Standard)",
@@ -328,3 +329,61 @@ def test_mail_connection_translations():
     issue = german["issues"]["imap_insecure"]
     assert "ohne geprüfte Verschlüsselung" in issue["description"]
     assert "nur im eigenen Netz" in issue["description"]
+
+
+def test_set_gift_service_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        strings = _load(name)
+        assert {
+            "gift_not_allowed", "gift_target", "gift_remove_not_allowed", "gift_rename_not_allowed",
+        } <= set(strings["exceptions"])
+        assert set(strings["services"]["set_gift"]["fields"]) == {
+            "number", "open_parcels", "gift",
+        }
+
+
+def test_persons_translations_present():
+    for name in ("strings.json", "translations/de.json"):
+        options = _load(name)["options"]
+        assert set(options["step"]["init"]["menu_options"]) == {"settings", "persons"}
+        assert set(options["step"]["persons"]["data"]) == {
+            "configured_person",
+            "person",
+            "default_owner",
+            "shared_addresses",
+        }
+        assert "shared_addresses" in options["step"]["persons"]["data_description"]
+        assert set(options["step"]["person"]["data"]) == {"addresses", "notify_targets", "remove"}
+        assert "{person}" in options["step"]["person"]["description"]
+        assert {"address_twice", "address_invalid"} <= set(options["error"])
+        assert set(_load(name)["selector"]["default_owner"]["options"]) == {"all"}
+    german = _load("translations/de.json")
+    options = german["options"]
+    assert options["step"]["init"]["menu_options"] == {
+        "settings": "Einstellungen",
+        "persons": "Personen",
+    }
+    assert options["step"]["persons"]["data"]["person"] == "Person"
+    assert options["step"]["persons"]["data"]["default_owner"] == "Unklare Pakete gehören"
+    assert options["step"]["persons"]["data"]["shared_addresses"] == (
+        "Gemeinsame Adressen (gehören allen)"
+    )
+    assert options["step"]["persons"]["data_description"]["shared_addresses"] == (
+        "Adressen, die mehreren Personen gehören, z. B. familie@… "
+        "Pakete an diese Adressen gehören allen."
+    )
+    person = options["step"]["person"]
+    assert person["data"] == {
+        "addresses": "Adressen (eine pro Zeile)",
+        "notify_targets": "Benachrichtigungen an",
+        "remove": "Person entfernen",
+    }
+    assert person["data_description"]["addresses"].startswith(
+        "Die eigene Mailadresse der Person, ihre Weiterleitungsadresse (z. B. pakete+name@…) "
+        "oder die Absenderadresse beim Weiterleiten von Hand."
+    )
+    assert german["selector"]["default_owner"]["options"] == {"all": "allen"}
+    assert "Zum Entfernen aller Adressen die Person entfernen." in (
+        person["data_description"]["addresses"]
+    )
+    assert options["step"]["persons"]["data"]["configured_person"]

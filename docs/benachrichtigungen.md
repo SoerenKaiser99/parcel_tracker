@@ -33,6 +33,16 @@ Home Assistant kennt zwei Arten von Zielen. Beide stehen in derselben Auswahl un
 
 **Ziel verschwunden:** Ein gewähltes Ziel, das es in Home Assistant nicht mehr gibt (Gerät entfernt, Integration gelöscht oder gerade nicht geladen), bleibt gewählt und steht mit dem Zusatz „nicht mehr vorhanden“ in der Auswahl, bis du es abwählst. Beim Senden wird es übersprungen, ebenso ein Ziel, das gerade nicht verfügbar ist.
 
+### An wen geht die Meldung?
+
+Sind [Personen eingerichtet](mail-import.md#pakete-personen-zuordnen), hängt das Ziel vom Besitzer des Pakets ab:
+
+- Hat der Besitzer eigene Ziele (**Benachrichtigungen an** im Formular der Person), geht die Meldung nur dorthin.
+- Hat er keine, oder gehört das Paket allen, gehen die Meldungen an die oben gewählten Ziele, wie ohne Personen.
+- Liegen Bestellungen zweier Personen in einem Paket (gleiche Sendungsnummer), bekommt jede Person die Meldung einmal. Dieselbe Person bekommt sie nicht doppelt.
+
+Welche Ereignisse gemeldet werden, gilt für alle gleich.
+
 ### Ereignisse
 
 | Ereignis | Voreingestellt (ab v0.3.26) |
@@ -58,7 +68,7 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
 - Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da.
-- Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder die Abholmail des Shops (Amazon „Paket zur Abholung bereit“) sie nennt. Der Ort ist höchstens 40 Zeichen lang.
+- Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder eine Abholmail sie nennt (Amazon „Paket zur Abholung bereit“, bei DHL nur der Abholort). Der Ort ist höchstens 40 Zeichen lang.
 - Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen).
 - Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.
 - Mit [Namen ausblenden](datenschutz.md#namen-ausblenden) steht dort statt eines Namens aus einer Mail `DHL-Paket …2557`, ohne den Paketdienst dahinter.
@@ -75,6 +85,7 @@ Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` fe
 - **Mehrere Wechsel** in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status.
 - **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam („Abgeschlossen ohne Zustellbestätigung“, siehe [Bestellungen ohne Zustellmail](mail-import.md#bestellungen-ohne-zustellmail)), feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.
 - **Von Hand erhalten:** Markierst du ein Paket mit [„Erhalten“](karte.md#erhalten) selbst als erhalten, feuert das Event mit dem Feld `manual` auf `true`. Eine Benachrichtigung gibt es auch dafür nicht.
+- **Storniert:** Storniert ein Shop eine Bestellung, feuert das Event mit `new_status` `cancelled`. Eine Benachrichtigung gibt es nicht: Weder die Optionen noch der Blueprint bieten diesen Status an.
 - **Mehrere Bestellungen in einem Paket** (AliExpress): Das Event feuert für jede Bestellung, die Benachrichtigung aus den Optionen geht für das Paket einmal raus.
 
 Schlägt das Senden fehl, steht eine Warnung ohne Paketdaten im Log. Die Paketabfrage läuft unverändert weiter.

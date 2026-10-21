@@ -331,7 +331,10 @@ def test_green_is_rendered_from_the_today_sensor_only():
 def test_badges_are_rendered_from_the_today_sensor_only():
     """The card does not count itself: it reads sensor.pakete_heute."""
     text = BUNDLED_CARD.read_text(encoding="utf-8")
-    assert 'getElementById("today").innerHTML = badgesHtml(todayBadges(today));' in text
+    assert (
+        'getElementById("today").innerHTML = badgesHtml(todayBadges(today, this._keep()));'
+        in text
+    )
     assert "possible_count" in text and "delivered_today_count" in text
     assert "function todayBadge(" not in text  # the combined "1 heute · 1 möglich" text is gone
     assert " · ${possible} möglich" not in text

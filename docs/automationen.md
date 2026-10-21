@@ -106,6 +106,7 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | `entry_id` | ID des Paket-Tracker-Eintrags (ab v0.3.27) | |
 | `assumed` | `true`, wenn eine Bestellung ohne Zustellmail abgeschlossen wurde. Der neue Status ist dann `delivered`, zugestellt ist aber nur angenommen | `false` |
 | `manual` | `true`, wenn das Paket von Hand als erhalten markiert wurde (ab v0.3.30). Der neue Status ist dann `delivered` | `false` |
+| `owner` | Person, der das Paket gehört (Entität wie `person.anna`), oder leer, wenn es allen gehört (ab v0.3.41). Das ist der geltende Besitzer, auch die Standard-Person aus **Unklare Pakete gehören** | `person.anna` |
 
 Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` (über 17track).
 
@@ -122,6 +123,7 @@ Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `a
 | `awaiting_pickup` | Abholbereit |
 | `delivered` | Zugestellt |
 | `exception` | Problem |
+| `cancelled` | Storniert (nur Shop-Bestellungen) |
 | `unknown` | Unbekannt |
 
 ### Beispiel von Hand
@@ -175,6 +177,50 @@ Welche Pakete es sind, steht im Attribut `parcels` jedes Sensors. Jeder Eintrag 
 ```
 
 Den Status eines einzelnen Pakets liest du aus `sensor.paket_<nummer>`. Alle Entitäten und Attribute stehen unter [Sensoren, Kalender und Dienste](sensoren.md).
+
+## Geschenkmodus per Automation schalten
+
+Ein Aufruf ohne Benutzer, wie ihn eine Automation macht, darf den Geschenkmodus ein- und ausschalten und Geschenke wieder sichtbar machen. Das ist der Weg, wenn niemand die Option „Wer darf Geschenke sehen?“ gewählt hat: Über die Oberfläche kann den Modus dann keiner mehr ausschalten. Wähle die Personen besser vorher. Hintergrund und Grenzen: [Geschenkmodus](datenschutz.md#geschenkmodus).
+
+Beispiel: Vom 15. November bis zum 26. Dezember ist der Modus an, danach wieder aus. Pakete, die in dieser Zeit angelegt wurden, bleiben Geschenke.
+
+```yaml
+automation:
+  - alias: "Geschenkmodus an (15. November)"
+    triggers:
+      - trigger: time
+        at: "06:00:00"
+    actions:
+      - condition: template
+        value_template: "{{ now().month == 11 and now().day == 15 }}"
+      - action: switch.turn_on
+        target:
+          entity_id: switch.paket_tracker_geschenkmodus
+
+  - alias: "Geschenkmodus aus (27. Dezember)"
+    triggers:
+      - trigger: time
+        at: "06:00:00"
+    actions:
+      - condition: template
+        value_template: "{{ now().month == 12 and now().day == 27 }}"
+      - action: switch.turn_off
+        target:
+          entity_id: switch.paket_tracker_geschenkmodus
+```
+
+!!! warning "Jeder Benutzer kann eine Automation starten"
+    Über „Aktionen ausführen“ oder `automation.trigger` startet jeder Benutzer eine Automation, ohne Auslöser und ohne die Bedingungen der Automation. Sie läuft dann ohne Benutzer und darf den Modus ausschalten. Deshalb steht die Datumsprüfung oben **in den `actions:`** (ein `condition`-Schritt: ein manueller Start bricht dort ab). Halte jede Automation, die den Modus ausschaltet oder Geschenke wieder sichtbar macht, mit einer solchen Prüfung in den Aktionen ab.
+
+Auch alle schon offenen Pakete lassen sich per Automation verbergen:
+
+```yaml
+actions:
+  - action: parcel_tracker.set_gift
+    data:
+      open_parcels: true
+      gift: true
+```
 
 ## Kalender
 

@@ -99,7 +99,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_options = [s.value for s in ParcelStatus]
     _attr_translation_key = "parcel"
     _attr_icon = "mdi:package-variant-closed"
-    _unrecorded_attributes = frozenset({"events", "status_text", "delivery_code"})
+    _unrecorded_attributes = frozenset(
+        {"events", "status_text", "delivery_code", "name", "tracking_url", "amazon_shipment"}
+    )
 
     def __init__(self, coordinator: ParcelCoordinator, number: str) -> None:
         super().__init__(coordinator)
@@ -164,9 +166,18 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "tracking_carrier": p.tracking_carrier,
             # The carrier's public tracking page (None: shop order without a carrier
             # number, 17track only, carrier unknown); the card links to it.
-            "tracking_url": tracking_url(p),
+            # (a gift gives out neither this nor the shipment id)
+            "tracking_url": None if p.gift else tracking_url(p),
             # Amazon's id of the order's newest shipment (from its mails); the card shows it.
-            "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids else None,
+            "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids and not p.gift else None,
+            # Marked as a gift (Geschenkmodus): shown by its gift name, no links.
+            "gift": p.gift,
+            # The person the parcel belongs to (entity id), None for everybody: the owner
+            # a mail named or the user set, else the default person ("Unklare Pakete
+            # gehören"). ``owner_detected``: the parcel has an owner of its own (a person
+            # set up under "Personen"; one removed there counts as none).
+            "owner": self.coordinator.effective_owner(p),
+            "owner_detected": self.coordinator.has_own_owner(p),
             "shipping_carrier_hint": p.shipping_carrier_hint,
             "delivery_code": p.active_code(today),
             # Import duty still to pay at delivery, as a DHL mail named it (None until then
@@ -216,7 +227,18 @@ class TodaySensor(_SummarySensor):
 
     _attr_translation_key = "today"
     _attr_icon = "mdi:truck-delivery"
-    _unrecorded_attributes = frozenset({"integration_version"})
+    # The lists carry the names: not in the history (a gift's name must not be kept).
+    _unrecorded_attributes = frozenset(
+        {
+            "integration_version",
+            "parcels",
+            "possible",
+            "delivered_today",
+            "awaiting_pickup",
+            "persons",
+            "default_owner",
+        }
+    )
 
     def __init__(self, coordinator: ParcelCoordinator) -> None:
         super().__init__(coordinator)
@@ -242,6 +264,11 @@ class TodaySensor(_SummarySensor):
             # The card compares this with its own version: a browser that still runs the
             # card from before an update shows a hint to reload the page.
             "integration_version": VERSION,
+            # The persons set up under "Personen" (entity ids only, never an address)
+            # and the one unclear parcels go to (None: everybody). The card offers
+            # "Gehört" only with persons set up, and only these persons.
+            "persons": [p.person for p in self.coordinator.persons()],
+            "default_owner": self.coordinator.effective_default_owner(),
         }
 
 
@@ -278,6 +305,8 @@ class GroupCountSensor(_SummarySensor):
         self.entity_id = entity_id
         self._attr_name = name
         self._attr_icon = icon
+
+    _unrecorded_attributes = frozenset({"parcels"})
 
     def _parcels(self) -> list[Parcel]:
         return getattr(self._summary(), self._group)

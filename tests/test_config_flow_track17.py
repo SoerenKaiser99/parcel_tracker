@@ -15,6 +15,8 @@ from custom_components.parcel_tracker.const import (
     DOMAIN,
 )
 
+from .conftest import open_options
+
 GETQUOTA = "custom_components.parcel_tracker.config_flow.Track17Client.getquota"
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 
@@ -27,7 +29,7 @@ def _input(key=None):
 
 
 async def _configure(hass, entry, user_input, **quota):
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     with patch(GETQUOTA, **quota) as check, patch(SETUP, return_value=True):
         result = await hass.config_entries.options.async_configure(result["flow_id"], user_input)
         await hass.async_block_till_done()
@@ -39,7 +41,7 @@ async def test_key_field_only_in_the_options(hass):
     assert CONF_TRACK17_API_KEY not in result["data_schema"].schema
     entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
     entry.add_to_hass(hass)
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     assert CONF_TRACK17_API_KEY in result["data_schema"].schema
 
 

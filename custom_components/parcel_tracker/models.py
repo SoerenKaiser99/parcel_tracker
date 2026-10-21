@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import StrEnum
@@ -10,6 +11,8 @@ from typing import Any
 from .const import (
     CARRIER_NAMES,
     CARRIER_OTHER,
+    CONF_PERSONS,
+    CONF_SHARED_ADDRESSES,
     MAIL_CARRIERS,
     SHOP_CARRIERS,
     TRACK17_CARRIER_NAMES,
@@ -26,6 +29,7 @@ class ParcelStatus(StrEnum):
     AWAITING_PICKUP = "awaiting_pickup"
     DELIVERED = "delivered"
     EXCEPTION = "exception"
+    CANCELLED = "cancelled"  # a shop order the shop cancelled (see mail.apply._cancel_order)
     UNKNOWN = "unknown"
 
 
@@ -38,13 +42,21 @@ PROGRESS_STEP: dict[ParcelStatus, int] = {
     ParcelStatus.AWAITING_PICKUP: 4,
     ParcelStatus.DELIVERED: 5,
     ParcelStatus.EXCEPTION: 0,
+    ParcelStatus.CANCELLED: 0,
     ParcelStatus.UNKNOWN: 0,
 }
 
 # A day named earlier (by a mail or a lookup) is not carried over into these statuses.
 NO_ETA_STATUSES = frozenset(
-    {ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP, ParcelStatus.EXCEPTION}
+    {
+        ParcelStatus.DELIVERED,
+        ParcelStatus.AWAITING_PICKUP,
+        ParcelStatus.EXCEPTION,
+        ParcelStatus.CANCELLED,
+    }
 )
+# Nothing more comes: not on the way, in no list of today, tidied up after the days set.
+CLOSED_STATUSES = frozenset({ParcelStatus.DELIVERED, ParcelStatus.CANCELLED})
 
 
 def _dt(value: str | None) -> datetime | None:
@@ -205,6 +217,15 @@ class Parcel:
     # it is delivered and stays exactly as marked, whatever a carrier, 17track or a mail
     # says afterwards. Persisted; a parcel stored by an older version has no mark.
     manual_delivered: bool = False
+    # The user marked the parcel as a gift ("Geschenkmodus"): it is shown as
+    # "Geschenk · <neutral name>" everywhere (see ``display_name``), also against a typed
+    # name. Persisted; a parcel stored by an older version is no gift.
+    gift: bool = False
+    # The person (entity id, "person.anna") the parcel belongs to, None while unknown, and
+    # whether the user set that by hand (a mail never overwrites it). Persisted; a parcel
+    # stored by an older version has no owner.
+    owner: str | None = None
+    owner_manual: bool = False
     # When the newest mail that told a shop order's status was sent, also one that only
     # repeated the status and left no line in the history (see ``mail.apply._forward``).
     # What a mail read late is measured against once the order was closed on its own.
@@ -299,6 +320,9 @@ class Parcel:
             "gls_probes": self.gls_probes,
             "name_manual": self.name_manual,
             "manual_delivered": self.manual_delivered,
+            "gift": self.gift,
+            "owner": self.owner,
+            "owner_manual": self.owner_manual,
             "last_mail_at": _iso(self.last_mail_at),
             "delivery_announced": self.delivery_announced,
             "carrier_status": self.carrier_status.value if self.carrier_status else None,
@@ -341,6 +365,13 @@ class Parcel:
             gls_probes=_count(data.get("gls_probes")),
             name_manual=data.get("name_manual") is True,
             manual_delivered=data.get("manual_delivered") is True,
+            gift=data.get("gift") is True,
+            owner=(
+                owner
+                if isinstance(owner := data.get("owner"), str) and owner.startswith("person.")
+                else None
+            ),
+            owner_manual=data.get("owner_manual") is True,
             last_mail_at=_dt(data.get("last_mail_at")),
             delivery_announced=(
                 mark if isinstance(mark := data.get("delivery_announced"), bool) else None
@@ -386,15 +417,70 @@ def neutral_name(parcel: Parcel) -> str:
     return f"{kind} {short_number(parcel.number)}"
 
 
+def gift_name(parcel: Parcel) -> str:
+    """'Geschenk · DHL-Paket …2557': how a gift is shown, whatever its name is."""
+    return f"Geschenk · {neutral_name(parcel)}"
+
+
 def display_name(parcel: Parcel, hide_names: bool) -> str | None:
     """The name a parcel is shown by, None if it has none.
 
     With "Namen ausblenden" (``hide_names``) only a name the user typed in is shown;
     every other parcel gets its neutral name, whatever a mail called it. The stored
-    name and mail title are never changed by this.
+    name and mail title are never changed by this. A gift (``Parcel.gift``) is always shown
+    by its gift name, also against a name the user typed in.
     """
+    if parcel.gift:
+        return gift_name(parcel)
     if not hide_names:
         return parcel.name
     if parcel.name and parcel.name_manual:
         return parcel.name
     return neutral_name(parcel)
+
+
+@dataclass(frozen=True)
+class PersonConfig:
+    """A person set up in the options: her mail addresses and her notify targets."""
+
+    person: str
+    addresses: tuple[str, ...]
+    notify_targets: tuple[str, ...]
+
+    @classmethod
+    def from_option(cls, value: Any) -> PersonConfig | None:
+        """One stored entry of the option ``persons``; None if it is no person.
+
+        Addresses are compared in lower case; anything that is no text is dropped.
+        """
+        if not isinstance(value, dict):
+            return None
+        person = value.get("person")
+        if not isinstance(person, str) or not person.startswith("person."):
+            return None
+        addresses = (address.strip().lower() for address in _texts(value.get("addresses")))
+        return cls(
+            person,
+            tuple(dict.fromkeys(address for address in addresses if address)),
+            tuple(dict.fromkeys(_texts(value.get("notify_targets")))),
+        )
+
+
+def person_configs(options: Mapping[str, Any]) -> list[PersonConfig]:
+    """The persons set up in the options (``persons``), each once in stored order;
+    anything that is no person is skipped. Needs no person state."""
+    stored = options.get(CONF_PERSONS)
+    configs: dict[str, PersonConfig] = {}
+    for value in stored if isinstance(stored, list) else ():
+        config = PersonConfig.from_option(value)
+        if config is not None and config.person not in configs:
+            configs[config.person] = config
+    return list(configs.values())
+
+
+def shared_addresses(options: Mapping[str, Any]) -> tuple[str, ...]:
+    """The addresses set up as shared by several persons (``shared_addresses``), trimmed
+    and in lower case, each once; anything that is no text is dropped."""
+    stored = _texts(options.get(CONF_SHARED_ADDRESSES))
+    addresses = (address.strip().lower() for address in stored)
+    return tuple(dict.fromkeys(address for address in addresses if address))

@@ -20,6 +20,7 @@ from custom_components.parcel_tracker.const import (
     NOTIFY_EVENTS,
 )
 
+from .conftest import open_options
 from .test_config_flow_untouched import _frontend_initial
 
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
@@ -50,7 +51,7 @@ def _offered(fields: dict) -> list[tuple[str, str]]:
 
 
 async def _form(hass, entry) -> tuple[str, dict]:
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await open_options(hass, entry)
     fields = to_field_list(result["data_schema"], custom_serializer=cv.custom_serializer)
     return result["flow_id"], {field["name"]: field for field in fields}
 

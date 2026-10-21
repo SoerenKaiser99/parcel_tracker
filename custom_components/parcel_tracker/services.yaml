@@ -12,6 +12,9 @@ add_parcel:
     name:
       selector:
         text:
+    owner:
+      selector:
+        text:
 remove_parcel:
   fields:
     number:
@@ -41,6 +44,29 @@ refresh:
 track_17track:
   fields:
     number:
+      required: true
+      selector:
+        text:
+set_gift:
+  fields:
+    number:
+      selector:
+        text:
+    open_parcels:
+      default: false
+      selector:
+        boolean:
+    gift:
+      required: true
+      selector:
+        boolean:
+set_owner:
+  fields:
+    number:
+      required: true
+      selector:
+        text:
+    person:
       required: true
       selector:
         text:

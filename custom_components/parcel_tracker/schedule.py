@@ -14,7 +14,7 @@ from .const import (
     SHOP_CARRIERS,
     STALE_REMOVE_DAYS,
 )
-from .models import Parcel, ParcelStatus
+from .models import CLOSED_STATUSES, Parcel, ParcelStatus
 
 _INTERVALS = {
     ParcelStatus.OUT_FOR_DELIVERY: timedelta(minutes=10),
@@ -35,7 +35,7 @@ def poll_interval(
     status: ParcelStatus | None, now: datetime, carrier: str | None = None
 ) -> timedelta | None:
     """Return the time until the next poll, None if polling stops."""
-    if status is ParcelStatus.DELIVERED:
+    if status in CLOSED_STATUSES:
         return None
     if carrier == "ups":
         interval = _UPS_INTERVALS.get(status, _UPS_DEFAULT) if status else _UPS_DEFAULT
@@ -58,7 +58,7 @@ def backoff(streak: int) -> timedelta:
 def should_remove(parcel: Parcel, now: datetime, keep_delivered_days: int) -> bool:
     """Return True when a parcel should be dropped."""
     result = parcel.result
-    if result and result.status is ParcelStatus.DELIVERED:
+    if result and result.status in CLOSED_STATUSES:
         delivered = result.delivered_at or parcel.last_change_at
         return now - delivered > timedelta(days=keep_delivered_days)
     return now - parcel.last_change_at > timedelta(days=STALE_REMOVE_DAYS)
@@ -66,7 +66,12 @@ def should_remove(parcel: Parcel, now: datetime, keep_delivered_days: int) -> bo
 
 # Nothing more is expected for an order in one of these statuses.
 _ORDER_FINAL = frozenset(
-    {ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP, ParcelStatus.EXCEPTION}
+    {
+        ParcelStatus.DELIVERED,
+        ParcelStatus.AWAITING_PICKUP,
+        ParcelStatus.EXCEPTION,
+        ParcelStatus.CANCELLED,
+    }
 )
 
 
@@ -76,8 +81,8 @@ def order_overdue(
     """Tell whether a shop order waits in vain for its "delivered" mail.
 
     Only an order nobody can ask about (Amazon, eBay, AliExpress, Eventim) that is not
-    delivered, ready for pickup or in trouble. Nobody can ask about an order without a
-    carrier number. An order with a number is overdue only if nobody can be asked about
+    delivered, ready for pickup, in trouble or cancelled. Nobody can ask about an order
+    without a carrier number. An order with a number is overdue only if nobody can be asked about
     that number at all with the current settings (``askable`` False, the caller knows:
     no lookup for its carrier, e.g. UPS without its API or DHL without a key, and no
     17track). What a carrier that can be asked answered last says nothing here: a number
@@ -120,14 +125,14 @@ def today_group(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> str | None:
     """Tell whether a parcel comes today for sure, possibly, or not (None).
 
     Sure: in delivery, or a fixed delivery day today. Possible: today lies within
-    a delivery window of several days ("2.–5. Okt."). Delivered parcels are neither.
+    a delivery window of several days ("2.–5. Okt."). Delivered and cancelled parcels are neither.
 
     "In delivery" does not hold forever: a parcel whose "delivered" never arrives
     leaves the group once its estimate is over, or, without any estimate, once the
     day of its last change (in ``tz``, the time zone ``today`` is meant in) is over.
     """
     result = parcel.result
-    if result is None or result.status is ParcelStatus.DELIVERED:
+    if result is None or result.status in CLOSED_STATUSES:
         return None
     first, last = result.eta_date, result.eta_latest
     if result.status is ParcelStatus.OUT_FOR_DELIVERY:
@@ -167,7 +172,7 @@ def delivered_today(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
 class ParcelSummary:
     """The parcels behind the summary sensors, each list in the order of the store."""
 
-    active: list[Parcel] = field(default_factory=list)  # not delivered yet
+    active: list[Parcel] = field(default_factory=list)  # not delivered yet, not cancelled
     sure: list[Parcel] = field(default_factory=list)  # come today for sure
     possible: list[Parcel] = field(default_factory=list)  # delivery window includes today
     delivered_today: list[Parcel] = field(default_factory=list)
@@ -177,8 +182,8 @@ class ParcelSummary:
 def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> ParcelSummary:
     """Sort the parcels into the lists of the summary sensors (``today`` is a day in ``tz``).
 
-    On the way is every parcel that is not delivered, whatever else its status says
-    (unknown, a problem, waiting at a pickup point, no answer from the carrier yet).
+    On the way is every parcel that is neither delivered nor cancelled, whatever else its
+    status says (unknown, a problem, waiting at a pickup point, no answer from the carrier yet).
     Today's lists follow ``today_group`` and ``delivered_today``. Ready for pickup is
     every parcel with that status (Packstation, branch, parcel shop); it stays on the way.
 
@@ -189,7 +194,7 @@ def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> Pa
     summary = ParcelSummary()
     seen: set[tuple[str, str | None, str]] = set()
     for parcel in parcels:
-        if parcel.status is not ParcelStatus.DELIVERED:
+        if parcel.status not in CLOSED_STATUSES:
             summary.active.append(parcel)
         if parcel.status is ParcelStatus.AWAITING_PICKUP:
             summary.awaiting_pickup.append(parcel)

@@ -29,6 +29,7 @@ from .const import (
     CONF_MOVE_PROCESSED,
     CONF_NOTIFY_EVENTS,
     CONF_NOTIFY_TARGETS,
+    CONF_PLAIN_NAMES,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
@@ -60,6 +61,7 @@ SAFE_KEYS = frozenset(
         CONF_IMAP_HOST,
         CONF_IMAP_SECURITY,
         CONF_MOVE_PROCESSED,
+        CONF_PLAIN_NAMES,
         CONF_READ_OTP,
         CONF_MAIL_INTERVAL,
         CONF_UPS_BUDGET,
@@ -152,6 +154,8 @@ def _redact(data: Mapping[str, Any]) -> dict[str, Any]:
         shown[CONF_COUNTRY] = known_country(shown[CONF_COUNTRY])
     if CONF_HIDE_NAMES in shown:
         shown[CONF_HIDE_NAMES] = shown[CONF_HIDE_NAMES] is True
+    if CONF_PLAIN_NAMES in shown:
+        shown[CONF_PLAIN_NAMES] = shown[CONF_PLAIN_NAMES] is True
     return shown
 
 
@@ -218,12 +222,22 @@ async def async_get_config_entry_diagnostics(
     coordinator: ParcelCoordinator = entry.runtime_data
     state = coordinator.diagnostics()
     budget = coordinator.store.ups_budget
+    persons = coordinator.persons()
     return {
         "integration_version": VERSION,
         "home_assistant_version": HA_VERSION,
         "country": entry_country(entry),
         # Whether "Namen ausblenden" is on; names themselves are never part of this file.
         "hide_names": coordinator.hide_names,
+        # Only how many persons may see gifts, never who.
+        "gift_viewers": len(coordinator.gift_viewer_user_ids()),
+        # Only how many persons and addresses are set up, never who or which.
+        "persons": {
+            "persons": len(persons),
+            "addresses": sum(len(person.addresses) for person in persons),
+            "default_owner": coordinator.default_owner is not None,
+            "shared_addresses": len(coordinator.shared_addresses()),
+        },
         "entry": {"data": _redact(entry.data), "options": _redact(entry.options)},
         "carriers": {
             "active": list(coordinator.carriers),

@@ -6,7 +6,7 @@ import pytest
 from custom_components.parcel_tracker.carriers.base import BERLIN
 from custom_components.parcel_tracker.carriers.track17 import standalone
 from custom_components.parcel_tracker.mail import parse_mail
-from custom_components.parcel_tracker.mail.apply import apply_update
+from custom_components.parcel_tracker.mail.apply import apply_update, fold_delivered
 from custom_components.parcel_tracker.mail.base import MailUpdate, sent_at
 from custom_components.parcel_tracker.models import (
     Parcel,
@@ -86,6 +86,16 @@ def test_multi_order_mail_creates_one_parcel_per_order():
     assert homematic.status is ParcelStatus.DELIVERED
     assert homematic.name == "Homematic IP Fenster- und Türkontakt – verdeckter Einbau"
     assert len(parcels) == 3
+
+
+def test_further_shipment_of_a_gift_order_is_a_gift_with_the_mode_off():
+    parcels: dict[str, Parcel] = {}
+    [first] = _updates("074_versandbestaetigung_versendet.eml")
+    apply_update(parcels, first, NOW, gift=True)
+    assert parcels[PLAETTCHEN].gift is True
+    change = apply_update(parcels, replace(first, title="Magnethalter…"), NOW, gift=False)
+    assert change.parcel.number == f"{PLAETTCHEN}P2"
+    assert change.parcel.gift is True
 
 
 def test_further_shipment_of_same_order_gets_suffix():
@@ -957,3 +967,97 @@ def test_a_mail_with_its_own_words_adds_a_history_line_without_a_new_status():
     ]
     # The same mail once more tells nothing new.
     assert apply_update(parcels, soon, NOW) is None
+
+
+# ----- "Versand durch Verkäufer": a mail naming Amazon is never about the seller's box -----
+SELLER = "DAbCdE9fG"  # Amazon's shipment ids begin with "D" for a box the seller sends
+SELLER_TOO = "DXyZaB8cD"
+AMAZON_NOW = "TaBcDeF12"  # since February 2026, sent by Amazon itself
+AMAZON_BEFORE = "UhIjKl9mN"  # until then
+
+
+def _shipped(number: str, ids: list[str], title="Beispielmarke Regal", hint=None) -> Parcel:
+    order = _order(number, title, *_range())
+    order.shipment_ids = list(ids)
+    order.shipping_carrier_hint = hint
+    return order
+
+
+def _amazon_dhl(status=ParcelStatus.IN_TRANSIT, day=TODAY) -> MailUpdate:
+    return MailUpdate(SHORT_DHL, "dhl", status, NOW.astimezone(BERLIN),
+                      title="Amazon-Sendung (DHL)", eta_date=day, shop="amazon")
+
+
+@pytest.mark.parametrize(
+    ("ids", "merged"),
+    [
+        ([SELLER], False),
+        ([SELLER, SELLER_TOO], False),
+        ([AMAZON_NOW], True),
+        ([AMAZON_BEFORE], True),
+        ([SELLER, AMAZON_NOW], True),  # one box of the order is Amazon's own
+        ([], True),  # no id: nothing is known, as before
+    ],
+)
+def test_a_mail_naming_amazon_never_joins_an_order_the_seller_sends(ids, merged):
+    parcels = {ORDER: _shipped(ORDER, ids)}
+    change = apply_update(parcels, _amazon_dhl(), NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+    assert (SHORT_DHL in parcels) is not merged
+
+
+def test_a_hermes_mail_from_amazon_never_joins_an_order_the_seller_sends():
+    """Hermes names Amazon as well ("Deine Sendung von Amazon EU SARL"), not only DHL."""
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, "074_versandbestaetigung_versendet.eml")
+    parcels[PLAETTCHEN].shipment_ids = [SELLER]
+    [hermes] = _updates(HERMES_ANNOUNCED)
+    assert (hermes.carrier, hermes.shop) == ("hermes", "amazon")
+    change = apply_update(parcels, hermes, NOW)
+    assert change.created and parcels[PLAETTCHEN].tracking_ref is None
+    # an order of Amazon's own takes it, as before
+    del parcels[HERMES_2023]
+    parcels[PLAETTCHEN].shipment_ids = [AMAZON_NOW]
+    assert apply_update(parcels, hermes, NOW).parcel is parcels[PLAETTCHEN]
+    assert parcels[PLAETTCHEN].tracking_ref == HERMES_2023
+
+
+def test_a_seller_order_is_ruled_out_also_when_it_named_the_carrier():
+    parcels = {ORDER: _shipped(ORDER, [SELLER], hint="dhl")}
+    assert apply_update(parcels, _amazon_dhl(), NOW).created
+    assert parcels[ORDER].tracking_ref is None
+    # a mail that does not name Amazon still finds it by the carrier, as before
+    parcels = {ORDER: _shipped(ORDER, [SELLER], hint="dhl")}
+    change = apply_update(parcels, replace(_amazon_dhl(), title=None, shop=None), NOW)
+    assert change.parcel is parcels[ORDER] and parcels[ORDER].tracking_ref == SHORT_DHL
+
+
+def test_the_sellers_carrier_mail_still_finds_the_order_by_the_brand():
+    """The way the seller's mails come to their order: they name the seller."""
+    parcels = {ORDER: _shipped(ORDER, [SELLER], title="Beispielmarke Regal 5 Böden")}
+    change = apply_update(parcels, _brand_mail(), NOW)
+    assert not change.created and change.parcel is parcels[ORDER]
+    assert parcels[ORDER].tracking_ref == SHORT_DHL
+
+
+def test_next_to_a_seller_order_the_mail_naming_amazon_takes_amazons_own():
+    """Both are open for the same days: only Amazon's own box is left to choose."""
+    parcels = {
+        ORDER: _shipped(ORDER, [SELLER]),
+        OTHER_ORDER: _shipped(OTHER_ORDER, [AMAZON_NOW], title="Musterfirma Kabel"),
+    }
+    change = apply_update(parcels, _amazon_dhl(), NOW)
+    assert change.parcel is parcels[OTHER_ORDER]
+    assert parcels[ORDER].tracking_ref is None
+
+
+def test_a_delivered_amazon_parcel_is_never_folded_into_a_seller_order():
+    parcels = {ORDER: _shipped(ORDER, [SELLER])}
+    apply_update(parcels, _amazon_dhl(ParcelStatus.DELIVERED, day=None), NOW)
+    parcel = parcels[SHORT_DHL]
+    assert fold_delivered(parcels, parcel, NOW.astimezone(BERLIN)) is None
+    assert set(parcels) == {ORDER, SHORT_DHL} and parcels[ORDER].tracking_ref is None
+    # an order of Amazon's own takes it, as before
+    parcels[ORDER].shipment_ids = [AMAZON_NOW]
+    assert fold_delivered(parcels, parcel, NOW.astimezone(BERLIN)) is parcels[ORDER]

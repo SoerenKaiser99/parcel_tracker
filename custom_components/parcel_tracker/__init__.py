@@ -63,10 +63,11 @@ from .http import ImportMailView
 from .lovelace_resource import async_ensure_resource
 from .mail.imap import MailboxClient, clean_security, looks_local
 from .store import DuplicateParcel, ParcelStore
+from .websocket import async_register_websocket
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR, Platform.SWITCH]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type ParcelConfigEntry = ConfigEntry[ParcelCoordinator]
@@ -214,7 +215,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def add(call: ServiceCall) -> None:
         try:
             await _coordinator(hass).async_add(
-                call.data["number"], call.data.get("carrier", CARRIER_AUTO), call.data.get("name")
+                call.data["number"],
+                call.data.get("carrier", CARRIER_AUTO),
+                call.data.get("name"),
+                call.data.get("owner"),
             )
         except UnsupportedNumber as err:
             raise _err(err.reason) from err
@@ -227,13 +231,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def remove(call: ServiceCall) -> None:
         try:
-            await _coordinator(hass).async_remove(call.data["number"])
+            await _coordinator(hass).async_remove(
+                call.data["number"], call.context.user_id
+            )
         except KeyError as err:
             raise _err("not_tracked") from err
 
     async def rename(call: ServiceCall) -> None:
         try:
-            await _coordinator(hass).async_rename(call.data["number"], call.data.get("name"))
+            await _coordinator(hass).async_rename(
+                call.data["number"], call.data.get("name"), call.context.user_id
+            )
         except KeyError as err:
             raise _err("not_tracked") from err
 
@@ -243,11 +251,19 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except KeyError as err:
             raise _err("not_tracked") from err
         except ValueError as err:
-            raise _err("already_delivered") from err
+            raise _err("cancelled" if str(err) == "cancelled" else "already_delivered") from err
 
     async def refresh(call: ServiceCall) -> None:
         try:
             await _coordinator(hass).async_refresh_parcels(call.data.get("number"))
+        except KeyError as err:
+            raise _err("not_tracked") from err
+
+    async def set_owner(call: ServiceCall) -> None:
+        try:
+            await _coordinator(hass).async_set_owner(
+                call.data["number"], call.data["person"], call.context.user_id
+            )
         except KeyError as err:
             raise _err("not_tracked") from err
 
@@ -261,7 +277,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except ValueError as err:
             raise _err("track17_not_possible") from err
 
+    async def set_gift(call: ServiceCall) -> None:
+        try:
+            await _coordinator(hass).async_set_gift(
+                call.data.get("number"),
+                call.data["open_parcels"],
+                call.data["gift"],
+                call.context.user_id,
+            )
+        except KeyError as err:
+            raise _err("not_tracked") from err
+        except ValueError as err:
+            raise _err("gift_target") from err
+
     number = vol.All(cv.string, vol.Length(min=1))
+    owner_id = vol.Any("all", vol.Match(r"^person\.[a-z0-9_]+$"))
     hass.services.async_register(
         DOMAIN, "add_parcel", add,
         schema=vol.Schema({
@@ -270,6 +300,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 [CARRIER_AUTO, *SELECTABLE_CARRIERS, CARRIER_OTHER]
             ),
             vol.Optional("name"): cv.string,
+            vol.Optional("owner"): owner_id,
         }),
     )
     hass.services.async_register(
@@ -290,6 +321,22 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, "track_17track", track_17track,
         schema=vol.Schema({vol.Required("number"): number}),
     )
+    hass.services.async_register(
+        DOMAIN, "set_gift", set_gift,
+        schema=vol.Schema({
+            vol.Optional("number"): number,
+            vol.Optional("open_parcels", default=False): cv.boolean,
+            vol.Required("gift"): cv.boolean,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_owner", set_owner,
+        schema=vol.Schema({
+            vol.Required("number"): number,
+            vol.Required("person"): owner_id,
+        }),
+    )
+    async_register_websocket(hass)
     return True
 
 

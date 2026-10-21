@@ -334,6 +334,7 @@ def test_unknown_subjects_are_unrecognised():
     for subject in (
         "Bestellung 9999999999990901: etwas ganz Neues",
         "Packstück 00340999999999990902: etwas ganz Neues",
+        "Stornierte Bestellung wegen überfälligem Versand",  # no order in this text
         "Ihr Konto",
     ):
         result = parse_mail(_msg(subject, f"Sendungsnummer {DHL}\n"))

@@ -134,7 +134,8 @@ def test_readme_has_no_relative_links():
     assert not re.search(r"\]\((?!https://|#)", README)
     assert 'src="docs/' not in README and 'href="' not in README
     assert not re.search(r"docs/[\w/-]+\.md", README)
-    assert ".md)" not in README and ".md#" not in README
+    # (an absolute link to a file of the repository, such as the CHANGELOG, is fine)
+    assert not re.search(r"\]\((?!https://)[^)]*\.md[)#]", README)
     # Anchors inside the README lead to headings it has.
     internal = re.findall(r"\]\(#([^)]+)\)", README)
     assert internal == ["beispielmails-einreichen"]
@@ -344,6 +345,9 @@ def test_readme_shows_the_card_screenshots_at_the_top():
     assert "„Erhalten“" in detail_alt
     assert "Link" not in detail_alt
     assert "Die Bilder zeigen erfundene Pakete" in intro
+    # v0.3.40: the head shows the gift mode switch, one parcel is a gift.
+    light_alt = next(alt for alt in alts if "hellen Design" in alt)
+    assert "Schalter „Geschenkmodus“" in light_alt and "Geschenkbox" in light_alt
     # The demo page, on the site (docs/demo/ is published as it is).
     assert f"({SITE}demo/index.html)" in intro
     assert (DEMO / "index.html").is_file()

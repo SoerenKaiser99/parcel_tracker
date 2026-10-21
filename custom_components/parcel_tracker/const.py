@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.38"
+VERSION = "0.3.41"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -22,8 +22,11 @@ CONF_IMAP_PORT = "imap_port"
 CONF_IMAP_SECURITY = "imap_security"
 CONF_MOVE_PROCESSED = "move_processed"
 CONF_READ_OTP = "read_otp"
+CONF_PLAIN_NAMES = "plain_names"
 CONF_MAIL_INTERVAL = "mail_interval"
 CONF_UPS_SECTION = "ups"
+CONF_GIFT_SECTION = "gift"
+CONF_GIFT_VIEWERS = "gift_viewers"
 CONF_UPS_ENABLED = "ups_enabled"
 CONF_UPS_CLIENT_ID = "ups_client_id"
 CONF_UPS_CLIENT_SECRET = "ups_client_secret"
@@ -33,6 +36,22 @@ CONF_NOTIFY_SECTION = "notify"
 CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_TARGETS = "notify_targets"
 CONF_NOTIFY_EVENTS = "notify_events"
+# Persons (#39): a list of {"person": <person entity ID>, "addresses": [<lower case
+# mail addresses>], "notify_targets": [<targets as CONF_NOTIFY_TARGETS>]}; only stored
+# once a person has been set up.
+CONF_PERSONS = "persons"
+CONF_PERSON = "person"
+# Picks a person already in ``persons`` (also one no longer in Home Assistant).
+CONF_CONFIGURED_PERSON = "configured_person"
+CONF_ADDRESSES = "addresses"
+CONF_REMOVE_PERSON = "remove"
+# Who a parcel belongs to when its mail names no or several persons: a person entity
+# ID, only stored when it is not "all" (DEFAULT_OWNER: everybody, as before persons).
+CONF_DEFAULT_OWNER = "default_owner"
+DEFAULT_OWNER = "all"
+# Addresses several persons share ("familie@…"): a mail to one of them belongs to
+# everybody, whatever else it names. Lower case; only stored when there is one.
+CONF_SHARED_ADDRESSES = "shared_addresses"
 
 # Countries on offer (ISO 3166-1 alpha-2, lower case: selector option values double as
 # translation keys, which hassfest only accepts as [a-z0-9-_]+). An entry without one
@@ -44,6 +63,8 @@ POSTCODE_DIGITS = {"de": 5, "at": 4, "ch": 4}
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
 DEFAULT_HIDE_NAMES = False
+# Person entities that may see what is in a gift (Geschenkmodus); nobody by default.
+DEFAULT_GIFT_VIEWERS: tuple = ()
 MIN_KEEP_DELIVERED_DAYS = 1
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30
@@ -62,9 +83,10 @@ IMAP_SECURITIES = (IMAP_SECURITY_SSL, IMAP_SECURITY_NOVERIFY, IMAP_SECURITY_PLAI
 DEFAULT_IMAP_SECURITY = IMAP_SECURITY_SSL
 DEFAULT_MOVE_PROCESSED = True
 DEFAULT_READ_OTP = False
+DEFAULT_PLAIN_NAMES = False
 DEFAULT_MAIL_INTERVAL = 5
 MIN_MAIL_INTERVAL = 1
-MAX_MAIL_INTERVAL = 60
+MAX_MAIL_INTERVAL = 1440
 DEFAULT_UPS_BUDGET = 100
 MIN_UPS_BUDGET = 0
 MAX_UPS_BUDGET = 10000

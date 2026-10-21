@@ -72,7 +72,9 @@ def _label(parcel: Parcel, hide_names: bool = False) -> str:
     With ``hide_names`` only a name the user typed in is named; every other parcel is
     its neutral name, which tells the carrier already ('DHL-Paket …2557').
     """
-    if hide_names:
+    if parcel.gift:
+        name = display_name(parcel, hide_names)
+    elif hide_names:
         if not (parcel.name and parcel.name_manual):
             return display_name(parcel, True)
         name = _short(parcel.name)

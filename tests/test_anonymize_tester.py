@@ -37,7 +37,7 @@ SECRETS = [
 ]
 ALLOWED_HEADERS = {
     "from", "to", "subject", "date", "message-id", "mime-version", "content-type",
-    "content-transfer-encoding",
+    "content-transfer-encoding", "cc", "delivered-to",
 }
 
 
@@ -214,7 +214,9 @@ def test_technical_headers_are_removed_or_replaced(run):
         msg = _msg(raw)
         for part in msg.walk():
             assert {key.lower() for key in part.keys()} <= ALLOWED_HEADERS, name
-        assert str(msg["To"]) == "max@example.org"
+        assert str(msg["To"]) == "adresse1@example.org"
+        assert str(msg["Cc"]) == "adresse2@example.org"
+        assert str(msg["Delivered-To"]) == "adresse1@example.org"
         assert str(msg["Message-ID"]) == f"<beispiel-{number:03d}@example.org>"
         assert str(msg["Date"]) == "Tue, 18 Jul 2023 08:02:46 +0000"
     known, unknown, flitzer = (_msg(raw) for raw in files.values())

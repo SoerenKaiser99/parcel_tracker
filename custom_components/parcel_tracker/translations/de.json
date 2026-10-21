@@ -38,6 +38,10 @@
   "options": {
     "step": {
       "init": {
+        "title": "Paket Tracker",
+        "menu_options": {"settings": "Einstellungen", "persons": "Personen"}
+      },
+      "settings": {
         "title": "Paket Tracker – Optionen",
         "data": {
           "dhl_api_key": "DHL-API-Key (optional)",
@@ -68,6 +72,7 @@
               "imap_folder": "Ordner",
               "move_processed": "Verarbeitete Mails in Ordner verschieben",
               "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen",
+              "plain_names": "Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen",
               "mail_interval": "Postfach abfragen alle (Minuten)"
             },
             "data_description": {
@@ -78,7 +83,8 @@
               "imap_password": "Leer lassen behält das gespeicherte Passwort.",
               "imap_folder": "Welcher Ordner des Postfachs gelesen wird – nur dieser eine. Lass „INBOX“ für das eigene Paket-Postfach stehen. Ein Ordner deines Hauptpostfachs geht auch, dann kennt Home Assistant aber das Passwort des ganzen Postfachs. Leer lassen behält den gespeicherten Ordner.",
               "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
-              "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf."
+              "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf.",
+              "plain_names": "Der Betreff „Ihre … Sendung …“ von DHL benennt das Paket nach dem Namen darin, auch bei kleinen Shops und Privatpersonen. Dann können Namen von Privatpersonen auf Karte, Kalender, Sensoren und in Benachrichtigungen stehen. Standardmäßig aus. „Namen ausblenden“ hat Vorrang: Dann steht nur der Paketdienst-Name da."
             }
           },
           "ups": {
@@ -110,7 +116,47 @@
               "notify_targets": "Benachrichtigungs-Entitäten (z. B. die Home-Assistant-App auf dem Handy) und klassische Dienste wie Pushover, in der Liste als „Dienst notify.…“. Ohne Ziel wird nichts gesendet.",
               "notify_events": "Bei welchen Statuswechseln benachrichtigt wird."
             }
+          },
+          "gift": {
+            "name": "Geschenkmodus (optional)",
+            "description": "Wer sehen darf, was in einem Geschenk steckt.",
+            "data": {
+              "gift_viewers": "Wer darf Geschenke sehen?"
+            },
+            "data_description": {
+              "gift_viewers": "Nur diese Personen sehen im Geschenkmodus, was in einem Paket ist. Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant."
+            }
           }
+        }
+      },
+      "persons": {
+        "title": "Personen",
+        "description": "Wähle eine Person, um ihre Adressen und Benachrichtigungen einzurichten. Pakete, deren Mail keine oder mehrere Personen nennt, gehören der Auswahl unten.",
+        "data": {
+          "configured_person": "Eingerichtete Person",
+          "person": "Person",
+          "default_owner": "Unklare Pakete gehören",
+          "shared_addresses": "Gemeinsame Adressen (gehören allen)"
+        },
+        "data_description": {
+          "configured_person": "Eine hier eingerichtete Person ändern oder entfernen, auch eine, die es in Home Assistant nicht mehr gibt.",
+          "person": "Eine neue Person einrichten. Beide leer lassen, um nur die Felder darunter zu speichern.",
+          "default_owner": "Allen (wie bisher) oder einer der hier eingerichteten Personen.",
+          "shared_addresses": "Adressen, die mehreren Personen gehören, z. B. familie@… Pakete an diese Adressen gehören allen."
+        }
+      },
+      "person": {
+        "title": "Person",
+        "description": "Adressen und Benachrichtigungen von {person}.",
+        "data": {
+          "addresses": "Adressen (eine pro Zeile)",
+          "notify_targets": "Benachrichtigungen an",
+          "remove": "Person entfernen"
+        },
+        "data_description": {
+          "addresses": "Die eigene Mailadresse der Person, ihre Weiterleitungsadresse (z. B. pakete+name@…) oder die Absenderadresse beim Weiterleiten von Hand. Zum Entfernen aller Adressen die Person entfernen.",
+          "notify_targets": "Benachrichtigungen zu Paketen dieser Person gehen nur hierhin. Leer: an die allgemeinen Ziele.",
+          "remove": "Entfernt Adressen und Benachrichtigungen dieser Person."
         }
       }
     },
@@ -131,7 +177,9 @@
       "ups_secret_missing": "Gib das UPS-Client-Secret ein.",
       "track17_invalid_key": "17track hat diesen API-Key abgelehnt.",
       "track17_cannot_connect": "17track ist gerade nicht erreichbar. Versuch es später noch einmal.",
-      "notify_no_target": "Wähl mindestens ein Ziel für die Benachrichtigungen."
+      "notify_no_target": "Wähl mindestens ein Ziel für die Benachrichtigungen.",
+      "address_twice": "Eine Adresse gehört schon einer anderen Person oder zu den gemeinsamen Adressen.",
+      "address_invalid": "Ein Eintrag ist keine Mailadresse."
     }
   },
   "issues": {
@@ -181,12 +229,20 @@
     }
   },
   "exceptions": {
+    "gift_mode_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann den Geschenkmodus ausschalten."},
+    "gift_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk wieder sichtbar machen."},
+    "gift_remove_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk löschen."},
+    "gift_rename_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk umbenennen."},
+    "gift_owner_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört."},
+    "owner_unknown": {"message": "Diese Person ist im Paket Tracker nicht eingerichtet."},
+    "gift_target": {"message": "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete."},
     "duplicate": {"message": "Dieses Paket ist schon in der Liste."},
     "amazon": {"message": "Amazon-Nummern (TBA…) lassen sich nicht direkt verfolgen. Leite die Amazon-Mails ins Paket-Postfach weiter."},
     "empty": {"message": "Gib eine Sendungsnummer ein."},
     "unknown_carrier": {"message": "Unbekannter Carrier."},
     "not_tracked": {"message": "Dieses Paket ist nicht in der Liste."},
     "already_delivered": {"message": "Dieses Paket ist schon zugestellt."},
+    "cancelled": {"message": "Diese Bestellung ist storniert, es kommt nichts mehr."},
     "track17_off": {"message": "Kein 17track-API-Key eingetragen. Trag ihn in den Optionen von Paket Tracker ein."},
     "track17_carrier": {"message": "17track hat den Carrier dieser Nummer nicht erkannt."},
     "track17_quota": {"message": "Das 17track-Kontingent ist erschöpft."},
@@ -204,6 +260,9 @@
     }
   },
   "entity": {
+    "switch": {
+      "gift_mode": {"name": "Geschenkmodus"}
+    },
     "sensor": {
       "parcel": {
         "state": {
@@ -214,6 +273,7 @@
           "awaiting_pickup": "Abholbereit",
           "delivered": "Zugestellt",
           "exception": "Problem",
+          "cancelled": "Storniert",
           "unknown": "Unbekannt"
         }
       },
@@ -227,6 +287,8 @@
     "calendar": {"deliveries": {"name": "Pakete"}}
   },
   "selector": {
+    "default_owner": {"options": {"all": "allen"}},
+    "configured_person": {"options": {"stale": "nicht mehr in Home Assistant"}},
     "country": {
       "options": {
         "de": "Deutschland",
@@ -257,7 +319,8 @@
       "fields": {
         "number": {"name": "Sendungsnummer", "description": "Wie aufgedruckt, Leerzeichen erlaubt."},
         "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, ups oder other (über 17track, braucht einen 17track-API-Key)."},
-        "name": {"name": "Name", "description": "Optionale Bezeichnung."}
+        "name": {"name": "Name", "description": "Optionale Bezeichnung."},
+        "owner": {"name": "Besitzer", "description": "Optional: die Person, der das Paket gehört (eine unter Personen eingerichtete Person wie person.anna oder all für alle)."}
       }
     },
     "remove_parcel": {
@@ -282,6 +345,23 @@
       "name": "Aktualisieren",
       "description": "Jetzt abfragen, auch das Postfach, falls eingerichtet.",
       "fields": {"number": {"name": "Sendungsnummer", "description": "Leer für alle Pakete."}}
+    },
+    "set_gift": {
+      "name": "Als Geschenk markieren",
+      "description": "Ein Paket oder alle noch nicht zugestellten Pakete als Geschenk markieren oder wieder sichtbar machen (Markieren darf jeder, nur das Wiedersichtbarmachen ist auf Personen beschränkt, die Geschenke sehen dürfen).",
+      "fields": {
+        "number": {"name": "Sendungsnummer", "description": "Zu änderndes Paket. Leer lassen, wenn alle offenen Pakete gewählt sind."},
+        "open_parcels": {"name": "Alle offenen Pakete", "description": "Statt eines Pakets alle noch nicht zugestellten Pakete ändern."},
+        "gift": {"name": "Geschenk", "description": "An markiert als Geschenk, aus macht es wieder sichtbar."}
+      }
+    },
+    "set_owner": {
+      "name": "Besitzer setzen",
+      "description": "Gibt ein Paket einer Person oder allen. Eine Mail ändert einen so gesetzten Besitzer nie mehr.",
+      "fields": {
+        "number": {"name": "Sendungsnummer", "description": "Paket, das geändert wird."},
+        "person": {"name": "Person", "description": "Eine unter Personen eingerichtete Person (person.…) oder all"}
+      }
     },
     "track_17track": {
       "name": "Über 17track verfolgen",

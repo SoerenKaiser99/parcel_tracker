@@ -12,7 +12,7 @@ from homeassistant.util import dt as dt_util
 
 from . import ParcelConfigEntry
 from .coordinator import ParcelCoordinator
-from .models import Parcel, ParcelStatus
+from .models import CLOSED_STATUSES, Parcel
 
 
 async def async_setup_entry(
@@ -26,7 +26,7 @@ async def async_setup_entry(
 def _event(p: Parcel, name: str | None) -> CalendarEvent | None:
     """The delivery of a parcel; ``name`` is the name it is shown by, if it has one."""
     r = p.result
-    if not r or not r.eta_date or r.status is ParcelStatus.DELIVERED:
+    if not r or not r.eta_date or r.status in CLOSED_STATUSES:
         return None
     if r.eta_date < dt_util.now().date():
         return None

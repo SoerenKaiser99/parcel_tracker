@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 from custom_components.parcel_tracker.const import (
     CONF_MAIL_INTERVAL,
     CONF_MOVE_PROCESSED,
+    CONF_PLAIN_NAMES,
     CONF_READ_OTP,
     DOMAIN,
     EVENT_STATUS_CHANGED,
@@ -159,10 +160,10 @@ async def test_unrecognised_ignored_and_broken_mails(hass):
     )
     coord = await _coordinator(hass, mailbox, {CONF_MOVE_PROCESSED: False})
 
-    def flaky(msg, read_otp):
+    def flaky(msg, read_otp, plain_names):
         if "ups.com" in str(msg["From"]):
             raise ValueError("boom")
-        return parse_mail(msg, read_otp)
+        return parse_mail(msg, read_otp, plain_names)
 
     with patch("custom_components.parcel_tracker.coordinator.parse_mail", side_effect=flaky):
         await coord.async_import_mail()
@@ -251,6 +252,29 @@ async def test_read_otp_option_keeps_code_in_memory_only(hass, hass_storage):
     assert "123456" not in str(hass_storage["parcel_tracker"]["data"])
 
 
+def private_sender_dhl_mail() -> bytes:
+    return (
+        b"From: DHL Paket <paketankuendigung@dhl.de>\r\n"
+        b"Message-ID: <plain1@example.org>\r\n"
+        b"Subject: Ihre Erika Beispiel Sendung ist unterwegs\r\n"
+        b"Date: Wed, 30 Sep 2026 08:00:00 +0000\r\n"
+        b"Content-Type: text/plain; charset=utf-8\r\n\r\n"
+        b"Sendungsnummer 00340999999999999917\r\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("options", "name"),
+    [({}, None), ({CONF_PLAIN_NAMES: False}, None), ({CONF_PLAIN_NAMES: True}, "Erika Beispiel")],
+)
+async def test_plain_names_option_reaches_the_dhl_parser(hass, options, name):
+    """Issue #35: the name in "Ihre <Name> Sendung" is taken only with the option on."""
+    mailbox = FakeMailbox([("1", private_sender_dhl_mail())])
+    coord = await _coordinator(hass, mailbox, options)
+    await coord.async_import_mail()
+    assert coord.store.get("00340999999999999917").name == name
+
+
 @pytest.mark.parametrize("move", [True, False])
 async def test_move_option_is_passed_to_finish(hass, move):
     mailbox = FakeMailbox([("1", raw("001_bestellbestaetigung_bestellt.eml"))])
@@ -336,9 +360,9 @@ async def test_mails_are_parsed_in_the_executor(hass):
     coord = await _coordinator(hass, mailbox)
     threads = []
 
-    def spy(msg, read_otp):
+    def spy(msg, read_otp, plain_names):
         threads.append(threading.current_thread() is threading.main_thread())
-        return parse_mail(msg, read_otp)
+        return parse_mail(msg, read_otp, plain_names)
 
     with patch("custom_components.parcel_tracker.coordinator.parse_mail", side_effect=spy):
         await coord.async_import_mail()
@@ -804,10 +828,10 @@ async def test_mail_that_comes_back_unfiled_is_counted_and_logged_once(hass, cap
     broken = dated_mail(1, TODAY_MAIL)
     mails = [("1", unknown_amazon_mail(0)), ("2", broken)]
 
-    def flaky(msg, read_otp):
+    def flaky(msg, read_otp, plain_names):
         if msg["Message-ID"] == "<dated1@example.org>":
             raise ValueError("boom")
-        return parse_mail(msg, read_otp)
+        return parse_mail(msg, read_otp, plain_names)
 
     coord = await _coordinator(hass, Unfiled())
     with patch(PARSE, side_effect=flaky), caplog.at_level("WARNING"):

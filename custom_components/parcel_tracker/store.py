@@ -70,6 +70,8 @@ class ParcelStore:
         self._store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self.parcels: dict[str, Parcel] = {}
         self.message_ids: list[str] = []
+        # Geschenkmodus: new parcels are gifts while it is on.
+        self.gift_mode = False
         # Mutated in place by the UPS carrier, so keep the same object across loads.
         self.ups_budget = ApiBudget()
 
@@ -99,6 +101,7 @@ class ParcelStore:
 
         ids = data.get("message_ids", [])
         self.message_ids = [i for i in ids if isinstance(i, str)] if isinstance(ids, list) else []
+        self.gift_mode = data.get("gift_mode") is True
         loaded = ApiBudget.from_dict(data.get("ups_budget"))
         self.ups_budget.month, self.ups_budget.count = loaded.month, loaded.count
         if scrubbed:
@@ -113,6 +116,7 @@ class ParcelStore:
                 "parcels": [p.to_dict() for p in self.parcels.values()],
                 "message_ids": self.message_ids[-MAIL_DEDUP_KEEP:],
                 "ups_budget": self.ups_budget.to_dict(),
+                "gift_mode": self.gift_mode,
             }
         )
 

@@ -7,7 +7,9 @@ the user typed in stays visible.
 """
 
 import json
+import re
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -27,6 +29,7 @@ from custom_components.parcel_tracker.const import (
     DOMAIN,
     EVENT_STATUS_CHANGED,
 )
+from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.apply import apply_update
 from custom_components.parcel_tracker.mail.base import MailUpdate
 from custom_components.parcel_tracker.models import (
@@ -95,6 +98,20 @@ def test_neutral_name_is_built_from_the_carrier_and_the_last_four(
 def test_display_name_is_the_stored_name_while_the_option_is_off():
     assert display_name(_parcel(), False) == SHOP_NAME
     assert display_name(_parcel(name=None), False) is None
+
+
+def test_a_name_from_the_plain_names_option_is_hidden_too():
+    """Issue #35: "Namen ausblenden" wins over "Absendernamen aus DHL-Mails übernehmen"."""
+    msg = EmailMessage()
+    msg["From"] = "DHL <noreply@dhl.de>"
+    msg["Subject"] = "Ihre Erika Beispiel Sendung ist unterwegs"
+    msg["Date"] = "Wed, 30 Sep 2026 08:00:00 +0000"
+    msg.set_content(f"Sendungsnummer {DHL}\n")
+    [update] = parse_mail(msg, plain_names=True).updates
+    assert update.title == "Erika Beispiel"
+    parcel = _parcel(name=update.title)
+    assert display_name(parcel, False) == "Erika Beispiel"
+    assert display_name(parcel, True) == "DHL-Paket …0012"
 
 
 def test_a_name_typed_in_by_the_user_stays_visible():
@@ -391,5 +408,9 @@ def test_the_card_names_a_parcel_by_its_name_attribute_only():
     ``name`` (else the number), and it reads neither a mail title nor a friendly name."""
     source = BUNDLED_CARD.read_text(encoding="utf-8")
     assert "esc(a.name || a.number)" in source
-    assert "mail_title" not in source
-    assert "friendly_name" not in source
+    # A mail title only comes for a gift viewer, in the answer of parcel_tracker/gift_name
+    # (Geschenkmodus), never from the sensor's attributes.
+    assert set(re.findall(r"[\w.]*mail_title", source)) == {"info.mail_title"}
+    # The only friendly name it reads is a person's (the select „Gehört“), never a parcel's.
+    persons = source[source.index("function personsOf("):source.index("const OWNER_ALL =")]
+    assert source.count("friendly_name") == persons.count("friendly_name") == 2

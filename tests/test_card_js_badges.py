@@ -128,6 +128,7 @@ GERMAN = {
     "awaiting_pickup": "Abholbereit",
     "delivered": "Zugestellt",
     "exception": "Problem",
+    "cancelled": "Storniert",
     "unknown": "Unbekannt",
 }
 ENGLISH = (

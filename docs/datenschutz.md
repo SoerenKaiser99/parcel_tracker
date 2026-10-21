@@ -43,10 +43,11 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 
 - Bestell- bzw. Sendungsnummer,
 - ein auf 60 Zeichen gekürzter Artikeltitel,
-- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“,
+- der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“. Einzige Ausnahme ist die Option [Absendernamen aus DHL-Mails übernehmen](#absendernamen-aus-dhl-mails-ubernehmen), die du selbst einschalten musst,
 - Status, Liefertag und Zeitfenster,
 - bei einem abholbereiten Paket aus der Amazon-Mail „Paket zur Abholung bereit“: Name und Straße der Abholstelle (ohne Postleitzahl, Ort und interne Nummer des Shops) und der letzte Abholtag,
 - bei einer DHL-Sendung aus dem Ausland der Betrag der Einfuhrabgaben (Zoll), seine Währung und ob bar gezahlt werden soll – nicht der Satz aus der Mail. Der Betrag steht bis zur Zustellung in den Attributen, auf der Karte und in der Benachrichtigung „In Zustellung“. Danach wird er gelöscht,
+- bei einem abholbereiten Paket aus der Abholmail von DHL: Filiale bzw. Packstation und Straße (ohne Postleitzahl und Ort),
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
 
@@ -62,6 +63,21 @@ Links in AliExpress-Mails (sie sagen, zu welcher Bestellung ein Packstück gehö
 
 Eine Mail, die du [per HTTP übergibst](mail-import.md#ohne-postfach-mail-per-http-ubergeben), geht nur an den Import und wird nicht gespeichert. Deshalb gibt es dafür bewusst keinen Dienst: Ein Dienstaufruf stünde samt Mail in der Recorder-Datenbank.
 
+### Absendernamen aus DHL-Mails übernehmen
+
+DHL nennt im Betreff den Absender: „Ihre <Name> Sendung kommt heute“. Von Haus aus wird dieser Name nur Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …). Ein kleiner Shop („Ihre Beispielshop .. Sendung …“) oder eine Privatperson bleibt ohne Namen: Das Paket heißt dann `DHL <Nummer>`.
+
+Im Bereich **E-Mail-Import** gibt es dafür den Schalter **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** (Standard: **aus**). Eingeschaltet wird der Name aus dem Betreff genommen, auch bei kleinen Shops und Privatpersonen. Ein „..“ oder „…“, mit dem DHL einen langen Namen abschneidet, entfällt.
+
+Was das für deine Daten heißt:
+
+- Der Name einer **Privatperson** kann dann auf der Karte, im Kalender, in den Sensoren und in Benachrichtigungen stehen. Schalte ihn nur ein, wenn das für dein Dashboard in Ordnung ist.
+- Gelesen wird **nur der Betreff** „Ihre … Sendung“. Nie die Anrede, nie eine Adresse, nie der Absender oder Namen aus anderen Stellen der Mail.
+- Ein Name aus einer **von Hand weitergeleiteten** Mail wird nie übernommen, auch nicht mit dem Schalter.
+- Ein Name, der einen Paketdienst nennt („DHL“, „DHL Paket“) oder keine Buchstaben enthält, wird nie übernommen.
+- [Namen ausblenden](#namen-ausblenden) gilt weiter und geht vor: Dann zeigt auch ein so gewonnener Name nichts, es steht nur der neutrale Name da.
+- Der Schalter ändert keine gespeicherten Namen. Er wirkt auf Mails, die danach gelesen werden.
+
 ## Benachrichtigungen
 
 Benachrichtigungen gehen an die gewählten Ziele und damit an deren Dienst (bei der Home-Assistant-App über den Push-Dienst von Apple oder Google).
@@ -71,7 +87,7 @@ Benachrichtigungen gehen an die gewählten Ziele und damit an deren Dienst (bei 
 - den Namen bzw. Artikeltitel des Pakets (ohne Namen die letzten vier Stellen der Nummer),
 - den Paketdienst,
 - den Status,
-- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Abholstelle (bei der Amazon-Abholmail Name und Straße des Shops).
+- wenn bekannt: das heutige Zeitfenster oder Ort und letzten Abholtag der Abholstelle (bei der Amazon-Abholmail Name und Straße des Shops, bei der DHL-Abholmail Filiale bzw. Packstation und Straße).
 
 **Nie enthalten:** der Zustell-Code, die vollständige Sendungsnummer, deine Adresse, ein Ablageort.
 
@@ -129,6 +145,61 @@ Bei Namen, die vor v0.3.24 vergeben wurden, weiß die Integration nicht, wer sie
     - Der Verlauf von Home Assistant (Logbuch, Historie) behält, was er vor dem Einschalten aufgezeichnet hat – also auch die früheren Namen der Pakete, bis diese Einträge ablaufen oder du sie löschst.
     - Wer die Dateien von Home Assistant lesen kann, sieht dort auch die gespeicherten Namen.
     - Der Schalter ist für den Blick aufs Dashboard gedacht.
+
+## Geschenkmodus
+
+Für Familien in der Weihnachtszeit: Während der Geschenkmodus läuft, zeigt das Dashboard nicht, was in einem neuen Paket steckt. Anders als „Namen ausblenden“ (alle Pakete, immer) gilt der Modus nur für Pakete, die man als Geschenk kennzeichnet, und nur bestimmte Personen sehen, was drin ist. Die Karte und ihre Bedienung stehen unter [Die Karte](karte.md#geschenkmodus).
+
+### Wer was darf
+
+Wer Geschenke sehen darf, legst du unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** im Bereich **Geschenkmodus (optional)** fest: Das sind Personen von Home Assistant (`person`-Entitäten), die ein Benutzerkonto haben.
+
+| Aktion | Wer darf das |
+|---|---|
+| Geschenkmodus einschalten, Pakete als Geschenk kennzeichnen | jeder |
+| Geschenkmodus ausschalten | nur wer Geschenke sehen darf – und ein Aufruf ohne Benutzer (Automation) |
+| Den echten Namen auf der Karte ansehen, ein Geschenk wieder sichtbar machen, umbenennen oder löschen | nur wer Geschenke sehen darf – und Aufrufe ohne Benutzer |
+
+!!! warning "Wähle zuerst, wer Geschenke sehen darf"
+    Ist niemand gewählt, kann den Modus über die Oberfläche **niemand** mehr ausschalten – nur eine Automation, siehe [Geschenkmodus per Automation schalten](automationen.md#geschenkmodus-per-automation-schalten). Lege die Personen deshalb fest, bevor du den Modus einschaltest.
+
+!!! warning "Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer"
+    Home Assistant erkennt, wer die Karte öffnet, nur am angemeldeten Benutzer. Ein Wandtablet oder das Handy eines Kindes, das mit dem Konto der Eltern angemeldet ist, gilt als dieser Elternteil. Gib solchen Geräten einen **eigenen Benutzer** in Home Assistant, der nicht zu den Personen gehört, die Geschenke sehen dürfen.
+
+### Was ein Geschenk verbirgt
+
+Ein Geschenk heißt überall `Geschenk · DHL-Paket …2557` (der neutrale Name wie bei „Namen ausblenden“, mit dem Vorsatz „Geschenk · “). Das gilt für Karte, Sensoren, Kalender, Event und Benachrichtigungen. Das Kennzeichen gewinnt gegen „Namen ausblenden“ und gegen einen von Hand eingetippten Namen.
+
+- **Verborgen:** der Name (auch ein von Hand vergebener), der Mail-Titel, die Links zur Sendungsverfolgung und zur Bestellung und Amazons Kennung der Sendung (`amazon_shipment`).
+- **Sichtbar:** Status, Liefertag, Zeitfenster, Ort, Abholort und der Verlauf des Paketdienstes. Darin steht kein Artikel.
+- **Benachrichtigungen** gehen an alle eingerichteten Ziele, mit dem Namen des Geschenks.
+
+Einmal Geschenk, immer Geschenk: Das Kennzeichen bleibt, auch wenn der Modus ausgeschaltet wird und das Paket zugestellt ist. Es geht nur von Hand weg, über „Nicht mehr verbergen“ auf der Karte oder den Dienst [`parcel_tracker.set_gift`](sensoren.md#parcel_trackerset_gift), und das darf nur, wer Geschenke sehen darf.
+
+Der echte Name kommt nur über eine Abfrage, die den angemeldeten Benutzer prüft, auf die Karte dieses einen Geräts. Er wird nicht gespeichert und nicht an andere Geräte geschickt.
+
+### Der Schalter
+
+Der Schalter `switch.paket_tracker_geschenkmodus` ist eine Konfigurations-Entität. Home Assistant gibt solche Entitäten Sprachassistenten nicht von selbst frei, und das soll so bleiben.
+
+!!! danger "Den Schalter nicht für Assist, Alexa oder Google freigeben"
+    Diese Assistenten rufen Schalter ohne Benutzer oder als Besitzer des Kontos auf. Beides darf den Modus ausschalten. Ein Kind könnte ihn per Sprache ausschalten. Gib den Schalter nicht von Hand frei.
+
+### Grenzen
+
+!!! warning "Es geht um das Offensichtliche auf dem Dashboard, nicht um Admins"
+    - Was der Verlauf von Home Assistant (Logbuch, Historie) schon aufgezeichnet hat, bleibt dort. Kennzeichnest du ein Paket erst später als Geschenk, löscht das die alten Einträge nicht. Von dieser Version an zeichnet der Recorder die Attribute `name`, `tracking_url` und `amazon_shipment` und die Listen der Zusammenfassungs- und Zählsensoren nicht mehr auf. Der Anzeigename der Entität (`sensor.paket_<nummer>`) und der Eintrag in `calendar.pakete` bleiben aber im Verlauf: Ein Paket, das du erst später als Geschenk kennzeichnest, behält dort seinen früheren Namen. Schalte den Modus am besten ein, bevor du bestellst. Ältere Einträge bleiben, bis sie ablaufen oder du sie löschst.
+    - Der echte Name bleibt im Speicher der Integration. Wer die Dateien von Home Assistant lesen kann (Admins), findet ihn dort.
+    - Wer das Paket-Postfach lesen kann, liest alles.
+
+## Personen
+
+Die Personen-Zuordnung ist optional. Sie legt fest, wem ein Paket gehört, nicht wer es sehen darf.
+
+- Der Besitzer steht für **jeden Benutzer** von Home Assistant im Attribut `owner` des Paket-Sensors und im Feld `owner` des Ereignisses `parcel_tracker_status_changed`. `owner_detected` ist `true`, wenn eine Person aus einer Mail erkannt oder von Hand gesetzt wurde, und `false`, wenn der Besitzer aus der Standard-Person kommt oder von Hand „allen“ gesetzt wurde.
+- Der Filter `person` der Karte ist nur eine Anzeige. Die Sensoren aller Pakete bleiben für jeden Benutzer lesbar.
+- Ein Wandtablet oder das Handy eines Kindes braucht einen **eigenen Benutzer** in Home Assistant, wie beim [Geschenkmodus](#geschenkmodus). Sonst gilt es als der Benutzer, mit dem es angemeldet ist.
+- Die Mailadressen, die du einer Person einträgst, stehen in den Optionen der Integration. Die Adressen aus den Mails werden nur verglichen, nie gespeichert oder ins Log geschrieben. Der Diagnose-Download nennt nur, wie viele Personen und Adressen eingerichtet sind.
 
 ## Zustell-Codes
 

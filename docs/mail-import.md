@@ -31,7 +31,8 @@ Dein Hauptpostfach sieht die Integration so nie.
     | **Ordner** | Standard `INBOX` (der Posteingang). Der eine Ordner, den der Import liest. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Ein leeres Feld behält den gespeicherten Ordner. Siehe [Eigener Ordner](#eigener-ordner). |
     | **Verarbeitete Mails in Ordner verschieben** | Standard: an. |
     | **Zustell-Codes (Einmalpasswörter) mitlesen** | Standard: aus. Siehe [Zustell-Code](datenschutz.md#zustell-codes). |
-    | **Postfach abfragen alle (Minuten)** | 1–60, Standard: 5. |
+    | **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** | Standard: aus. Dann benennt der Betreff „Ihre <Name> Sendung …“ ein Paket auch nach einem kleinen Shop oder einer Privatperson. Siehe [Absendernamen aus DHL-Mails übernehmen](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen). |
+    | **Postfach abfragen alle (Minuten)** | 1–1440 (bis zu einmal am Tag), Standard: 5. |
 
 4. Speichern. Die Anmeldung wird sofort geprüft, ein geänderter Ordner dabei einmal geöffnet. Auch ein geänderter Port oder eine andere Verbindung wird erst gespeichert, wenn die Anmeldung damit klappt.
 
@@ -77,12 +78,58 @@ Lehnt der Mailserver die Anmeldung ab? Viele Anbieter verlangen für IMAP nicht 
 
 ### Wie oft wird das Postfach gelesen?
 
-- Im eingestellten Intervall (1–60 Minuten, Standard 5) schaut der Import nach ungelesenen Mails im eingestellten Ordner (Standard: Posteingang).
+- Im eingestellten Intervall (1–1440 Minuten, Standard 5) schaut der Import nach ungelesenen Mails im eingestellten Ordner (Standard: Posteingang).
 - Der Dienst `parcel_tracker.refresh` (auf der Karte „Aktualisieren“) fragt zusätzlich das Postfach sofort ab.
-- Ist das Postfach nicht erreichbar, wartet der Import unabhängig vom Intervall länger (5 → 10 → 20 → 40 → 60 Minuten).
+- Ist das Postfach nicht erreichbar, versucht der Import es unabhängig vom eingestellten Intervall nach 5, 10, 20, 40 und höchstens 60 Minuten erneut, auch bei einem Intervall von mehr als 60 Minuten.
 - Lehnt der Server die Anmeldung ab, erscheint unter **Einstellungen → Reparaturen** ein Hinweis.
 - Wird das Zertifikat des Servers später nicht mehr akzeptiert (abgelaufen, ausgetauscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant.
 - Gibt es den eingestellten Ordner später nicht mehr (umbenannt oder gelöscht), pausiert der Import genauso und schreibt einmal eine Warnung ins Protokoll von Home Assistant, ohne den Namen des Ordners. Trag dann unter **Konfigurieren** den richtigen Ordner ein.
+
+## Pakete Personen zuordnen
+
+Mehrere Personen im Haushalt, ein Paket-Postfach: Die Integration kann ein Paket der Person zuordnen, für die es bestellt wurde. Das ist optional. Ohne eingerichtete Personen bleibt alles wie bisher.
+
+### Einrichten
+
+1. **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** öffnen und **Personen** wählen. (Der Eintrag **Einstellungen** führt zu allen anderen Optionen.)
+2. Unter **Person** eine neue Person aus Home Assistant wählen. Eine schon eingerichtete Person wählst du unter **Eingerichtete Person**, auch um sie zu ändern oder zu entfernen. Mit **Absenden** folgt ein Formular für diese Person:
+    - **Adressen (eine pro Zeile):** die Adressen, an denen die Person ihre Pakete erkennt, siehe unten.
+    - **Benachrichtigungen an:** wohin die Meldungen zu ihren Paketen gehen, siehe [Benachrichtigungen](benachrichtigungen.md#an-wen-geht-die-meldung). Das Handy, das in Home Assistant als Geräte-Tracker der Person eingetragen ist, wird vorgeschlagen, wenn es ein Ziel dafür gibt.
+3. Bei **Unklare Pakete gehören** wählst du, wem ein Paket gehört, wenn die Mail keine eindeutige Person nennt. Standard: **allen**.
+4. Bei **Gemeinsame Adressen (gehören allen)** trägst du Adressen ein, die mehreren Personen gehören, z. B. `familie@example.org`. Steht eine davon in einer Mail, ist das Paket unklar und gehört der Person bei **Unklare Pakete gehören**.
+
+### Woran die Integration die Person erkennt
+
+Sie liest die Kopfzeilen der Mail: `Delivered-To`, `X-Original-To`, `To`, `Cc`, `X-Forwarded-To`, `X-Forwarded-For`, `Resent-From` und `Resent-To`. Steht dort mehrmals dieselbe Kopfzeile, zählt jede. Bei einer von Hand weitergeleiteten Mail zählt zusätzlich die Adresse, von der die Weiterleitung kommt. Das gilt bei einem Betreff mit „WG:“, „Fwd:“ oder „FW:“ (nicht „AW:“ oder „Re:“) oder bei einer weitergeleiteten Original-Mail, und nur, wenn der Absender kein bekannter Shop oder Paketdienst ist.
+
+- Steht genau die Adresse **einer** Person darin, gehört das Paket ihr.
+- Steht keine, stehen die Adressen mehrerer Personen darin oder steht eine gemeinsame Adresse darin, ist das Paket **unklar**. Es gehört dann der Person bei **Unklare Pakete gehören**, standardmäßig allen.
+- Adressen werden ohne Beachtung der Groß- und Kleinschreibung verglichen, sonst aber genau: `pakete+anna@example.org` ist nicht `pakete@example.org`.
+
+Gespeichert wird nur ein erkannter oder von Hand gesetzter Besitzer. Die Person bei **Unklare Pakete gehören** gilt erst beim Lesen. Änderst du die Option, ändert sich das auch für offene Pakete, und eine spätere eindeutige Mail kann dem Paket weiter seinen echten Besitzer geben. Einen von Hand gesetzten Besitzer (auch „allen“) überschreibt keine Mail. Weitere Pakete derselben Bestellung übernehmen den Besitzer samt dieser Markierung. Entfernst du eine Person hier (oder benennst ihre Entität um), gelten ihre Pakete als unklar und gehören der Person bei **Unklare Pakete gehören**. Gespeichert bleibt der alte Besitzer trotzdem: Richtest du die Person wieder ein, gehören ihr die Pakete wieder. Eine spätere Mail ändert solche Pakete nicht; ordne sie bei Bedarf von Hand neu zu. Zu einer Mail werden die Adressen nur verglichen, nie gespeichert oder ins Log geschrieben.
+
+Von Hand ändern geht auf der [Karte](karte.md#gehort-pro-paket-und-filter) oder mit dem Dienst [`parcel_tracker.set_owner`](sensoren.md#parcel_trackerset_owner).
+
+### Welche Adresse bekommt jede Person?
+
+Am sichersten ist eine eigene Adresse pro Person, die im Paket-Postfach ankommt. Die Weiterleitung jeder Person geht dann an ihre Adresse.
+
+| Anbieter des Paket-Postfachs | Weg | Beispiel |
+|---|---|---|
+| Gmail | Plus-Adresse | `pakete+anna@example.org` |
+| Outlook | Plus-Adresse | `pakete+anna@example.org` |
+| Posteo | Plus-Adresse | `pakete+anna@example.org` |
+| mailbox.org | Plus-Adresse | `pakete+anna@example.org` |
+| GMX, web.de | Alias-Adresse (in den Einstellungen des Postfachs anlegen) | `anna-pakete@example.org` |
+| Eigener Server | Alias oder Plus-Adresse, je nach Server | `anna@example.org` |
+
+Die Angaben können sich beim Anbieter ändern. Prüf bei deinem Anbieter, ob er Plus-Adressen oder Aliase anbietet.
+
+!!! tip "Oft reicht die eigene Adresse"
+    Eine Weiterleitung behält meistens die ursprüngliche Zieladresse in `Delivered-To` oder `X-Original-To`. Dann erkennt die Integration die Person schon an ihrer eigenen Mailadresse, ohne Plus-Adresse oder Alias. Ob das bei deinem Anbieter so ist, hängt von seiner Weiterleitung ab. Sieh in einer Mail im Paket-Postfach nach („Quelltext anzeigen“) oder schick eine anonymisierte Beispielmail, siehe [Wie ihr helfen könnt](mithelfen.md).
+
+!!! warning "Eine Grenze"
+    Eine Weiterleitungsregel, die keine der genannten Kopfzeilen setzt und an die gemeinsame Adresse geht, ist nicht erkennbar. Das Paket ist dann unklar. Dafür gibt es die eigene Plus-Adresse oder den Alias.
 
 ## Filterregel anlegen
 
@@ -99,6 +146,7 @@ Nimm diese Absender in die Filterregel auf:
 | `paketankuendigung@dhl.de` | DHL |
 | `zustellung@dhl.de` | DHL |
 | `sendungsupdate@dhl.de` | DHL (meldet einen verschobenen Zustelltag; der neue Tag wird übernommen) |
+| `abholung@dhl.de` | DHL (Paket liegt in der Filiale zur Abholung bereit) |
 | `noreply.odd@dhl.com` | DHL Express („On Demand Delivery“) |
 | `noreply@service.dpd.de` | DPD |
 | `no_reply@dpd.at` | DPD Österreich (Ankündigung, „kommt zwischen … Uhr“ mit Zeitfenster, Zustellung) |
@@ -124,7 +172,7 @@ if address :is "from" [
   "shipment-tracking@amazon.de", "order-update@amazon.de",
   "pickup-point@amazon.de",
   "noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de",
-  "sendungsupdate@dhl.de", "noreply.odd@dhl.com",
+  "sendungsupdate@dhl.de", "abholung@dhl.de", "noreply.odd@dhl.com",
   "noreply@service.dpd.de", "pkginfo@ups.com",
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",
@@ -156,7 +204,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR noreply.odd@dhl.com OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
@@ -214,19 +262,24 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
 === "Amazon"
 
     - Pro Bestellung entsteht ein Paket mit der Nummer `AMZ` + Bestellnummer, benannt nach dem Artikel. Kommt eine Bestellung in mehreren Sendungen, heißt das nächste Paket „… (2)“.
-    - Die Mails ab „Versendet“ verlinken Amazons Sendungsverfolgung. Die Bestellung merkt sich die Sendung daraus, und „Sendung verfolgen“ führt dorthin, solange keine Mail die Nummer eines Paketdienstes genannt hat.
+    - Die Mails ab „Versendet“ verlinken Amazons Sendungsverfolgung. Jedes Paket merkt sich seine Sendung daraus, und „Sendung verfolgen“ führt dorthin, solange keine Mail die Nummer eines Paketdienstes genannt hat.
+    - Welche Mail zu welchem Paket einer Bestellung gehört, entscheidet die Sendung, nicht der Artikel: Zwei Sendungen desselben Artikels bleiben zwei Pakete, und eine Mail, die keinen Artikel nennt, findet ihr Paket trotzdem. Die erste Sendung übernimmt das Paket aus der Bestellbestätigung samt dem Namen ihres Artikels, auch wenn es inzwischen ohne Zustellbestätigung abgeschlossen wurde. Nennt die Mail einer weiteren Sendung keinen Artikel, heißt das Paket „Amazon-Sendung (2)“, bis eine Mail den Artikel nennt. Ist die erste Mail einer weiteren Sendung schon „Zugestellt“, wird die Zustellung trotzdem gemeldet. Mails ohne diesen Link (ältere Mails, vor allem im schlichten Layout) gehen wie bisher nach dem Artikel. Eine Mail mit einer neuen Sendung kann deshalb auch zu einem Paket gehören, dessen Mails ohne Link kamen, nie aber zu einem Paket mit einer anderen Sendung.
     - Der Status geht nur vorwärts: Eine ältere Mail setzt ein Paket nie zurück.
     - Eine Ausnahme ist die Mail „Versuchte Zustellung“ (niemand wurde angetroffen): Sie nimmt eine Bestellung von „In Zustellung“ zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag. Die Bestellung zählt dann nicht mehr als heute. Was schon zugestellt oder abholbereit ist, bleibt, wie es ist.
     - Gelesen werden auch die Mails im schlichten Layout mit „Bestellung #…“: „Ihr Paket mit … wird zugestellt“ (der Betreff nennt dort nur den Artikel) setzt „In Zustellung“, „Lieferungsaktualisierung: …“ lässt die Bestellung auf „Versendet“ und übernimmt den neuen Tag aus „Jetzt erwartet bis zum …“; nennt die Mail eine Verspätung, steht dazu der Text „Lieferung verspätet“. Den Namen nimmt die Bestellung aus der Zeile unter „Bestellung #…“, die so beginnt wie der Artikel im Betreff; nennt der Betreff keinen Artikel, kommt der Name aus den anderen Mails der Bestellung. Die Betreffs „Unterwegs zur Zustellung: …“ und „Zur Auslieferung: …“ zählen wie „In Zustellung“, „Zustellversuch: …“ wie „Versuchte Zustellung“. Die Versandmail „Deine Amazon.de-Bestellung mit … wurde versandt!“ setzt „Versendet“ samt Liefertag; nennt sie eine DHL-, UPS- oder Hermes-Nummer, übernimmt die Bestellung sie und wird ab dann dort abgefragt.
     - „Paket zur Abholung bereit: …“ von `pickup-point@amazon.de` (seit v0.3.36) setzt die Bestellung auf „Abholbereit“: Das Paket liegt in einem Hermes PaketShop, einem Amazon Locker oder Counter oder einem anderen Abholshop. Gibt es die Bestellung noch nicht, legt die Mail sie an, benannt nach dem ersten Artikel der Mail (nie nach dem Preis). Den Abholort übernimmt sie nur mit Namen und Straße der Abholstelle („Hermes PaketShop - Beispielkiosk Musterweg 1“), ohne die interne Nummer des Shops („HPS#…“), Postleitzahl und Ort. Er steht auf der Karte, im Attribut `pickup_point` und in der Benachrichtigung. „Abholung am 24. Oktober“ wird der letzte Abholtag (Attribut `pickup_until`), in der Benachrichtigung steht dann „… – Hermes PaketShop - Beispielkiosk Muster… bis 24.10.“ (der Ort höchstens 40 Zeichen lang). Fragt die Integration die Bestellung über eine Sendungsnummer beim Paketdienst ab, bleiben Ort und Tag, solange das Paket dort abholbereit ist und der Paketdienst keine eigenen nennt; nennt die Mail ihren eigenen Tag, gilt er nicht als letzter Abholtag. Eine spätere „Zugestellt“-Mail von Amazon oder dem Paketdienst schließt die Bestellung wie gewohnt.
+    - Storniert Amazon eine Bestellung, bekommt sie den Status „Storniert“ (`cancelled`): ohne Liefertag und ohne Benachrichtigung, sie zählt nicht zu den Paketen unterwegs und wird nach der eingestellten Zahl von Tagen aufgeräumt. „Ihre Bestellung wurde storniert.“ gilt für die ganze Bestellung. „Artikel … storniert: …“ und „… Stornierung von Artikeln …“ gelten für einzelne Artikel: Sie stornieren eine Bestellung nur, wenn sie genau aus diesem Artikel besteht (der Name passt, ohne „… und 1 weiterer Artikel“). Sonst kommt der Rest ja noch, und die Bestellung bleibt, wie sie ist. Listet die Bestellbestätigung ihre Artikel nach Liefertagen getrennt, heißt die Bestellung wie im Betreff („… und 3 weitere Artikel“), damit sie als Bestellung mehrerer Artikel erkannt wird. Nennt eine Bestätigung mehrere Bestellungen, zählt jede ihre eigenen Artikel und heißt ebenso.
+    - Storniert wird nur, was noch nicht versendet ist: eine Bestellung auf „Bestellt“ oder eine, die ohne Zustellmail abgeschlossen wurde und nie versendet war. An einer versendeten oder angekommenen Bestellung ändert die Mail nichts, auch wenn sie erst spät gelesen wird. Eine spätere Mail zur Bestellung öffnet sie wieder. Kommt die Stornierung vor der Bestellbestätigung an, findet sie keine Bestellung: Die Bestellung schließt dann wie jede [ohne Zustellmail](#bestellungen-ohne-zustellmail).
     - Kündigt DHL eine „Amazon Sendung“ an und passt genau ein offenes Amazon-Paket dazu (gleicher Liefertag), übernimmt das Amazon-Paket die DHL-Nummer und fragt ab dann DHL ab. Ist die Zuordnung nicht eindeutig, entsteht ein eigenes Paket „Amazon-Sendung (DHL)“.
 
 === "eBay"
 
     - Pro eBay-Bestellung entsteht ein Paket mit der Nummer `EBAY` + Bestellnummer, benannt nach dem Artikel.
+    - Die Kaufbestätigung („Bestellung bestätigt: …“, „Ihre Bestellung wurde bestätigt“) legt die Bestellung als „Bestellt“ an, mit dem Lieferzeitraum („Lieferung ca.: …“). Bei mehreren Artikeln heißt sie nach dem ersten, z. B. „… und 2 weitere Artikel“. Den Artikel liest der Import aus dem Text der Bestätigungen seit Herbst 2023. Aus älteren, auch „Ihre Bestellung ist eingegangen!“ und „Kauf bestätigt: …“, nimmt er ihn nur aus dem Betreff. Nennt der Betreff keinen, bleibt die Bestellung ohne Namen, bis die Versandmail ihn bringt. Nennt die erste Versandmail einen anderen Artikel als die Kaufbestätigung, heißt die Bestellung ab dann nach diesem (ein selbst vergebener Name bleibt). Ohne Kaufbestätigung beginnt die Bestellung wie bisher mit der ersten Versandmail.
     - Nur die Mails „Update zur Bestellung“ und „Zustellversuch“ nennen eine Sendungsnummer. Die 12-stelligen Artikelnummern werden nie als Sendungsnummer gelesen.
     - „Ihre Sendung ist jetzt beim Versanddienstleister!“ setzt „Versendet“ samt Lieferzeitraum („Lieferung ca.: Mi, 28. Jan - Do, 29. Jan“), „BESTELLUNG ZUGESTELLT“ und „PAKET ZUGESTELLT“ (seit v0.3.35) setzen „Zugestellt“. Die Wörter zählen überall im Betreff, so wie eBay sie schreibt (groß und mit Doppelpunkt) – auch hinter einem Symbol, „WG:“ oder einer Markierung des Mailservers wie „[EXTERN]“. Nennt die Mail den Artikel nicht, kommt der Name aus dem Betreff; den Verkäufer übernimmt der Import nie. „Update zur Bestellung“ setzt „Versendet“ samt Lieferzeitraum und übernimmt die Sendungsnummer, wenn sie ihren Paketdienst selbst verrät (DHL `00340…` oder `JJD…`, UPS, Hermes `H…`): Die Bestellung wird dann live beim Paketdienst abgefragt. Eine Nummer aus 12 oder 14 Ziffern kann zu mehreren Paketdiensten gehören und bleibt unberührt. „Zustellversuch: …“ (niemand wurde angetroffen) nimmt die Bestellung zurück auf „Versendet“, mit dem Text „Zustellung versucht“ und ohne Liefertag (ein späterer Tag, den der Paketdienst schon genannt hat, bleibt) und übernimmt die Sendungsnummer wie „Update zur Bestellung“. Andere eBay-Mails landen in „Nicht erkannt“.
     - Nennt die Mail den Versanddienstleister, zeigt die Karte ihn an („eBay · Versendet · via Hermes“, Attribut `shipping_carrier_hint`).
+    - „Kauf … wurde abgebrochen“ (der Verkäufer hat dem Abbruch zugestimmt) setzt die Bestellung auf „Storniert“, solange sie noch nicht versendet ist. Die Mail nennt den abgebrochenen Artikel, deshalb gilt dieselbe Regel wie bei Amazon: Eine Bestellung mehrerer Artikel bleibt, wie sie ist. Die Anfrage „OK - Sie möchten den Kauf abbrechen“ wird nur als gelesen markiert, denn der Verkäufer kann noch ablehnen.
 
 === "AliExpress"
 
@@ -243,7 +296,8 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Gelesen werden auch „Packstück …: mit lokalem Kurier“ und „Packstück …: im Zielland / in der Zielregion“ (beide „Versendet“ mit dem Schritt als Text) und „Bestellung …: zugestellt“ („Zugestellt“). Aus den Mails vom Herbst 2024 kennt der Import außerdem „verzollt“, „im Lieferzentrum“ und „Zur Auslieferung bereit“ (alle „Versendet“). Mails ohne Neuigkeit zu einem Paket (Lieferneuigkeiten ohne Nummer, Coupon nach einer Verspätung, Rücksendung und Rückerstattung) werden nur als gelesen markiert.
     - Auch die Mails der letzten Meile werden gelesen: „Paket … ist versandbereit“ setzt „Bestellt“, „Paket … wird zugestellt“ setzt „In Zustellung“ für den Tag der Mail (anders als „Bestellung …: wird zugestellt“), „Paket … wurde zugestellt“ setzt „Zugestellt“. Die Mail kommt zwei bis drei Stunden nach der des Paketdienstes: Hat der die Zustellung schon gemeldet, bleibt seine Uhrzeit. „Lieferprobleme für Packstück …“ setzt die Bestellung (auch aus „In Zustellung“ zurück) auf „Versendet“ mit dem Text „Lieferprobleme“, bis die nächste Mail kommt. Nennt eine solche Mail keine Bestellung und eine Nummer, die kein Paketdienst kennt, setzt sie nichts.
     - „wie ist es gelaufen?“ mit dem Satz „Wir haben die Lieferung Ihrer Bestellung … bestätigt“ (mit der Bestellnummer aus dem Betreff) schließt die Bestellung mit dem Text „Lieferung bestätigt (laut AliExpress)“ – so wie eine [Bestellung ohne Zustellmail](#bestellungen-ohne-zustellmail): `assumed_delivered` ist `true`, keine Benachrichtigung, nicht „heute zugestellt“. Die Mail kommt oft erst Tage später und beweist keine Ankunft, sie fragt selbst, ob der Artikel schon da ist. Hat der Paketdienst die Zustellung schon gemeldet, ändert die Mail nichts: Dessen Zeitpunkt bleibt stehen. Dasselbe gilt, solange die Bestellung bei ihm abgefragt wird und sich dort in den letzten 3 Tagen etwas getan hat; steht sie länger unverändert, schließt die Mail sie.
-    - Nur als gelesen markiert werden die Aufforderung zur Bewertung („Wie war Ihr Einkaufserlebnis?“), die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“ (die Mail sagt nicht, ob die Bestellung abgeschlossen oder storniert wurde). Andere AliExpress-Mails landen in „Nicht erkannt“.
+    - „Stornierte Bestellung wegen überfälligem Versand“ (der Händler hat nicht rechtzeitig verschickt) setzt eine Bestellung, die noch nicht versendet ist, auf „Storniert“, wie bei Amazon.
+    - Nur als gelesen markiert werden die Aufforderung zur Bewertung („Wie war Ihr Einkaufserlebnis?“), die Erinnerung „auf Bestätigung wird gewartet“ und „Your order … is closed“ (die Mail sagt nicht, ob die Bestellung abgeschlossen oder storniert wurde; sie kommt auch nach einem Streitfall oder einer Erstattung). Andere AliExpress-Mails landen in „Nicht erkannt“.
     - Bestellungen ohne Sendungsnummer, für die keine Bestätigung kommt, schließt die Integration von selbst: 3 Tage nach dem letzten Liefertag, ohne Liefertag nach 14 Tagen (siehe [Bestellungen ohne Zustellmail](#bestellungen-ohne-zustellmail)).
 
     Die AliExpress-Mails sind nach Beispielmails umgesetzt und im Alltag noch nicht bestätigt, siehe [Roadmap & Status](stand.md).
@@ -267,11 +321,12 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
 === "DHL"
 
     - Den Status liest der Import nur aus dem Betreff, siehe die Tabelle unter [Kein Key? Dann die DHL-Mails](dienste.md#kein-key-dann-die-dhl-mails).
+    - Liegt das Paket zur Abholung bereit („… ist in der Filiale abholbereit“, „Ihr DHL Paket ist ab sofort abholbereit“, auch die Erinnerung „liegt seit 2 Tagen in der Filiale“), übernimmt der Import aus dem Block „Adresse“ bzw. „Adresse der Filiale“ die Filiale oder Packstation mit Straße als Abholort („Postfiliale 999, Beispielweg 12“), ohne Postleitzahl und Ort. Gebaut ist das nach Abholmails aus Filialen; für Packstation, Poststation und Paketshop gab es noch kein Beispiel, dort gilt dieselbe Form des Blocks als Annahme. Er steht auf der Karte, im Attribut `pickup_point` und in der Benachrichtigung. Beginnt der Block nicht mit einer Filiale, Packstation, Poststation oder einem Paketshop, bleibt der Abholort leer, so wird nie eine Empfängeradresse zum Abholort. Mit DHL-Key bleibt dieser Abholort, solange das Paket abholbereit ist: DHL selbst nennt nur den Ort. Einen letzten Abholtag übernimmt der Import nicht, weil die Mail nur „7 Werktage“ nennt.
     - Internationale Nummern liest er nicht nur mit „DE“ am Ende (`CQ…DE`), sondern auch Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37), wie DHL sie bei Sendungen aus dem Ausland nennt (`LE…BE`, `LW…NL`). Das Paket wird ein DHL-Paket, und die Integration fragt es mit dem DHL-Key bei DHL ab. Solche Nummern zählen nur in Mails von DHL.
     - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
     - Steht im Textteil der Mail keine Nummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil: dort auch die Nummer direkt unter „Sendungsstatus einsehen“ bzw. „Sendungsverlauf einsehen“, mit 12 Ziffern oder als Nummer aus dem Ausland (z. B. `LR…NL`, `JJATA…`).
     - Bei einer Sendung aus dem Ausland nennt die DHL-Mail am Zustelltag („Ihre DHL Sendung kommt heute“) die Einfuhrabgaben: „Die Einfuhrabgaben i.H.v. 12,34€ (inkl. 7,50€ Auslagepauschale …) sind bei Zustellung, möglichst passend, in bar zu bezahlen.“ Der Import liest daraus den Betrag (den ersten, nicht die Gebühren in der Klammer), die Währung und ob „in bar“ dasteht. Sie stehen in den Attributen `customs_amount`, `customs_currency` und `customs_cash`, auf der Karte und in der Benachrichtigung „In Zustellung“ – bis das Paket zugestellt ist. Eine spätere Mail ohne den Satz ändert daran nichts.
-    - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson. Der Name endet an der Rechtsform; was dahinter steht (ein Kürzel, eine Ansprechperson), wird nicht übernommen.
+    - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson. Der Name endet an der Rechtsform; was dahinter steht (ein Kürzel, eine Ansprechperson), wird nicht übernommen. Nur mit der Option **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** (Standard: aus) entfällt diese Prüfung, siehe [Datenschutz](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen).
     - Der Anzeigename eines Paketdienstes („DHL Paketankündigung“, „DHL Zustell-Update“) wird nie zum Namen: Ohne Shop heißt das Paket `DHL <Nummer>`. Nennt der Betreff eine Firma des Paketdienstes selbst („Ihre DHL Paket (Austria) GmbH c/o … Sendung“), gibt es ebenfalls keinen Namen.
     - Trägt ein Paket aus einer älteren Version noch so einen Namen, ersetzt ihn die nächste Mail, die einen Shop nennt – aber nur, wenn der Name aus einem Paketdienst (DHL, DPD, GLS, Hermes, UPS, Deutsche Post) und Wörtern einer Benachrichtigung besteht und sonst nichts enthält („DHL Paketankündigung“, „DHL Zustell-Update“, „DPD Versandinfo“, „DHL Paket“). Jeder andere Name bleibt, auch „Hermes“, „DHL Express“ oder „Paket“: Er kann selbst vergeben sein.
     - Eine „Amazon Sendung“ landet beim passenden Amazon-Paket, siehe [Zusammenführen](#zusammenfuhren-carrier-mail-und-bestellung).
@@ -349,6 +404,8 @@ Eine Carrier-Mail (DHL „Amazon Sendung“, GLS, Hermes, UPS) gehört zu **gena
 
 Das Shop-Paket übernimmt dann die Sendungsnummer und fragt ab da den Paketdienst ab (Attribute `tracking_ref` und `tracking_carrier`). Passt es nicht eindeutig, entsteht ein eigenes Paket.
 
+Eine Carrier-Mail, die Amazon nennt, kommt nie zu einer Amazon-Bestellung, deren Sendungen alle der Verkäufer selbst verschickt („Versand durch Verkäufer“, erkennbar an Amazons Sendungs-ID mit „D“ am Anfang): Dessen Paketdienst nennt den Verkäufer, nie Amazon. Bleibt nach diesem Ausschluss genau eine andere passende Bestellung übrig, bekommt sie die Mail. Die Mail vom Paketdienst des Verkäufers findet eine solche Bestellung weiter über den Versanddienstleister, den die Shop-Mail genannt hat, oder über die Marke; Letzteres nur, wenn sie eine Firma nennt und der Artikeltitel mit deren Namen beginnt (Bedingungen im Kasten darunter).
+
 ??? note "Carrier-Mail nennt die Marke statt des Shops"
     Nennt die Carrier-Mail statt des Shops die Marke („Ihre Beispielmarke GmbH Sendung kommt heute“), gehört sie nur zu einem offenen **Amazon-Paket** ohne Sendungsnummer – nie zu einem eBay-Paket –, und nur, wenn
 
@@ -423,7 +480,7 @@ Der Import übernimmt nur:
 
 - Bestell- bzw. Sendungsnummer,
 - einen auf 60 Zeichen gekürzten Artikeltitel,
-- den Namen eines Shops oder einer Firma (nur bis zur Rechtsform, nie den einer Privatperson und nie den Anzeigenamen eines Paketdienstes; das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD),
+- den Namen eines Shops oder einer Firma (nur bis zur Rechtsform, nie den einer Privatperson und nie den Anzeigenamen eines Paketdienstes; das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD). Einzige Ausnahme: die Option [Absendernamen aus DHL-Mails übernehmen](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen),
 - Status, Liefertag und Zeitfenster,
 - bei einer DHL-Sendung aus dem Ausland den Betrag der Einfuhrabgaben, seine Währung und ob bar gezahlt werden soll (nicht den Satz selbst),
 - den Versanddienstleister,
