@@ -267,7 +267,8 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
             if title is None and plain_names:
                 title = _plain_name(shop)
     status, ahead = _dhl_status(subj)
-    customs = _dhl_customs(text)
+    # (like the pickup point: the text read for the number, else the HTML part)
+    customs = _dhl_customs(text) or _dhl_customs(html_body_text(msg))
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
     if status is ParcelStatus.OUT_FOR_DELIVERY:

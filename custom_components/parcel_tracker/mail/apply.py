@@ -319,10 +319,7 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         changed = True
     if parcel.status is ParcelStatus.DELIVERED:
         # Due at delivery: once delivered there is nothing left to pay or to tell.
-        if parcel.customs_amount is not None:
-            parcel.customs_amount = parcel.customs_currency = None
-            parcel.customs_cash = False
-            changed = True
+        changed = parcel.clear_customs() or changed
     elif update.customs_amount is not None:
         taken = (update.customs_amount, update.customs_currency, update.customs_cash)
         if taken != (parcel.customs_amount, parcel.customs_currency, parcel.customs_cash):
@@ -1012,6 +1009,11 @@ def _fold(parcels: dict[str, Parcel], parcel: Parcel, order: Parcel, keep: bool 
         order.owner, order.owner_manual = parcel.owner, parcel.owner_manual
     order.tracking_ref = parcel.number
     order.tracking_carrier = parcel.carrier
+    if order.customs_amount is None and parcel.customs_amount is not None:
+        # (the duty a DHL mail named belongs to the order that takes the parcel in)
+        order.customs_amount = parcel.customs_amount
+        order.customs_currency = parcel.customs_currency
+        order.customs_cash = parcel.customs_cash
     if keep:
         order.result = _joined(order.result, parcel.result)
         order.last_change_at = max(order.last_change_at, parcel.last_change_at)
@@ -1067,6 +1069,7 @@ def close_unconfirmed(
     parcel.assumed_delivered = True
     parcel.last_change_at = now
     parcel.delivery_code = parcel.delivery_code_day = None
+    parcel.clear_customs()
 
 
 def mark_received(parcel: Parcel, now: datetime) -> None:
@@ -1106,6 +1109,7 @@ def mark_received(parcel: Parcel, now: datetime) -> None:
     if not closed:
         parcel.last_change_at = now
     parcel.delivery_code = parcel.delivery_code_day = None
+    parcel.clear_customs()
     parcel.last_error = None
     parcel.error_streak = 0
     parcel.first_error_at = None

@@ -67,7 +67,7 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 | Problem | `⚠️ Kopfhörer (DHL): Problem bei der Zustellung` |
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
-- Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da.
+- Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da. Meldet die DHL-Abfrage (mit API-Key) „In Zustellung“, bevor die Mail mit dem Betrag da ist, geht die Meldung ohne Zoll raus, und die spätere Mail löst keine zweite aus; der Betrag steht dann trotzdem auf der Karte und in den Attributen.
 - Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder eine Abholmail sie nennt (Amazon „Paket zur Abholung bereit“, bei DHL nur der Abholort). Der Ort ist höchstens 40 Zeichen lang.
 - Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen).
 - Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.

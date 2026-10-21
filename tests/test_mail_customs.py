@@ -13,7 +13,8 @@ from email.message import EmailMessage
 import pytest
 
 from custom_components.parcel_tracker.mail import parse_mail
-from custom_components.parcel_tracker.mail.apply import apply_update
+from custom_components.parcel_tracker.mail.apply import apply_update, mark_received
+from custom_components.parcel_tracker.mail.base import MailUpdate
 from custom_components.parcel_tracker.mail.shipping import parse_dhl_mail
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus
 
@@ -214,3 +215,70 @@ def test_a_parcel_stored_by_an_older_version_has_no_duty():
         None,
         False,
     )
+
+
+# ----- review of the pull request: where the duty goes away, joins, and is read -----
+
+
+def test_marking_the_parcel_as_received_forgets_the_duty():
+    [update] = parse_mail(load_mail(FIXTURE)).updates
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, update)
+    parcel = parcels[NUMBER]
+    assert parcel.customs_due is not None
+    mark_received(parcel, NOW)
+    assert (parcel.customs_amount, parcel.customs_currency, parcel.customs_cash) == (
+        None,
+        None,
+        False,
+    )
+
+
+def test_a_shop_order_that_takes_the_carrier_parcel_in_keeps_its_duty():
+    """The DHL mail comes first and makes a parcel with the duty; a shop mail then names the
+    same number: the order that takes the parcel in must not lose the amount."""
+    [update] = parse_mail(load_mail(FIXTURE)).updates
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, update)
+    order = MailUpdate(
+        number="ALI9999999999990001",
+        carrier="aliexpress",
+        status=ParcelStatus.IN_TRANSIT,
+        sent_at=update.sent_at + timedelta(hours=1),
+        title="Kabel",
+        tracking_ref=update.number,
+        tracking_carrier="dhl",
+    )
+    _apply(parcels, order, NOW + timedelta(hours=1))
+    assert list(parcels) == ["ALI9999999999990001"]  # one parcel left: the order
+    assert parcels["ALI9999999999990001"].customs_due == (12.34, "EUR", True)
+
+
+def test_an_order_with_its_own_duty_keeps_it_when_a_carrier_parcel_joins():
+    [update] = parse_mail(load_mail(FIXTURE)).updates
+    parcels: dict[str, Parcel] = {}
+    _apply(parcels, update)
+    parcels[NUMBER].customs_amount = 99.0  # the parcel's own figure ...
+    order = MailUpdate(
+        number="ALI9999999999990002",
+        carrier="aliexpress",
+        status=ParcelStatus.IN_TRANSIT,
+        sent_at=update.sent_at + timedelta(hours=1),
+        title="Kabel",
+    )
+    _apply(parcels, order, NOW + timedelta(hours=1))
+    parcels["ALI9999999999990002"].customs_amount = 5.0  # ... and the order's, set earlier
+    again = replace(order, tracking_ref=update.number, tracking_carrier="dhl")
+    _apply(parcels, again, NOW + timedelta(hours=2))
+    assert parcels["ALI9999999999990002"].customs_amount == 5.0
+
+
+def test_the_duty_is_read_from_the_html_part_when_the_text_part_has_the_number_only():
+    msg = _msg(f"Ihre Sendung kommt heute.\n{NUMBER}\n")
+    msg.add_alternative(
+        "<html><body><table><tr><td>" + SENTENCE.format(amount="12,34€") + "</td></tr></table>"
+        "</body></html>",
+        subtype="html",
+    )
+    [u] = parse_dhl_mail(msg)
+    assert (u.number, _customs(u)) == (NUMBER, (12.34, "EUR", True))

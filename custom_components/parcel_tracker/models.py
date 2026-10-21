@@ -267,6 +267,13 @@ class Parcel:
             return None
         return self.customs_amount, self.customs_currency or "EUR", self.customs_cash
 
+    def clear_customs(self) -> bool:
+        """Forget the import duty (the parcel is delivered); True if there was one."""
+        had = self.customs_amount is not None
+        self.customs_amount = self.customs_currency = None
+        self.customs_cash = False
+        return had
+
     @property
     def poll_target(self) -> tuple[str | None, str] | None:
         """(carrier key or None for auto, number) to poll, or None if mail-only."""

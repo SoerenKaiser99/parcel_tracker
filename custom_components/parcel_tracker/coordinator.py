@@ -587,10 +587,15 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 box: s for box, s in self._box_told.items() if box[:2] in boxes
             }
         today = dt_util.as_local(now).date()
+        cleared = False
         for parcel in self.store.parcels.values():
             if parcel.delivery_code and parcel.active_code(today) is None:
                 parcel.delivery_code = parcel.delivery_code_day = None
-        return bool(removed)
+            if parcel.status is ParcelStatus.DELIVERED and parcel.clear_customs():
+                # Import duty is due at delivery, however the delivery became known
+                # (carrier, mail, "Erhalten", closed order): nothing left to keep.
+                cleared = True
+        return bool(removed) or cleared
 
     def _settle_orders(self, now: datetime) -> bool:
         """Close shop orders that get no "delivered" mail; True if something changed.
