@@ -739,12 +739,22 @@ _T_BYE = re.compile(
     r"|(?:mfg|lg|vg)[ \t,!.]*)\n(?:[*_> \t]*\n)?[*_> \t]*)"
     r"(?P<name>[^\s*_>][^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>(?:\n[^\n]*\S[^\n]*){0,4})"
 )
-# The same with the name on the line of the formula: "VG V. Nachname", "Viele Grüße, Vorname
-# Nachname".
+# The same with the name on the line of the formula: "Viele Grüße, Vorname Nachname".
 _T_BYE_SAME = re.compile(
-    r"(?im)^(?P<bye>[*_> \t]*(?:mfg|lg|vg"
-    r"|(?:viele|liebe|beste|freundliche)[ \t]+gr(?:ü|ue)(?:ß|ss)e|gru(?:ß|ss))[ \t]*,?[ \t]+)"
+    r"(?im)^(?P<bye>[*_> \t]*(?:(?:viele|liebe|beste|freundliche)[ \t]+gr(?:ü|ue)(?:ß|ss)e"
+    r"|gru(?:ß|ss))[ \t]*,?[ \t]+)"
     r"(?=[A-ZÄÖÜ])(?P<name>[^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>)"
+)
+# And with a short form: "VG V. Nachname". Only at the end of a text (_t_at_end): "LG Gram
+# Notebook Pro" in an order is a brand and an article.
+_T_BYE_SHORT = re.compile(
+    r"(?im)^(?P<bye>[*_> \t]*(?:mfg|lg|vg)[ \t]*,?[ \t]+)"
+    r"(?=[A-ZÄÖÜ])(?P<name>[^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>)"
+)
+# A line where a quoted mail begins, or the next message of a thread ("Hallo NAME," at eBay).
+_T_QUOTE_START = re.compile(
+    r"(?i)[ \t]*(?:-{2,}|_{5,}|(?:Von|From)[ \t]*:|Am\b.*\bschrieb|On\b.*\bwrote"
+    rf"|{_T_GREETING}\b)"
 )
 # A line of the signature below such a name that is a web address and nothing else.
 _T_SIGNED_WEB = re.compile(
@@ -1002,6 +1012,43 @@ def _t_name_line(name):
     )
 
 
+def _t_at_end(text, start, lead):
+    """True if the text ends behind position start, with a signature of up to four lines, or
+    a quoted mail begins there. lead is the start of the line in front of start: its quote
+    marks ("> ") end the text where a line has others."""
+    depth = re.sub(r"[^>]", "", lead)
+    signature, pos = 0, text.find("\n", start)
+    while pos != -1:
+        end = text.find("\n", pos + 1)
+        line = text[pos + 1:] if end == -1 else text[pos + 1:end]
+        pos = end
+        marks = re.match(r"[> \t]*", line).group()
+        if re.sub(r"[^>]", "", marks) != depth:
+            return True
+        line = line[len(marks):]
+        if not line.strip():
+            continue
+        if _T_QUOTE_START.match(line):
+            return True
+        signature += 1
+        if signature > 4:
+            return False
+    return True
+
+
+def _t_label_above(text, start):
+    """True if the last line with text above position start (a line start) is a label
+    ("Artikel:"): what follows is its value, not a closing formula."""
+    end = start - 1
+    while end > 0:
+        begin = text.rfind("\n", 0, end) + 1
+        line = text[begin:end].strip("*_> \t")
+        if line:
+            return line.endswith(":")
+        end = begin - 1
+    return False
+
+
 def _t_person(name):
     """True for a name that looks like a person's: two to four capitalised words, no company."""
     tokens = name.split()
@@ -1222,6 +1269,16 @@ class _TScrubber:
             return f"{match.group('bye')}{name}{match.group('end')}{rest}"
         return f"{match.group('bye')}Max Mustermann{match.group('end')}{rest}"
 
+    def _bye_short(self, match):
+        """"VG NAME": only at the end of a text and not below a label, else it may be an
+        article that starts with a brand ("Artikel:\nLG Gram Notebook Pro")."""
+        text = match.string
+        if _t_label_above(text, match.start()) or not _t_at_end(
+            text, match.end(), match.group("bye")
+        ):
+            return match.group(0)
+        return self._bye(match)
+
     def _sender(self, match):
         """A person as sender becomes a placeholder, a company stays; the address never stays."""
         name = match.group(2)
@@ -1276,10 +1333,10 @@ class _TScrubber:
         replacement = "Beispielnachbar" if neighbour else "Max Mustermann"
         self._note(name, replacement)
         address, end = match.group("address") or "", match.end()
-        if address.strip(" \t()") and re.fullmatch(_T_STREET, address.strip(" \t()")):
-            self._recipient("", address.strip(" \t()"), "", "")
+        if address.strip(" \t\n()") and re.fullmatch(_T_STREET, address.strip(" \t\n()")):
+            self._recipient("", address.strip(" \t\n()"), "", "")
             address = " (Musterstraße 1)"
-        elif address and not address.strip(" \t()"):
+        elif address and not address.strip(" \t\n*_()"):
             # the line below: only a street with its house number and nothing else
             found = re.match(rf"({_T_STREET})[ \t]*$", match.string[end:end + 80].split("\n")[0])
             if found:
@@ -1418,6 +1475,7 @@ class _TScrubber:
         text = _T_HELLO_NAMED.sub(self._hello_named, text)
         text = _T_BYE.sub(self._bye, text)
         text = _T_BYE_SAME.sub(self._bye, text)
+        text = _T_BYE_SHORT.sub(self._bye_short, text)
         text = _T_QUOTED_TO.sub(self._quoted_to, text)
         for pattern in (_T_SENDER_BLOCK, _T_SENDER_NEXT, _T_SENDER_INLINE, _T_SENDER_SAME,
                         _T_SELLER):

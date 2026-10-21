@@ -686,6 +686,43 @@ def test_name_on_the_line_of_the_closing_formula(tmp_path, closing, expected):
     assert f"Wo bleibt mein Paket?\n{expected}\n" in _text(msg)
 
 
+@pytest.mark.parametrize(
+    "below",
+    [
+        "Tel. 0151 2345678\nwww.sonnberg.example\n",
+        "\nAm 18.07.2023 um 08:00 schrieb Paketflitzer:\n> Ihr Paket kommt.\n> Heute.\n"
+        "> Zwischen 10 und 12 Uhr.\n> Ihr Paketflitzer Team\n> www.paketflitzer.example\n",
+        # the next message of a thread, as eBay puts it below without quote marks
+        "Hallo Paketflitzer,\nIhr Paket kommt.\nHeute.\nZwischen 10 und 12 Uhr.\n"
+        "Ihr Paketflitzer Team\nwww.paketflitzer.example\n",
+    ],
+)
+def test_short_closing_formula_with_a_signature_or_a_quoted_mail_below(tmp_path, below):
+    raw = _mail(SHOP, "Ihre Frage", f"Wo bleibt mein Paket?\nVG T. Sonnberg\n{below}")
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    assert "Wo bleibt mein Paket?\nVG Max Mustermann\n" in _text(msg)
+
+
+@pytest.mark.parametrize("title", ["LG Gram Notebook Pro", "VG Wort Ausgabe Gesamt"])
+@pytest.mark.parametrize(
+    "below",
+    [
+        "Menge: 1\nPreis: 899,00 €\n\nLieferung: Dienstag\nVersand: Paketflitzer\n"
+        "Zahlung: Rechnung\nIhr Paketflitzer Team\nwww.paketflitzer.example\n",
+        # a short mail: the title is near the end, the label above tells
+        "Menge: 1\n",
+    ],
+)
+def test_brand_at_the_start_of_an_article_title_is_no_closing_formula(tmp_path, title, below):
+    raw = _mail(
+        SHOP, "Ihre Bestellung", f"Vielen Dank für Ihre Bestellung.\n\nArtikel:\n{title}\n{below}",
+    )
+    other = _mail(SHOP, "Versandt", f"{title} wurde versandt.\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
+    assert f"Artikel:\n{title}\nMenge: 1\n" in _text(first)
+    assert f"{title} wurde versandt.\n" in _text(second)
+
+
 FORWARDED = (
     "-------- Weitergeleitete Nachricht --------\n"
     "Von: DHL <noreply@dhl.de>\nGesendet: Dienstag, 18. Juli 2023 08:00\n{to}"
@@ -773,8 +810,18 @@ def test_neighbour_on_the_line_below_the_label(tmp_path):
     )
     _, [(_, msg)] = _run(tmp_path, [raw])
     text = _text(msg)
-    _absent(msg, "haselnuss")
-    assert "Ihr Nachbar:\nBeispielnachbar\n" in text
+    _absent(msg, "haselnuss", "ahornallee")
+    assert "Ihr Nachbar:\nBeispielnachbar\nMusterstraße 1\n" in text
+
+
+def test_neighbour_with_first_name_and_street_on_the_lines_below(tmp_path):
+    raw = _mail(
+        "DHL <noreply@dhl.de>", "Ihr Paket ist beim Nachbarn",
+        "Ihr Nachbar:\nGerold Brakel\nAhornweg 7\n\nDanke für Ihren Einkauf.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    _absent(msg, "gerold", "brakel", "ahornweg")
+    assert "Ihr Nachbar:\nBeispielnachbar\nMusterstraße 1\n" in _text(msg)
 
 
 def test_neighbour_below_an_empty_line_and_the_neighbours_street(tmp_path):
