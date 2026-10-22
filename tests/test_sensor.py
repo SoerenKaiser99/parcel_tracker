@@ -164,6 +164,12 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     assert expired.attributes["amazon_shipment"] == "UhIjKl9mN"
     assert "delivery_code" in ParcelSensor._unrecorded_attributes
     assert {"name", "tracking_url", "amazon_shipment"} <= ParcelSensor._unrecorded_attributes
+    # The customs amount is deleted on delivery: the history must not keep it.
+    assert {
+        "customs_amount",
+        "customs_currency",
+        "customs_cash",
+    } <= ParcelSensor._unrecorded_attributes
 
 
 async def test_sensor_exposes_eta_latest(hass):

@@ -20,7 +20,7 @@ from custom_components.parcel_tracker.models import Parcel, ParcelStatus
 
 from .conftest import load_mail
 
-FIXTURE = "178_dhl_zustellung_kommt_heute_einfuhrabgaben.eml"
+FIXTURE = "195_dhl_zustellung_kommt_heute_einfuhrabgaben.eml"
 NUMBER = "LE999999901BE"
 NOW = datetime(2026, 9, 28, 6, 0, tzinfo=UTC)
 SENTENCE = (

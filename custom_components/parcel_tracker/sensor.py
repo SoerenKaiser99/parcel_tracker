@@ -99,8 +99,19 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_options = [s.value for s in ParcelStatus]
     _attr_translation_key = "parcel"
     _attr_icon = "mdi:package-variant-closed"
+    # (the customs amount is deleted on delivery: the history must not keep it either)
     _unrecorded_attributes = frozenset(
-        {"events", "status_text", "delivery_code", "name", "tracking_url", "amazon_shipment"}
+        {
+            "events",
+            "status_text",
+            "delivery_code",
+            "name",
+            "tracking_url",
+            "amazon_shipment",
+            "customs_amount",
+            "customs_currency",
+            "customs_cash",
+        }
     )
 
     def __init__(self, coordinator: ParcelCoordinator, number: str) -> None:

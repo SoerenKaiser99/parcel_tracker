@@ -17,7 +17,7 @@ NUMBER = "LE999999901BE"
 
 async def _parcel_with_duty(hass):
     coord = await _coordinator(hass, FakeMailbox())
-    [update] = parse_mail(load_mail("178_dhl_zustellung_kommt_heute_einfuhrabgaben.eml")).updates
+    [update] = parse_mail(load_mail("195_dhl_zustellung_kommt_heute_einfuhrabgaben.eml")).updates
     apply_update(coord.store.parcels, update, NOW)
     parcel = coord.store.parcels[NUMBER]
     assert parcel.customs_due == (12.34, "EUR", True)
