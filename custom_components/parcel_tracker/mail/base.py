@@ -108,6 +108,22 @@ _DPD_LABELLED = re.compile(
     re.IGNORECASE,
 )
 DPD_DOMAINS = ("dpd.de", "service.dpd.de")
+# DHL eCommerce (shipments from the Netherlands) and other DHL shipments carry a GS1 SSCC: "00"
+# and 18 digits whose last one is a check digit. 20 digits say nothing on their own (DHL's own
+# "00340…" is found anywhere, see ``_NUMBERS``): only right behind a label for a tracking
+# number, and only with a check digit that fits.
+# The label starts a word ("DHL-Trackingnummer" is one, "Rücksendungsnummer" is not), and a
+# return's label ("Retouren-Trackingnummer", "Retoure Sendungsnummer", "Rück-Sendungsnr.")
+# names a parcel that goes back, not one that comes (``_SSCC_RETURN``).
+_SSCC_LABELLED = re.compile(
+    r"(?<!\w)"
+    r"(?:Sendungsnummer|Sendungsnr\.|Tracking-?nummer|Shipment\s+number|Tracking\s+number)"
+    r"\s*:?\s*(00\d{18})(?!\d)",
+    re.IGNORECASE,
+)
+_SSCC_RETURN = re.compile(
+    r"(?:rück\w*|retoure\w*|return\w*)(?:\s+label)?[\s:–-]*$", re.IGNORECASE
+)
 
 DpdMode = Literal["labelled", "any"] | None
 
@@ -120,15 +136,36 @@ def carrier_for(number: str) -> str | None:
     return None
 
 
+def sscc_valid(number: str) -> bool:
+    """A GS1 SSCC as carriers print it: "00", 18 digits, the last a fitting check digit (mod 10,
+    the digits weighted 3, 1, 3, … from the right)."""
+    if len(number) != 20 or not number.isascii() or not number.isdigit():
+        return False
+    if not number.startswith("00"):
+        return False
+    total = sum(
+        int(digit) * (3 if index % 2 == 0 else 1)
+        for index, digit in enumerate(reversed(number[:-1]))
+    )
+    return (10 - total % 10) % 10 == int(number[-1])
+
+
 def find_numbers(text: str, dpd: DpdMode = None) -> list[tuple[str, str]]:
     """Safe tracking numbers in ``text`` as (carrier, number), first occurrence first.
 
     ``dpd``: None = no DPD numbers, "labelled" = only 14 digits after a parcel-number
-    label, "any" = every 14-digit number (mails from DPD itself).
+    label, "any" = every 14-digit number (mails from DPD itself). An SSCC ("00" and 18
+    digits) counts for DHL only behind its label and with a valid check digit.
     """
     found: list[tuple[int, str, str]] = []
     for carrier, pattern in _NUMBERS:
         found += [(m.start(), carrier, m.group(1)) for m in pattern.finditer(text)]
+    found += [
+        (m.start(1), "dhl", m.group(1))
+        for m in _SSCC_LABELLED.finditer(text)
+        if sscc_valid(m.group(1))
+        and not _SSCC_RETURN.search(text, max(m.start() - 30, 0), m.start())
+    ]
     if dpd is not None:
         pattern = _DPD if dpd == "any" else _DPD_LABELLED
         found += [(m.start(1), "dpd", m.group(1)) for m in pattern.finditer(text)]

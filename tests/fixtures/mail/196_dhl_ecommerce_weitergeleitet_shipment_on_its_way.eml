@@ -1,0 +1,100 @@
+X-Fixture: derived from a tester's anonymised mail (forwarded by hand); the parcel
+ number is replaced by an invented SSCC with a valid check digit, the reference
+ by an invented one
+From: Max Mustermann <max@example.org>
+To: adresse2@example.org, adresse2@example.org
+Subject: WG: Shipment on its way
+Date: Wed, 07 Oct 2026 09:18:07 +0000
+Message-ID: <fixture-196@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============4037999724104361419=="
+
+--===============4037999724104361419==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Von: DHL eCommerce<noreply@dhlecommerce.nl>
+Datum: Dienstag, 6. Oktober 2026 um 15:21
+An: max@example.org
+Betreff: Shipment on its way
+
+
+[https://static.dhlecommerce.nl/…]
+WE WILL DELIVER SOON
+
+Soon our courier will deliver shipment 00099999999999999992<https://secure.dhlecommerce.nl/…> from Harman Service Delivery to you. Please check the track and trace information for further shipment updates.
+
+________________________________
+[https://static.dhlecommerce.nl/…]
+
+Delivery address
+Max Mustermann
+Musterstraße 1
+12345 Musterstadt
+
+________________________________
+[https://static.dhlecommerce.nl/…]
+
+Shipment number
+
+00099999999999999992<https://secure.dhlecommerce.nl/…>
+
+
+Reference
+
+9999999901
+
+________________________________
+
+The sender sends you this message:
+
+Bedankt voor uw bestelling
+
+________________________________
+What do you think of the content of this email?<https://secure.dhlecommerce.nl/…>
+[1]<https://secure.dhlecommerce.nl/…> <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…> [2] <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…> [3] <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…> [4] <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…> [5] <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…>
+
+DHL Group
+
+2026 © DHL eCommerce (Netherlands) B.V. All rights reserved.
+
+This message was sent automatically, replies are not monitored. Please visit our support page<https://secure.dhlecommerce.nl/…> if you have any questions. Our email addresses always end in @dhlecommerce.nl, @dhlparcel.nl or @dhl.com and we will never ask you for login or payment information through email. Something seems suspicious? Please check here!<https://secure.dhlecommerce.nl/…> Read here<https://secure.dhlecommerce.nl/…> how we process your personal data.
+
+<https://secure.dhlecommerce.nl/…> <https://secure.dhlecommerce.nl/…> <https://secure.dhlecommerce.nl/…>  <https://secure.dhlecommerce.nl/…>
+
+--===============4037999724104361419==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Von: DHL eCommerce&lt;noreply@dhlecommerce.nl&gt;</p>
+<p>Datum: Dienstag, 6. Oktober 2026 um 15:21</p>
+<p>An: max@example.org</p>
+<p>Betreff: Shipment on its way</p>
+<p>WE WILL DELIVER SOON</p>
+<p>Soon our courier will deliver shipment 00099999999999999992</p>
+<p>from</p>
+<p>Harman Service Delivery to you. Please check the track and trace information for further shipment updates.</p>
+<p>Delivery address</p>
+<p>Max Mustermann</p>
+<p>Musterstraße 1</p>
+<p>12345 Musterstadt</p>
+<p>Shipment number</p>
+<p>00099999999999999992</p>
+<p>Reference</p>
+<p>9999999901</p>
+<p>The sender sends you this message:</p>
+<p>Bedankt voor uw bestelling</p>
+<p>What</p>
+<p>do you think of the content of this email?</p>
+<p>DHL Group</p>
+<p>2026 © DHL eCommerce (Netherlands) B.V. All rights reserved.</p>
+<p>This message was sent automatically, replies are not monitored. Please visit our</p>
+<p>support page if you have any questions. Our email addresses always end in @dhlecommerce.nl, @dhlparcel.nl or @dhl.com and we will never ask you for login or payment information through email. Something seems suspicious?</p>
+<p>Please check here! Read</p>
+<p>here how we process your personal data.</p>
+</body></html>
+
+--===============4037999724104361419==--

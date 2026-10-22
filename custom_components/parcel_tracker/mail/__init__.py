@@ -44,10 +44,13 @@ from .hermes import HERMES_SENDER, parse_hermes_mail
 from .shipping import (
     DHL_COM_DOMAIN,
     DHL_DOMAIN,
+    DHL_ECOMMERCE_DOMAIN,
+    DHL_ECOMMERCE_SENDER,
     DHL_EXPRESS_SENDER,
     DHL_SENDER,
     KNOWN_SENDER_DOMAINS,
     UPS_SENDER,
+    parse_dhl_ecommerce_mail,
     parse_dhl_express_mail,
     parse_dhl_mail,
     parse_generic,
@@ -76,6 +79,7 @@ _KNOWN_SENDERS = (
     HERMES_SENDER,
     DHL_SENDER,
     DHL_EXPRESS_SENDER,
+    DHL_ECOMMERCE_SENDER,
     UPS_SENDER,
     ALIEXPRESS_SENDER,
     # (every sender at eventim.de is booked under that domain, a sub-domain as its parent)
@@ -194,6 +198,10 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
         return MailResult(updates=updates)
     if (domain == DHL_COM_DOMAIN or domain.endswith(f".{DHL_COM_DOMAIN}")) and (
         updates := parse_dhl_express_mail(msg)
+    ):
+        return MailResult(updates=updates)
+    if (domain == DHL_ECOMMERCE_DOMAIN or domain.endswith(f".{DHL_ECOMMERCE_DOMAIN}")) and (
+        updates := parse_dhl_ecommerce_mail(msg, plain_names)
     ):
         return MailResult(updates=updates)
     if address == UPS_SENDER and (updates := parse_ups_mail(msg)):

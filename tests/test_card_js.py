@@ -33,8 +33,11 @@ const Card = defined["parcel-tracker-card"];
 const card = new Card();
 card.setConfig({});
 card._hass = { states: {}, entities: {} };
-const a = { number: "AMZ1", delivery_code: "12<3>" };
+const a = { number: "AMZ1", has_delivery_code: true };
 const out = { none: card._codeHtml({ number: "AMZ1" }), hidden: card._codeHtml(a) };
+// An old attribute with the code is not shown any more (only what the WebSocket gave).
+out.oldAttr = card._codeHtml({ number: "AMZ1", delivery_code: "12<3>" });
+card._codes.set("AMZ1", "12<3>");
 card._code.set("AMZ1", "ask");
 out.ask = card._codeHtml(a);
 card._code.set("AMZ1", "show");
@@ -149,6 +152,7 @@ def test_icons_include_mail_carriers(card):
 
 def test_code_reveal_steps(card):
     assert card["none"] == ""
+    assert card["oldAttr"] == ""
     assert "Code anzeigen" in card["hidden"] and "12" not in card["hidden"]
     assert "Zustell-Code anzeigen?" in card["ask"] and "12&lt;3&gt;" not in card["ask"]
     assert "12&lt;3&gt;" in card["show"] and "<3>" not in card["show"]

@@ -100,7 +100,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_translation_key = "parcel"
     _attr_icon = "mdi:package-variant-closed"
     _unrecorded_attributes = frozenset(
-        {"events", "status_text", "delivery_code", "name", "tracking_url", "amazon_shipment"}
+        {"events", "status_text", "name", "tracking_url", "amazon_shipment"}
     )
 
     def __init__(self, coordinator: ParcelCoordinator, number: str) -> None:
@@ -179,7 +179,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "owner": self.coordinator.effective_owner(p),
             "owner_detected": self.coordinator.has_own_owner(p),
             "shipping_carrier_hint": p.shipping_carrier_hint,
-            "delivery_code": p.active_code(today),
+            # Only whether a delivery code is there: the code itself is a secret and never
+            # an attribute; the card asks for it (WebSocket parcel_tracker/delivery_code).
+            "has_delivery_code": self.coordinator.delivery_code(p, today) is not None,
             "track17": p.track17,
             "track17_carrier": p.track17_carrier,
         }

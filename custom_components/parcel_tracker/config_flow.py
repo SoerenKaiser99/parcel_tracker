@@ -77,7 +77,6 @@ from .const import (
     DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_IMAP_FOLDER,
-    DEFAULT_IMAP_HOST,
     DEFAULT_IMAP_PORT,
     DEFAULT_IMAP_SECURITY,
     DEFAULT_KEEP_DELIVERED_DAYS,
@@ -437,7 +436,7 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                     CONF_MAIL_ENABLED, default=bool(current.get(CONF_MAIL_ENABLED, bool(user)))
                 ): bool,
                 vol.Optional(
-                    CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+                    CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or vol.UNDEFINED
                 ): str,
                 vol.Optional(
                     CONF_IMAP_PORT, default=clean_port(current.get(CONF_IMAP_PORT))
@@ -925,7 +924,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
         if user_input is not None:
             options = self.config_entry.options
             mail = user_input.get(CONF_MAIL_SECTION) or {}
-            stored_host = options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+            stored_host = options.get(CONF_IMAP_HOST) or ""
             stored_user = options.get(CONF_IMAP_USER) or ""
             # Off only on an explicit "False" while an import is set up; a user
             # typed into a not yet configured form sets the import up either way.
@@ -1008,6 +1007,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 errors[CONF_TRACK17_API_KEY] = err
             elif folder_changed and is_reserved_folder(folder):
                 errors["base"] = "folder_reserved"
+            elif user and not host:
+                errors["base"] = "host_required"
             elif user and not password:
                 errors["base"] = "imap_password_missing"
             elif (

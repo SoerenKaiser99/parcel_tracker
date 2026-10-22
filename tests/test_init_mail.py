@@ -26,8 +26,8 @@ def test_mailbox_needs_user_and_password():
     both = MockConfigEntry(
         domain=DOMAIN, data={CONF_IMAP_PASSWORD: "p"}, options={CONF_IMAP_USER: "u"}
     )
-    client = _mailbox(both)
-    assert (client.host, client.user) == ("imap.mailbox.org", "u")
+    # no stored host: no silent fallback to a provider, so no client either
+    assert _mailbox(both) is None
     custom = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_IMAP_PASSWORD: "p"},
@@ -40,7 +40,7 @@ async def test_setup_hands_mailbox_to_coordinator(hass):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
-        options={CONF_IMAP_USER: "pakete@example.org"},
+        options={CONF_IMAP_USER: "pakete@example.org", CONF_IMAP_HOST: "imap.example.org"},
     )
     entry.add_to_hass(hass)
     with patch(FETCH):
@@ -51,7 +51,9 @@ async def test_setup_hands_mailbox_to_coordinator(hass):
 
 def test_mailbox_uses_verifying_tls_context():
     entry = MockConfigEntry(
-        domain=DOMAIN, data={CONF_IMAP_PASSWORD: "p"}, options={CONF_IMAP_USER: "u"}
+        domain=DOMAIN,
+        data={CONF_IMAP_PASSWORD: "p"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
     )
     received = []
 
@@ -124,11 +126,15 @@ async def test_refresh_service_forces_mail_import(hass):
 
 def test_mailbox_reads_inbox_unless_a_folder_is_stored():
     data = {CONF_IMAP_PASSWORD: "p"}
-    before = MockConfigEntry(domain=DOMAIN, data=data, options={CONF_IMAP_USER: "u"})
+    before = MockConfigEntry(
+        domain=DOMAIN, data=data, options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "h.example.org"}
+    )
     assert (_mailbox(before).folder, _mailbox(before).custom_folder) == ("INBOX", False)
     for stored, folder in (("", "INBOX"), ("inbox", "INBOX"), ("Pakete/DHL", "Pakete/DHL")):
         entry = MockConfigEntry(
-            domain=DOMAIN, data=data, options={CONF_IMAP_USER: "u", "imap_folder": stored}
+            domain=DOMAIN,
+            data=data,
+            options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "h.example.org", "imap_folder": stored},
         )
         assert _mailbox(entry).folder == folder
 
@@ -142,7 +148,7 @@ def _mail_entry(**options) -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
-        options={CONF_IMAP_USER: "u", **options},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org", **options},
     )
 
 
@@ -227,3 +233,98 @@ async def test_a_dismissed_hint_stays_dismissed_over_a_reload(hass):
         assert await hass.config_entries.async_reload(entry.entry_id)
         await hass.async_block_till_done()
     assert registry.async_get_issue(DOMAIN, ISSUE).dismissed_version is not None
+
+
+async def test_setup_migrates_legacy_entry_without_host(hass, caplog):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
+        options={CONF_IMAP_USER: "pakete@example.org"},
+    )
+    entry.add_to_hass(hass)
+    with patch(FETCH):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.options[CONF_IMAP_HOST] == "imap.mailbox.org"
+    assert entry.runtime_data.mailbox.host == "imap.mailbox.org"
+    assert entry.runtime_data.mailbox.user == "pakete@example.org"
+    assert "pakete@example.org" not in caplog.text
+    assert "imap.mailbox.org" not in caplog.text
+
+
+async def test_setup_migration_runs_once_without_reload(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
+        options={CONF_IMAP_USER: "pakete@example.org"},
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch(FETCH),
+        patch(
+            "custom_components.parcel_tracker.ParcelCoordinator.async_config_entry_first_refresh"
+        ) as refresh,
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert refresh.await_count == 1
+    assert entry.options[CONF_IMAP_HOST] == "imap.mailbox.org"
+
+
+async def test_setup_without_import_stores_no_host(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"}, options={})
+    entry.add_to_hass(hass)
+    with patch(FETCH):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert CONF_IMAP_HOST not in entry.options
+
+
+async def test_setup_keeps_stored_host(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
+    )
+    entry.add_to_hass(hass)
+    with patch(FETCH):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.options[CONF_IMAP_HOST] == "imap.example.org"
+
+
+def test_no_silent_mailbox_org_fallback_in_code():
+    from pathlib import Path
+
+    root = Path(__file__).parent.parent / "custom_components" / "parcel_tracker"
+    for path in root.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        if path.name == "diagnostics.py" and path.parent == root:
+            continue  # lists public providers, never connects
+        if path.name == "const.py" and path.parent == root:
+            assert "DEFAULT_IMAP_HOST" not in text
+            continue
+        assert "DEFAULT_IMAP_HOST" not in text, path.name
+        assert "imap.mailbox.org" not in text, path.name
+
+
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        ({CONF_IMAP_USER: "", CONF_IMAP_HOST: "imap.mailbox.org"}, None),
+        ({CONF_IMAP_HOST: "imap.mailbox.org"}, None),
+        ({CONF_IMAP_USER: "", CONF_IMAP_HOST: "imap.example.org"}, "imap.example.org"),
+        ({CONF_IMAP_USER: "u"}, "imap.mailbox.org"),
+        ({CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.mailbox.org"}, "imap.mailbox.org"),
+        ({CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"}, "imap.example.org"),
+    ],
+)
+async def test_setup_migration_rules(hass, options, expected):
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"}, options=options
+    )
+    entry.add_to_hass(hass)
+    with patch(FETCH):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.options.get(CONF_IMAP_HOST) == expected

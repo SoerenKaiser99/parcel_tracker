@@ -81,11 +81,11 @@ Was die Karte kann und welche Optionen sie hat, steht unter [Die Karte](karte.md
 
 ### Hinweis zur Ressource
 
-Du musst die Karte nicht als Ressource eintragen. Die Integration kopiert sie beim Start nach `www/parcel_tracker/` und trägt sie selbst als Dashboard-Ressource ein (`/local/parcel_tracker/parcel-tracker-card.js`).
+Du musst die Karte nicht als Ressource eintragen. Die Integration liefert die Karte selbst aus (`/parcel_tracker/parcel-tracker-card.js`) und trägt sie beim Start als Dashboard-Ressource ein. Sie legt keine Kopie in deinen Ordner `www` und braucht ihn nicht.
 
-Home Assistant liefert `/local` nur aus, wenn der Ordner `www` beim Start schon existierte. Sonst liefert die Integration die Karte zunächst selbst aus (`/parcel_tracker/parcel-tracker-card.js`). Ein weiterer Neustart von Home Assistant aktiviert dann den `/local`-Pfad.
+Kommst du von einer älteren Version: Dort stand die Karte unter `/local/parcel_tracker/parcel-tracker-card.js`. Die Integration stellt diese Ressource beim Start selbst auf die neue Adresse um. Erst danach löscht sie die alte Kopie `www/parcel_tracker/parcel-tracker-card.js` (und den Ordner, wenn er dann leer ist). Andere Dateien in `www` bleiben unberührt.
 
-Verwaltest du die Dashboard-Ressourcen per YAML, kann die Integration die Karte nicht selbst eintragen. Was dann zu tun ist, steht unter [Karte wird nicht gefunden?](hilfe.md#karte-wird-nicht-gefunden).
+Verwaltest du die Dashboard-Ressourcen per YAML, kann die Integration die Karte nicht selbst eintragen und die alte Kopie bleibt, bis du die Ressource umgestellt hast. Was dann zu tun ist, steht unter [Karte wird nicht gefunden?](hilfe.md#karte-wird-nicht-gefunden).
 
 ### Karte wird nicht gefunden?
 

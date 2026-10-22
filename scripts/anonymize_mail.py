@@ -429,6 +429,17 @@ _T_DATE = r"\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?!\d)"
 # number, so it is looked for before the phone rule (which took the first digits and left the
 # rest), with fewer digits after it. Without a label in front of it, a row of years ("2026
 # 2027 2028") or of two-digit numbers ("10 20 30 40 50 60") is no number in groups.
+def _t_sscc_check(digits):
+    """The GS1 check digit (mod 10) of the 19 digits in front of it."""
+    total = sum(int(d) * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(digits)))
+    return str((10 - total % 10) % 10)
+
+
+def _t_sscc(run):
+    """An SSCC as carriers print it: "00", 18 digits, the last a check digit that fits."""
+    return bool(re.fullmatch(r"00[0-9]{18}", run)) and _t_sscc_check(run[:-1]) == run[-1]
+
+
 def _t_groups(minimum, labelled=False):
     runs = []
     for gap in (" ", r"\t", r"\.", "-"):
@@ -1433,9 +1444,11 @@ class _TScrubber:
         return hashlib.sha256(self._salt.encode() + b"\0" + source).hexdigest()[:12]
 
     def _run(self, run):
-        """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays."""
+        """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays,
+        and so does the "00" of an SSCC (DHL eCommerce), with a check digit that fits again."""
         if run not in self._runs:
-            keep = 5 if re.fullmatch(r"00340\d{15}", run) else 0
+            sscc = _t_sscc(run) and not run.startswith("00340")
+            keep = 5 if re.fullmatch(r"00340\d{15}", run) else 2 if sscc else 0
             letters = 6 if re.fullmatch(r"[A-Fa-f]+", run) else 26
             attempt = 0
             while True:
@@ -1446,7 +1459,11 @@ class _TScrubber:
                     else chr((65 if char.isupper() else 97) + byte % letters)
                     for char, byte in zip(run[keep:], stream)
                 )
+                if sscc:
+                    invented = invented[:-1] + _t_sscc_check(invented[:-1])
                 attempt += 1
+                if sscc and invented.startswith("00340"):
+                    continue  # (would read as DHL's own number anywhere)
                 if invented != run and not any(a in invented for a in self.avoid):
                     break
             self._runs[run] = invented

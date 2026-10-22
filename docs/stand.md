@@ -48,6 +48,7 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Knopf „Erhalten“ und Dienst `parcel_tracker.mark_delivered` (ein Paket von Hand als erhalten markieren) | umgesetzt (v0.3.30); im Alltag noch nicht bestätigt |
 | 17track: Anreicherung bei DPD und GLS | noch ohne Live-Fall (bei einem DHL-Paket live gesehen) |
 | Personen zuordnen (v0.3.41, [#39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39)): Person aus den Kopfzeilen der Mail erkennen, Karte mit Auswahl „Gehört“ und Filter `person`, Dienst `set_owner`, Meldungen nur an den Besitzer | umgesetzt, durch automatische Tests abgedeckt; mit echten Mails verschiedener Anbieter noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
+| DHL eCommerce (v0.3.42): Mails von `noreply@dhlecommerce.nl`, 20-stellige Nummern (SSCC) | umgesetzt nach anonymisierten Beispielmails; im Alltag noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
 | Land Österreich: GLS-Abfrage | mit echten Paketen noch nicht getestet |
 
 ## Offen

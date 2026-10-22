@@ -67,7 +67,7 @@ Ohne DHL-Key läuft die Integration trotzdem: DPD, GLS und Hermes brauchen keine
 So kommen DHL-Pakete ohne Key von selbst in die Übersicht:
 
 1. Im (kostenlosen) DHL-Kundenkonto die E-Mail-Benachrichtigungen zu Sendungen einschalten.
-2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de`, `sendungsupdate@dhl.de` und `abholung@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen. Siehe [E-Mail-Import](mail-import.md#filterregel-anlegen).
+2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de`, `sendungsupdate@dhl.de` und `abholung@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen. Kommen Sendungen aus den Niederlanden, kommt `noreply@dhlecommerce.nl` (DHL eCommerce) dazu. Siehe [E-Mail-Import](mail-import.md#filterregel-anlegen).
 3. Fertig: Die Integration legt die Pakete aus den Mails an und führt den Status mit – samt Liefertag, wenn die Mail ihn nennt. Mit Key kämen nur Ort und Verlauf dazu.
 
 Den Status liest der Import nur aus dem Betreff der DHL-Mail:

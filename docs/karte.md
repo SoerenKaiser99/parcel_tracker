@@ -289,4 +289,4 @@ Die Karte merkt das selbst: Sie vergleicht ihre Version mit dem Attribut `integr
 
 Den Hinweis gibt es ab v0.3.9. Eine ältere Karte kennt ihn nicht. Kommst du von einer älteren Version, lädst du die Seite nach dem Update einmal von Hand neu.
 
-Die Kartendatei selbst zu ändern ist nicht nötig. Änderungen daran überschreibt die Integration beim nächsten Start.
+Die Kartendatei selbst zu ändern ist nicht nötig. Sie liegt in der Integration, und ein Update ersetzt sie.

@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 20. Oktober 2026, Version 0.3.41. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 22. Oktober 2026, Version 0.3.42. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -47,6 +47,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“** | Steht das Paket mit dieser Mail auf „In Zustellung“, heute mit dem Zeitfenster aus dem Betreff? Neu seit v0.3.35. | [Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31) |
 | **Amazon: „Paket zur Abholung bereit“** | Steht die Bestellung nach der Mail von `pickup-point@amazon.de` auf „Abholbereit“, mit Abholort und letztem Abholtag auf der Karte und in der Benachrichtigung? Ist „Abholung am …“ in deiner Mail wirklich der letzte Abholtag? Gilt das auch für Amazon Locker und Counter? Neu seit v0.3.36. | [Issue #33](https://github.com/SoerenKaiser99/parcel_tracker/issues/33) |
 | **DHL: Sendungsnummern aus anderen Ländern** | Entsteht aus einer DHL-Mail mit einer Nummer des Absenderlands (z. B. `LE…BE`, `LW…NL`) ein Paket, und zeigt es mit DHL-Key den Live-Status? Neu seit v0.3.37. | [Issue #34](https://github.com/SoerenKaiser99/parcel_tracker/issues/34) |
+| **DHL eCommerce (Niederlande)** | Legen Mails von `noreply@dhlecommerce.nl` ein DHL-Paket mit der 20-stelligen Nummer an und setzen „Unterwegs“? Zeigt es mit DHL-Key den Live-Status? Neu seit v0.3.42 ([Issue #62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62)). | [Issue #62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62) |
 | **DHL Express („DHL On Demand Delivery“)** | Setzen die Mails von `noreply.odd@dhl.com` „Unterwegs“, „In Zustellung“ für heute und „Zugestellt“ mit der Uhrzeit aus der Mail? Bekommt das Paket den Namen des Absenders (bei Amazon „Amazon-Sendung (DHL)“)? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **AliExpress: Mails der letzten Meile** | Setzt „Paket … wird zugestellt“ die Bestellung heute auf „In Zustellung“ und „Paket … wurde zugestellt“ auf „Zugestellt“? Steht nach „Lieferprobleme für Packstück …“ „Versendet“ mit dem Text „Lieferprobleme“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Amazon: „Sendung verfolgen“ führt zu Amazon** | Öffnet das Symbol bei einer Amazon-Bestellung ohne Nummer eines Paketdienstes Amazons Sendungsverfolgung mit der richtigen Sendung? Steht dort „Amazon-Sendung: …“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |

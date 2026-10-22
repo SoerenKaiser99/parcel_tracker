@@ -22,16 +22,16 @@ Die Integration zu entfernen und neu hinzuzufügen ist nie nötig. Dabei gingen 
 
 ### Karte wird nicht gefunden?
 
-Das Dashboard meldet „Custom element doesn't exist: parcel-tracker-card“, oder „Paket Tracker“ fehlt in der Kartenauswahl.
+Das Dashboard meldet „Custom element doesn't exist: parcel-tracker-card“, oder „Paket Tracker“ fehlt in der Kartenauswahl. Direkt nach einem Neustart von Home Assistant kann das Dashboard diese Meldung zeigen, wenn du es geöffnet hast, bevor die Integration fertig gestartet war. Lade die Seite dann einfach neu.
 
 1. Integration auf v0.3.6 oder neuer aktualisieren, Home Assistant neu starten und die Seite einmal neu laden.
-2. Unter **Einstellungen → Dashboards → ⋮ → Ressourcen** prüfen, ob `/local/parcel_tracker/parcel-tracker-card.js?v=…` (oder `/parcel_tracker/parcel-tracker-card.js?v=…`) eingetragen ist.
-3. Verwaltest du die Dashboard-Ressourcen per YAML (`resource_mode: yaml` oder `mode: yaml` unter `lovelace:`), kann die Integration die Karte nicht selbst eintragen. Ab v0.3.6 erscheint dann unter **Einstellungen → Reparaturen** ein Hinweis mit der genauen URL. Ergänz sie von Hand unter `lovelace:` → `resources:` und starte Home Assistant neu:
+2. Unter **Einstellungen → Dashboards → ⋮ → Ressourcen** prüfen, ob `/parcel_tracker/parcel-tracker-card.js?v=…` eingetragen ist. Steht dort noch `/local/parcel_tracker/parcel-tracker-card.js?v=…` (Eintrag älterer Versionen), stellt die Integration ihn beim nächsten Start selbst um.
+3. Verwaltest du die Dashboard-Ressourcen per YAML (`resource_mode: yaml` oder `mode: yaml` unter `lovelace:`), kann die Integration die Karte nicht selbst eintragen. Ab v0.3.6 erscheint dann unter **Einstellungen → Reparaturen** ein Hinweis mit der genauen URL. Ergänz sie von Hand unter `lovelace:` → `resources:` und starte Home Assistant neu. Hast du dort noch einen älteren Eintrag mit `/local/parcel_tracker/…`, ersetz ihn durch den neuen. Erst danach löscht die Integration die alte Kopie in `www`:
 
     ```yaml title="configuration.yaml (Ausschnitt)"
     lovelace:
       resources:
-        - url: /local/parcel_tracker/parcel-tracker-card.js?v=…
+        - url: /parcel_tracker/parcel-tracker-card.js?v=…
           type: module
     ```
 
@@ -42,7 +42,7 @@ Das Dashboard meldet „Custom element doesn't exist: parcel-tracker-card“, od
 
     Bis v0.3.5 gilt: normal neu laden (F5; in der Home-Assistant-App: App schließen und neu öffnen). Kein hartes Neuladen (Strg+F5 bzw. Cmd+Shift+R) und nicht den Cache leeren – beides löst den Fehler dort erst aus.
 
-Die Kartendatei selbst zu ändern ist nicht nötig. Änderungen daran überschreibt die Integration beim nächsten Start.
+Die Kartendatei selbst zu ändern ist nicht nötig. Sie liegt in der Integration, und ein Update ersetzt sie.
 
 ### Die Karte zeigt nach einem Update noch das Alte
 
@@ -68,6 +68,7 @@ Die Optionen findest du unter **Einstellungen → Geräte & Dienste → Paket Tr
     | „Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an. „Verschlüsselt, Zertifikat nicht prüfen“ wählen (meist Port 993) oder die Klartext-Anmeldung am Server erlauben.“ | siehe [Port und Verbindung](mail-import.md#port-und-verbindung) |
     | „Das Zertifikat des Mailservers wurde nicht akzeptiert. Bei einem eigenen Server im Heimnetz: Verbindung „Verschlüsselt, Zertifikat nicht prüfen“ wählen.“ | siehe [Das Zertifikat des Mailservers wird nicht akzeptiert](#das-zertifikat-des-mailservers-wird-nicht-akzeptiert) |
     | „Gib das Passwort des Postfachs ein.“ | Passwort des Paket-Postfachs eintragen |
+    | „Trag den IMAP-Server deines Mailanbieters ein.“ | Servernamen des Paket-Postfachs eintragen, siehe [E-Mail-Import](mail-import.md#einrichten) |
     | „UPS hat Client-ID oder Secret abgelehnt.“ | Zugangsdaten prüfen; steht die UPS-App noch auf „Pending“? |
     | „Gib das UPS-Client-Secret ein.“ | Client-Secret eintragen |
     | „17track hat diesen API-Key abgelehnt.“ | Key auf api.17track.net prüfen |
@@ -246,10 +247,10 @@ Dazu gibt es `--phone` und `--email`. Ganz ohne Angaben arbeitet das Skript nur 
     - alle Mail-Adressen außer dem Absender des Shops oder Paketdienstes,
     - Telefonnummern,
     - Links (nur der Servername bleibt),
-    - Sendungs- und Bestellnummern (gleiche Form, erfundene Ziffern),
+    - Sendungs- und Bestellnummern (gleiche Form, erfundene Ziffern). Eine 20-stellige DHL-eCommerce-Nummer (SSCC) behält ihre „00“ am Anfang und bekommt wieder eine gültige Prüfziffer, damit die Mail erkennbar bleibt,
     - Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort,
     - Adressblöcke auch mit österreichischer oder Schweizer Postleitzahl (vier Ziffern) und Straßen in jeder Schreibweise („-straße“, „-strasse“, „-str.“, „-gasse“, „-weg“, „-platz“ …), dazu die Namenszeile über der Straße und Blöcke unter „an folgende Adresse zugestellt:“ (seit v0.3.35),
-    - Namen von Nachbarn, Empfängern und privaten Absendern,
+    - Namen von Nachbarn, Empfängern und privaten Absendern, auch hinter „Geschäftsführer“, „Inhaber“ oder „Vorstand“ im Fuß der Mail (Beitrag von benep),
     - die Nummer einer Filiale, Packstation, Poststation oder eines Paketshops (dieselbe Stelle bekommt in allen Mails eines Laufs dieselbe erfundene Nummer) und die Straße darunter oder dahinter, wo immer sie steht.
 
     Technische Kopfzeilen und Anhänge entfallen. Die Kopfzeilen `To`, `Cc`, `Delivered-To`, `X-Original-To`, `X-Forwarded-To`, `X-Forwarded-For`, `Resent-From` und `Resent-To` bleiben, weil an ihnen die [Personen-Zuordnung](mail-import.md#pakete-personen-zuordnen) hängt. Jede Adresse darin wird erfunden: verschiedene echte Adressen werden `adresse1@example.org`, `adresse2@example.org` …, dieselbe echte Adresse bekommt im ganzen Lauf dieselbe erfundene, ein Plus-Teil bleibt als `+person1`, `+person2` …. Die Reihenfolge mehrerer `Delivered-To` bleibt, Namen davor entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus (Betreff mit „WG:“, „Fwd:“ oder „Fw:“ oder ein zitierter Kopfzeilenblock „Von: … Gesendet: …“), nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.
