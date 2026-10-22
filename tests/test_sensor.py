@@ -156,13 +156,14 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     assert state.attributes["carrier"] == "amazon"
     assert state.attributes["tracking_ref"] == "JJD000012978217606560"
     assert state.attributes["tracking_carrier"] == "dhl"
-    assert state.attributes["delivery_code"] == "123456"
+    # The code itself is never an attribute (the card asks for it over the WebSocket).
+    assert "delivery_code" not in state.attributes
+    assert "123456" not in repr(dict(state.attributes))
     assert state.attributes["amazon_shipment"] is None
     expired = hass.states.get("sensor.paket_amz99991565342587125")
-    assert expired.attributes["delivery_code"] is None
+    assert expired.attributes["has_delivery_code"] is False
     # The newest of Amazon's shipments of the order.
     assert expired.attributes["amazon_shipment"] == "UhIjKl9mN"
-    assert "delivery_code" in ParcelSensor._unrecorded_attributes
     assert {"name", "tracking_url", "amazon_shipment"} <= ParcelSensor._unrecorded_attributes
     # The customs amount is deleted on delivery: the history must not keep it.
     assert {

@@ -16,14 +16,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
-from .card_install import (
-    BUNDLED_CARD,
-    CARD_FILE,
-    card_hash,
-    card_url,
-    install_card,
-    local_is_served,
-)
+from .card_install import BUNDLED_CARD, card_hash, card_url, remove_old_copy
 from .carriers import build_carriers
 from .carriers.base import AuthError, CarrierError
 from .carriers.track17 import (
@@ -49,10 +42,10 @@ from .const import (
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
-    DEFAULT_IMAP_HOST,
     DEFAULT_UPS_BUDGET,
     DOMAIN,
     IMAP_SECURITY_SSL,
+    LEGACY_IMAP_HOST,
     SELECTABLE_CARRIERS,
     entry_country,
 )
@@ -108,13 +101,15 @@ def _mailbox(entry: ConfigEntry) -> MailboxClient | None:
     """IMAP client when a user (options) and a password (data) are configured."""
     user = entry.options.get(CONF_IMAP_USER)
     password = entry.data.get(CONF_IMAP_PASSWORD)
-    if not user or not password:
+    host = entry.options.get(CONF_IMAP_HOST)
+    # No host, no import: the credentials are never sent to a server nobody chose.
+    if not user or not password or not host:
         return None
     # Nothing stored (every entry from before v0.3.32): TLS with a checked certificate
     # on port 993, as always. The TLS context comes from Home Assistant, ready-made.
     security = clean_security(entry.options.get(CONF_IMAP_SECURITY))
     return MailboxClient(
-        entry.options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST,
+        host,
         user,
         password,
         ssl_context=mailbox_context(security),
@@ -166,6 +161,16 @@ def _track17_client(hass: HomeAssistant, entry: ConfigEntry) -> Track17Client | 
     return Track17Client(async_get_clientsession(hass), key) if key else None
 
 
+async def _register_card(hass: HomeAssistant, url: str) -> None:
+    """Register the resource; drop the copy older versions left in www only afterwards.
+
+    Until the dashboard resource is confirmed on the new URL, a /local entry may
+    still point at that copy, so it has to stay.
+    """
+    if await async_ensure_resource(hass, url):
+        await hass.async_add_executor_job(remove_old_copy, Path(hass.config.path("www")))
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register card and services once."""
     # In the test harness `http` may not be set up, so hass.http can be None.
@@ -176,32 +181,12 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         )
         hass.http.register_view(ImportMailView())
 
-    # /local (config/www) is served from the very start of HA, unlike our own
-    # static path; clients that hit a not-yet-registered URL cache the failure.
-    target = Path(hass.config.path("www", "parcel_tracker", CARD_FILE))
     try:
-        digest, www_existed, _written = await hass.async_add_executor_job(
-            install_card, BUNDLED_CARD, target
-        )
-    except OSError as err:
-        _LOGGER.warning(
-            "Could not copy the card to %s (%s); serving it from %s", target, err, CARD_URL
-        )
         digest = await hass.async_add_executor_job(lambda: card_hash(BUNDLED_CARD.read_bytes()))
-        use_local = False
-    else:
-        # The folder existing is not enough: HA serves /local only if www was
-        # there when HA started. Without hass.http (tests) the folder decides.
-        served = local_is_served(hass)
-        use_local = www_existed if served is None else served
-        if not use_local:
-            _LOGGER.info(
-                "Home Assistant does not serve /local yet (the www folder is new); "
-                "the card is served from %s for now and from /local after the "
-                "next Home Assistant restart",
-                CARD_URL,
-            )
-    url = card_url(digest, use_local)
+    except OSError as err:
+        _LOGGER.warning("Could not read the bundled card (%s)", err)
+        digest = "0"
+    url = card_url(digest)
 
     # The card is delivered only as a Lovelace resource, never as a frontend
     # extra module (add_extra_js_url): index.html imports extra modules in
@@ -210,7 +195,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     # registry and the dashboard reports "Custom element doesn't exist".
     # Lovelace is an after_dependency, so its resource collection is ready here;
     # don't wait for EVENT_HOMEASSISTANT_STARTED, which can come very late.
-    hass.async_create_task(async_ensure_resource(hass, url), eager_start=False)
+    hass.async_create_task(_register_card(hass, url), eager_start=False)
 
     async def add(call: ServiceCall) -> None:
         try:
@@ -342,6 +327,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bool:
     """Set up from a config entry."""
+    _migrate_legacy_imap_host(hass, entry)
     store = ParcelStore(hass)
     await store.async_load()
     carriers = build_carriers(
@@ -367,6 +353,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bo
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
     return True
+
+
+def _migrate_legacy_imap_host(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Entries from before v0.3.42 had the IMAP server as an implicit default.
+
+    With a mail import set up (user stored) and no host, store the host they have
+    been using, once. Without a user (import never set up or switched off) the old
+    forms still wrote that default into the options; it was never chosen, so it is
+    dropped and not prefilled when the import is switched on later. Any other host
+    stays. Runs before the update listener exists, so saving here does not reload
+    the entry. Nothing about the user or the server goes to the log.
+    """
+    options = entry.options
+    host = options.get(CONF_IMAP_HOST)
+    if options.get(CONF_IMAP_USER):
+        if not host:
+            hass.config_entries.async_update_entry(
+                entry, options={**options, CONF_IMAP_HOST: LEGACY_IMAP_HOST}
+            )
+            _LOGGER.info("Mail import: the previously implicit IMAP server is now stored")
+    elif host == LEGACY_IMAP_HOST:
+        hass.config_entries.async_update_entry(
+            entry, options={k: v for k, v in options.items() if k != CONF_IMAP_HOST}
+        )
+        _LOGGER.info("Mail import is off: the previously implicit IMAP server was dropped")
 
 
 def _mail_import_off(hass: HomeAssistant, entry: ConfigEntry) -> None:

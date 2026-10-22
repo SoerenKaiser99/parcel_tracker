@@ -119,7 +119,7 @@
       status_text: null, last_update: UPDATED, stale: false, last_error: null,
       progress: STEP[state], delivered_at: null, events: [],
       tracking_ref: null, tracking_carrier: null, shipping_carrier_hint: null,
-      delivery_code: null, track17: false, track17_carrier: null, gift: false,
+      has_delivery_code: false, track17: false, track17_carrier: null, gift: false,
       owner: null, owner_detected: false, friendly_name: name,
     };
     delete extra.eta_days;
@@ -174,7 +174,7 @@
     // A shop order that took over the carrier's number: it links to the carrier's page
     // ("Sendung verfolgen") and to the order at the shop ("Bestellung öffnen").
     parcel("in_transit", "amazon", "AMZ99999999999999905", "Wasserfilter, 3er-Pack", {
-      eta_days: 1, delivery_code: "990099",
+      eta_days: 1, has_delivery_code: true,
       tracking_ref: "00340999999999999914", tracking_carrier: "dhl",
       events: [
         event(0, 4, 55, "Im Start-Paketzentrum bearbeitet", "Beispielstadt"),
@@ -323,6 +323,8 @@
     touch(sensorOf(a.number));
   };
 
+  // The delivery codes the integration gives through parcel_tracker/delivery_code.
+  const DELIVERY_CODES = { AMZ99999999999999905: "990099" };
   const hass = {
     states,
     entities,
@@ -336,6 +338,10 @@
         const [name, mail_title] = GIFT_NAMES[msg.number] || [p.attributes.name, null];
         return Promise.resolve({ name, mail_title,
           tracking_url: trackingUrl(p.attributes.carrier, p.attributes.number) });
+      }
+      // The delivery code is no attribute: the card asks for it when it is revealed.
+      if (msg.type === "parcel_tracker/delivery_code") {
+        return Promise.resolve({ code: DELIVERY_CODES[msg.number] || null });
       }
       return Promise.reject({ code: "unknown_command", message: "Unknown command." });
     },

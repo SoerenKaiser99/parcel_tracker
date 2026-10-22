@@ -24,7 +24,7 @@ Dein Hauptpostfach sieht die Integration so nie.
     | Feld | Bedeutung |
     |---|---|
     | **E-Mail-Import aktiv** | Schaltet den Import ein. |
-    | **IMAP-Server** | Standard `imap.mailbox.org`. |
+    | **IMAP-Server** | Pflicht, wenn der Import aktiv ist, ohne Vorgabe. Trag den Servernamen deines Paket-Postfachs ein (bei mailbox.org `imap.mailbox.org`). Ein früher still gespeichertes `imap.mailbox.org` ohne eingerichteten Mail-Import wird beim Update zu v0.3.42 entfernt. |
     | **Port** | Standard `993`. Üblich sind 993 (verschlüsselt) und 143 (unverschlüsselt). Bei einem Mailanbieter bleibt 993 stehen. |
     | **Verbindung** | Standard „Verschlüsselt (TLS, Standard)“ – das passt für jeden Mailanbieter. Die beiden anderen sind für einen eigenen Server im Heimnetz, siehe [Port und Verbindung](#port-und-verbindung). |
     | **Benutzername** und **Passwort** | Die des Paket-Postfachs. Leere Felder behalten die gespeicherten Werte. |
@@ -148,6 +148,7 @@ Nimm diese Absender in die Filterregel auf:
 | `sendungsupdate@dhl.de` | DHL (meldet einen verschobenen Zustelltag; der neue Tag wird übernommen) |
 | `abholung@dhl.de` | DHL (Paket liegt in der Filiale zur Abholung bereit) |
 | `noreply.odd@dhl.com` | DHL Express („On Demand Delivery“) |
+| `noreply@dhlecommerce.nl` | DHL eCommerce (Sendungen aus den Niederlanden) |
 | `noreply@service.dpd.de` | DPD |
 | `no_reply@dpd.at` | DPD Österreich (Ankündigung, „kommt zwischen … Uhr“ mit Zeitfenster, Zustellung) |
 | `pkginfo@ups.com` | UPS |
@@ -173,6 +174,7 @@ if address :is "from" [
   "pickup-point@amazon.de",
   "noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de",
   "sendungsupdate@dhl.de", "abholung@dhl.de", "noreply.odd@dhl.com",
+  "noreply@dhlecommerce.nl",
   "noreply@service.dpd.de", "pkginfo@ups.com",
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",
@@ -204,7 +206,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@dhlecommerce.nl OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
@@ -324,6 +326,8 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Liegt das Paket zur Abholung bereit („… ist in der Filiale abholbereit“, „Ihr DHL Paket ist ab sofort abholbereit“, auch die Erinnerung „liegt seit 2 Tagen in der Filiale“), übernimmt der Import aus dem Block „Adresse“ bzw. „Adresse der Filiale“ die Filiale oder Packstation mit Straße als Abholort („Postfiliale 999, Beispielweg 12“), ohne Postleitzahl und Ort. Gebaut ist das nach Abholmails aus Filialen; für Packstation, Poststation und Paketshop gab es noch kein Beispiel, dort gilt dieselbe Form des Blocks als Annahme. Er steht auf der Karte, im Attribut `pickup_point` und in der Benachrichtigung. Beginnt der Block nicht mit einer Filiale, Packstation, Poststation oder einem Paketshop, bleibt der Abholort leer, so wird nie eine Empfängeradresse zum Abholort. Mit DHL-Key bleibt dieser Abholort, solange das Paket abholbereit ist: DHL selbst nennt nur den Ort. Einen letzten Abholtag übernimmt der Import nicht, weil die Mail nur „7 Werktage“ nennt.
     - Internationale Nummern liest er nicht nur mit „DE“ am Ende (`CQ…DE`), sondern auch Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37), wie DHL sie bei Sendungen aus dem Ausland nennt (`LE…BE`, `LW…NL`). Das Paket wird ein DHL-Paket, und die Integration fragt es mit dem DHL-Key bei DHL ab. Solche Nummern zählen nur in Mails von DHL.
     - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
+    - **DHL eCommerce (Niederlande, seit v0.3.42):** Mails von `noreply@dhlecommerce.nl` legen ein DHL-Paket an. Die Nummer hat 20 Ziffern und beginnt mit `00` (SSCC). „Shipment on its way“ und „We will deliver soon“ setzen „Unterwegs“; andere Mails von diesem Absender legen die Nummer ohne Status an. Der Shop (aus „from … to you“) wird der Name des Pakets, wenn er eine Rechtsform trägt.
+    - Solche 20-stelligen Nummern liest der Import auch aus Shop-Mails, aber nur direkt hinter einem Etikett („Sendungsnummer“, „Trackingnummer“, „DHL Trackingnummer“, „Shipment number“, „Tracking number“) und mit gültiger Prüfziffer. Steht direkt davor ein Wort, das mit „Rück“, „Retoure“ oder „Return“ beginnt (etwa „Rücksendung Sendungsnummer“, „Rückversand-Sendungsnummer“, „Retouren-Trackingnummer“ oder „Return label – Tracking number“), ist es ein Rücksendeetikett und die Nummer zählt nicht. In DHL-Mails genügt das Etikett „Sendungsnummer“. Jede so gefundene Nummer gilt als DHL-Nummer. Gehört sie einem anderen Paketdienst, meldet DHL „nicht gefunden“.
     - Steht im Textteil der Mail keine Nummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil: dort auch die Nummer direkt unter „Sendungsstatus einsehen“ bzw. „Sendungsverlauf einsehen“, mit 12 Ziffern oder als Nummer aus dem Ausland (z. B. `LR…NL`, `JJATA…`).
     - Bei einer Sendung aus dem Ausland nennt die DHL-Mail am Zustelltag („Ihre DHL Sendung kommt heute“) die Einfuhrabgaben: „Die Einfuhrabgaben i.H.v. 12,34€ (inkl. 7,50€ Auslagepauschale …) sind bei Zustellung, möglichst passend, in bar zu bezahlen.“ Der Import liest daraus den Betrag (den ersten, nicht die Gebühren in der Klammer), die Währung und ob „in bar“ dasteht. Sie stehen in den Attributen `customs_amount`, `customs_currency` und `customs_cash`, auf der Karte und in der Benachrichtigung „In Zustellung“ – bis das Paket zugestellt ist. Eine spätere Mail ohne den Satz ändert daran nichts.
     - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson. Der Name endet an der Rechtsform; was dahinter steht (ein Kürzel, eine Ansprechperson), wird nicht übernommen. Nur mit der Option **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** (Standard: aus) entfällt diese Prüfung, siehe [Datenschutz](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen).
@@ -606,6 +610,7 @@ Nützlich: die Logs mit `journalctl -u paket-mail.service -n 50`, sofort abholen
       'versandbestaetigung@amazon.de'
       'order-update@amazon.de'
       'dhl.de'
+      'dhlecommerce.nl'
       'myhermes.de'
       'hermesworld.com'
       'dpd.de'

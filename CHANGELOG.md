@@ -10,7 +10,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **17track (optional):** ergänzt Ort, Zeitfenster und Verlauf und verfolgt Paketdienste ohne eigene Anbindung, nur auf ausdrücklichen Wunsch.
 - **Länder:** Deutschland, Österreich und Schweiz (Postleitzahl und GLS-Abfrage passend zum Land).
 - **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an.
-- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress und Eventim (nur Postversand).
+- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress und Eventim (nur Postversand).
 - **Weitergeleitete Mails:** von Hand weitergeleitete Mails, Apples „E-Mail-Adresse verbergen“ und Mails per HTTP-Aufruf (z. B. aus n8n oder Node-RED).
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
@@ -25,13 +25,21 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` und `set_owner`.
 - **Event und Auslöser:** das Event `parcel_tracker_status_changed` und fünf Auslöser im Automations-Editor ohne YAML.
 - **Abholbereit:** Packstation, Filiale und PaketShop mit Abholort und letztem Abholtag.
-- **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert.
+- **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert und in keinem Attribut (der Sensor zeigt nur `has_delivery_code`).
 - **Datensparsam:** kein Cloud-Konto, Zugangsdaten bleiben in Home Assistant, nur ein eigenes Paket-Postfach wird gelesen.
 - **Diagnose:** Download ohne Zugangsdaten, Namen und Mail-Inhalte; Sendungsnummern maskiert.
 - **Beispielmails einreichen:** ein Anonymisier-Skript ersetzt Namen, Adressen und Nummern, bevor eine Mail geteilt wird.
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.42 (2026-10-22)
+
+- **Karte nicht mehr in `www`:** Die Integration kopiert die Karte nicht mehr nach `www/parcel_tracker/`, sondern liefert sie selbst unter `/parcel_tracker/parcel-tracker-card.js` aus. Eine alte Dashboard-Ressource mit `/local/…` stellt sie beim Start selbst um (Speicher-Modus). Erst danach löscht sie die alte Kopie. Verwaltest du die Ressourcen per YAML, nennt der Reparatur-Hinweis die neue Adresse. Du ersetzt den alten Eintrag, danach verschwindet die Kopie.
+- **Zustell-Code nur noch auf der Karte (Breaking Change):** Das Attribut `delivery_code` gibt es nicht mehr, der Sensor hat dafür `has_delivery_code` (`true` oder `false`). Die Karte holt den Code erst, wenn du ihn aufdeckst. Automationen und Templates, die `state_attr(…, 'delivery_code')` lesen, bekommen den Code nicht mehr. In Benachrichtigungen stand der Code nie und steht er weiterhin nicht.
+- **IMAP-Server ohne Vorgabe:** Bei aktivem Mail-Import musst du den IMAP-Server selbst eintragen, sonst meldet das Formular „Trag den IMAP-Server deines Mailanbieters ein.“ Bestehende Einrichtungen laufen weiter: Ein eingerichteter Import ohne gespeicherten Server bekommt einmalig `imap.mailbox.org` eingetragen. Umgekehrt wird ein gespeichertes `imap.mailbox.org` ohne eingerichteten Mail-Import (der frühere stille Standardwert) beim Update entfernt.
+- **DHL eCommerce (Niederlande):** Neuer Absender `noreply@dhlecommerce.nl`. Die 20-stelligen Nummern, die mit `00` beginnen (SSCC), liest der Import hinter „Sendungsnummer“, „Trackingnummer“, „DHL Trackingnummer“ oder „Shipment number“, wenn die Prüfziffer stimmt, nicht hinter „Rück-“ oder „Retoure“. Jede so gefundene Nummer gilt als DHL-Nummer. Die Sendungsnummer aus der Shop-Mail wird damit vermutlich erkannt ([#62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62)).
+- **Anonymisier-Skript:** Namen im Fuß der Mail hinter „Geschäftsführer“, „Inhaber“ oder „Vorstand“ werden ersetzt (Beitrag von benep, [#60](https://github.com/SoerenKaiser99/parcel_tracker/pull/60)). Eine SSCC behält ihre „00“ und bekommt eine gültige Prüfziffer.
 
 ### v0.3.41 (2026-10-20)
 

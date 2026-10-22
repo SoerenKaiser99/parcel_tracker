@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.41"
+VERSION = "0.3.42"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -68,7 +68,9 @@ DEFAULT_GIFT_VIEWERS: tuple = ()
 MIN_KEEP_DELIVERED_DAYS = 1
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30
-DEFAULT_IMAP_HOST = "imap.mailbox.org"
+# Only for the one-time migration of entries from before v0.3.42, which had no host
+# stored and relied on this being the silent default. Never a fallback or a prefill.
+LEGACY_IMAP_HOST = "imap.mailbox.org"
 # The port and the kind of connection of the mail server; entries from before v0.3.32
 # store neither. The kinds are selector option values and so translation keys (lower
 # case): TLS with a checked certificate, TLS without checking it (a self-signed

@@ -71,7 +71,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `tracking_url` | Adresse der Sendungsverfolgung beim Paketdienst, bei einer Amazon-Bestellung ohne dessen Nummer bei Amazon; leer, wenn es keine gibt und bei einem Geschenk |
 | `amazon_shipment` | Amazons Kennung der neuesten Sendung einer Amazon-Bestellung (aus den Mails ab „Versendet“); leer ohne und bei einem Geschenk |
 | `shipping_carrier_hint` | Versanddienstleister, den eine Shop-Mail genannt hat |
-| `delivery_code` | Zustell-Code, nur mit eingeschalteter Option und nur bis zum Liefertag |
+| `has_delivery_code` | `true`, wenn ein gültiger Zustell-Code bekannt ist (nur mit eingeschalteter Option, nur bis zum Liefertag), sonst `false`. Den Code selbst liefert nur die Karte, siehe unten |
 | `customs_amount` | Betrag der Einfuhrabgaben (Zoll), die bei der Zustellung zu zahlen sind, als Zahl (z. B. `12.34`). Er stammt aus der DHL-Mail am Zustelltag und steht nur bis zur Zustellung da, sonst leer |
 | `customs_currency` | Währung zu `customs_amount`, z. B. `EUR`; leer, wenn kein Betrag bekannt ist |
 | `customs_cash` | `true`, wenn die Mail Barzahlung verlangt („in bar zu bezahlen“), sonst `false` |
@@ -79,10 +79,10 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `track17_carrier` | Paketdienst, den 17track erkannt hat |
 
 !!! info "Nicht im Verlauf von Home Assistant"
-    Die Attribute `events`, `status_text`, `delivery_code`, `name`, `tracking_url` und `amazon_shipment` zeichnet der Recorder nicht auf.
+    Die Attribute `events`, `status_text`, `name`, `tracking_url`, `amazon_shipment`, `customs_amount`, `customs_currency` und `customs_cash` zeichnet der Recorder nicht auf.
 
-!!! warning "Der Zustell-Code ist als Attribut lesbar"
-    Verdeckt ist der Code nur auf der Karte. Wer Zugriff auf die Entitäts-Attribute oder die API von Home Assistant hat, kann ihn im Klartext lesen. Siehe [Zustell-Codes](datenschutz.md#zustell-codes).
+!!! warning "Der Zustell-Code ist kein Attribut mehr"
+    Bis v0.3.41 stand er als `delivery_code` am Sensor. Seit v0.3.42 gibt es nur noch `has_delivery_code`. Automationen und Templates, die das Attribut `delivery_code` lesen (z. B. mit `state_attr`), bekommen den Code nicht mehr. Die Karte holt ihn erst beim Aufdecken. Siehe [Zustell-Codes](datenschutz.md#zustell-codes).
 
 ## `sensor.pakete_heute`
 

@@ -30,6 +30,7 @@ SENDERS = [
     "sendungsupdate@dhl.de",
     "abholung@dhl.de",
     "noreply.odd@dhl.com",
+    "noreply@dhlecommerce.nl",
     "noreply@service.dpd.de",
     "no_reply@dpd.at",
     "noreply@gls-group.eu",
@@ -123,11 +124,37 @@ def test_docs_explain_the_ebay_purchase_confirmation():
     assert "ab der Kaufbestätigung als „Bestellt“" in TEXTS[SERVICES]
 
 
-def test_docs_say_the_delivery_code_is_readable_via_attributes():
+def test_docs_say_the_delivery_code_is_no_attribute_but_asked_for_by_the_card():
     section = _section(PRIVACY, "Zustell-Codes")
-    assert "Verdeckt ist er nur auf der Karte" in section
-    assert "im Klartext lesen" in section
-    assert "Verdeckt ist der Code nur auf der Karte" in _section(SENSORS, "Attribute")
+    _all_have(section, (
+        "Der Code steht in keinem Attribut", "`has_delivery_code`",
+        "Jeder angemeldete Benutzer kann ihn abrufen", "`parcel_tracker/delivery_code`",
+    ))
+    assert "im Attribut `delivery_code`" not in section
+    sensors = _section(SENSORS, "Attribute")
+    _all_have(sensors, ("| `has_delivery_code` |", "Der Zustell-Code ist kein Attribut mehr",
+                        "das Attribut `delivery_code` lesen"))
+    assert "| `delivery_code` |" not in sensors
+    assert "`status_text`, `delivery_code`" not in sensors
+
+
+def test_docs_say_the_card_is_served_by_the_integration_not_copied_to_www():
+    install = TEXTS[INSTALL]
+    help_page = TEXTS["hilfe.md"]
+    _all_have(install, (
+        "liefert die Karte selbst aus", "Sie legt keine Kopie in deinen Ordner `www`",
+        "stellt diese Ressource beim Start selbst auf die neue Adresse um",
+    ))
+    assert "kopiert sie beim Start nach" not in install
+    assert "/parcel_tracker/parcel-tracker-card.js?v=" in help_page
+    assert "- url: /local/" not in help_page
+
+
+def test_mail_import_docs_say_the_imap_server_is_required_and_name_dhl_ecommerce():
+    text = TEXTS[MAIL]
+    assert "Standard `imap.mailbox.org`" not in text
+    _all_have(text, ("| **IMAP-Server** | Pflicht,", "`noreply@dhlecommerce.nl`",
+                     "20 Ziffern", "meldet DHL „nicht gefunden“"))
 
 
 def test_docs_explain_the_ups_api_and_its_budget():
@@ -475,9 +502,10 @@ def test_docs_trigger_names_match_the_german_translation():
 # ----- Karte -----
 def test_docs_say_when_local_is_used():
     section = _section(INSTALL, "Karte hinzufügen")
-    assert "wenn der Ordner `www` beim Start schon existierte" in section
     assert "`/parcel_tracker/parcel-tracker-card.js`" in section
+    assert "Sie legt keine Kopie in deinen Ordner `www`" in section
     assert "Seite im Browser einmal neu laden" in section
+    assert "/local" not in section.replace("`/local/parcel_tracker/parcel-tracker-card.js`", "")
 
 
 def test_docs_explain_sure_and_possible_parcels_of_today():
@@ -958,8 +986,9 @@ def test_docs_sieve_example_names_every_listed_sender():
 def test_docs_match_the_senders_the_parsers_know():
     from custom_components.parcel_tracker.mail.dpd import DPD_AT_SENDER
     from custom_components.parcel_tracker.mail.gls import GLS_GROUP_SENDER, GLS_RTT_SENDER
+    from custom_components.parcel_tracker.mail.shipping import DHL_ECOMMERCE_SENDER
 
-    for address in (DPD_AT_SENDER, GLS_GROUP_SENDER, GLS_RTT_SENDER):
+    for address in (DPD_AT_SENDER, GLS_GROUP_SENDER, GLS_RTT_SENDER, DHL_ECOMMERCE_SENDER):
         assert address in SENDERS
 
 
@@ -1265,7 +1294,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 20. Oktober 2026, Version 0.3.41." in text
+    assert "*Stand: 22. Oktober 2026, Version 0.3.42." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",

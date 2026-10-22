@@ -385,6 +385,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def _read_otp(self) -> bool:
         return self.entry.options.get(CONF_READ_OTP, DEFAULT_READ_OTP)
 
+    def delivery_code(self, parcel: Parcel, today: date) -> str | None:
+        """The parcel's valid delivery code, only while "Zustell-Codes mitlesen" is on.
+
+        Never put into an attribute: the card asks for it (WebSocket delivery_code).
+        """
+        return parcel.active_code(today) if self._read_otp else None
+
     @property
     def _plain_names(self) -> bool:
         return self.entry.options.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True

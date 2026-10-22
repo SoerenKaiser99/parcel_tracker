@@ -429,6 +429,17 @@ _T_DATE = r"\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?!\d)"
 # number, so it is looked for before the phone rule (which took the first digits and left the
 # rest), with fewer digits after it. Without a label in front of it, a row of years ("2026
 # 2027 2028") or of two-digit numbers ("10 20 30 40 50 60") is no number in groups.
+def _t_sscc_check(digits):
+    """The GS1 check digit (mod 10) of the 19 digits in front of it."""
+    total = sum(int(d) * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(digits)))
+    return str((10 - total % 10) % 10)
+
+
+def _t_sscc(run):
+    """An SSCC as carriers print it: "00", 18 digits, the last a check digit that fits."""
+    return bool(re.fullmatch(r"00[0-9]{18}", run)) and _t_sscc_check(run[:-1]) == run[-1]
+
+
 def _t_groups(minimum, labelled=False):
     runs = []
     for gap in (" ", r"\t", r"\.", "-"):
@@ -593,7 +604,10 @@ _T_NOT_NAME = re.compile(
     r"|ablageort|wunschort|abstellort|zusteller\w*|bote\w*|fahrer\w*|besteller\w*"
     r"|k(?:ä|ae)ufer\w*|verk(?:ä|ae)ufer\w*|nutzer\w*|user|gast|mitglied|interessent\w*"
     r"|damen|herren|person|dritte\w*|angeh(?:ö|oe)rige\w*|ehepartner\w*|max|mustermann"
-    r"|beispielversender|beispielnachbar|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    r"|beispielversender|beispielnachbar|beispiel|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    # officers of a company in front of their names ("Geschäftsführer Vorname Nachname")
+    r"|gesch(?:ä|ae)ftsf(?:ü|ue)hr\w*|vorstand\w*|vorsitz\w*|inhaber\w*|direktor\w*"
+    r"|gesellschafter\w*"
     # status words a mail may put above an address ("Abholbereit\nHauptstraße 1\n…")
     r"|abholbereit|zugestellt|hinterlegt|abholort|abholung|abholstation|bereit|abgestellt"
     r"|abgegeben|trafik|zustellung|zustellort|lieferung|lieferort|sendung|paket|status"
@@ -635,6 +649,68 @@ _T_NEIGHBOUR = re.compile(
 _T_AMAZON_LINE = re.compile(
     r"(?m)^([ \t]*)([^\W\d_][^\n–—-]{1,30}?)([ \t]+[–—-][ \t]+)([^\W\d_][^\n]{1,40}?)"
     r"([ \t]*\n(?:[ \t]*\n)*[ \t]*Bestell(?:nr\b|nummer))"
+)
+# The officers of a company in its legal footer ("Geschäftsführer: …", "Vorstand: …",
+# "Vorsitzender des Aufsichtsrates: …"): public, but the names of persons all the same. The
+# list ends at the register court or another part of the footer.
+_T_OFFICER_WORDS = (
+    r"gesch(?:ä|ae)ftsf(?:ü|ue)hr(?:er(?:in|innen)?|ung"
+    r"|ende[rn]?[ \t]+(?:Direktor(?:en|in)?|Gesellschafter(?:in)?))"
+    r"|vorstand|aufsichtsrat|vertreten[ \t]+durch|managing[ \t]+directors?|directors?"
+)
+# one person only: a separator after the name ends the list
+_T_OFFICER_ONE = (
+    r"vorsitzende[rs]?[ \t]+des[ \t]+aufsichtsrat(?:e?s)|aufsichtsratsvorsitzende[rs]?"
+    r"|inhaber(?:in)?"
+)
+_T_OFFICERS = re.compile(
+    rf"(?i:\b(?:{_T_OFFICER_WORDS}|(?P<one>{_T_OFFICER_ONE}))\b)"
+    r"(?P<list>(?:(?!\b(?:Sitz|Amtsgericht|Registergericht|Handelsregister\w*|HR[AB]|USt|Umsatz"
+    r"\w*|Steuer\w*|WEEE|Telefon|Tel|E-Mail|Auf diese)\b)[^\n]){1,300})"
+)
+# Where such a list may end early: at a separator of a one-line footer ("|", "·", " – ", " / ")
+# or at the end of a sentence. A title, an initial or "Co." ends nothing.
+_T_OFFICERS_END = re.compile(
+    r"(?P<sep>[ \t]*[|·]|[ \t]+[–—/-][ \t])"
+    r"|(?<![^\W\d_])(?!(?:Dr|Prof|Dipl|Ing|Co|[^\W\d_])\.)[^\W\d_]+(?=\.(?:[ \t]|$))"
+)
+# One name in such a list, with its titles: "Dr. Vorname Nachname", "Vorname de Nachname".
+_T_OFFICER_WORD = r"[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*"
+_T_OFFICER_MIDDLE = r"[dD]e|[vV]an|[vV]on|der|zu|Di|Da|Le|La|[A-ZÄÖÜ]\."
+_T_OFFICER = re.compile(
+    r"(?<![^\W\d_])(?P<title>(?:(?:Dr|Prof)\.[ \t]*)*)"
+    rf"(?P<name>{_T_OFFICER_WORD}(?:[ \t]+(?:{_T_OFFICER_MIDDLE}))*"
+    rf"[ \t]+{_T_OFFICER_WORD})(?![^\W\d_])"
+)
+# In a line of names only a name may have a second given name: "Vorname Vorname Nachname".
+_T_OFFICER_LONG = re.compile(
+    r"(?<![^\W\d_])(?P<title>(?:(?:Dr|Prof)\.[ \t]*)*)"
+    rf"(?P<name>{_T_OFFICER_WORD}(?:[ \t]+(?:{_T_OFFICER_MIDDLE}|{_T_OFFICER_WORD}))*"
+    rf"[ \t]+{_T_OFFICER_WORD})(?![^\W\d_])"
+)
+# The role behind a name: "(CEO)", "(Vorsitzender)".
+_T_OFFICER_ROLE = r"(?:[ \t]*\([^\W\d_][^()\n/:]{0,29}\))?"
+# A part of a one-line footer that holds one name only: "| Dr. Vorname Nachname (CEO) |".
+_T_OFFICER_PART = re.compile(
+    r"[ \t]*" + _T_OFFICER.pattern + _T_OFFICER_ROLE + r"[ \t]*(?:[|·/–—-]|$)"
+)
+# The officers in the lines below their heading: "Vertreten durch die Geschäftsführung der
+# Paket GmbH\nVorname Nachname, Dr. Vorname Nachname" or "Geschäftsführung:\nVorname
+# Nachname\nVorname Nachname". The heading ends at the word, a colon or the company.
+_T_OFFICER_ANY = (
+    rf"(?:(?:Dr|Prof)\.[ \t]*)*{_T_OFFICER_WORD}"
+    rf"(?:[ \t]+(?:{_T_OFFICER_MIDDLE}|{_T_OFFICER_WORD}))*"
+    rf"[ \t]+{_T_OFFICER_WORD}(?![^\W\d_]){_T_OFFICER_ROLE}"
+)
+_T_OFFICER_LINES = re.compile(
+    rf"(?m)(?P<head>^[ \t]*(?:<p>)?[^\n.:;<]{{0,30}}?"
+    rf"(?i:\b(?:{_T_OFFICER_WORDS}|(?P<one>{_T_OFFICER_ONE}))\b)"
+    r"(?:[ \t]*:|[ \t]+(?:der|des|von|of|the)[ \t]+[^\n.:;<]{1,60}?"
+    r"\b(?:GmbH|mbH|AG|SE|KG|KGaA|UG|Ltd|Inc)\.?)?"
+    r"[ \t]*(?:</p>|<br[ \t]*/?>)?[ \t]*\n)"
+    rf"(?P<lines>(?:[ \t]*(?:<p>)?[ \t]*{_T_OFFICER_ANY}"
+    rf"(?:[ \t]*(?:[,;|·&]|und)[ \t]*{_T_OFFICER_ANY})*"
+    r"[ \t,]*(?:</p>|<br[ \t]*/?>)?[ \t]*(?:\n|\Z))+)"
 )
 # An address without a label: [name line,] street with house number, postcode and city.
 _T_STREET = (
@@ -1310,6 +1386,53 @@ class _TScrubber:
             self._note(found, "Garage")
         return (match.group(1) if match.re is _T_PLACE_NEXT else "") + "Ablageort: Garage"
 
+    def _officers(self, match):
+        """The persons in a list of a company's officers; a company in it stays.
+
+        Only where they stand, nothing is learnt: what follows "Inhaber" may be a brand.
+        """
+        names, rest, pos, out = match.group("list"), "", 0, ""
+        for end in _T_OFFICERS_END.finditer(names):
+            # "Geschäftsführung: Vorname Nachname | Dr. Vorname Nachname" goes on
+            part = (
+                end.group("sep") and not match.group("one")
+                and _T_OFFICER_PART.match(names, end.end())
+            )
+            if not (part and _t_person(part.group("name"))):
+                cut = end.start() if end.group("sep") else end.end()
+                # what follows may be the next list: "| Vorsitzender des Aufsichtsrates: …"
+                names, rest = names[:cut], _T_OFFICERS.sub(self._officers, names[cut:])
+                break
+        while True:
+            found = _T_OFFICER.search(names, pos)
+            if not found:
+                break
+            if _t_person(found.group("name")):
+                out += names[pos:found.start()] + found.group("title") + "Erika Beispiel"
+                pos = found.end()
+            else:
+                # "DHL Paket GmbH Vorname Nachname": try again from the next word
+                step = found.start("name") + len(found.group("name").split()[0])
+                out += names[pos:step]
+                pos = step
+        return match.group(0)[:match.start("list") - match.start()] + out + names[pos:] + rest
+
+    def _officer_lines(self, match):
+        """The names below a heading such as "Geschäftsführung:".
+
+        Line by line up to the first line that holds anything else ("Paket GmbH"); after
+        "Inhaber" one name only.
+        """
+        lines = match.group("lines").splitlines(keepends=True)
+        for i, line in enumerate(lines):
+            found = list(_T_OFFICER_LONG.finditer(line))
+            if not all(_t_person(f.group("name")) for f in found) or (
+                match.group("one") and (i or len(found) > 1)
+            ):
+                break
+            lines[i] = _T_OFFICER_LONG.sub(lambda f: f.group("title") + "Erika Beispiel", line)
+        return match.group("head") + "".join(lines)
+
     # ----- numbers, links -----
     def label(self, msg, number):
         """What stands for a mail in its file name, Message-ID and MIME boundary: its number in
@@ -1321,9 +1444,11 @@ class _TScrubber:
         return hashlib.sha256(self._salt.encode() + b"\0" + source).hexdigest()[:12]
 
     def _run(self, run):
-        """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays."""
+        """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays,
+        and so does the "00" of an SSCC (DHL eCommerce), with a check digit that fits again."""
         if run not in self._runs:
-            keep = 5 if re.fullmatch(r"00340\d{15}", run) else 0
+            sscc = _t_sscc(run) and not run.startswith("00340")
+            keep = 5 if re.fullmatch(r"00340\d{15}", run) else 2 if sscc else 0
             letters = 6 if re.fullmatch(r"[A-Fa-f]+", run) else 26
             attempt = 0
             while True:
@@ -1334,7 +1459,11 @@ class _TScrubber:
                     else chr((65 if char.isupper() else 97) + byte % letters)
                     for char, byte in zip(run[keep:], stream)
                 )
+                if sscc:
+                    invented = invented[:-1] + _t_sscc_check(invented[:-1])
                 attempt += 1
+                if sscc and invented.startswith("00340"):
+                    continue  # (would read as DHL's own number anywhere)
                 if invented != run and not any(a in invented for a in self.avoid):
                     break
             self._runs[run] = invented
@@ -1433,6 +1562,8 @@ class _TScrubber:
         text = _T_PLAIN_BLOCK.sub(self._plain, text)
         text = _T_INLINE_ADDRESS.sub(self._inline, text)
         text = _T_PLZ_CITY.sub("\\g<lead>12345 Musterstadt", text)
+        text = _T_OFFICERS.sub(self._officers, text)
+        text = _T_OFFICER_LINES.sub(self._officer_lines, text)
         text = _T_NEIGHBOUR.sub(self._neighbour, text)
         for pattern, replacement in self.rules:
             text = pattern.sub(replacement, text)

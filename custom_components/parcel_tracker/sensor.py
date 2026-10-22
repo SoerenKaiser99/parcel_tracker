@@ -104,7 +104,6 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         {
             "events",
             "status_text",
-            "delivery_code",
             "name",
             "tracking_url",
             "amazon_shipment",
@@ -190,7 +189,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "owner": self.coordinator.effective_owner(p),
             "owner_detected": self.coordinator.has_own_owner(p),
             "shipping_carrier_hint": p.shipping_carrier_hint,
-            "delivery_code": p.active_code(today),
+            # Only whether a delivery code is there: the code itself is a secret and never
+            # an attribute; the card asks for it (WebSocket parcel_tracker/delivery_code).
+            "has_delivery_code": self.coordinator.delivery_code(p, today) is not None,
             # Import duty still to pay at delivery, as a DHL mail named it (None until then
             # and after the delivery); customs_cash: the carrier asks for cash.
             "customs_amount": due[0] if (due := p.customs_due) else None,

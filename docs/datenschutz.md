@@ -209,12 +209,12 @@ Mit eingeschalteter Option:
 
 - Der Import liest den Code aus der Mail.
 - Die Karte zeigt ihn verdeckt: erst „Code anzeigen“, dann die Rückfrage „Zustell-Code anzeigen?“. Beim Zuklappen verschwindet er wieder.
-- Der Code steht im Attribut `delivery_code`.
+- Der Code steht in keinem Attribut. Der Sensor zeigt nur `has_delivery_code` (`true` oder `false`). Die Karte holt den Code erst, wenn du „Code anzeigen“ tippst und das bestätigst.
 - Er wird nie gespeichert, landet nie im Verlauf (Recorder) und verfällt nach dem Liefertag.
 - Er steht nie in einer Benachrichtigung.
 
-!!! warning "Verdeckt ist er nur auf der Karte"
-    Wer Zugriff auf die Entitäts-Attribute oder die API von Home Assistant hat (Entwicklerwerkzeuge, Automationen, andere Dashboards, Apps), kann den Code im Klartext lesen.
+!!! warning "Jeder angemeldete Benutzer kann ihn abrufen"
+    Der Code steht nicht mehr in den Entitäts-Attributen. Die Karte fragt ihn aber über die Schnittstelle von Home Assistant ab (WebSocket-Befehl `parcel_tracker/delivery_code`). Das kann jeder angemeldete Benutzer, auch ohne die Karte. Der Code gilt auch bei einem Geschenk. Wer den Code nicht teilen will, lässt die Option aus.
 
 Abholcodes aus DHL-Mails liest der Import nie.
 

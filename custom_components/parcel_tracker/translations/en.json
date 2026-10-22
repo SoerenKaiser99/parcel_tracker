@@ -171,6 +171,7 @@
       "imap_login_disabled": "The mail server accepts no login without encryption. Choose \"Encrypted, don't verify the certificate\" (usually port 993) or allow plain-text logins on the server.",
       "imap_password_missing": "Enter the mailbox password.",
       "folder_not_found": "This folder doesn't exist in the mailbox.",
+      "host_required": "Enter the IMAP server of your mail provider.",
       "folder_reserved": "Paket Tracker files mails into this folder. Choose another folder to read.",
       "ups_auth": "UPS rejected Client ID or Secret.",
       "ups_cannot_connect": "Couldn't reach UPS. Try again later.",
@@ -225,7 +226,7 @@
     },
     "card_resource_yaml": {
       "title": "Add the Paket Tracker card to the dashboard resources",
-      "description": "The dashboard resources are managed in YAML, so Parcel Tracker cannot add its card by itself. Add this entry under `lovelace:` → `resources:` in configuration.yaml and restart Home Assistant:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nThis notice disappears once the card is listed there."
+      "description": "The dashboard resources are managed in YAML, so Parcel Tracker cannot add its card by itself. Add this entry (replacing an older `/local/parcel_tracker/…` entry, if there is one) under `lovelace:` → `resources:` in configuration.yaml and restart Home Assistant:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nThis notice disappears once the card is listed there."
     }
   },
   "exceptions": {

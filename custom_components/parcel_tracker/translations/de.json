@@ -171,6 +171,7 @@
       "imap_login_disabled": "Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an. „Verschlüsselt, Zertifikat nicht prüfen“ wählen (meist Port 993) oder die Klartext-Anmeldung am Server erlauben.",
       "imap_password_missing": "Gib das Passwort des Postfachs ein.",
       "folder_not_found": "Diesen Ordner gibt es im Postfach nicht.",
+      "host_required": "Trag den IMAP-Server deines Mailanbieters ein.",
       "folder_reserved": "In diesen Ordner legt Paket Tracker die Mails ab. Wähl einen anderen Ordner zum Lesen.",
       "ups_auth": "UPS hat Client-ID oder Secret abgelehnt.",
       "ups_cannot_connect": "UPS ist gerade nicht erreichbar. Versuch es später noch einmal.",
@@ -225,7 +226,7 @@
     },
     "card_resource_yaml": {
       "title": "Paket-Tracker-Karte als Dashboard-Ressource eintragen",
-      "description": "Die Dashboard-Ressourcen werden per YAML verwaltet, deshalb kann Paket Tracker die Karte nicht selbst eintragen. Ergänze in der configuration.yaml unter `lovelace:` → `resources:` diesen Eintrag und starte Home Assistant neu:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nDer Hinweis verschwindet, sobald die Karte dort eingetragen ist."
+      "description": "Die Dashboard-Ressourcen werden per YAML verwaltet, deshalb kann Paket Tracker die Karte nicht selbst eintragen. Ergänze in der configuration.yaml unter `lovelace:` → `resources:` diesen Eintrag (ersetze dabei einen älteren Eintrag mit `/local/parcel_tracker/…`, falls vorhanden) und starte Home Assistant neu:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nDer Hinweis verschwindet, sobald die Karte dort eingetragen ist."
     }
   },
   "exceptions": {

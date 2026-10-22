@@ -326,6 +326,7 @@ CHECK_LOGIN = "custom_components.parcel_tracker.config_flow.MailboxClient.check_
 
 
 def _mail_input(**mail):
+    mail.setdefault("imap_host", "imap.example.org")
     return {CONF_POSTCODE: "10115", CONF_KEEP_DELIVERED_DAYS: 3, CONF_MAIL_SECTION: mail}
 
 
@@ -341,7 +342,7 @@ async def test_options_mail_defaults_and_disabled_without_user(hass):
         await hass.async_block_till_done()
     assert result["type"] is FlowResultType.CREATE_ENTRY
     login.assert_not_called()
-    assert entry.options[CONF_IMAP_HOST] == "imap.mailbox.org"
+    assert entry.options[CONF_IMAP_HOST] == ""
     assert entry.options[CONF_IMAP_USER] == ""
     assert entry.options[CONF_MAIL_INTERVAL] == 5
     assert entry.options[CONF_MOVE_PROCESSED] is True
@@ -398,7 +399,7 @@ async def test_options_mail_empty_password_keeps_stored_one(hass):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "alt"},
-        options={CONF_IMAP_USER: "u"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
     )
     entry.add_to_hass(hass)
     result = await open_options(hass, entry)
@@ -480,7 +481,7 @@ async def test_options_mail_off_removes_user_and_password(hass):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
-        options={CONF_IMAP_USER: "u"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
     )
     entry.add_to_hass(hass)
     result = await open_options(hass, entry)
@@ -503,7 +504,7 @@ async def test_options_empty_or_missing_user_keeps_mail_import(hass, mail):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
-        options={CONF_IMAP_USER: "u"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
     )
     entry.add_to_hass(hass)
     result = await open_options(hass, entry)
@@ -531,7 +532,7 @@ async def test_options_mail_switch_defaults_to_whether_a_user_is_stored(hass):
     configured = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
-        options={CONF_IMAP_USER: "u"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
     )
     configured.add_to_hass(hass)
     result = await open_options(hass, configured)
@@ -647,3 +648,79 @@ async def test_options_changing_only_interval_skips_login_check(hass):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     login.assert_not_called()
     assert entry.options[CONF_MAIL_INTERVAL] == 30
+
+
+async def test_options_mail_without_host_is_rejected_before_login(hass):
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    entry.add_to_hass(hass)
+    result = await open_options(hass, entry)
+    with patch(CHECK_LOGIN) as login:
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(imap_host="", imap_user="u", imap_password="pw")
+        )
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(imap_host="  ", imap_user="u", imap_password="pw")
+        )
+    assert result["errors"] == {"base": "host_required"}
+    login.assert_not_called()
+    assert CONF_IMAP_PASSWORD not in entry.data
+
+
+async def test_options_mail_host_is_prefilled_only_when_stored(hass):
+    fresh = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    fresh.add_to_hass(hass)
+    result = await open_options(hass, fresh)
+    section_schema = next(
+        v for k, v in result["data_schema"].schema.items() if k == CONF_MAIL_SECTION
+    ).schema.schema
+    host_key = next(k for k in section_schema if k == CONF_IMAP_HOST)
+    assert host_key.default is vol.UNDEFINED or host_key.default() in ("", None)
+
+    stored = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "p"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
+    )
+    stored.add_to_hass(hass)
+    result = await open_options(hass, stored)
+    section_schema = next(
+        v for k, v in result["data_schema"].schema.items() if k == CONF_MAIL_SECTION
+    ).schema.schema
+    host_key = next(k for k in section_schema if k == CONF_IMAP_HOST)
+    assert host_key.default() == "imap.example.org"
+
+
+async def test_options_import_off_with_empty_host_field_is_fine(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
+    )
+    entry.add_to_hass(hass)
+    result = await open_options(hass, entry)
+    with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(imap_host="", mail_enabled=False)
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    login.assert_not_called()
+    assert entry.options[CONF_IMAP_USER] == ""
+
+
+async def test_options_empty_host_field_keeps_stored_host_while_import_on(hass):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_POSTCODE: "10115", CONF_IMAP_PASSWORD: "pw"},
+        options={CONF_IMAP_USER: "u", CONF_IMAP_HOST: "imap.example.org"},
+    )
+    entry.add_to_hass(hass)
+    result = await open_options(hass, entry)
+    with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], _mail_input(imap_host="", imap_user="u")
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    login.assert_not_called()
+    assert entry.options[CONF_IMAP_HOST] == "imap.example.org"
