@@ -24,6 +24,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Schalter:** `switch.paket_tracker_geschenkmodus` für den Geschenkmodus.
 - **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` und `set_owner`.
 - **Event und Auslöser:** das Event `parcel_tracker_status_changed` und fünf Auslöser im Automations-Editor ohne YAML.
+- **Einfuhrabgaben (Zoll):** Betrag und Barzahlung aus der DHL-Mail am Zustelltag auf der Karte und in der Benachrichtigung.
 - **Abholbereit:** Packstation, Filiale und PaketShop mit Abholort und letztem Abholtag.
 - **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert und in keinem Attribut (der Sensor zeigt nur `has_delivery_code`).
 - **Datensparsam:** kein Cloud-Konto, Zugangsdaten bleiben in Home Assistant, nur ein eigenes Paket-Postfach wird gelesen.
@@ -32,6 +33,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.43 (2026-10-22)
+
+- **Einfuhrabgaben (Zoll) bei DHL:** Nennt die DHL-Mail am Zustelltag Einfuhrabgaben, zeigt die Karte den Betrag als Schild und als Zeile im Paket, auch ob bar zu zahlen ist. Die Benachrichtigung „in Zustellung“ nennt ihn ebenfalls. Neue Attribute `customs_amount`, `customs_currency` und `customs_cash`, nicht im Verlauf gespeichert und nach der Zustellung gelöscht. Bei Geschenken bleibt der Betrag sichtbar, weil er an der Tür bezahlt werden muss (Beitrag von Sven242, [#53](https://github.com/SoerenKaiser99/parcel_tracker/pull/53), [#36](https://github.com/SoerenKaiser99/parcel_tracker/issues/36)).
 
 ### v0.3.42 (2026-10-22)
 
