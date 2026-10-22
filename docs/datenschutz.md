@@ -46,6 +46,7 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 - der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“. Einzige Ausnahme ist die Option [Absendernamen aus DHL-Mails übernehmen](#absendernamen-aus-dhl-mails-ubernehmen), die du selbst einschalten musst,
 - Status, Liefertag und Zeitfenster,
 - bei einem abholbereiten Paket aus der Amazon-Mail „Paket zur Abholung bereit“: Name und Straße der Abholstelle (ohne Postleitzahl, Ort und interne Nummer des Shops) und der letzte Abholtag,
+- bei einer DHL-Sendung aus dem Ausland der Betrag der Einfuhrabgaben (Zoll), seine Währung und ob bar gezahlt werden soll – nicht der Satz aus der Mail. Der Betrag steht bis zur Zustellung in den Attributen, auf der Karte und in der Benachrichtigung „In Zustellung“. Danach wird er gelöscht. Der Verlauf von Home Assistant zeichnet ihn nicht auf,
 - bei einem abholbereiten Paket aus der Abholmail von DHL: Filiale bzw. Packstation und Straße (ohne Postleitzahl und Ort),
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
@@ -170,7 +171,7 @@ Wer Geschenke sehen darf, legst du unter **Einstellungen → Geräte & Dienste �
 Ein Geschenk heißt überall `Geschenk · DHL-Paket …2557` (der neutrale Name wie bei „Namen ausblenden“, mit dem Vorsatz „Geschenk · “). Das gilt für Karte, Sensoren, Kalender, Event und Benachrichtigungen. Das Kennzeichen gewinnt gegen „Namen ausblenden“ und gegen einen von Hand eingetippten Namen.
 
 - **Verborgen:** der Name (auch ein von Hand vergebener), der Mail-Titel, die Links zur Sendungsverfolgung und zur Bestellung und Amazons Kennung der Sendung (`amazon_shipment`).
-- **Sichtbar:** Status, Liefertag, Zeitfenster, Ort, Abholort und der Verlauf des Paketdienstes. Darin steht kein Artikel.
+- **Sichtbar:** Status, Liefertag, Zeitfenster, Ort, Abholort, der Verlauf des Paketdienstes und die Einfuhrabgaben (Zoll). Im Verlauf steht kein Artikel. Der Betrag bleibt sichtbar, weil jeder, der an die Tür geht, ihn bar zahlen können muss. Er verrät aber ungefähr, was das Paket wert ist.
 - **Benachrichtigungen** gehen an alle eingerichteten Ziele, mit dem Namen des Geschenks.
 
 Einmal Geschenk, immer Geschenk: Das Kennzeichen bleibt, auch wenn der Modus ausgeschaltet wird und das Paket zugestellt ist. Es geht nur von Hand weg, über „Nicht mehr verbergen“ auf der Karte oder den Dienst [`parcel_tracker.set_gift`](sensoren.md#parcel_trackerset_gift), und das darf nur, wer Geschenke sehen darf.

@@ -99,8 +99,18 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_options = [s.value for s in ParcelStatus]
     _attr_translation_key = "parcel"
     _attr_icon = "mdi:package-variant-closed"
+    # (the customs amount is deleted on delivery: the history must not keep it either)
     _unrecorded_attributes = frozenset(
-        {"events", "status_text", "name", "tracking_url", "amazon_shipment"}
+        {
+            "events",
+            "status_text",
+            "name",
+            "tracking_url",
+            "amazon_shipment",
+            "customs_amount",
+            "customs_currency",
+            "customs_cash",
+        }
     )
 
     def __init__(self, coordinator: ParcelCoordinator, number: str) -> None:
@@ -182,6 +192,11 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             # Only whether a delivery code is there: the code itself is a secret and never
             # an attribute; the card asks for it (WebSocket parcel_tracker/delivery_code).
             "has_delivery_code": self.coordinator.delivery_code(p, today) is not None,
+            # Import duty still to pay at delivery, as a DHL mail named it (None until then
+            # and after the delivery); customs_cash: the carrier asks for cash.
+            "customs_amount": due[0] if (due := p.customs_due) else None,
+            "customs_currency": due[1] if due else None,
+            "customs_cash": due[2] if due else False,
             "track17": p.track17,
             "track17_carrier": p.track17_carrier,
         }

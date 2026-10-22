@@ -84,6 +84,13 @@ def _count(value: Any) -> int:
     return value if type(value) is int and value > 0 else 0
 
 
+def _amount(value: Any) -> float | None:
+    """A stored amount of money; anything unreadable (or not above zero) is none."""
+    if type(value) in (int, float) and value > 0:
+        return round(float(value), 2)
+    return None
+
+
 def _texts(value: Any) -> list[str]:
     """A stored list of texts; anything else in it (or no list at all) is dropped."""
     return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
@@ -238,10 +245,34 @@ class Parcel:
     # Amazon's ids of the shipments of an order its mails named (``MailUpdate.shipment_id``),
     # oldest first, each once. Persisted; an order stored by an older version has none.
     shipment_ids: list[str] = field(default_factory=list)
+    # Import duty a DHL mail named (``MailUpdate.customs_amount``): the amount, its currency
+    # and whether the carrier asks for cash. Persisted; see ``customs_due`` for when it is
+    # shown.
+    customs_amount: float | None = None
+    customs_currency: str | None = None
+    customs_cash: bool = False
 
     @property
     def status(self) -> ParcelStatus | None:
         return self.result.status if self.result else None
+
+    @property
+    def customs_due(self) -> tuple[float, str, bool] | None:
+        """(amount, currency, cash asked for) of the import duty still to pay, else None.
+
+        It is due at delivery, so it is told until the parcel is delivered (by a carrier, a
+        mail or by hand) and never after.
+        """
+        if self.customs_amount is None or self.status is ParcelStatus.DELIVERED:
+            return None
+        return self.customs_amount, self.customs_currency or "EUR", self.customs_cash
+
+    def clear_customs(self) -> bool:
+        """Forget the import duty (the parcel is delivered); True if there was one."""
+        had = self.customs_amount is not None
+        self.customs_amount = self.customs_currency = None
+        self.customs_cash = False
+        return had
 
     @property
     def poll_target(self) -> tuple[str | None, str] | None:
@@ -303,6 +334,9 @@ class Parcel:
             "delivery_announced": self.delivery_announced,
             "carrier_status": self.carrier_status.value if self.carrier_status else None,
             "shipment_ids": list(self.shipment_ids),
+            "customs_amount": self.customs_amount,
+            "customs_currency": self.customs_currency,
+            "customs_cash": self.customs_cash,
         }
 
     @classmethod
@@ -351,6 +385,11 @@ class Parcel:
             ),
             carrier_status=_status(data.get("carrier_status")),
             shipment_ids=_texts(data.get("shipment_ids")),
+            customs_amount=_amount(data.get("customs_amount")),
+            customs_currency=(
+                cur if isinstance(cur := data.get("customs_currency"), str) and cur else None
+            ),
+            customs_cash=data.get("customs_cash") is True,
         )
 
 

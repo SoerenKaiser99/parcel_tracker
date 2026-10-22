@@ -165,6 +165,12 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     # The newest of Amazon's shipments of the order.
     assert expired.attributes["amazon_shipment"] == "UhIjKl9mN"
     assert {"name", "tracking_url", "amazon_shipment"} <= ParcelSensor._unrecorded_attributes
+    # The customs amount is deleted on delivery: the history must not keep it.
+    assert {
+        "customs_amount",
+        "customs_currency",
+        "customs_cash",
+    } <= ParcelSensor._unrecorded_attributes
 
 
 async def test_sensor_exposes_eta_latest(hass):
@@ -611,3 +617,46 @@ async def test_pickup_sensor_follows_the_status(hass, freezer):
     coordinator.async_set_updated_data(dict(coordinator.store.parcels))
     await hass.async_block_till_done()
     assert hass.states.get("sensor.pakete_abholbereit").state == "0"
+
+
+async def test_import_duty_attributes_while_the_parcel_is_not_delivered(hass):
+    """Issue #36: the amount a DHL mail named, as attributes for automations and the card."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
+    entry.add_to_hass(hass)
+    with patch(FETCH, return_value=_res(ParcelStatus.IN_TRANSIT)):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+    now = dt_util.utcnow()
+    due = Parcel(
+        "LE999999901BE", "dhl", "mail", None, now, now,
+        result=_res(ParcelStatus.OUT_FOR_DELIVERY, eta_today=True),
+        customs_amount=12.34, customs_currency="EUR", customs_cash=True,
+    )
+    delivered = Parcel(
+        "LE999999902BE", "dhl", "mail", None, now, now,
+        result=_res(ParcelStatus.DELIVERED),
+        customs_amount=12.34, customs_currency="EUR", customs_cash=True,
+    )
+    plain = Parcel(
+        "LE999999903BE", "dhl", "mail", None, now, now,
+        result=_res(ParcelStatus.IN_TRANSIT),
+    )
+    for parcel in (due, delivered, plain):
+        coordinator.store.add(parcel)
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+
+    open_ = hass.states.get("sensor.paket_le999999901be").attributes
+    assert (open_["customs_amount"], open_["customs_currency"], open_["customs_cash"]) == (
+        12.34,
+        "EUR",
+        True,
+    )
+    for entity in ("sensor.paket_le999999902be", "sensor.paket_le999999903be"):
+        attrs = hass.states.get(entity).attributes
+        assert (attrs["customs_amount"], attrs["customs_currency"], attrs["customs_cash"]) == (
+            None,
+            None,
+            False,
+        )

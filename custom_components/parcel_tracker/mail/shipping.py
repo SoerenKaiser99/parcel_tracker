@@ -79,6 +79,17 @@ _DHL_SHOWN = re.compile(
     r"(\d{12}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{5}\d{16}|JJD\d{18,24}|00\d{18})$",
     re.MULTILINE,
 )
+# Import duty (issue #36): the mail of the day of delivery for a parcel from abroad has a box
+# "Die Einfuhrabgaben i.H.v. 12,34€ (inkl. 7,50€ Auslagepauschale und darin enthaltener MWSt.)
+# sind bei Zustellung, möglichst passend, in bar zu bezahlen." Only the first amount counts
+# (what is due, the part in brackets is made up of fees); "in bar" is looked for in the
+# 300 characters behind it. Every part is bounded, so a long line is read in linear time.
+_DHL_CUSTOMS = re.compile(
+    r"Einfuhrabgaben\s{1,5}i\.\s?H\.\s?v\.\s{0,5}"
+    r"(?P<euro>\d{1,3}(?:\.\d{3}){0,2}|\d{1,7})(?:,(?P<cent>\d{1,2}))?\s{0,3}(?:€|EUR)",
+    re.IGNORECASE,
+)
+_DHL_CASH = re.compile(r"\bin\s{1,3}bar\b", re.IGNORECASE)
 # The receipt of a Packstation ("Einlieferungsbeleg: Ihr Versand an der Packstation") is
 # about a parcel somebody sent, not one that comes. Its text part names no number, and the
 # HTML part is not searched for one.
@@ -198,6 +209,19 @@ def _dhl_numbers(text: str) -> list[str]:
     )
 
 
+def _dhl_customs(text: str) -> tuple[float, bool] | None:
+    """(amount in euro, cash asked for) of the import duty a DHL mail names, else None."""
+    found = _DHL_CUSTOMS.search(text)
+    if found is None:
+        return None
+    euro = found.group("euro").replace(".", "")
+    cent = (found.group("cent") or "").ljust(2, "0")
+    amount = float(f"{euro}.{cent or '00'}")
+    if amount <= 0:
+        return None
+    return amount, _DHL_CASH.search(text[found.end() : found.end() + 300]) is not None
+
+
 def _plain_name(text: str) -> str | None:
     """The name DHL puts into "Ihre <Name> Sendung", without the naming gate.
 
@@ -257,6 +281,8 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
             if title is None and plain_names:
                 title = _plain_name(shop)
     status, ahead = _dhl_status(subj)
+    # (like the pickup point: the text read for the number, else the HTML part)
+    customs = _dhl_customs(text) or _dhl_customs(html_body_text(msg))
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
     if status is ParcelStatus.OUT_FOR_DELIVERY:
@@ -290,6 +316,9 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
             shop=shop_name,
             postponed=postponed,
             status_text=_dhl_words(subj, status),
+            customs_amount=customs[0] if customs else None,
+            customs_currency="EUR" if customs else None,
+            customs_cash=customs[1] if customs else False,
             pickup_point=pickup_point,
         )
     ]

@@ -1,0 +1,51 @@
+X-Fixture: synthetic, modelled on DHL's "kommt heute" mail for a parcel from abroad; parcel
+ number, amounts and names are invented
+From: DHL Zustell-Update <zustellung@dhl.de>
+To: max@example.org
+Subject: Ihre DHL Sendung kommt heute
+Date: Mon, 28 Sep 2026 07:23:12 +0200
+Message-ID: <fixture-197@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============1178000000000000000=="
+
+--===============1178000000000000000==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+
+[Onlineversion](https://custcomm.dhl.de/…) | [Datenschutzhinweis zur Übersetzung](https://custcomm.dhl.de/…)
+Deutsch  ▾ [https://custcomm.dhl.de/…]
+<p>Hallo Max Mustermann,</p>
+<p>Ihre DHL Sendung wird Ihnen <strong>heute</strong> durch Ihre Paketzustellkraft zugestellt.</p>
+<table style="background-color:#ffffff">
+  <tbody>
+    <tr>
+      <td style="padding:14px 18px;font-size:14px;line-height:140%;color:#1a1a1a">Die Einfuhrabgaben i.H.v. 12,34€ (inkl. 7,50€ Auslagepauschale und darin enthaltener MWSt.) sind bei Zustellung, möglichst passend, in bar zu bezahlen.</td>
+    </tr>
+  </tbody>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="100%" role="presentation">
+  <tbody>
+    <tr>
+      <td align="center" style="font-size:16px;font-weight:700;color:#000000;line-height:1.3;padding:0 0 4px;">Ihre Sendungsnummer </td>
+    </tr>
+    <tr>
+      <td align="center" style="font-size:14px;color:#1a1a1a;line-height:1.3;padding:0 0 8px;">LE999999901BE </td>
+    </tr>
+  </tbody>
+</table>
+<p>Viele Grüße</p>
+
+--===============1178000000000000000==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<html><body>
+<p>Hallo Max Mustermann,</p>
+<p>Ihre DHL Sendung wird Ihnen <strong>heute</strong> durch Ihre Paketzustellkraft zugestellt.</p>
+<table><tbody><tr><td>Die Einfuhrabgaben i.H.v. 12,34€ (inkl. 7,50€ Auslagepauschale und darin enthaltener MWSt.) sind bei Zustellung, möglichst passend, in bar zu bezahlen.</td></tr></tbody></table>
+<table><tbody><tr><td>Ihre Sendungsnummer </td></tr><tr><td>LE999999901BE </td></tr></tbody></table>
+<p>Viele Grüße</p>
+</body></html>
+--===============1178000000000000000==--
