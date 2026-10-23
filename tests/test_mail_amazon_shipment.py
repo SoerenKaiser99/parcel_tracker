@@ -4,8 +4,8 @@ Amazon's mails from "Versendet" on link to the shipment's tracking page
 (https://www.amazon.de/progress-tracker/package?orderId=…&shipmentId=…), behind Amazon's
 own redirect: since about March 2025, in the plain layout of "In Zustellung" since about
 August 2025. The id is the same in every mail about that box: it tells which entry of an
-order a mail goes to. Most mails are built here; the fixtures 181-191 are real sequences
-whose links the anonymiser kept as invented ones (the same id for the same box).
+order a mail goes to. Most mails are built here; the fixtures 181-191 and 195-203 are real
+sequences whose links the anonymiser kept as invented ones (the same id for the same box).
 """
 
 from datetime import datetime, timedelta
@@ -99,7 +99,6 @@ def test_a_mail_without_the_link_has_no_shipment_id():
         _redirect(_page(shipment="TAb-dE9fG")),
         _redirect(_page(shipment="TAb")),
         _redirect(_page(order="999-9156534")),
-        _redirect(_page(order=OTHER_ORDER)),
     ],
     ids=[
         "redirect-over-http",
@@ -111,7 +110,6 @@ def test_a_mail_without_the_link_has_no_shipment_id():
         "id-with-other-characters",
         "id-too-short",
         "order-cut",
-        "order-the-mail-does-not-name",
     ],
 )
 def test_no_other_link_gives_a_shipment_id(href):
@@ -156,6 +154,33 @@ def test_an_order_named_as_two_shipments_of_one_mail_takes_no_id():
         apply_update(parcels, update, NOW)
     assert parcels[NUMBER].name == "Alphamarke Trinkflasche 750 ml"
     assert parcels[f"{NUMBER}P2"].name == "Betamarke Kabel 2 m (2)"
+
+
+# ----- one box with the items of several orders -----
+def test_an_order_only_the_link_names_gets_the_news_with_its_id():
+    msg = _msg(
+        _redirect(_page(OTHER_ORDER, "UhIjKl9mN")),
+        subject="Zugestellt: „Beispiel-Maßband 5...“ und 1 weiterer Artikel",
+        sender="order-update@amazon.de",
+    )
+    updates = _updates(msg)
+    # (no title for the linked order: the subject may name the other order's item)
+    assert [(u.number, u.title, u.shipment_id) for u in updates] == [
+        (NUMBER, "Beispiel-Maßband 5… und 1 weiterer Artikel", None),
+        ("AMZ99912345677654321", None, "UhIjKl9mN"),
+    ]
+    assert {u.status for u in updates} == {ParcelStatus.DELIVERED}
+    assert updates[1].delivered_at == updates[0].delivered_at
+
+
+def test_a_mail_about_several_boxes_gives_no_order_only_its_links_name():
+    # Which box the third order lies in is not told.
+    msg = _msg(
+        _redirect(_page()),
+        _redirect(_page("999-7654321-1234567", "VwXyZa9bC")),
+        orders=(ORDER, OTHER_ORDER),
+    )
+    assert [u.number for u in _updates(msg)] == [NUMBER, "AMZ99912345677654321"]
 
 
 def _apply(parcels: dict, msg: EmailMessage):
@@ -543,7 +568,7 @@ def test_a_further_box_delivered_long_ago_is_not_announced():
 
 # ----- real sequences: every mail of an order, in the order they were sent -----
 def _replay(first: int, last: int) -> list:
-    names = sorted(p.name for p in (FIXTURES / "mail").glob("1[89][0-9]_*.eml"))
+    names = sorted(p.name for p in (FIXTURES / "mail").glob("[0-9][0-9][0-9]_*.eml"))
     names = [n for n in names if first <= int(n[:3]) <= last]
     updates = [u for name in names for u in parse_mail(load_mail(name)).updates]
     parcels: dict = {}
@@ -570,4 +595,23 @@ def test_the_order_named_after_its_first_item_takes_the_name_of_the_first_box():
     assert [(p.name, p.status, p.shipment_ids) for p in _replay(189, 191)] == [
         ("OVNSHVN…", SHIPPED, ["T6DlR8pGJ"]),
         ("Fasgear 240W… und 1 weiterer Artikel (2)", SHIPPED, ["TXAnNg2hP"]),
+    ]
+
+
+# ----- real sequences: one box with the items of two orders -----
+# The box's mails name one order in the text and link the other one with the id of its box.
+def test_a_box_of_two_orders_delivers_the_order_of_the_linked_box():
+    # The linked order's "Versendet" mail named the same id; the box of the other order was
+    # put into it, its mails name that order in the text.
+    assert [(p.name, p.status, p.shipment_ids) for p in _replay(195, 199)] == [
+        ("Beispiel-USB-Adapter 3 Stück…", DELIVERED, ["TNtuSudJp"]),
+        ("3 Stück Beispiel-Wandlermodul… und 1 weiterer Artikel", DELIVERED, ["Tcz89qs8W"]),
+    ]
+
+
+def test_a_box_of_two_orders_under_a_new_id_delivers_the_order_without_one():
+    # The linked order's "Versendet" mail was never read; its box comes under a new id.
+    assert [(p.name, p.status, p.shipment_ids) for p in _replay(200, 203)] == [
+        ("Beispiel-Reinigungslösung für…", DELIVERED, ["TGnhp0rH9"]),
+        ("Beispiel-Unterbauleuchten… und 1 weiterer Artikel", DELIVERED, ["TMPKwjz7V"]),
     ]
