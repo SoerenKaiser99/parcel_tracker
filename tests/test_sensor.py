@@ -250,6 +250,7 @@ async def test_today_counts_only_sure_parcels_and_lists_possible_ones(hass, free
         "carrier": "amazon",
         "eta_from": window[0].isoformat(),
         "eta_to": window[1].isoformat(),
+        "gift": False,
     }
     assert today.attributes["possible"][0] == {
         "number": "AMZ99900000000000003",
@@ -257,6 +258,7 @@ async def test_today_counts_only_sure_parcels_and_lists_possible_ones(hass, free
         "carrier": "amazon",
         "eta_from": None,
         "eta_to": None,
+        "gift": False,
     }
     # The parcel's own attributes keep the range as it is.
     attrs = hass.states.get("sensor.paket_amz99900000000000003").attributes
@@ -381,6 +383,7 @@ async def test_today_lists_the_parcels_delivered_today(hass, freezer):
         "carrier": "amazon",
         "eta_from": None,
         "eta_to": None,
+        "gift": False,
     }
     assert set(today.attributes["delivered_today"][0]) == set(today.attributes["parcels"][0])
     # The version, the lists with names and the persons are kept out of the history.
@@ -471,7 +474,7 @@ async def test_three_summary_sensors_count_what_the_today_sensor_lists(hass, fre
     assert active.attributes["parcels"][0] == today.attributes["parcels"][0]
     assert active.attributes["parcels"][-1] == {
         "number": "00340999999999999950", "name": "Neu", "carrier": "dhl",
-        "eta_from": None, "eta_to": None,
+        "eta_from": None, "eta_to": None, "gift": False,
     }
     assert possible.state == "1" == str(today.attributes["possible_count"])
     assert possible.attributes["parcels"] == today.attributes["possible"]
@@ -577,6 +580,7 @@ async def test_pickup_sensor_counts_the_parcels_that_wait_for_pickup(hass, freez
         "carrier": "amazon",
         "eta_from": None,
         "eta_to": None,
+        "gift": False,
     }
     assert set(today.attributes["awaiting_pickup"][0]) == set(
         today.attributes["delivered_today"][0]

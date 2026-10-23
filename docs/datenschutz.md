@@ -173,6 +173,7 @@ Ein Geschenk heißt überall `Geschenk · DHL-Paket …2557` (der neutrale Name 
 - **Verborgen:** der Name (auch ein von Hand vergebener), der Mail-Titel, die Links zur Sendungsverfolgung und zur Bestellung und Amazons Kennung der Sendung (`amazon_shipment`).
 - **Sichtbar:** Status, Liefertag, Zeitfenster, Ort, Abholort, der Verlauf des Paketdienstes und die Einfuhrabgaben (Zoll). Im Verlauf steht kein Artikel. Der Betrag bleibt sichtbar, weil jeder, der an die Tür geht, ihn bar zahlen können muss. Er verrät aber ungefähr, was das Paket wert ist.
 - **Benachrichtigungen** gehen an alle eingerichteten Ziele, mit dem Namen des Geschenks.
+- **Die Zeile selbst** bleibt auf der Karte stehen, mit Status und Liefertag, und zählt in den Schildern mit. Soll die Karte Geschenke für alle anderen ganz weglassen, nimm die Kartenoption [`gifts`](karte.md#gifts-geschenke-ausblenden).
 
 Einmal Geschenk, immer Geschenk: Das Kennzeichen bleibt, auch wenn der Modus ausgeschaltet wird und das Paket zugestellt ist. Es geht nur von Hand weg, über „Nicht mehr verbergen“ auf der Karte oder den Dienst [`parcel_tracker.set_gift`](sensoren.md#parcel_trackerset_gift), und das darf nur, wer Geschenke sehen darf.
 

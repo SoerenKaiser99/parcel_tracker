@@ -211,6 +211,9 @@ def _items(coordinator: ParcelCoordinator, parcels: list[Parcel]) -> list[dict[s
             "carrier": p.carrier,
             "eta_from": _iso(p.result.eta_from) if p.result else None,
             "eta_to": _iso(p.result.eta_to) if p.result else None,
+            # Whether it is a gift (its name is the gift name then): own chips and
+            # counters can leave gifts out.
+            "gift": p.gift,
         }
         for p in parcels
     ]

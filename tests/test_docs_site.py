@@ -27,6 +27,12 @@ EVENT_FIELDS = set(
     re.findall(r'^\s+"([a-z_]+)": ', COORDINATOR_PY.split("EVENT_STATUS_CHANGED,\n", 2)[2]
                .split("self._notify(parcel, old)")[0], re.M)
 )
+# The event fired when a parcel is new, and its fields as coordinator._fire_added fires them.
+ADDED_EVENT = re.search(r'EVENT_PARCEL_ADDED = "([a-z_]+)"', CONST_PY).group(1)
+ADDED_FIELDS = set(
+    re.findall(r'^\s+"([a-z_]+)": ', COORDINATOR_PY.split("EVENT_PARCEL_ADDED,\n", 2)[2]
+               .split("def _added_since")[0], re.M)
+)
 # Names with our prefix that are no entity, service or event.
 NOT_AN_ID = {"parcel_tracker.zip"}
 # Invented numbers the README and the demo use as well; every other long digit run in
@@ -63,6 +69,8 @@ def test_the_code_names_what_this_test_expects():
         "sensor.paket_tracker_17track_kontingent", "calendar.pakete",
     }
     assert EVENT == "parcel_tracker_status_changed"
+    assert ADDED_EVENT == "parcel_tracker_parcel_added"
+    assert ADDED_FIELDS == {"entry_id", "number", "name", "carrier", "owner", "gift"}
     assert EVENT_FIELDS == {
         "entry_id", "number", "name", "carrier", "carrier_name", "old_status", "new_status",
         "eta_date", "eta_from", "eta_to", "location", "assumed", "manual", "owner",
@@ -119,14 +127,14 @@ def test_entities_services_and_the_event_exist_in_the_code():
         r"(?<![\w./-])(sensor\.pakete_\w+|sensor\.paket_tracker_\w+|calendar\.pakete\w*"
         r"|parcel_tracker\.\w+|parcel_tracker_[a-z_]+)"
     )
-    allowed = ENTITIES | SERVICE_NAMES | {EVENT} | NOT_AN_ID
+    allowed = ENTITIES | SERVICE_NAMES | {EVENT, ADDED_EVENT} | NOT_AN_ID
     seen = set()
     for name, text in TEXTS.items():
         for found in pattern.findall(text):
             assert found in allowed, f"{name}: {found}"
             seen.add(found)
     # The reference names all of them.
-    assert seen >= ENTITIES | SERVICE_NAMES | {EVENT}
+    assert seen >= ENTITIES | SERVICE_NAMES | {EVENT, ADDED_EVENT}
 
 
 def test_event_fields_and_attributes_exist_in_the_code():
@@ -135,7 +143,8 @@ def test_event_fields_and_attributes_exist_in_the_code():
         fields |= set(re.findall(r"trigger\.event\.data\.([a-z_]+)", text))
         attributes |= set(re.findall(r"state_attr\([^,()]+,\s*'([a-z_0-9]+)'\)", text))
         attributes |= set(re.findall(r"is_state_attr',\s*'([a-z_0-9]+)'", text))
-    assert fields and fields <= EVENT_FIELDS, fields - EVENT_FIELDS
+    known = EVENT_FIELDS | ADDED_FIELDS
+    assert fields and fields <= known, fields - known
     assert len(attributes) >= 8
     for attribute in attributes:
         assert f'"{attribute}": ' in SENSOR_PY, attribute

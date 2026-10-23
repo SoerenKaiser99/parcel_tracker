@@ -105,7 +105,7 @@ Zählt die Pakete, die **heute sicher** kommen: Status „In Zustellung“ oder 
 | `persons` | die unter [Personen](mail-import.md#pakete-personen-zuordnen) eingerichteten Personen als Entitäten (z. B. `person.anna`), ohne Adressen; leere Liste ohne Personen. Die Karte bietet „Gehört“ nur damit an (nicht im Verlauf gespeichert) |
 | `default_owner` | die Person bei **Unklare Pakete gehören** als Entität; leer, wenn unklare Pakete allen gehören (nicht im Verlauf gespeichert) |
 
-**Aufbau der Listen:** Jeder Eintrag hat `number`, `name`, `carrier`, `eta_from` und `eta_to`.
+**Aufbau der Listen:** Jeder Eintrag hat `number`, `name`, `carrier`, `eta_from`, `eta_to` und `gift`. `gift` ist `true` bei einem Geschenk, `name` ist dann der Geschenk-Name. So lassen eigene Anzeigen Geschenke weg, z. B. `{{ state_attr('sensor.pakete_heute', 'parcels') | rejectattr('gift') | list | count }}`.
 
 **„Heute zugestellt“ heißt:** Status „Zugestellt“, und der Zustellzeitpunkt `delivered_at` liegt heute – gerechnet in der Zeitzone von Home Assistant. Nennt der Paketdienst keinen Zeitpunkt, gilt der Tag des Statuswechsels. Eine Bestellung, die ohne Zustellmail abgeschlossen wurde, zählt nicht mit.
 
@@ -285,7 +285,56 @@ Gibt ein Paket einer Person (`person` als Entität wie `person.anna`) oder allen
 
 ## Event und Auslöser
 
-Das Event `parcel_tracker_status_changed` und die Auslöser im Automations-Editor stehen unter [Automationen](automationen.md).
+Das Event `parcel_tracker_status_changed` und die Auslöser im Automations-Editor stehen unter [Automationen](automationen.md). Für neue Pakete gibt es ein eigenes Event: [Event beim Anlegen](#event-beim-anlegen-parcel_tracker_parcel_added).
+
+## Event beim Anlegen: `parcel_tracker_parcel_added`
+
+Feuert einmal, sobald ein Paket neu angelegt ist: aus einer Mail (auch ein weiterer Karton einer Bestellung), über den Dienst `parcel_tracker.add_parcel` oder über die Karte. Es feuert nicht beim Neustart oder Neuladen, nicht bei weiteren Mails zum selben Paket und nicht, wenn eine Mail in einen bestehenden Eintrag zusammengeführt wird. Übernimmt eine neue Bestellung ein schon gemeldetes Paket des Paketdienstes, feuert es auch nicht: ein Event pro Karton.
+
+| Feld | Inhalt |
+|---|---|
+| `entry_id` | der Eintrag der Integration |
+| `number` | Sendungs- oder Bestellnummer |
+| `name` | der angezeigte Name; bei einem Geschenk der Geschenk-Name („Geschenk · DHL-Paket …2557“), nie der echte |
+| `carrier` | Paketdienst oder Shop (`dhl`, `amazon` …), leer, solange er nicht erkannt ist |
+| `owner` | wem das Paket gehört (z. B. `person.anna`), leer für alle |
+| `gift` | `true`, wenn das Paket schon beim Anlegen ein Geschenk ist: Geschenkmodus an oder weiterer Karton einer Bestellung, die ein Geschenk ist (auch bei ausgeschaltetem Modus) |
+
+Beispiel: Push mit Knopf „Geschenk?“ an die Home-Assistant-App. Ein Tipp macht das Paket zum Geschenk. `notify.mobile_app_handy` ersetzt du durch dein Gerät.
+
+```yaml
+alias: Neues Paket – Geschenk?
+triggers:
+  - trigger: event
+    event_type: parcel_tracker_parcel_added
+conditions:
+  - condition: template
+    value_template: "{{ not trigger.event.data.gift }}"
+actions:
+  - variables:
+      number: "{{ trigger.event.data.number }}"
+  - action: notify.mobile_app_handy
+    data:
+      message: "Neues Paket: {{ trigger.event.data.name }}. Ist es ein Geschenk?"
+      data:
+        actions:
+          - action: "GESCHENK_{{ number }}"
+            title: Geschenk
+  - wait_for_trigger:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: "GESCHENK_{{ number }}"
+    timeout: "02:00:00"
+    continue_on_timeout: false
+  - action: parcel_tracker.set_gift
+    data:
+      number: "{{ number }}"
+      gift: true
+mode: parallel
+```
+
+Danach kannst du mit `parcel_tracker.set_owner` auch den Besitzer setzen.
 
 ## HTTP-Endpunkt
 

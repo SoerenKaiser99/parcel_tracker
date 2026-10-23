@@ -18,6 +18,8 @@
 //   ?shot=1       only the card (used for the README screenshots)
 //   ?person=person.anna  card option person: only Anna's parcels and everybody's
 //                 (?unassigned=0: card option include_unassigned: false, only Anna's)
+//   ?gifts=hide   card option gifts: hide (no gift at all, for a shared display); with
+//                 ?gifts=hide_for_others&viewer=0 the demo user may not see gifts
 //
 // Geschenkmodus: the switch is on, one parcel is a gift and the demo user is a gift viewer
 // (the mock answers the card's WebSocket commands), so the gift box shows the real name.
@@ -263,7 +265,7 @@
   };
   const item = (p) => (
     { number: p.attributes.number, name: p.attributes.name, carrier: p.attributes.carrier,
-      eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to });
+      eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to, gift: p.attributes.gift });
   const items = (group) => PARCELS.filter((p) => todayGroup(p) === group).map(item);
   const delivered = PARCELS.filter(deliveredToday).map(item);
   const pickup = PARCELS.filter((p) => p.state === "awaiting_pickup").map(item);
@@ -331,7 +333,9 @@
     // The demo user (Anna) is a gift viewer.
     user: { id: "demo", name: "Anna", is_admin: true },
     callWS: (msg) => {
-      if (msg.type === "parcel_tracker/gift_viewer") return Promise.resolve({ viewer: true });
+      if (msg.type === "parcel_tracker/gift_viewer") {
+        return Promise.resolve({ viewer: params.get("viewer") !== "0" });
+      }
       if (msg.type === "parcel_tracker/gift_name") {
         const p = PARCELS.find((x) => x.attributes.number === msg.number);
         if (!p) return Promise.reject({ code: "not_found", message: "Parcel not found" });
@@ -394,6 +398,7 @@
     ...(params.has("show") ? { show: params.get("show") } : {}),
     ...(params.has("person") ? { person: params.get("person") } : {}),
     ...(params.get("unassigned") === "0" ? { include_unassigned: false } : {}),
+    ...(params.has("gifts") ? { gifts: params.get("gifts") } : {}),
   });
   // Home Assistant sets this while the dashboard is edited.
   if (params.has("edit")) card.preview = true;

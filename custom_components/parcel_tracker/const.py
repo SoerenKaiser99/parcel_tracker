@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.43"
+VERSION = "0.3.44"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -98,6 +98,8 @@ DHL_DAILY_SOFT_LIMIT = 200
 CARRIER_BROKEN_AFTER = timedelta(hours=24)
 
 EVENT_STATUS_CHANGED = "parcel_tracker_status_changed"
+# A parcel is new in the store (mail, service, card); never for loading or merging.
+EVENT_PARCEL_ADDED = "parcel_tracker_parcel_added"
 # Status changes found while Home Assistant starts are announced once it has started,
 # but never later than this after the first refresh (a start can hang for minutes).
 ANNOUNCE_MAX_WAIT = timedelta(seconds=120)

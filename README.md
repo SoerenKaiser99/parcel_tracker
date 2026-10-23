@@ -26,11 +26,11 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 
 ## Was es kann
 
-- **Live-Status vom Paketdienst**: DPD, GLS und Hermes ohne Zugangsdaten, DHL mit kostenlosem API-Key, UPS mit eigenem Entwicklerzugang – [Was brauche ich für welchen Dienst?](https://soerenkaiser99.github.io/parcel_tracker/dienste/)
+- **Live-Status vom Paketdienst**: DPD, GLS und Hermes ohne Zugangsdaten, DHL mit kostenlosem API-Key, UPS mit eigenem Entwicklerzugang (braucht ein UPS-Konto mit Abrechnung) – [Was brauche ich für welchen Dienst?](https://soerenkaiser99.github.io/parcel_tracker/dienste/)
 - **E-Mail-Import** (optional): liest ein eigenes Paket-Postfach per IMAP und legt Pakete aus Shop- und Carrier-Mails an – [E-Mail-Import](https://soerenkaiser99.github.io/parcel_tracker/mail-import/)
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und entfernen – [Die Karte](https://soerenkaiser99.github.io/parcel_tracker/karte/)
 - **Benachrichtigungen** (optional): bei „in Zustellung“, „zugestellt“, „abholbereit“ oder einem Problem, ohne eigene Automation, auf Wunsch nur an die Person, der das Paket gehört ([Pakete Personen zuordnen](https://soerenkaiser99.github.io/parcel_tracker/mail-import/#pakete-personen-zuordnen)) – [Benachrichtigungen](https://soerenkaiser99.github.io/parcel_tracker/benachrichtigungen/)
-- **Automationen**: fünf Auslöser im Automations-Editor ohne YAML und das Event `parcel_tracker_status_changed` – [Automationen](https://soerenkaiser99.github.io/parcel_tracker/automationen/)
+- **Automationen**: fünf Auslöser im Automations-Editor ohne YAML, das Event `parcel_tracker_status_changed` und `parcel_tracker_parcel_added` für neue Pakete – [Automationen](https://soerenkaiser99.github.io/parcel_tracker/automationen/)
 - **Rezepte**: elf Beispiele für Automationen und Karten zum Kopieren – [Rezepte](https://soerenkaiser99.github.io/parcel_tracker/rezepte/)
 - **Sensoren und Kalender**: `sensor.paket_<nummer>` pro Paket, `sensor.pakete_heute`, vier Zählsensoren und `calendar.pakete` – [Sensoren, Kalender und Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/)
 - **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift`, `set_owner` – [Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/#dienste)
@@ -58,7 +58,7 @@ HACS lädt die Integration nur herunter; ohne Schritt 3 passiert nichts. Install
 - [Installation](https://soerenkaiser99.github.io/parcel_tracker/installation/) – herunterladen, einrichten, Karte hinzufügen
 - [Was brauche ich für welchen Dienst?](https://soerenkaiser99.github.io/parcel_tracker/dienste/) – DHL-API-Key, GLS, UPS, 17track, Österreich und Schweiz
 - [E-Mail-Import](https://soerenkaiser99.github.io/parcel_tracker/mail-import/) – Paket-Postfach, Absender für die Filterregel, was aus welcher Mail wird
-- [Die Karte](https://soerenkaiser99.github.io/parcel_tracker/karte/) – Pakete hinzufügen, „Erhalten“, die Optionen `add_form` und `show`
+- [Die Karte](https://soerenkaiser99.github.io/parcel_tracker/karte/) – Pakete hinzufügen, „Erhalten“, die Optionen `add_form`, `show` und `gifts`
 - [Benachrichtigungen](https://soerenkaiser99.github.io/parcel_tracker/benachrichtigungen/) – Ziele, Ereignisse, Texte und der Blueprint
 - [Automationen](https://soerenkaiser99.github.io/parcel_tracker/automationen/) – Auslöser ohne YAML und die Felder des Events
 - [Rezepte](https://soerenkaiser99.github.io/parcel_tracker/rezepte/) – Beispiele zum Kopieren

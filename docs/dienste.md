@@ -132,6 +132,9 @@ Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails. Eine von Hand eingetr
 
 Mit einer eigenen UPS-App fragt die Integration zusätzlich die offizielle UPS Track API ab – auch für von Hand eingetragene `1Z…`-Nummern.
 
+!!! note "Nur mit UPS-Konto mit Abrechnung"
+    Eine App auf developer.ups.com braucht immer ein UPS-Konto mit Abrechnung (Versenderkonto). Ohne dieses Konto gibt es keine App. UPS-Pakete kommen dann über die [UPS-Mails](mail-import.md) oder über [17track](#17track-optional).
+
 1. Auf [developer.ups.com](https://developer.ups.com) ein Konto anlegen oder anmelden.
 2. Eine App anlegen und als Produkt **Tracking** wählen (nicht „Track Alert“).
 3. Warten, bis UPS die App freischaltet. Solange steht sie auf „Pending“.

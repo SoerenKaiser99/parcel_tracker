@@ -6,7 +6,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 - **DHL:** Live-Status über die offizielle API mit eigenem, kostenlosem Key. Ohne Key kommen DHL-Pakete aus den DHL-Mails.
 - **DPD, GLS, Hermes:** Live-Status über die öffentlichen Sendungsverfolgungen, ohne Zugangsdaten.
-- **UPS:** Status aus UPS-Mails, live über die offizielle UPS-Track-API mit eigenem Entwicklerzugang (mit Monatsbudget).
+- **UPS:** Status aus UPS-Mails, live über die offizielle UPS-Track-API mit eigenem Entwicklerzugang (braucht ein UPS-Konto mit Abrechnung; mit Monatsbudget).
 - **17track (optional):** ergänzt Ort, Zeitfenster und Verlauf und verfolgt Paketdienste ohne eigene Anbindung, nur auf ausdrücklichen Wunsch.
 - **Länder:** Deutschland, Österreich und Schweiz (Postleitzahl und GLS-Abfrage passend zum Land).
 - **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an.
@@ -14,7 +14,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Weitergeleitete Mails:** von Hand weitergeleitete Mails, Apples „E-Mail-Adresse verbergen“ und Mails per HTTP-Aufruf (z. B. aus n8n oder Node-RED).
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
-- **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`).
+- **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`), Geschenke lassen sich ausblenden (`gifts`).
 - **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist.
 - **Personen zuordnen (optional):** die Integration erkennt an den Kopfzeilen der Mail, wem ein Paket gehört (Plus-Adresse, Alias oder eigene Adresse). Die Karte filtert mit `person` und lässt den Besitzer wählen, Meldungen gehen nur an dessen Ziele.
 - **Namen ausblenden:** alle Pakete heißen nur nach dem Paketdienst und den letzten Stellen der Nummer.
@@ -23,7 +23,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Kalender:** `calendar.pakete` mit den erwarteten Zustellterminen.
 - **Schalter:** `switch.paket_tracker_geschenkmodus` für den Geschenkmodus.
 - **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` und `set_owner`.
-- **Event und Auslöser:** das Event `parcel_tracker_status_changed` und fünf Auslöser im Automations-Editor ohne YAML.
+- **Event und Auslöser:** das Event `parcel_tracker_status_changed`, das Event `parcel_tracker_parcel_added` für neue Pakete und fünf Auslöser im Automations-Editor ohne YAML.
 - **Einfuhrabgaben (Zoll):** Betrag und Barzahlung aus der DHL-Mail am Zustelltag auf der Karte und in der Benachrichtigung.
 - **Abholbereit:** Packstation, Filiale und PaketShop mit Abholort und letztem Abholtag.
 - **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert und in keinem Attribut (der Sensor zeigt nur `has_delivery_code`).
@@ -33,6 +33,13 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.44 (2026-10-23)
+
+- **Event beim Anlegen:** `parcel_tracker_parcel_added` feuert einmal, sobald ein Paket neu angelegt ist (Mail, weiterer Karton einer Bestellung, Dienst `add_parcel`, Karte), mit `entry_id`, `number`, `name`, `carrier`, `owner` und `gift`. Bei einem Geschenk steht dort nur der Geschenk-Name. Nicht beim Neustart und nicht beim Zusammenführen, auch nicht für eine Bestellung, die ein schon gemeldetes Paket übernimmt (ein Event pro Karton). Damit lässt sich per Push nachfragen, ob ein neues Paket ein Geschenk ist ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **Geschenke ausblenden:** Kartenoption `gifts`. Mit `hide_for_others` sieht nur, wer Geschenke sehen darf, die Geschenk-Zeilen; für alle anderen zählen sie auch nicht in den Schildern. `hide` zeigt nie Geschenke, z. B. auf einem gemeinsamen Wandtablet. Ohne Option bleibt die Karte wie bisher ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **`gift` in den Listen:** Jeder Eintrag in `parcels`, `possible`, `delivered_today` und `awaiting_pickup` sagt mit `gift`, ob er ein Geschenk ist ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **Doku UPS:** Eine App auf developer.ups.com braucht immer ein UPS-Konto mit Abrechnung (Versenderkonto). Ohne geht UPS über die Mails oder 17track ([#63](https://github.com/SoerenKaiser99/parcel_tracker/issues/63)).
 
 ### v0.3.43 (2026-10-22)
 

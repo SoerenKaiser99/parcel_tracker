@@ -27,6 +27,7 @@ from .conftest import DAYTIME
 BERLIN = ZoneInfo("Europe/Berlin")
 NOW = datetime(2026, 9, 29, 12, 0, tzinfo=BERLIN)
 DHL = "00340999999999992557"
+PLAIN = "00340999999999992558"
 AMAZON = "AMZ99999999999994321"
 GIFT_NAME = "Geschenk · DHL-Paket …2557"
 
@@ -91,6 +92,8 @@ async def test_gift_sensor_hides_name_and_links_and_lists_follow(hass, hass_stor
         Parcel(AMAZON, "amazon", "mail", "Fahrrad", now, now, gift=True,
                shipment_ids=["SHIP1"], result=_result(ParcelStatus.OUT_FOR_DELIVERY, today),
                **kwargs),
+        Parcel(PLAIN, "dhl", "mail", "Buch", now, now,
+               result=_result(ParcelStatus.OUT_FOR_DELIVERY, today), **kwargs),
     ]
     hass_storage[DOMAIN] = {
         "version": 1,
@@ -115,4 +118,8 @@ async def test_gift_sensor_hides_name_and_links_and_lists_follow(hass, hass_stor
 
     listed = hass.states.get("sensor.pakete_heute").attributes["parcels"]
     assert GIFT_NAME in [item["name"] for item in listed]
+    # Each entry says whether it is a gift, so own chips can leave gifts out.
+    assert {item["number"]: item["gift"] for item in listed} == {
+        DHL: True, AMAZON: True, PLAIN: False,
+    }  # fmt: skip
     assert "Fahrrad" not in str(hass.states.get("sensor.pakete_heute").attributes)

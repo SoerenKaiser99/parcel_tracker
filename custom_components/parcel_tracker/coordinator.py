@@ -74,6 +74,7 @@ from .const import (
     DHL_DAILY_SOFT_LIMIT,
     DHL_FALLBACK_TRIES,
     DOMAIN,
+    EVENT_PARCEL_ADDED,
     EVENT_STATUS_CHANGED,
     FOLDER_PROCESSED,
     FOLDER_UNRECOGNIZED,
@@ -757,12 +758,18 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self.shared_addresses(),
         )
         async with self._lock:
+            known = set(self.store.parcels)
             dispositions = [
                 (uid, self._handle_mail(item, now))
                 for (uid, _), item in zip(mails, parsed, strict=True)
             ]
             self._settle_orders(now)
             await self.store.async_save()
+            added = self._added_since(known)
+        if added:
+            # Like the HTTP import and add_parcel: the sensors know the parcel first.
+            self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added_all(added)
         try:
             await self.hass.async_add_executor_job(
                 mailbox.finish, dispositions, self._move_processed
@@ -852,9 +859,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self._settle_orders(now)
             after = {number: parcel.to_dict() for number, parcel in self.store.parcels.items()}
             await self.store.async_save()
+            added = self._added_since(before)
         if after != before:
             # Not for a mail that changed nothing: every call would push the next tick back.
             self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added_all(added)
         if duplicate:
             result = "duplicate"
         elif folder == FOLDER_PROCESSED:
@@ -1411,6 +1420,49 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # Otherwise several changes in a row become one, from the oldest status to
         # the latest.
 
+    def _fire_added(self, parcel: Parcel) -> None:
+        """A parcel is new in the store: tell automations (``parcel_tracker_parcel_added``).
+
+        Only what the sensors show as well: the display name (a gift's is its gift name,
+        never the real one), no title, no link, no mail subject.
+        """
+        self.hass.bus.async_fire(
+            EVENT_PARCEL_ADDED,
+            {
+                "entry_id": self.entry.entry_id,
+                "number": parcel.number,
+                "name": self.display_name(parcel),
+                "carrier": parcel.carrier,
+                # Whom it belongs to (person entity ID), None for everybody.
+                "owner": self.effective_owner(parcel),
+                "gift": parcel.gift,
+            },
+        )
+
+    def _added_since(self, known: Collection[str]) -> list[Parcel]:
+        """The entries stored now that are new to ``known`` (the numbers stored before).
+
+        A mail import creates its entries deep in ``mail.apply`` (a new parcel, an order,
+        a further box): comparing the numbers before and after is the one place that sees
+        each of them. An entry folded into another one within the same import is gone
+        again; a mail that only changes an entry or is merged into one that exists adds
+        no number. One box, one event: a new order that took in a parcel stored before
+        (it carries that parcel's number, and the parcel is gone) is no new box - the
+        parcel was announced already.
+        """
+        return [
+            parcel
+            for number, parcel in self.store.parcels.items()
+            if number not in known
+            and not (
+                parcel.tracking_ref in known and parcel.tracking_ref not in self.store.parcels
+            )
+        ]
+
+    def _fire_added_all(self, parcels: list[Parcel]) -> None:
+        for parcel in parcels:
+            self._fire_added(parcel)
+
     def _announce(self, parcel: Parcel, old: ParcelStatus) -> None:
         r = parcel.result
         if r.status is ParcelStatus.DELIVERED and not parcel.assumed_delivered:
@@ -1815,6 +1867,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self.store.add(parcel)
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added(parcel)
         await self.async_update_quota()
         return parcel
 
@@ -1978,6 +2031,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 raise DuplicateParcel(norm)
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added(parcel)
         return parcel
 
     def _gls_twin(self, parcel: Parcel) -> Parcel | None:

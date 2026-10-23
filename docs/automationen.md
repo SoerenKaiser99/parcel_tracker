@@ -86,7 +86,7 @@ Markierst du ein Paket von Hand als erhalten – mit dem Knopf [„Erhalten“](
 
 Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt.
 
-- Der allererste Status eines neuen Pakets feuert kein Event. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet (mit `old_status` gleich `unknown`) – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
+- Der allererste Status eines neuen Pakets feuert kein Event. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet (mit `old_status` gleich `unknown`) – aber nur, wenn die Mail höchstens 24 Stunden alt ist. Für neue Pakete gibt es das eigene Event [`parcel_tracker_parcel_added`](sensoren.md#event-beim-anlegen-parcel_tracker_parcel_added).
 - Wechsel während eines Neustarts gehen nicht verloren: Das Event folgt genau einmal, sobald Home Assistant fertig gestartet ist, spätestens zwei Minuten nachdem die Integration geladen wurde. Mehrere Wechsel in dieser Zeit werden zu einem Event vom alten zum neuesten Status.
 
 ### Felder des Events

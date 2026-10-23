@@ -59,6 +59,8 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Push-Schnittstelle von DHL (DHL meldet Statusänderungen von sich aus) | geprüft, nicht umgesetzt: Laut DHL müsste sie jeder Nutzer selbst bei DHL beantragen. Die Integration fragt deshalb weiter ab |
 | **Barcode-Scan** (Wunsch aus [Issue #2](https://github.com/SoerenKaiser99/parcel_tracker/issues/2)) | Sendungsnummer mit der Handykamera vom Label erfassen – geplant über den Scanner der Home-Assistant-App bzw. die Barcode-Erkennung des Browsers, ohne Fremdbibliothek. Braucht Beispiel-Scans je Paketdienst, weil auf den Labels oft mehr als die Sendungsnummer steht |
 | **International** | Karte auch auf Englisch, weitere Amazon-Länder im Mail-Import, nationale Paketdienste (Beispiele: Österreichische Post, Royal Mail, PostNL, USPS) – erst sinnvoll mit anonymisierten Beispielmails von Testern aus den jeweiligen Ländern |
+| **Zielgruppe pro Geschenk (`visible_to`)** (Wunsch aus [Issue #64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)) | Ein Geschenk nur für bestimmte Personen sichtbar machen statt für alle, die Geschenke sehen dürfen, z. B. ein Geschenk für die Kinder nur für beide Eltern |
+| **Zählsensoren ohne Geschenke** (Wunsch aus [Issue #64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)) | Zählvarianten, die Geschenke nicht mitzählen. Bis dahin lassen eigene Templates Geschenke über `gift` in den Listen weg |
 | **Absender aus der DHL-Abfrage** | Den Absender eines DHL-Pakets aus der offiziellen API übernehmen, statt ihn nur aus den Mails zu lesen |
 
 Was in Österreich und der Schweiz heute geht und was nicht, steht unter [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).

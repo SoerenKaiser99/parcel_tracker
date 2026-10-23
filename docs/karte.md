@@ -15,6 +15,7 @@ Zum Ausprobieren ohne Home Assistant: [Demo-Karte öffnen](demo/index.html). All
     | `?open=1` | klappt das erste Paket auf |
     | `?add=open` | öffnet die Eingabe hinter dem Plus-Knopf |
     | `?add=always` | zeigt die Eingabe dauerhaft |
+    | `?gifts=hide` | Kartenoption `gifts: hide`, das Geschenk fehlt |
 
     Lokal geht es auch: den Repository-Ordner mit `python3 -m http.server` ausliefern und `docs/demo/index.html` öffnen.
 
@@ -155,9 +156,11 @@ Neben „Pakete“ im Kartenkopf steht ein Geschenk-Symbol: der Schalter „Gesc
 
 **Ein Geschenk in der Liste.** Es heißt z. B. „Geschenk · DHL-Paket …2557“ und zeigt keine Links. Vorne in der Zeile steht ein Geschenk-Symbol. Wer Geschenke sehen darf, tippt darauf: Der echte Name erscheint nur in dieser Zeile und auf diesem Gerät, mit dem Link zur Sendung und dem Knopf „Nicht mehr verbergen“. Ein zweiter Tipp verbirgt ihn wieder. „Umbenennen“ und „Löschen“ fehlen bei einem Geschenk für alle anderen; „Erhalten“ bleibt.
 
+Sollen alle anderen ein Geschenk gar nicht sehen, auch keine Zeile und kein Schild: Kartenoption [`gifts`](#gifts-geschenke-ausblenden).
+
 ## Optionen der Karte
 
-Die Karte hat vier eigene Optionen: `add_form`, `show`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).
+Die Karte hat fünf eigene Optionen: `add_form`, `show`, `gifts`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).
 
 ### `add_form` – die Eingabe
 
@@ -247,6 +250,29 @@ type: custom:parcel-tracker-card
 add_form: never
 show: today_possible
 ```
+
+### `gifts` – Geschenke ausblenden
+
+Legt fest, ob die Karte Geschenke als Zeile zeigt.
+
+| Wert | Wirkung |
+|---|---|
+| `show` (Standard) | wie bisher: Geschenke stehen als Zeile „Geschenk · …“ in der Liste |
+| `hide_for_others` | Wer Geschenke sehen darf, sieht sie wie bisher. Alle anderen sehen kein Geschenk: keine Zeile, es zählt nicht in den Schildern, nicht bei `show` und nicht beim Hinweis „Noch keine Pakete.“ |
+| `hide` | nie Geschenke, auch nicht für Geschenk-Seher – z. B. für ein gemeinsames Wandtablet |
+
+Fehlt die Option oder steht dort ein anderer Wert, gilt `show`.
+
+```yaml
+type: custom:parcel-tracker-card
+gifts: hide_for_others
+```
+
+Gut zu wissen:
+
+- Ob jemand Geschenke sehen darf, fragt die Karte bei der Integration nach. Bis die Antwort da ist, zeigt sie keine Geschenke. Meldet sich am Wandtablet ein anderer Benutzer an, gilt sofort dessen Recht.
+- Wandtablets und Kinder-Handys brauchen dafür einen eigenen Benutzer in Home Assistant.
+- Auch diese Option ist nur eine Anzeige. Die Sensoren der Geschenke bleiben für jeden Benutzer lesbar, mit dem Geschenk-Namen. Siehe [Geschenkmodus](datenschutz.md#geschenkmodus).
 
 ### Gehört: pro Paket und Filter
 

@@ -1294,7 +1294,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 22. Oktober 2026, Version 0.3.43." in text
+    assert "*Stand: 23. Oktober 2026, Version 0.3.44." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1596,8 +1596,7 @@ def test_mail_import_explains_the_person_assignment():
 
 
 def test_card_docs_describe_the_person_options_and_the_owner_select():
-    text = TEXTS[CARD]
-    assert "vier eigene Optionen: `add_form`, `show`, `person` und `include_unassigned`" in text
+    # (the sentence naming all options: test_card_docs_describe_the_gifts_option)
     section = _section(CARD, "Gehört: pro Paket und Filter")
     _all_have(section, [
         "**Gehört**", "**Standard (Name)**", "**allen**", "ganze Box",
@@ -1633,3 +1632,64 @@ def test_helping_page_asks_for_anonymised_forwarded_mails_per_provider():
     ])
     anonymiser = TEXTS["hilfe.md"]
     _all_have(anonymiser, ["`Delivered-To`", "`adresse1@example.org`", "`+person1`"])
+
+
+# ----- v0.3.44: Geschenke ausblenden, Event beim Anlegen -----
+def test_sensor_docs_describe_the_added_event_and_gift_in_the_lists():
+    section = _section(SENSORS, "Event beim Anlegen: `parcel_tracker_parcel_added`")
+    for field in ("number", "name", "carrier", "owner", "gift", "entry_id"):
+        assert f"| `{field}` |" in section, field
+    _all_have(section, [
+        "Geschenk-Name", "nicht beim Neustart", "zusammengeführt", "ein Event pro Karton",
+        "weiterer Karton einer Bestellung, die ein Geschenk ist",
+        "trigger: event", "event_type: parcel_tracker_parcel_added",
+        "parcel_tracker.set_gift", "actions:", "mobile_app_notification_action",
+    ])
+    lists = _section(SENSORS, "`sensor.pakete_heute`")
+    assert "`eta_to` und `gift`" in lists
+    assert "#event-beim-anlegen-parcel_tracker_parcel_added" in _section(
+        SENSORS, "Event und Auslöser"
+    )
+
+
+def test_card_docs_describe_the_gifts_option():
+    text = TEXTS[CARD]
+    assert (
+        "fünf eigene Optionen: `add_form`, `show`, `gifts`, `person` und `include_unassigned`"
+        in text
+    )
+    section = _section(CARD, "`gifts` – Geschenke ausblenden")
+    _all_have(section, [
+        "`show` (Standard)", "`hide_for_others`", "`hide`", "Schilder", "Noch keine Pakete.",
+        "gifts: hide_for_others", "eigenen Benutzer", "nur eine Anzeige",
+    ])
+    assert "#gifts-geschenke-ausblenden" in _section(CARD, "Geschenkmodus")
+    assert "karte.md#gifts-geschenke-ausblenden" in _section(PRIVACY, "Geschenkmodus")
+
+
+def test_ups_docs_say_an_app_needs_a_ups_account_with_billing():
+    section = _section(SERVICES, "UPS")
+    _all_have(section, ["UPS-Konto mit Abrechnung", "Versenderkonto", "17track"])
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    for text in (readme, features):
+        assert "braucht ein UPS-Konto mit Abrechnung" in text
+
+
+def test_status_page_lists_the_wishes_of_issue_64():
+    open_ = _section(STATUS, "Offen")
+    _all_have(open_, [
+        "Zielgruppe pro Geschenk (`visible_to`)", "Zählsensoren ohne Geschenke",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/64",
+    ])
+
+
+def test_changelog_names_v0344_with_its_issues():
+    section = CHANGELOG.split("### v0.3.44 (2026-10-23)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/64",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/63",
+        "`parcel_tracker_parcel_added`", "`gifts`", "`gift`", "`entry_id`", "ein Event pro Karton",
+    ])
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    _all_have(features, ["`parcel_tracker_parcel_added`", "`gifts`"])
