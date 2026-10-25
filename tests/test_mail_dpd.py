@@ -423,14 +423,6 @@ def test_other_subjects_after_the_announcement_tell_no_status(subject):
     assert (u.number, u.status, u.eta_date, u.delivered_at) == (NUMBER, None, None, None)
 
 
-def test_window_with_an_impossible_time_is_today_without_a_window():
-    body = f"Versender & Paketnummer:\n\n{SHIPPER}\n{NUMBER}\n\nEmpfänger:\nMax Mustermann\n"
-    msg = _msg("Zwischen 25:00 und 26:00 Uhr kommt Ihr DPD Paket", body, DE_SENDER)
-    [u] = parse_mail(msg).updates
-    assert (u.status, u.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, sent_at(msg).date())
-    assert (u.eta_from, u.eta_to) == (None, None)
-
-
 def test_status_mail_from_another_sender_is_not_read():
     body = f"Ihr DPD Paket ist da!\nPaketnummer: {NUMBER}\n"
     [u] = parse_mail(_msg("Ihr Paket ist da!", body, "Shop <info@beispielshop.example>")).updates
@@ -497,14 +489,6 @@ def test_at_window_mail_names_the_shop_only_through_the_naming_gate(shop, title,
     assert (u.number, u.status, u.title, u.shop) == (
         NUMBER, ParcelStatus.OUT_FOR_DELIVERY, title, key,
     )
-
-
-def test_at_window_with_an_impossible_time_is_today_without_a_window():
-    body = AT_WINDOW_BODY.format(number=NUMBER, shop="Amazon")
-    msg = _msg("Ihr DPD Paket kommt zwischen 25:00 und 26:00 Uhr", body)
-    [u] = parse_mail(msg).updates
-    assert (u.status, u.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, sent_at(msg).date())
-    assert (u.eta_from, u.eta_to) == (None, None)
 
 
 def test_at_window_subject_from_another_sender_tells_no_status():

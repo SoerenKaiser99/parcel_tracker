@@ -1,0 +1,32 @@
+X-Fixture: derived from a mail of the maintainer anonymised with anonymize_mail.py
+ (the DHL layout up to 2024-08, HTML only); the window, the parcel number and
+ the company name are invented; the buttons, the links and the footer are cut
+From: "DHL Paket" <noreply@dhl.de>
+To: max@example.org
+Subject: Ihr DHL Paket kommt =?utf-8?q?fr=C3=BCher?= als geplant - Jetzt live
+ verfolgen
+Date: Thu, 11 Jul 2024 10:08:02 +0200
+Message-ID: <fixture-181@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Ihr Paket kommt heute...</p>
+<p>Onlineversion</p>
+<p>Hallo Max Mustermann,</p>
+<p>Ihr DHL Paket wird Ihnen heute zwischen 13:10 - 14:40 Uhr durch Ihren Paketzusteller zugestellt.</p>
+<p>Jetzt live verfolgen</p>
+<p>Beste Grüße</p>
+<p>Ihr Sendungsstatus</p>
+<p>Voraussichtliche Lieferung:</p>
+<p>Heute</p>
+<p>13:10 bis 14:40</p>
+<p>Ihre Sendung von:</p>
+<p>Beispiel GmbH</p>
+<p>Sendungsnummer:</p>
+<p>00340999999999999917</p>
+<p>Sie sind nicht da?</p>
+<p>Ablageort angeben</p>
+<p>An Nachbarn liefern</p>
+</body></html>

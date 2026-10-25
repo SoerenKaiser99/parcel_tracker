@@ -8,7 +8,7 @@ import pytest
 from custom_components.parcel_tracker.carriers.base import BERLIN
 from custom_components.parcel_tracker.mail import known_sender_domain, parse_mail
 from custom_components.parcel_tracker.mail.apply import apply_update
-from custom_components.parcel_tracker.mail.base import sent_at
+from custom_components.parcel_tracker.mail.base import at, sent_at
 from custom_components.parcel_tracker.mail.shipping import (
     AMAZON_DHL_NAME,
     parse_dhl_mail,
@@ -364,6 +364,8 @@ DAY_BODY = (
         ("Ihre Beispiel GmbH Sendung ist unterwegs", ParcelStatus.IN_TRANSIT),
         ("Ihre Sendung kommt heute", ParcelStatus.OUT_FOR_DELIVERY),
         ("Ihre Sendung kommt heute zwischen 13:10 - 14:40 Uhr", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Ihr DHL Paket kommt früher als geplant - Jetzt live verfolgen",
+         ParcelStatus.OUT_FOR_DELIVERY),
         ("Ihre Sendung wurde zugestellt", ParcelStatus.DELIVERED),
         ("Ihre Beispiel GmbH Sendung wurde erfolgreich zugestellt", ParcelStatus.DELIVERED),
         # no delivery
@@ -437,6 +439,38 @@ def test_dhl_status_comes_only_from_the_subject(subject, status, body):
     else:
         # only "ist unterwegs" reads the day the body names
         assert (u.eta_date, u.eta_from, u.eta_to) == (None, None, None)
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Ihre Sendung wird Ihnen heute zwischen 13:10 - 14:40 Uhr durch Ihren Paketzusteller",
+        # the layouts up to 2024-08
+        "Ihr DHL Paket wird Ihnen heute zwischen 13:10 und 14:40 Uhr durch Ihren Paketzusteller",
+        "Ihr Paket kommt zwischen 13:10 bis 14:40\nOnlineversion",
+        "Ihr Paket kommt zwischen 13:10 und\n14:40\nWenn diese Nachricht nicht richtig angezeigt",
+        "im Zustellfahrzeug und\nwird heute zwischen 13:10\nund14:40 Uhr bei Ihnen",
+        # service hours in front do not win
+        "Service Mo-Fr zwischen 08:00 und 18:00\nIhr Paket kommt heute zwischen 13:10 - 14:40",
+    ],
+)
+def test_dhl_window_in_every_layout(sentence):
+    msg = _dhl_today(sentence)
+    [u] = parse_mail(msg).updates
+    day = sent_at(msg).date()
+    assert u.eta_from == at(day, 13, 10)
+    assert u.eta_to == at(day, 14, 40)
+
+
+def test_dhl_no_window_from_service_hours():
+    [u] = parse_mail(_dhl_today("Kundenservice Mo-Fr zwischen 08:00 und 18:00 Uhr")).updates
+    assert u.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert (u.eta_from, u.eta_to) == (None, None)
+
+
+def _dhl_today(sentence: str) -> EmailMessage:
+    body = f"{sentence}\n{DHL_NUMBER}\n"
+    return _msg("Ihr DHL Paket kommt heute", body, "DHL Paket <noreply@dhl.de>")
 
 
 @pytest.mark.parametrize(
@@ -743,6 +777,16 @@ def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
     assert (u.eta_date, u.eta_from, u.eta_to) == (sent_at(soon).date(), None, None)
     today = _msg("Ihre Sendung wird heute zugestellt", WINDOW_BODY, "DHL Paket <noreply@dhl.de>")
     assert parse_mail(today).updates[0].status_text is None
+
+
+# ----- "kommt früher als geplant" (layouts up to 2024-08): in delivery today, with window -----
+def test_dhl_earlier_than_planned_is_in_delivery_today_with_its_window():
+    mail = load_mail("181_dhl_kommt_frueher_als_geplant.eml")
+    [u] = parse_mail(mail).updates
+    assert (u.number, u.carrier) == (DHL_NUMBER, "dhl")
+    assert u.status is ParcelStatus.OUT_FOR_DELIVERY
+    day = date(2024, 7, 11)
+    assert (u.eta_date, u.eta_from, u.eta_to) == (day, at(day, 13, 10), at(day, 14, 40))
 
 
 # ----- DHL Express ("On Demand Delivery"): the sentence in the text tells the status -----

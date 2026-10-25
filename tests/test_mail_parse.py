@@ -119,3 +119,39 @@ def test_legacy_amazon_with_other_subject_form_is_routed():
         ("AMZ99900779704106459", "hermes")
     ]
     assert result.amazon is True
+
+
+def _swap(msg: EmailMessage, start: str, end: str) -> EmailMessage:
+    """``msg`` with ``start`` and ``end`` swapped in the subject and every text part."""
+
+    def swap(text: str) -> str:
+        return text.replace(start, "\0").replace(end, start).replace("\0", end)
+
+    msg.replace_header("Subject", swap(msg["Subject"]))
+    for part in msg.walk():
+        if part.get_content_maintype() == "text":
+            part.set_content(swap(part.get_content()), subtype=part.get_content_subtype())
+    return msg
+
+
+@pytest.mark.parametrize(
+    ("name", "start", "end"),
+    [
+        ("049_noreply_ihre_amazon_sendung_kommt_heute_.eml", "13:10", "14:40"),
+        ("181_dhl_kommt_frueher_als_geplant.eml", "13:10", "14:40"),
+        ("111_no_reply_dein_paket_wird_in_wenigen_tage.eml", "08:00", "09:30"),
+        ("168_hermes_deine_sendung_kommt_heute.eml", "12:05", "13:35"),
+        ("161_dpd_de_zwischen_uhr_kommt_ihr_dpd_paket.eml", "14:06", "15:06"),
+        ("176_dpd_at_kommt_zwischen_uhr.eml", "13:00", "14:00"),
+        ("050_shipment_tracking_in_zustellung.eml", "18h", "22h"),
+    ],
+)
+def test_a_reversed_window_keeps_status_and_day_but_no_window(name, start, end):
+    """Every parser builds its window with ``window_at`` (its cases: test_mail_base)."""
+    [read] = parse_mail(load_mail(name)).updates
+    assert read.eta_from and read.eta_to
+    [swapped] = parse_mail(_swap(load_mail(name), start, end)).updates
+    assert (swapped.number, swapped.status, swapped.eta_date) == (
+        read.number, read.status, read.eta_date
+    )
+    assert (swapped.eta_from, swapped.eta_to) == (None, None)
