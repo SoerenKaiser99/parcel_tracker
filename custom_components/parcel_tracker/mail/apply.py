@@ -485,6 +485,12 @@ def _remember_shipment(parcel: Parcel, update: MailUpdate) -> None:
         parcel.shipment_ids.append(update.shipment_id)
 
 
+def _gift_for(*parcels: Parcel) -> list[str]:
+    """The persons the gifts among these entries are for, each once (a box of a gift order
+    is hidden from them as well)."""
+    return list(dict.fromkeys(person for p in parcels if p.gift for person in p.gift_for))
+
+
 def _further_parcel(
     parcels: dict[str, Parcel],
     order: Parcel,
@@ -519,6 +525,7 @@ def _further_parcel(
         now,
         order_checked=True,
         gift=gift or order.gift,
+        gift_for=_gift_for(order),
         # The order's owner with its hand mark ("everybody" set by hand stays so).
         owner=order.owner,
         owner_manual=order.owner_manual,
@@ -708,6 +715,7 @@ def _apply_order(
             now,
             mail_title=update.title,
             gift=gift or any(p.gift for p in siblings),
+            gift_for=_gift_for(*siblings),
         )
         _inherit_owner(target, siblings, owner)
         parcels[number] = target
@@ -1003,6 +1011,7 @@ def _fold(parcels: dict[str, Parcel], parcel: Parcel, order: Parcel, keep: bool 
     if parcel.name and parcel.name_manual:
         order.name, order.name_manual = parcel.name, True
     order.gift = order.gift or parcel.gift
+    order.gift_for = _gift_for(order, parcel)
     # The order's owner wins (also "everybody" set on it by hand), else the carrier
     # parcel's; the hand mark goes with the owner.
     if order.owner is None and not order.owner_manual:

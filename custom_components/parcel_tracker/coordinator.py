@@ -311,35 +311,106 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self.async_update_listeners()
 
     async def async_set_gift(
-        self, number: str | None, open_parcels: bool, gift: bool, user_id: str | None
+        self,
+        number: str | None,
+        open_parcels: bool,
+        gift: bool,
+        user_id: str | None,
+        gift_for: list[str] | None = None,
     ) -> None:
         """Mark a parcel (or every parcel not delivered yet) as a gift, or take it back.
 
         Marking is open to everybody; un-marking needs a gift viewer (a call without a
-        user may do it). KeyError for a number that is not tracked, ValueError when
-        neither or both of number and open_parcels are given.
+        user may do it). ``gift_for``: the persons the gift is for (None: left as it is,
+        empty: nobody any more); it needs a gift viewer as well. Taking a gift back
+        empties it. A gift viewer the gift is for may change neither (refused for the
+        number asked for, skipped without a word with ``open_parcels``). KeyError for a
+        number that is not tracked, ValueError when neither or both of number and
+        open_parcels are given.
         """
         if (number is None) == (not open_parcels):
             raise ValueError("number_or_open")
-        if not gift and user_id is not None and not self.is_gift_viewer(user_id):
+        persons = list(dict.fromkeys(gift_for)) if gift_for is not None else None
+        if persons and not gift:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="gift_for_no_gift"
+            )
+        if persons:
+            self._check_gift_for(persons)
+        if (
+            (not gift or persons is not None)
+            and user_id is not None
+            and not self.is_gift_viewer(user_id)
+        ):
             raise HomeAssistantError(
                 translation_domain=DOMAIN, translation_key="gift_not_allowed"
             )
+        # Who it is for is changed (also by taking the gift back): not by a person it is for.
+        guarded = not gift or persons is not None
         async with self._lock:
             if number is not None:
-                targets = [self.store.parcels[normalize(number)]]
+                parcel = self.store.parcels[normalize(number)]
+                if guarded and self.is_gift_recipient(parcel, user_id):
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN, translation_key="gift_not_allowed"
+                    )
+                targets = [parcel]
             else:
                 targets = [
-                    p for p in self.store.parcels.values() if p.status not in CLOSED_STATUSES
+                    p
+                    for p in self.store.parcels.values()
+                    if p.status not in CLOSED_STATUSES
+                    and not (guarded and self.is_gift_recipient(p, user_id))
                 ]
             changed = False
             for parcel in targets:
-                if parcel.gift != gift:
+                wanted = [] if not gift else (persons if persons is not None else parcel.gift_for)
+                if parcel.gift != gift or parcel.gift_for != wanted:
                     parcel.gift = gift
+                    parcel.gift_for = list(wanted)
                     changed = True
             if changed:
                 await self.store.async_save()
                 self.async_set_updated_data(dict(self.store.parcels))
+
+    def _check_gift_for(self, persons: list[str]) -> None:
+        """Every person a gift is for must be a person entity that exists."""
+        if any(
+            not person.startswith("person.") or self.hass.states.get(person) is None
+            for person in persons
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="gift_for_unknown"
+            )
+
+    def _user_persons(self, user_id: str | None) -> set[str]:
+        """The person entities whose state names this user (``user_id``)."""
+        if user_id is None:
+            return set()
+        return {
+            state.entity_id
+            for state in self.hass.states.async_all("person")
+            if state.attributes.get("user_id") == user_id
+        }
+
+    def is_gift_recipient(self, parcel: Parcel, user_id: str | None) -> bool:
+        """The parcel is a gift for this user's person (``Parcel.gift_for``); never for a
+        call without a user."""
+        if not parcel.gift or not parcel.gift_for or user_id is None:
+            return False
+        return not self._user_persons(user_id).isdisjoint(parcel.gift_for)
+
+    def hidden_gifts(self, user_id: str | None) -> list[str]:
+        """The numbers of the gifts for this user's person, for a gift viewer only (to
+        anybody else no gift is shown anyway, and the list would tell whom it is for)."""
+        if not self.is_gift_viewer(user_id):
+            return []
+        mine = self._user_persons(user_id)
+        return sorted(
+            p.number
+            for p in self.store.parcels.values()
+            if p.gift and not mine.isdisjoint(p.gift_for)
+        )
 
     def gift_viewer_user_ids(self) -> set[str]:
         """User IDs of the persons chosen as gift viewers (Geschenkmodus).
@@ -1491,6 +1562,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "manual": parcel.manual_delivered,
                 # Whom it belongs to (person entity ID), None for everybody.
                 "owner": self.effective_owner(parcel),
+                # A gift (its name is the gift name then); whom it is for is never told.
+                "gift": parcel.gift,
             },
         )
         # One box, several orders (they share a carrier number), or a carrier's parcel
@@ -1511,7 +1584,22 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
 
     def _audience(self, parcel: Parcel) -> tuple[str, ...]:
         """The notify targets a push about this parcel goes to (its owner's or the general)."""
-        return tuple(sorted(self.owner_targets(self.effective_owner(parcel))))
+        return tuple(sorted(self.push_targets(parcel)))
+
+    def push_targets(self, parcel: Parcel) -> list[str]:
+        """Where a push about this parcel goes: its owner's targets (``owner_targets``)
+        without those of the persons a gift is for (``Parcel.gift_for``). A general target
+        no person is set up with cannot be told apart and stays."""
+        targets = self.owner_targets(self.effective_owner(parcel))
+        if not parcel.gift or not parcel.gift_for:
+            return targets
+        theirs = {
+            target
+            for person in self.persons()
+            if person.person in parcel.gift_for
+            for target in person.notify_targets
+        }
+        return [target for target in targets if target not in theirs]
 
     def _box_key(self, parcel: Parcel) -> tuple[str | None, str, tuple[str, ...]]:
         """The push memory's key: the box (the carrier's number of a shop order, else
@@ -1532,7 +1620,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         delivery mail is never pushed (``build_notification`` gives no text for it).
         """
         try:
-            targets = self.owner_targets(self.effective_owner(parcel))
+            targets = self.push_targets(parcel)
             if not targets or parcel.result.status.value not in self._notify_events:
                 return False
             built = build_notification(parcel, old, dt_util.now(), self.hide_names)
@@ -2061,8 +2149,12 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         )
 
     def _may_change_gift(self, parcel: Parcel, user_id: str | None) -> bool:
-        """A gift is changed only by a gift viewer or a call without a user."""
-        return not parcel.gift or user_id is None or self.is_gift_viewer(user_id)
+        """A gift is changed only by a gift viewer it is not for, or a call without a user."""
+        return (
+            not parcel.gift
+            or user_id is None
+            or (self.is_gift_viewer(user_id) and not self.is_gift_recipient(parcel, user_id))
+        )
 
     def _guard_gift(self, parcel: Parcel, user_id: str | None, key: str) -> None:
         if not self._may_change_gift(parcel, user_id):

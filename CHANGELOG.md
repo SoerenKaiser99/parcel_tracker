@@ -15,7 +15,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
 - **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`), Geschenke lassen sich ausblenden (`gifts`).
-- **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist.
+- **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist. Mit `gift_for` bleibt ein Geschenk vor den Personen verborgen, für die es ist.
 - **Personen zuordnen (optional):** die Integration erkennt an den Kopfzeilen der Mail, wem ein Paket gehört (Plus-Adresse, Alias oder eigene Adresse). Die Karte filtert mit `person` und lässt den Besitzer wählen, Meldungen gehen nur an dessen Ziele.
 - **Namen ausblenden:** alle Pakete heißen nur nach dem Paketdienst und den letzten Stellen der Nummer.
 - **Benachrichtigungen (optional):** bei „in Zustellung“, „zugestellt“, „abholbereit“ und Problem, an Benachrichtigungs-Entitäten und klassische Dienste. Dazu ein Blueprint für eigene Texte.
@@ -33,6 +33,12 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.45 (2026-10-27)
+
+- **Geschenk für bestimmte Personen:** Der Dienst `set_gift` nimmt ein optionales `gift_for` (Liste von Personen). Wer dort steht, sieht das Geschenk auf der Karte wie jemand, der Geschenke nicht sehen darf, auch wenn er sonst Geschenk-Seher ist: kein echter Name, mit `gifts: hide_for_others` gar keine Zeile. Meldungen zum Paket gehen nicht an die Ziele dieser Personen. Ändern oder aufheben kann das Geschenk nur, wer nicht in `gift_for` steht, und eine Automation. Für wen ein Geschenk ist, steht in keinem Attribut, keinem Event, nicht in der Diagnose und nicht im Log der Integration. Ohne `gift_for` bleibt alles wie bisher ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **`gift` im Status-Event:** `parcel_tracker_status_changed` sagt mit `gift`, ob das Paket ein Geschenk ist ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **Roadmap:** Paket-Postfach per OAuth/Microsoft Graph steht als Wunsch auf der Stand-Seite ([#65](https://github.com/SoerenKaiser99/parcel_tracker/issues/65)).
 
 ### v0.3.44 (2026-10-23)
 

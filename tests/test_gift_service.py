@@ -164,8 +164,12 @@ async def test_gift_viewer_command(hass, hass_ws_client):
     await _setup(hass)
     anna = await _user(hass, "Anna", ANNA)
     kid = await _user(hass, "Kid")
-    assert (await _ask(hass, hass_ws_client, anna, VIEWER))["result"] == {"viewer": True}
-    assert (await _ask(hass, hass_ws_client, kid, VIEWER))["result"] == {"viewer": False}
+    assert (await _ask(hass, hass_ws_client, anna, VIEWER))["result"] == {
+        "viewer": True, "hidden": []
+    }
+    assert (await _ask(hass, hass_ws_client, kid, VIEWER))["result"] == {
+        "viewer": False, "hidden": []
+    }
 
 
 async def _child(hass):

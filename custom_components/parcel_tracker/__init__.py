@@ -269,6 +269,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 call.data["open_parcels"],
                 call.data["gift"],
                 call.context.user_id,
+                call.data.get("gift_for"),
             )
         except KeyError as err:
             raise _err("not_tracked") from err
@@ -312,6 +313,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             vol.Optional("number"): number,
             vol.Optional("open_parcels", default=False): cv.boolean,
             vol.Required("gift"): cv.boolean,
+            vol.Optional("gift_for"): vol.All(
+                cv.ensure_list, [vol.Match(r"^person\.[a-z0-9_]+$")]
+            ),
         }),
     )
     hass.services.async_register(

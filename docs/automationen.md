@@ -107,6 +107,7 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | `assumed` | `true`, wenn eine Bestellung ohne Zustellmail abgeschlossen wurde. Der neue Status ist dann `delivered`, zugestellt ist aber nur angenommen | `false` |
 | `manual` | `true`, wenn das Paket von Hand als erhalten markiert wurde (ab v0.3.30). Der neue Status ist dann `delivered` | `false` |
 | `owner` | Person, der das Paket gehört (Entität wie `person.anna`), oder leer, wenn es allen gehört (ab v0.3.41). Das ist der geltende Besitzer, auch die Standard-Person aus **Unklare Pakete gehören** | `person.anna` |
+| `gift` | `true`, wenn das Paket ein Geschenk ist (ab v0.3.45). `name` ist dann der Geschenk-Name. Für wen es ist, steht nicht im Event | `false` |
 
 Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` (über 17track).
 

@@ -1294,7 +1294,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 23. Oktober 2026, Version 0.3.44." in text
+    assert "*Stand: 27. Oktober 2026, Version 0.3.45." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1693,3 +1693,63 @@ def test_changelog_names_v0344_with_its_issues():
     ])
     features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
     _all_have(features, ["`parcel_tracker_parcel_added`", "`gifts`"])
+
+
+# ----- v0.3.45: gift_for, gift im Status-Event -----
+def test_sensor_docs_describe_gift_for_at_set_gift():
+    section = _section(SENSORS, "`parcel_tracker.set_gift`")
+    assert "| `gift_for` | nein |" in section
+    _all_have(section, [
+        "nur mit `gift: true`", "`[]` entfernt nur die Personen", "`gift: false` leert `gift_for`",
+        "nicht in `gift_for` stehen", "Aufrufe ohne Benutzer", "keinem Attribut und keinem Event",
+        "datenschutz.md#geschenk-fur-bestimmte-personen-gift_for",
+    ])
+    errors = _section(SENSORS, "Fehlermeldungen der Dienste")
+    _all_have(errors, [
+        "„Wähle bei gift_for vorhandene Personen.“",
+        "„gift_for geht nur mit eingeschaltetem gift.“",
+    ])
+    added = _section(SENSORS, "Event beim Anlegen: `parcel_tracker_parcel_added`")
+    _all_have(added, ["gift_for:", "- person.b"])
+
+
+def test_status_event_docs_name_gift():
+    fields = _section("automationen.md", "Felder des Events")
+    assert "| `gift` | `true`, wenn das Paket ein Geschenk ist (ab v0.3.45)" in fields
+    assert "Für wen es ist, steht nicht im Event" in fields
+    assert "automationen.md#felder-des-events" in _section(SENSORS, "Event und Auslöser")
+
+
+def test_privacy_docs_explain_gift_for_with_example_and_limits():
+    section = _section(PRIVACY, "Geschenk für bestimmte Personen (`gift_for`)")
+    _all_have(section, [
+        "Ohne `gift_for` bleibt alles wie bisher", "person.b", "**A**", "**B**",
+        "gifts: hide_for_others", "keinem Attribut, keinem Event, nicht in der Diagnose",
+        "Allgemeine Benachrichtigungs-Ziele", "Admins",
+        "B sieht nicht, was das Geschenk ist", "merkt B aber, dass ein Geschenk für ihn ist",
+        "Traces der Automation", "Debug-Log", "innerhalb von etwa einer Minute",
+        "Trägst du dich selbst oder alle Geschenk-Seher in `gift_for` ein",
+    ])
+    rights = _section(PRIVACY, "Wer was darf")
+    assert "nicht in `gift_for` steht" in rights
+    card = _section(CARD, "`gifts` – Geschenke ausblenden")
+    assert "#geschenk-fur-bestimmte-personen-gift_for" in card
+
+
+def test_status_page_names_gift_for_and_issue_65():
+    open_ = _section(STATUS, "Offen")
+    _all_have(open_, [
+        "Teilweise erledigt", "`gift_for`", "Mailbox per OAuth/Microsoft Graph",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/65",
+    ])
+
+
+def test_changelog_names_v0345_with_its_issues():
+    section = CHANGELOG.split("### v0.3.45 (2026-10-27)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/64",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/65",
+        "`gift_for`", "`set_gift`", "`parcel_tracker_status_changed`", "`gift`",
+    ])
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    assert "`gift_for`" in features

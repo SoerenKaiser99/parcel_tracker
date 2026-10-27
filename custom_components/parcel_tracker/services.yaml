@@ -60,6 +60,11 @@ set_gift:
       required: true
       selector:
         boolean:
+    gift_for:
+      selector:
+        entity:
+          domain: person
+          multiple: true
 set_owner:
   fields:
     number:

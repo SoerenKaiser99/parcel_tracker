@@ -271,6 +271,7 @@ gifts: hide_for_others
 Gut zu wissen:
 
 - Ob jemand Geschenke sehen darf, fragt die Karte bei der Integration nach. Bis die Antwort da ist, zeigt sie keine Geschenke. Meldet sich am Wandtablet ein anderer Benutzer an, gilt sofort dessen Recht.
+- Ein Geschenk, das für die eigene Person ist ([`gift_for`](datenschutz.md#geschenk-fur-bestimmte-personen-gift_for)), zeigt die Karte wie für jemanden, der Geschenke nicht sehen darf. Ein neues Geschenk zeigt sie erst, wenn die Integration geantwortet hat.
 - Wandtablets und Kinder-Handys brauchen dafür einen eigenen Benutzer in Home Assistant.
 - Auch diese Option ist nur eine Anzeige. Die Sensoren der Geschenke bleiben für jeden Benutzer lesbar, mit dem Geschenk-Namen. Siehe [Geschenkmodus](datenschutz.md#geschenkmodus).
 

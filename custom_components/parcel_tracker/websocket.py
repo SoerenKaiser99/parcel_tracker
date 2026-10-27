@@ -36,6 +36,10 @@ async def ws_gift_name(hass: HomeAssistant, connection, msg: dict) -> None:
         connection.send_error(msg["id"], "not_allowed", "Not allowed to see gifts")
         return
     parcel = coordinator.store.parcels.get(normalize(msg["number"]))
+    if parcel is not None and coordinator.is_gift_recipient(parcel, connection.user.id):
+        # A gift for this user's person: as for somebody who may not see gifts.
+        connection.send_error(msg["id"], "not_allowed", "Not allowed to see gifts")
+        return
     if parcel is None:
         connection.send_error(msg["id"], "not_found", "Parcel not found")
         return
@@ -52,10 +56,13 @@ async def ws_gift_name(hass: HomeAssistant, connection, msg: dict) -> None:
 @websocket_api.websocket_command({vol.Required("type"): "parcel_tracker/gift_viewer"})
 @websocket_api.async_response
 async def ws_gift_viewer(hass: HomeAssistant, connection, msg: dict) -> None:
-    """Whether the calling user may see gifts."""
+    """Whether the calling user may see gifts, and the gifts for the user's person
+    (``Parcel.gift_for``), which the card shows as to somebody who may not see gifts."""
     coordinator = _coordinator(hass)
-    viewer = coordinator is not None and coordinator.is_gift_viewer(connection.user.id)
-    connection.send_result(msg["id"], {"viewer": viewer})
+    user_id = connection.user.id
+    viewer = coordinator is not None and coordinator.is_gift_viewer(user_id)
+    hidden = coordinator.hidden_gifts(user_id) if viewer else []
+    connection.send_result(msg["id"], {"viewer": viewer, "hidden": hidden})
 
 
 @websocket_api.websocket_command(

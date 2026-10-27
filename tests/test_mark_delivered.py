@@ -261,6 +261,7 @@ async def test_marking_fires_the_event_marked_manual_and_sends_nothing(
         "assumed": False,
         "manual": True,
         "owner": None,
+        "gift": False,
     }
     assert calls == []  # the user tapped it: no push
     saved = {p["number"]: p for p in hass_storage[DOMAIN]["data"]["parcels"]}

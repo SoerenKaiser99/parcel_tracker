@@ -96,6 +96,11 @@ def _texts(value: Any) -> list[str]:
     return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
 
 
+def _persons(value: Any) -> list[str]:
+    """A stored list of person entity ids, each once; anything else is dropped."""
+    return list(dict.fromkeys(p for p in _texts(value) if p.startswith("person.")))
+
+
 @dataclass(frozen=True)
 class TrackingEvent:
     """One scan event."""
@@ -221,6 +226,11 @@ class Parcel:
     # "Geschenk · <neutral name>" everywhere (see ``display_name``), also against a typed
     # name. Persisted; a parcel stored by an older version is no gift.
     gift: bool = False
+    # The persons (entity ids, "person.ben") a gift is for: they are shown the gift like
+    # somebody who may not see gifts, also when they are gift viewers, may not change it
+    # and get no push about it. Only stored and told to the card per user, never in a
+    # state, an event, the diagnostics or the log. Persisted; an older store has none.
+    gift_for: list[str] = field(default_factory=list)
     # The person (entity id, "person.anna") the parcel belongs to, None while unknown, and
     # whether the user set that by hand (a mail never overwrites it). Persisted; a parcel
     # stored by an older version has no owner.
@@ -328,6 +338,7 @@ class Parcel:
             "name_manual": self.name_manual,
             "manual_delivered": self.manual_delivered,
             "gift": self.gift,
+            "gift_for": list(self.gift_for),
             "owner": self.owner,
             "owner_manual": self.owner_manual,
             "last_mail_at": _iso(self.last_mail_at),
@@ -373,6 +384,7 @@ class Parcel:
             name_manual=data.get("name_manual") is True,
             manual_delivered=data.get("manual_delivered") is True,
             gift=data.get("gift") is True,
+            gift_for=_persons(data.get("gift_for")),
             owner=(
                 owner
                 if isinstance(owner := data.get("owner"), str) and owner.startswith("person.")

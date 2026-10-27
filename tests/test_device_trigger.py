@@ -106,6 +106,7 @@ def _event(entry_id, new, old="in_transit", assumed=False, manual=False):
         "assumed": assumed,
         "manual": manual,
         "owner": None,
+        "gift": False,
     }
 
 

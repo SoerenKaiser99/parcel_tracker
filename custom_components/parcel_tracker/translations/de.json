@@ -237,6 +237,8 @@
     "gift_owner_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört."},
     "owner_unknown": {"message": "Diese Person ist im Paket Tracker nicht eingerichtet."},
     "gift_target": {"message": "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete."},
+    "gift_for_unknown": {"message": "Wähle bei gift_for vorhandene Personen."},
+    "gift_for_no_gift": {"message": "gift_for geht nur mit eingeschaltetem gift."},
     "duplicate": {"message": "Dieses Paket ist schon in der Liste."},
     "amazon": {"message": "Amazon-Nummern (TBA…) lassen sich nicht direkt verfolgen. Leite die Amazon-Mails ins Paket-Postfach weiter."},
     "empty": {"message": "Gib eine Sendungsnummer ein."},
@@ -353,7 +355,8 @@
       "fields": {
         "number": {"name": "Sendungsnummer", "description": "Zu änderndes Paket. Leer lassen, wenn alle offenen Pakete gewählt sind."},
         "open_parcels": {"name": "Alle offenen Pakete", "description": "Statt eines Pakets alle noch nicht zugestellten Pakete ändern."},
-        "gift": {"name": "Geschenk", "description": "An markiert als Geschenk, aus macht es wieder sichtbar."}
+        "gift": {"name": "Geschenk", "description": "An markiert als Geschenk, aus macht es wieder sichtbar."},
+        "gift_for": {"name": "Geschenk für", "description": "Personen, für die das Geschenk ist. Diese sehen es nicht wie jemand, der Geschenke sehen darf, bekommen keine Meldung dazu und können es nicht ändern. Nur mit Geschenk an; eine leere Liste entfernt die Personen."}
       }
     },
     "set_owner": {

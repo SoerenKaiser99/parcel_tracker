@@ -253,8 +253,11 @@ Markiert ein Paket oder alle offenen Pakete (weder zugestellt noch storniert) al
 | `number` | nein | Nummer eines Pakets; nicht zusammen mit `open_parcels` |
 | `open_parcels` | nein | `true` für alle offenen Pakete, also weder zugestellt noch storniert (Standard `false`) |
 | `gift` | ja | `true` markiert als Geschenk, `false` macht es wieder sichtbar |
+| `gift_for` | nein | Personen, für die das Geschenk ist (z. B. `person.b`), nur mit `gift: true`. `[]` entfernt nur die Personen, das Paket bleibt Geschenk |
 
 Markieren darf jeder. Wieder sichtbar machen dürfen nur Personen, die Geschenke sehen dürfen, und Aufrufe ohne Benutzer (Automationen). Ohne `number` und ohne `open_parcels` oder mit beidem gibt es einen Fehler.
+
+Mit `gift_for` sehen die genannten Personen das Geschenk auf der Karte wie jemand, der Geschenke nicht sehen darf, auch wenn sie sonst Geschenk-Seher sind. Meldungen zum Paket gehen nicht an ihre Ziele. `gift_for` setzen oder leeren dürfen nur Geschenk-Seher, die selbst nicht in `gift_for` stehen, und Aufrufe ohne Benutzer. `gift: false` leert `gift_for`. Wer in `gift_for` steht, darf das Geschenk auch nicht umbenennen, löschen oder einem anderen geben. Mit `open_parcels` überspringt der Dienst solche Geschenke ohne Hinweis. Für wen ein Geschenk ist, steht in keinem Attribut und keinem Event. Mehr unter [Geschenk für bestimmte Personen](datenschutz.md#geschenk-fur-bestimmte-personen-gift_for).
 
 ### `parcel_tracker.set_owner`
 
@@ -279,13 +282,16 @@ Gibt ein Paket einer Person (`person` als Entität wie `person.anna`) oder allen
 | „Das 17track-Kontingent ist erschöpft.“ | keine 17track-Nummer mehr übrig |
 | „Nur wer Geschenke sehen darf, kann ein Geschenk wieder sichtbar machen.“ | `set_gift` mit `gift: false` von jemandem, der Geschenke nicht sehen darf |
 | „Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete.“ | `set_gift` ohne `number` und `open_parcels` oder mit beidem |
+| „Nur wer Geschenke sehen darf, kann ein Geschenk wieder sichtbar machen.“ | außerdem: `set_gift` mit `gift_for` von jemandem, der Geschenke nicht sehen darf oder selbst in `gift_for` steht |
+| „Wähle bei gift_for vorhandene Personen.“ | `set_gift` mit einer Person in `gift_for`, die es nicht gibt |
+| „gift_for geht nur mit eingeschaltetem gift.“ | `set_gift` mit `gift: false` und Personen in `gift_for` |
 | „Diese Person ist im Paket Tracker nicht eingerichtet.“ | `set_owner` oder `add_parcel` mit einer Person, die unter **Personen** nicht eingerichtet ist oder die es nicht gibt |
 | „Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört.“ | `set_owner` für ein Geschenk (das gewählte Paket selbst) von jemandem, der Geschenke nicht sehen darf |
 | „Dieses Paket lässt sich nicht an 17track schicken (zugestellt oder noch keine Sendungsnummer).“ | siehe oben |
 
 ## Event und Auslöser
 
-Das Event `parcel_tracker_status_changed` und die Auslöser im Automations-Editor stehen unter [Automationen](automationen.md). Für neue Pakete gibt es ein eigenes Event: [Event beim Anlegen](#event-beim-anlegen-parcel_tracker_parcel_added).
+Das Event `parcel_tracker_status_changed` und die Auslöser im Automations-Editor stehen unter [Automationen](automationen.md). Es trägt seit v0.3.45 auch `gift` (`true` bei einem Geschenk), siehe [Felder des Events](automationen.md#felder-des-events). Für neue Pakete gibt es ein eigenes Event: [Event beim Anlegen](#event-beim-anlegen-parcel_tracker_parcel_added).
 
 ## Event beim Anlegen: `parcel_tracker_parcel_added`
 
@@ -334,7 +340,16 @@ actions:
 mode: parallel
 ```
 
-Danach kannst du mit `parcel_tracker.set_owner` auch den Besitzer setzen.
+Danach kannst du mit `parcel_tracker.set_owner` auch den Besitzer setzen. Ist das Geschenk für eine bestimmte Person, gib sie im letzten Schritt mit an, dann sieht sie es nicht:
+
+```yaml
+action: parcel_tracker.set_gift
+data:
+  number: "{{ number }}"
+  gift: true
+  gift_for:
+    - person.b
+```
 
 ## HTTP-Endpunkt
 

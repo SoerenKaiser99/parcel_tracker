@@ -237,6 +237,8 @@
     "gift_owner_not_allowed": {"message": "Only someone who may see gifts can change who a gift belongs to."},
     "owner_unknown": {"message": "This person is not set up in Paket Tracker."},
     "gift_target": {"message": "Give either a tracking number or choose all open parcels."},
+    "gift_for_unknown": {"message": "Choose existing persons for gift_for."},
+    "gift_for_no_gift": {"message": "gift_for needs gift turned on."},
     "duplicate": {"message": "This parcel is already in the list."},
     "amazon": {"message": "Amazon tracking numbers (TBA…) can't be tracked directly. Forward the Amazon mails to the parcel mailbox instead."},
     "empty": {"message": "Enter a tracking number."},
@@ -353,7 +355,8 @@
       "fields": {
         "number": {"name": "Tracking number", "description": "Parcel to change. Leave empty when choosing all open parcels."},
         "open_parcels": {"name": "All open parcels", "description": "Change every parcel that is not delivered yet instead of one."},
-        "gift": {"name": "Gift", "description": "On marks as gift, off makes it visible again."}
+        "gift": {"name": "Gift", "description": "On marks as gift, off makes it visible again."},
+        "gift_for": {"name": "Gift for", "description": "Persons the gift is for: they do not see it like someone who may see gifts, get no notification about it and cannot change it. Only with Gift on; an empty list removes the persons."}
       }
     },
     "set_owner": {
