@@ -534,7 +534,6 @@ def test_docs_explain_the_three_badges_and_delivered_today():
         "„1 heute“",
         "„1 möglich“",
         "„1 zugestellt“",
-        "immer, auch als „0 heute“",
         "nur, wenn",
         "`sensor.pakete_heute`",
     ))
@@ -1294,7 +1293,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 27. Oktober 2026, Version 0.3.45." in text
+    assert "*Stand: 29. Oktober 2026, Version 0.3.46." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1655,7 +1654,8 @@ def test_sensor_docs_describe_the_added_event_and_gift_in_the_lists():
 def test_card_docs_describe_the_gifts_option():
     text = TEXTS[CARD]
     assert (
-        "fünf eigene Optionen: `add_form`, `show`, `gifts`, `person` und `include_unassigned`"
+        "sechs eigene Optionen: `add_form`, `show`, `header`, `gifts`, `person` und "
+        "`include_unassigned`"
         in text
     )
     section = _section(CARD, "`gifts` – Geschenke ausblenden")
@@ -1753,3 +1753,46 @@ def test_changelog_names_v0345_with_its_issues():
     ])
     features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
     assert "`gift_for`" in features
+
+
+# ----- v0.3.46: kein „0 heute“, Kopfzeile abschaltbar, erkannte Mails löschen -----
+
+
+def test_card_docs_no_zero_badge_and_header_option():
+    badges = _section(CARD, "Die Schilder oben rechts")
+    assert "„0 heute“" not in badges
+    _all_have(badges, ["nur, wenn heute sicher etwas kommt", "ohne Lücke"])
+    header = _section(CARD, "`header` – die Kopfzeile")
+    _all_have(header, [
+        "header: false", "Standard", "„Paket hinzufügen“", "`add_form: never`",
+        "`switch.paket_tracker_geschenkmodus`", "Titel", "Schilder",
+    ])
+
+
+def test_mail_docs_explain_deleting_recognised_mails():
+    setup = _section(MAIL, "Einrichten")
+    assert "**Erkannte Mails löschen nach (Tagen)**" in setup
+    section = _section(MAIL, "Erkannte Mails löschen")
+    _all_have(section, [
+        "endgültig", "`Paket-Tracker-Verarbeitet`", "`Paket-Tracker-Nicht-erkannt`",
+        "Eingangsdatum", "einmal am Tag", "Papierkorb", "Mailserver", "UIDPLUS",
+        "„Verarbeitete Mails in Ordner verschieben“", "0", "365", "Message-ID",
+        "`delete_processed`", "Präfix", "einen Tag Sicherheit", "nie kürzer",
+        "Nach einem Neustart von Home Assistant", "nur Mails, die alt genug sind",
+    ])
+
+
+def test_privacy_docs_mention_deleting_recognised_mails():
+    assert "#erkannte-mails-loschen" in TEXTS[PRIVACY]
+    assert "Erkannte Mails löschen nach (Tagen)" in TEXTS[PRIVACY]
+
+
+def test_changelog_names_v0346():
+    section = CHANGELOG.split("### v0.3.46 (2026-10-29)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "Wunsch aus dem simon42-Forum", "„0 heute“", "`header: false`",
+        "Erkannte Mails löschen nach (Tagen)",
+    ])
+    assert "http" not in section
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    _all_have(features, ["`header`", "löscht er erkannte Mails"])

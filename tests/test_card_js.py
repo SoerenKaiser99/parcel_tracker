@@ -277,23 +277,24 @@ def test_gls_has_a_blue_dot_with_g_and_its_label(card):
 
 
 def test_badges_count_sure_possible_and_delivered_parcels(card):
-    """"N heute" is the sensor's state (sure) and always there; "möglich" (ranges that
-    include today) and "zugestellt" (delivered today) only when there are any."""
+    """"N heute" is the sensor's state (sure), "möglich" (ranges that include today) and
+    "zugestellt" (delivered today); each only when there are any (no "0 heute" since
+    v0.3.46)."""
     assert card["badge"] == {
-        "missing": ["0 heute"],
-        "none": ["0 heute"],
+        "missing": [],
+        "none": [],
         "sure": ["2 heute"],
         "oldSensor": ["1 heute"],  # a sensor from before v0.3.10 / v0.3.7
         "oldSensorPossible": ["1 heute", "2 möglich"],
         "both": ["1 heute", "1 möglich"],
         "bothMany": ["2 heute", "3 möglich"],
-        "possible": ["0 heute", "1 möglich"],
-        "delivered": ["0 heute", "1 zugestellt"],
+        "possible": ["1 möglich"],
+        "delivered": ["1 zugestellt"],
         "all": ["1 heute", "2 möglich", "3 zugestellt"],
         "sureDelivered": ["2 heute", "1 zugestellt"],
         "oddCounts": ["1 heute", "2 möglich"],
         "fraction": ["1 heute", "1 möglich"],
-        "unavailable": ["0 heute"],
+        "unavailable": [],
         "noAttributes": ["3 heute"],
     }
 
@@ -335,10 +336,8 @@ def test_green_is_rendered_from_the_today_sensor_only():
 def test_badges_are_rendered_from_the_today_sensor_only():
     """The card does not count itself: it reads sensor.pakete_heute."""
     text = BUNDLED_CARD.read_text(encoding="utf-8")
-    assert (
-        'getElementById("today").innerHTML = badgesHtml(todayBadges(today, this._keep()));'
-        in text
-    )
+    assert "const badges = todayBadges(today, this._keep());" in text
+    assert "badgesEl.innerHTML = badgesHtml(badges);" in text
     assert "possible_count" in text and "delivered_today_count" in text
     assert "function todayBadge(" not in text  # the combined "1 heute · 1 möglich" text is gone
     assert " · ${possible} möglich" not in text

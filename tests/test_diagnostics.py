@@ -534,6 +534,7 @@ async def test_diagnostics_without_any_credentials(hass, hass_storage, freezer):
         "known_message_ids": 0,
         "last_unrecognized": [],
         "filing": None,
+        "delete_processed": {"enabled": False, "last_deleted": None},
     }
     assert result["parcels"] == []
 
@@ -987,3 +988,19 @@ async def test_diagnostics_count_persons_and_addresses_only(hass, hass_storage, 
     text = _dump(result)
     for private in ("erika", "max@", "person.", "example.org", "mobile_app"):
         assert private not in text, private
+
+
+async def test_diagnostics_tell_only_whether_old_mails_are_deleted(hass, hass_storage, freezer):
+    """v0.3.46: on or off and how many went last time; the days stay redacted."""
+    from custom_components.parcel_tracker.const import CONF_DELETE_PROCESSED_DAYS
+
+    entry = await _setup(hass, hass_storage, freezer)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_DELETE_PROCESSED_DAYS: 30}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["entry"]["options"][CONF_DELETE_PROCESSED_DAYS] == REDACTED
+    state = result["mail_import"]["delete_processed"]
+    assert set(state) == {"enabled", "last_deleted"}
+    assert state["last_deleted"] is None

@@ -212,8 +212,8 @@ def test_head_shows_three_badges_in_order(card):
 
 def test_a_sensor_without_the_new_attributes_shows_the_old_badges(card):
     assert [b[3] for b in _badges(card["oldSensor"])] == ["1 heute"]
-    assert [b[3] for b in _badges(card["oldSensorPossible"])] == ["0 heute", "1 möglich"]
-    assert [b[3] for b in _badges(card["noSensor"])] == ["0 heute"]
+    assert [b[3] for b in _badges(card["oldSensorPossible"])] == ["1 möglich"]
+    assert [b[3] for b in _badges(card["noSensor"])] == []
 
 
 def test_badge_html_is_escaped(card):
@@ -226,7 +226,7 @@ def test_badge_html_is_escaped(card):
 
 def test_badges_sit_between_the_title_and_the_plus_and_wrap_as_a_group(card):
     template = card["template"]
-    head = template[template.index('<div class="head">'):template.index('<div id="form"')]
+    head = template[template.index('<div class="head" id="head">'):template.index('<div id="form"')]
     # title and badges share a wrapping box; the plus is its sibling and stays at the right
     assert re.search(
         r'<div class="lead">\s*<div class="title">.*?</div>\s*'

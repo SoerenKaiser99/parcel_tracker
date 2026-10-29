@@ -41,6 +41,7 @@ from .const import (
     CONF_CONFIGURED_PERSON,
     CONF_COUNTRY,
     CONF_DEFAULT_OWNER,
+    CONF_DELETE_PROCESSED_DAYS,
     CONF_DHL_API_KEY,
     CONF_GIFT_SECTION,
     CONF_GIFT_VIEWERS,
@@ -74,6 +75,7 @@ from .const import (
     CONF_UPS_ENABLED,
     CONF_UPS_SECTION,
     COUNTRIES,
+    DEFAULT_DELETE_PROCESSED_DAYS,
     DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_IMAP_FOLDER,
@@ -92,10 +94,12 @@ from .const import (
     IMAP_SECURITIES,
     IMAP_SECURITY_NOVERIFY,
     IMAP_SECURITY_PLAIN,
+    MAX_DELETE_PROCESSED_DAYS,
     MAX_IMAP_PORT,
     MAX_KEEP_DELIVERED_DAYS,
     MAX_MAIL_INTERVAL,
     MAX_UPS_BUDGET,
+    MIN_DELETE_PROCESSED_DAYS,
     MIN_IMAP_PORT,
     MIN_KEEP_DELIVERED_DAYS,
     MIN_MAIL_INTERVAL,
@@ -136,6 +140,11 @@ _DAYS = NumberSelector(
 _MINUTES = NumberSelector(
     NumberSelectorConfig(
         min=MIN_MAIL_INTERVAL, max=MAX_MAIL_INTERVAL, mode=NumberSelectorMode.BOX
+    )
+)
+_PURGE_DAYS = NumberSelector(
+    NumberSelectorConfig(
+        min=0, max=MAX_DELETE_PROCESSED_DAYS, step=1, mode=NumberSelectorMode.BOX
     )
 )
 _PORT = NumberSelector(
@@ -419,6 +428,22 @@ def _shown_folder(value: object) -> str:
     return value.strip() if isinstance(value, str) and value.strip() else DEFAULT_IMAP_FOLDER
 
 
+def _purge_days(value: object) -> int:
+    """Days after which recognised mails are deleted, as stored or typed; 0 (off) else.
+
+    A whole number from 1 to 365; the number box hands in a float.
+    """
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and MIN_DELETE_PROCESSED_DAYS <= value <= MAX_DELETE_PROCESSED_DAYS
+    ):
+        return value
+    return DEFAULT_DELETE_PROCESSED_DAYS
+
+
 def _mail_section(current: Mapping[str, Any]) -> section:
     """Collapsible 'mail import' block of the options form.
 
@@ -453,6 +478,10 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                     CONF_MOVE_PROCESSED,
                     default=current.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED),
                 ): bool,
+                vol.Optional(
+                    CONF_DELETE_PROCESSED_DAYS,
+                    default=_purge_days(current.get(CONF_DELETE_PROCESSED_DAYS)),
+                ): _PURGE_DAYS,
                 vol.Optional(
                     CONF_READ_OTP, default=current.get(CONF_READ_OTP, DEFAULT_READ_OTP)
                 ): bool,
@@ -1069,6 +1098,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     new_options[CONF_GIFT_VIEWERS] = viewers
                 if CONF_PLAIN_NAMES in options or plain_names:
                     new_options[CONF_PLAIN_NAMES] = plain_names
+                # Only stored when on: 0 (the default, off) leaves no key behind.
+                if purge_days := _purge_days(
+                    mail.get(CONF_DELETE_PROCESSED_DAYS, options.get(CONF_DELETE_PROCESSED_DAYS))
+                ):
+                    new_options[CONF_DELETE_PROCESSED_DAYS] = purge_days
                 if CONF_IMAP_FOLDER in options or folder != DEFAULT_IMAP_FOLDER:
                     # An untouched form writes back exactly what is stored.
                     new_options[CONF_IMAP_FOLDER] = (

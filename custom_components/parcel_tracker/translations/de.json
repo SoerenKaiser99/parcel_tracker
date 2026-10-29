@@ -71,6 +71,7 @@
               "imap_password": "Passwort",
               "imap_folder": "Ordner",
               "move_processed": "Verarbeitete Mails in Ordner verschieben",
+              "delete_processed_days": "Erkannte Mails löschen nach (Tagen)",
               "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen",
               "plain_names": "Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen",
               "mail_interval": "Postfach abfragen alle (Minuten)"
@@ -83,6 +84,7 @@
               "imap_password": "Leer lassen behält das gespeicherte Passwort.",
               "imap_folder": "Welcher Ordner des Postfachs gelesen wird – nur dieser eine. Lass „INBOX“ für das eigene Paket-Postfach stehen. Ein Ordner deines Hauptpostfachs geht auch, dann kennt Home Assistant aber das Passwort des ganzen Postfachs. Leer lassen behält den gespeicherten Ordner.",
               "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
+              "delete_processed_days": "Löscht Mails im Ordner Paket-Tracker-Verarbeitet endgültig, sobald sie so viele Tage alt sind (Eingangsdatum), höchstens einmal am Tag. Nur dieser Ordner, nie der gelesene und nie Paket-Tracker-Nicht-erkannt. Wirkt nur mit „Verarbeitete Mails in Ordner verschieben“. 0 = aus.",
               "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf.",
               "plain_names": "Der Betreff „Ihre … Sendung …“ von DHL benennt das Paket nach dem Namen darin, auch bei kleinen Shops und Privatpersonen. Dann können Namen von Privatpersonen auf Karte, Kalender, Sensoren und in Benachrichtigungen stehen. Standardmäßig aus. „Namen ausblenden“ hat Vorrang: Dann steht nur der Paketdienst-Name da."
             }

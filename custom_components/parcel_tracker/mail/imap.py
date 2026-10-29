@@ -22,6 +22,7 @@ import logging
 import re
 import ssl
 from collections.abc import Callable
+from datetime import date, timedelta
 from typing import Any
 
 from ..const import (
@@ -33,7 +34,9 @@ from ..const import (
     IMAP_SECURITIES,
     IMAP_SECURITY_NOVERIFY,
     IMAP_SECURITY_PLAIN,
+    MAX_DELETE_PROCESSED_DAYS,
     MAX_IMAP_PORT,
+    MIN_DELETE_PROCESSED_DAYS,
     MIN_IMAP_PORT,
 )
 
@@ -42,6 +45,10 @@ _LOGGER = logging.getLogger(__name__)
 IMAP_PORT = DEFAULT_IMAP_PORT
 IMAP_TIMEOUT = 30
 FETCH_LIMIT = 50
+# UIDs per STORE/UID EXPUNGE when old mails are deleted: short command lines.
+PURGE_BATCH = 200
+# RFC 3501 dates: English month names whatever the locale says.
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
 # Server texts that really mean "wrong user or password" (RFC 5530 code, Dovecot, Gmail).
 _AUTH_MARKERS = ("authenticationfailed", "authentication failed", "invalid credentials")
@@ -72,6 +79,13 @@ class ImapLoginDisabled(ImapUnavailable):
 
     Raised before user and password are sent. A kind of "unavailable", so callers that
     do not care keep backing off as before.
+    """
+
+
+class ImapExpungeRefused(ImapUnavailable):
+    """The server refused to remove the mails marked as deleted (EXPUNGE, UID EXPUNGE).
+
+    They stay marked; none counts as deleted.
     """
 
 
@@ -357,6 +371,23 @@ class _Filing:
         self.conn.subscribe(_astring(wire))
         return True
 
+    def find(self, name: str) -> str | None:
+        """The folder ``name`` as commands take it if it is there; never creates it.
+
+        Looked for where ``resolve`` files into: below the namespace prefix and at the
+        top, or (without a prefix) at the top and below INBOX.
+        """
+        own = encode_mailbox(name)
+        if self._exists(self.prefix + own):
+            return _astring(self.prefix + own)
+        if self.prefix:
+            return _astring(own) if self._exists(own) else None
+        if delimiter := self._list_delimiter():
+            below = f"{DEFAULT_IMAP_FOLDER}{delimiter}{own}"
+            if self._exists(below):
+                return _astring(below)
+        return None
+
     def resolve(self, name: str) -> str | None:
         """The folder ``name`` as commands take it; None if it is neither there nor made."""
         if name not in self.folders:
@@ -381,6 +412,11 @@ class _Filing:
             if self._create(below):
                 return below, "created", "below_inbox"
         return None, "missing", None
+
+
+def imap_date(day: date) -> str:
+    """A day as IMAP SEARCH takes it (RFC 3501 date): 01-Oct-2026."""
+    return f"{day.day:02d}-{_MONTHS[day.month - 1]}-{day.year}"
 
 
 def _is_auth_error(err: Exception) -> bool:
@@ -495,7 +531,26 @@ class MailboxClient:
             raise ImapFolderNotFound("invalid folder name") from err
 
     def _connect(self) -> Any:
+        """Connected, logged in, the folder to read selected."""
         mailbox = self._mailbox()  # before any connection: a refused folder costs none
+        conn = self._open()
+        try:
+            try:
+                status, _ = conn.select(mailbox)
+            except (OSError, imaplib.IMAP4.error) as err:
+                raise ImapUnavailable(type(err).__name__) from err
+            if status != "OK":
+                if self.custom_folder:
+                    # The server said NO to this folder; it is never created here.
+                    raise ImapFolderNotFound("select rejected")
+                raise ImapUnavailable("select failed")
+        except BaseException:
+            self._logout(conn)
+            raise
+        return conn
+
+    def _open(self) -> Any:
+        """Connected and logged in, no folder selected yet."""
         try:
             if self.tls:
                 conn = self._factory(
@@ -510,15 +565,6 @@ class MailboxClient:
             raise ImapUnavailable(type(err).__name__) from err
         try:
             self._login(conn)
-            try:
-                status, _ = conn.select(mailbox)
-            except (OSError, imaplib.IMAP4.error) as err:
-                raise ImapUnavailable(type(err).__name__) from err
-            if status != "OK":
-                if self.custom_folder:
-                    # The server said NO to this folder; it is never created here.
-                    raise ImapFolderNotFound("select rejected")
-                raise ImapUnavailable("select failed")
         except BaseException:
             self._logout(conn)
             raise
@@ -665,6 +711,71 @@ class MailboxClient:
         except (OSError, imaplib.IMAP4.error) as err:
             if move:
                 self._filing["last_error"] = "connection"
+            raise ImapUnavailable(type(err).__name__) from err
+        finally:
+            self._logout(conn)
+
+    def purge_processed(self, days: Any, today: date) -> int:
+        """Delete the mails in Paket-Tracker-Verarbeitet older than ``days`` days; the
+        number deleted.
+
+        Only that folder, as it is on the server (also below a prefix like INBOX.), and
+        only looked up, never created: nothing there, nothing to do. It is the only folder
+        selected in this connection, so neither the folder read nor
+        Paket-Tracker-Nicht-erkannt can be touched. Which mails go is the server's
+        arrival date (INTERNALDATE, SEARCH BEFORE): before ``today`` minus ``days`` minus
+        one more day. SEARCH compares the date in the server's time zone, ``today`` is
+        Home Assistant's; the extra day keeps every mail at least ``days`` x 24 hours.
+        They get \\Deleted; with UIDPLUS only their UIDs are expunged, without it an
+        EXPUNGE in this folder (which also removes what another client marked there).
+        Anything but 1 to 365 days does nothing and opens no connection.
+
+        Raises ImapAuthError or ImapUnavailable (also for a SELECT or SEARCH refused);
+        ImapExpungeRefused when the server keeps the marked mails.
+        """
+        if (
+            not isinstance(days, int)
+            or isinstance(days, bool)
+            or not MIN_DELETE_PROCESSED_DAYS <= days <= MAX_DELETE_PROCESSED_DAYS
+        ):
+            return 0
+        before = imap_date(today - timedelta(days=days + 1))
+        conn = self._open()
+        try:
+            caps = self._capabilities(conn)
+            wire = _Filing(conn, caps).find(FOLDER_PROCESSED)
+            if wire is None:
+                return 0
+            status, _ = conn.select(wire)
+            if status != "OK":
+                raise ImapUnavailable("select failed")
+            status, data = conn.uid("SEARCH", None, "BEFORE", before)
+            if status != "OK":
+                raise ImapUnavailable("search failed")
+            found = (data or [b""])[0] or b""
+            if isinstance(found, str):
+                found = found.encode("ascii", "replace")
+            # Only plain UIDs: never a range or anything else the server might send.
+            uids = [u.decode() for u in found.split() if u.isdigit()]
+            marked: list[str] = []
+            for start in range(0, len(uids), PURGE_BATCH):
+                batch = uids[start : start + PURGE_BATCH]
+                status, _ = conn.uid("STORE", ",".join(batch), "+FLAGS", "(\\Deleted)")
+                if status == "OK":
+                    marked.extend(batch)
+            if marked:
+                if "UIDPLUS" in caps:
+                    for start in range(0, len(marked), PURGE_BATCH):
+                        batch = marked[start : start + PURGE_BATCH]
+                        status, _ = conn.uid("EXPUNGE", ",".join(batch))
+                        if status != "OK":
+                            raise ImapExpungeRefused("uid expunge refused")
+                else:
+                    status, _ = conn.expunge()
+                    if status != "OK":
+                        raise ImapExpungeRefused("expunge refused")
+            return len(marked)
+        except (OSError, imaplib.IMAP4.error) as err:
             raise ImapUnavailable(type(err).__name__) from err
         finally:
             self._logout(conn)

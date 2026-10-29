@@ -30,6 +30,7 @@ Dein Hauptpostfach sieht die Integration so nie.
     | **Benutzername** und **Passwort** | Die des Paket-Postfachs. Leere Felder behalten die gespeicherten Werte. |
     | **Ordner** | Standard `INBOX` (der Posteingang). Der eine Ordner, den der Import liest. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Ein leeres Feld behält den gespeicherten Ordner. Siehe [Eigener Ordner](#eigener-ordner). |
     | **Verarbeitete Mails in Ordner verschieben** | Standard: an. |
+    | **Erkannte Mails löschen nach (Tagen)** | 0–365, Standard: 0 (aus). Löscht alte Mails im Ordner `Paket-Tracker-Verarbeitet`, siehe [Erkannte Mails löschen](#erkannte-mails-loschen). |
     | **Zustell-Codes (Einmalpasswörter) mitlesen** | Standard: aus. Siehe [Zustell-Code](datenschutz.md#zustell-codes). |
     | **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** | Standard: aus. Dann benennt der Betreff „Ihre <Name> Sendung …“ ein Paket auch nach einem kleinen Shop oder einer Privatperson. Siehe [Absendernamen aus DHL-Mails übernehmen](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen). |
     | **Postfach abfragen alle (Minuten)** | 1–1440 (bis zu einmal am Tag), Standard: 5. |
@@ -256,6 +257,22 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 - Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`) und alle Mails von Eventim, die keine Bestellung mit Postversand sind (Newsletter, Ticketalarm, Kundenservice, die Ticketshops der Vereine).
 - Jede erkannte Mail zählt nur einmal (erkannt an ihrer Message-ID). Eine Mail, die nicht erkannt wurde, liest der Import noch einmal, sobald sie wieder ungelesen in dem Ordner liegt, den er liest, z. B. nach einem Update. Das gilt für Mails, die ab v0.3.34 gelesen wurden: Bis v0.3.33 hat sich der Import jede Mail gemerkt, auch eine nicht erkannte.
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
+
+### Erkannte Mails löschen
+
+Mit **Erkannte Mails löschen nach (Tagen)** räumt der Import den Ordner `Paket-Tracker-Verarbeitet` selbst auf. Standard ist 0, also aus. Erlaubt sind 1 bis 365 Tage.
+
+!!! warning "Endgültig gelöscht"
+    Die Mails werden endgültig gelöscht, nicht verschoben. Ob dein Mailserver sie vorher noch in einen Papierkorb legt, hängt vom Mailserver ab, meist tut er es nicht. Brauchst du eine Mail später noch (Rechnung, Rückgabe), lass die Option aus oder kopier die Mail vorher weg.
+
+- Gelöscht wird **nur** im Ordner `Paket-Tracker-Verarbeitet`, so wie er auf dem Server heißt, auch mit Präfix wie `INBOX.Paket-Tracker-Verarbeitet`. Nie im gelesenen Ordner, nie in `Paket-Tracker-Nicht-erkannt`.
+- Nur Mails, deren Eingangsdatum auf dem Server älter ist als die eingestellten Tage. Mit 30 Tagen bleiben alle Mails der letzten 30 Tage liegen. Weil der Server nur nach Kalendertagen sucht, rechnet der Import einen Tag Sicherheit dazu: Eine Mail liegt eher einen Tag länger, nie kürzer.
+- Höchstens einmal am Tag, nach einem Abruf, der geklappt hat. Nach einem Neustart von Home Assistant kann das Aufräumen am selben Tag noch einmal laufen. Es löscht dabei nur Mails, die alt genug sind.
+- Nur mit eingeschaltetem „Verarbeitete Mails in Ordner verschieben“. Ist das aus, löscht der Import nichts.
+- Der Import merkt sich die Message-ID einer gelöschten Mail weiter. Taucht sie noch einmal auf, zählt sie nicht doppelt.
+- Kann der Server UIDPLUS, entfernt der Import genau die Mails, die er selbst als gelöscht markiert hat. Ohne UIDPLUS entfernt er im Ordner `Paket-Tracker-Verarbeitet` alle als gelöscht markierten Mails, auch solche, die ein Mailprogramm dort markiert hat.
+- Klappt das Löschen nicht, steht einmal eine Warnung im Protokoll, ohne Ordner- oder Benutzernamen. Der Import läuft weiter, der nächste Versuch kommt am nächsten Tag.
+- In der [Diagnose](sensoren.md#diagnose) steht unter `delete_processed` nur, ob es eingeschaltet ist, und wie viele Mails zuletzt gelöscht wurden.
 
 ## Was aus welcher Mail wird
 

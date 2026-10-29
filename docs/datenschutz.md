@@ -37,6 +37,8 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 !!! danger "Nie das Hauptpostfach eintragen"
     Das IMAP-Passwort gibt Vollzugriff auf das Postfach. Trag nur ein eigenes Paket-Postfach ein, das ausschließlich Paketmails bekommt. Siehe [E-Mail-Import](mail-import.md).
 
+Wie lange erkannte Paketmails im Postfach liegen, legst du selbst fest: Mit **Erkannte Mails löschen nach (Tagen)** löscht der Import sie nach der eingestellten Zeit endgültig, nur im Ordner `Paket-Tracker-Verarbeitet`. Standard ist aus. Siehe [Erkannte Mails löschen](mail-import.md#erkannte-mails-loschen).
+
 ## Was aus Mails übernommen wird – und was nie
 
 **Übernommen wird nur:**

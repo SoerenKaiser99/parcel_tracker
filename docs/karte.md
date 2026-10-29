@@ -50,11 +50,12 @@ Oben rechts stehen bis zu drei Schilder, gelesen aus `sensor.pakete_heute`:
 
 | Schild | Bedeutung | Sichtbar |
 |---|---|---|
-| „1 heute“ | Kommt heute sicher: in Zustellung oder fester Liefertag heute | immer, auch als „0 heute“ |
+| „1 heute“ | Kommt heute sicher: in Zustellung oder fester Liefertag heute | nur, wenn heute sicher etwas kommt |
 | „1 möglich“ | Lieferzeitraum schließt heute ein. In der Liste bleibt der Zeitraum stehen (z. B. „Bis 5. Okt.“) | nur, wenn es solche Pakete gibt |
 | „1 zugestellt“ | Heute zugestellt | nur, wenn heute etwas zugestellt wurde |
 
-- Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“. Die Karte zeigt dann z. B. „0 heute“ und „1 zugestellt“.
+- Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“. Die Karte zeigt dann z. B. nur „1 zugestellt“.
+- Steht kein Schild da, bleibt die Kopfzeile ohne Lücke: nur Titel und Plus-Knopf. Bis v0.3.45 stand dort immer mindestens ein Schild mit 0.
 - Eine Bestellung, die ohne Zustellmail abgeschlossen wurde, zählt dabei nicht mit. In der Liste steht bei ihr „Abgeschlossen (ohne Zustellbestätigung)“ statt „Zugestellt …“.
 - Die Erklärung steht auch als Tooltip auf jedem Schild.
 - Auf schmalen Karten rutschen die Schilder gemeinsam unter den Titel, der Plus-Knopf bleibt rechts.
@@ -160,7 +161,7 @@ Sollen alle anderen ein Geschenk gar nicht sehen, auch keine Zeile und kein Schi
 
 ## Optionen der Karte
 
-Die Karte hat fünf eigene Optionen: `add_form`, `show`, `gifts`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).
+Die Karte hat sechs eigene Optionen: `add_form`, `show`, `header`, `gifts`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).
 
 ### `add_form` – die Eingabe
 
@@ -242,6 +243,18 @@ Gut zu wissen:
 - Im Bearbeitungsmodus des Dashboards und in der Vorschau des Karten-Editors bleibt sie sichtbar und zeigt die Zeile „Ausgeblendet, solange nichts ansteht (show: …)“.
 - Solange die Eingabe über den Plus-Knopf offen ist, verschwindet die Karte nicht.
 - Fehlt ein Sensor, den die Option braucht (Integration älter als v0.3.11), bleibt die Karte sichtbar.
+
+### `header` – die Kopfzeile
+
+Mit `header: false` entfällt die ganze Kopfzeile: Titel „Pakete“, Schilder, Geschenk-Schalter und Plus-Knopf. Standard ist `true`, also mit Kopfzeile. Praktisch, wenn die Karte z. B. in einem Stapel unter einer eigenen Überschrift steht.
+
+```yaml
+type: custom:parcel-tracker-card
+header: false
+```
+
+- Statt des Plus-Knopfs steht über der Liste ein kleiner Knopf „Paket hinzufügen“. Er klappt die Eingabe auf und wieder zu. Mit `add_form: always` ist die Eingabe immer offen, mit `add_form: never` gibt es keine.
+- Den Geschenkmodus schaltest du ohne Kopfzeile über die Entität `switch.paket_tracker_geschenkmodus`, z. B. in einer Schalter-Karte oder einer [Automation](automationen.md#geschenkmodus-per-automation-schalten). Die Rückfrage, ob offene Pakete auch Geschenke werden, gibt es dann nicht.
 
 ### Beide Optionen zusammen
 

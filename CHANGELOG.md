@@ -9,12 +9,12 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **UPS:** Status aus UPS-Mails, live über die offizielle UPS-Track-API mit eigenem Entwicklerzugang (braucht ein UPS-Konto mit Abrechnung; mit Monatsbudget).
 - **17track (optional):** ergänzt Ort, Zeitfenster und Verlauf und verfolgt Paketdienste ohne eigene Anbindung, nur auf ausdrücklichen Wunsch.
 - **Länder:** Deutschland, Österreich und Schweiz (Postleitzahl und GLS-Abfrage passend zum Land).
-- **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an.
+- **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an. Auf Wunsch löscht er erkannte Mails nach einer einstellbaren Zahl von Tagen.
 - **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress und Eventim (nur Postversand).
 - **Weitergeleitete Mails:** von Hand weitergeleitete Mails, Apples „E-Mail-Adresse verbergen“ und Mails per HTTP-Aufruf (z. B. aus n8n oder Node-RED).
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
-- **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`), Geschenke lassen sich ausblenden (`gifts`).
+- **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“, jeweils nur, wenn es etwas zu zählen gibt. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`), die Kopfzeile abschaltbar (`header`), Geschenke lassen sich ausblenden (`gifts`).
 - **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist. Mit `gift_for` bleibt ein Geschenk vor den Personen verborgen, für die es ist.
 - **Personen zuordnen (optional):** die Integration erkennt an den Kopfzeilen der Mail, wem ein Paket gehört (Plus-Adresse, Alias oder eigene Adresse). Die Karte filtert mit `person` und lässt den Besitzer wählen, Meldungen gehen nur an dessen Ziele.
 - **Namen ausblenden:** alle Pakete heißen nur nach dem Paketdienst und den letzten Stellen der Nummer.
@@ -33,6 +33,14 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.46 (2026-10-29)
+
+Wunsch aus dem simon42-Forum.
+
+- **Kein „0 heute“ mehr:** Kommt heute nichts sicher, zeigt die Karte das Schild „heute“ nicht. „möglich“ und „zugestellt“ stehen wie bisher nur da, wenn es welche gibt. Ohne Schild bleibt die Kopfzeile ohne Lücke.
+- **Kopfzeile abschaltbar:** Mit der Kartenoption `header: false` entfallen Titel, Schilder, Geschenk-Schalter und Plus-Knopf. Pakete fügst du dann über den Knopf „Paket hinzufügen“ über der Liste hinzu (außer mit `add_form: never`), den Geschenkmodus schaltest du über `switch.paket_tracker_geschenkmodus`.
+- **Erkannte Mails löschen:** Neue Option „Erkannte Mails löschen nach (Tagen)“ im E-Mail-Import, Standard aus. Sie löscht Mails endgültig, nur im Ordner `Paket-Tracker-Verarbeitet` (auch mit Präfix wie `INBOX.`), nur solche, die älter sind als die eingestellten Tage, höchstens einmal am Tag. Die Diagnose zeigt nur, ob es eingeschaltet ist, und wie viele Mails zuletzt gelöscht wurden.
 
 ### v0.3.45 (2026-10-27)
 

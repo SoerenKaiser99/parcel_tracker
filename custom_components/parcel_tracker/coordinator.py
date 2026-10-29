@@ -52,6 +52,7 @@ from .const import (
     CARRIER_BROKEN_AFTER,
     CARRIER_OTHER,
     CONF_DEFAULT_OWNER,
+    CONF_DELETE_PROCESSED_DAYS,
     CONF_GIFT_VIEWERS,
     CONF_HIDE_NAMES,
     CONF_KEEP_DELIVERED_DAYS,
@@ -62,6 +63,7 @@ from .const import (
     CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
+    DEFAULT_DELETE_PROCESSED_DAYS,
     DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_KEEP_DELIVERED_DAYS,
@@ -86,6 +88,8 @@ from .const import (
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
     MAIL_MAX_BACKOFF,
+    MAX_DELETE_PROCESSED_DAYS,
+    MIN_DELETE_PROCESSED_DAYS,
     NOTIFY_APP_SERVICE_PREFIX,
     NOTIFY_SERVICE_PREFIX,
     OPTIONAL_API_CARRIERS,
@@ -112,6 +116,7 @@ from .mail.base import MailResult, is_forwarded, sender, sent_at
 from .mail.imap import (
     ImapAuthError,
     ImapCertificateError,
+    ImapExpungeRefused,
     ImapFolderNotFound,
     ImapLoginDisabled,
     ImapUnavailable,
@@ -252,6 +257,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # Kinds of trouble ("certificate", "login_disabled") that were logged in this
         # outage: each once, until an import works again.
         self._mail_told: set[str] = set()
+        # Deleting old recognised mails: the local day it last ran (once a day), the number
+        # deleted then (None: not yet, or it failed) and whether its failure was logged.
+        self._purge_day: date | None = None
+        self._purge_last: int | None = None
+        self._purge_warned = False
         self._mail_recognized = 0
         self._mail_unrecognized = 0
         # Sender domain (known shop/carrier or "other") and forwarded flag of the last
@@ -447,6 +457,25 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     @property
     def _move_processed(self) -> bool:
         return self.entry.options.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED)
+
+    @property
+    def _delete_processed_days(self) -> int:
+        """Days after which recognised mails are deleted; 0 (off) for anything odd."""
+        value = self.entry.options.get(CONF_DELETE_PROCESSED_DAYS, DEFAULT_DELETE_PROCESSED_DAYS)
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and MIN_DELETE_PROCESSED_DAYS <= value <= MAX_DELETE_PROCESSED_DAYS
+        ):
+            return value
+        return DEFAULT_DELETE_PROCESSED_DAYS
+
+    @property
+    def _purge_enabled(self) -> bool:
+        """Deleting only ever happens in the folder mails are moved into."""
+        return self._move_processed and self._delete_processed_days > 0
 
     @property
     def _mail_interval(self) -> timedelta:
@@ -749,6 +778,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self._mail_last = now
             try:
                 await self._import_mail(self.mailbox, now)
+                await self._purge_processed(self.mailbox, now)
             except ImapAuthError:
                 self._mail_failed(now, "auth")
                 ir.async_create_issue(
@@ -850,6 +880,38 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # ones (Message-ID) and reads the others again; they changed nothing and are
             # counted and logged only once (``_unrecognized``).
             _LOGGER.debug("Could not file processed mails: %s", err)
+
+    async def _purge_processed(self, mailbox: MailboxClient, now: datetime) -> None:
+        """Delete old mails in Paket-Tracker-Verarbeitet, at most once a (local) day.
+
+        Called after a fetch that worked. Never raises: a failure is one warning (only the
+        kind of error, no folder or user) until it works again, and is not retried the
+        same day. The Message-IDs of the mails deleted stay known.
+        """
+        if not self._purge_enabled:
+            return
+        purge = getattr(mailbox, "purge_processed", None)
+        today = dt_util.as_local(now).date()
+        if not callable(purge) or self._purge_day == today:
+            return
+        self._purge_day = today
+        try:
+            count = await self.hass.async_add_executor_job(
+                purge, self._delete_processed_days, today
+            )
+        except Exception as err:  # noqa: BLE001 - never stops the import
+            # Refused EXPUNGE: the mails stay (marked), none counts as deleted.
+            self._purge_last = 0 if isinstance(err, ImapExpungeRefused) else None
+            if not self._purge_warned:
+                self._purge_warned = True
+                _LOGGER.warning(
+                    "Could not delete old recognised mails (%s); the mail import goes on, "
+                    "the next try is tomorrow",
+                    type(err).__name__,
+                )
+            return
+        self._purge_warned = False
+        self._purge_last = count if isinstance(count, int) else None
 
     def _mail_failed(self, now: datetime, code: str) -> None:
         self._mail_error = code
@@ -2016,6 +2078,12 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                     if callable(filing := getattr(self.mailbox, "filing_state", None))
                     else None
                 ),
+                # Deleting recognised mails: only whether it is on and how many went the
+                # last time (None: not run yet or failed), never the days or a folder.
+                "delete_processed": {
+                    "enabled": self.mailbox is not None and self._purge_enabled,
+                    "last_deleted": self._purge_last,
+                },
             },
         }
 

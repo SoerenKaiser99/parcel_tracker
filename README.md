@@ -58,7 +58,7 @@ HACS lädt die Integration nur herunter; ohne Schritt 3 passiert nichts. Install
 - [Installation](https://soerenkaiser99.github.io/parcel_tracker/installation/) – herunterladen, einrichten, Karte hinzufügen
 - [Was brauche ich für welchen Dienst?](https://soerenkaiser99.github.io/parcel_tracker/dienste/) – DHL-API-Key, GLS, UPS, 17track, Österreich und Schweiz
 - [E-Mail-Import](https://soerenkaiser99.github.io/parcel_tracker/mail-import/) – Paket-Postfach, Absender für die Filterregel, was aus welcher Mail wird
-- [Die Karte](https://soerenkaiser99.github.io/parcel_tracker/karte/) – Pakete hinzufügen, „Erhalten“, die Optionen `add_form`, `show` und `gifts`
+- [Die Karte](https://soerenkaiser99.github.io/parcel_tracker/karte/) – Pakete hinzufügen, „Erhalten“, die Optionen `add_form`, `show`, `header` und `gifts`
 - [Benachrichtigungen](https://soerenkaiser99.github.io/parcel_tracker/benachrichtigungen/) – Ziele, Ereignisse, Texte und der Blueprint
 - [Automationen](https://soerenkaiser99.github.io/parcel_tracker/automationen/) – Auslöser ohne YAML und die Felder des Events
 - [Rezepte](https://soerenkaiser99.github.io/parcel_tracker/rezepte/) – Beispiele zum Kopieren

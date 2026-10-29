@@ -268,7 +268,7 @@ def test_only_gifts_look_like_no_parcels(card):
     view = card["onlyGifts"]
     assert view["rows"] == []
     assert "Noch keine Pakete." in view["list"]
-    assert ">0 heute<" in view["badges"]
+    assert "heute<" not in view["badges"]  # no "0 heute"
     assert "zugestellt" not in view["badges"]
     # show: today / active count without the gifts as well.
     assert card["onlyGiftsToday"]["hidden"] is True
@@ -282,7 +282,7 @@ def test_with_the_person_filter_gifts_stay_hidden(card):
     view = card["person"]
     assert view["rows"] == []
     assert "Keine Pakete für" in view["list"]
-    assert ">0 heute<" in view["badges"]
+    assert "heute<" not in view["badges"]  # no "0 heute"
 
 
 def test_without_the_switch_nobody_is_a_viewer(card):
