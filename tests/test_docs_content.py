@@ -1805,7 +1805,7 @@ def test_card_docs_describe_person_auto_and_the_undated_delivery():
     section = _section(CARD, "Gehört: pro Paket und Filter")
     _all_have(section, [
         "person: auto", "seit v0.3.47", "nur die Pakete von **allen**", "Wand-Tablet",
-        "keine** `person`-Option", "Noch keine Pakete.", "Das gilt auch für `person: auto`",
+        "keine** `person`-Option", "Noch keine Pakete …", "Das gilt auch für `person: auto`",
     ])
     text = TEXTS[CARD]
     assert "Hermes nennt keinen" in text
