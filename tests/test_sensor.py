@@ -664,3 +664,38 @@ async def test_import_duty_attributes_while_the_parcel_is_not_delivered(hass):
             None,
             False,
         )
+
+
+async def test_in_delivery_without_a_date_has_days_until_zero_when_it_counts_today(hass, freezer):
+    """v0.3.47: Hermes names no day; the parcel the summary counts today shows "Heute"."""
+    freezer.move_to(DAYTIME)
+    fresh = _mail_parcel("AMZ99900000000000001", "Frisch", ParcelStatus.OUT_FOR_DELIVERY)
+    stale = _mail_parcel("AMZ99900000000000002", "Gestern", ParcelStatus.OUT_FOR_DELIVERY)
+    stale.last_change_at -= timedelta(days=2)
+    dated = _mail_parcel("AMZ99900000000000003", "Datum", ParcelStatus.OUT_FOR_DELIVERY, 0)
+    later = _mail_parcel("AMZ99900000000000004", "Morgen", ParcelStatus.OUT_FOR_DELIVERY, 1)
+    transit = _mail_parcel("AMZ99900000000000005", "Unterwegs", ParcelStatus.IN_TRANSIT)
+    await _setup_with(hass, [fresh, stale, dated, later, transit])
+
+    def days(number):
+        return hass.states.get(f"sensor.paket_{number.lower()}").attributes["days_until"]
+
+    assert days(fresh.number) == 0
+    assert days(stale.number) is None
+    assert days(dated.number) == 0
+    assert days(later.number) == 1
+    assert days(transit.number) is None
+
+
+async def test_in_delivery_without_a_date_uses_the_home_time_zone_for_today(hass, freezer):
+    """23:30 UTC is already tomorrow in Berlin: a change at 00:30 there is today."""
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    freezer.move_to("2026-10-01 23:30:00+00:00")  # 01:30 on 2 Oct. in Berlin
+    early = _mail_parcel("AMZ99900000000000001", "Nachts", ParcelStatus.OUT_FOR_DELIVERY)
+    early.last_change_at = dt_util.utcnow() - timedelta(hours=1)  # 00:30 in Berlin
+    late = _mail_parcel("AMZ99900000000000002", "Vortag", ParcelStatus.OUT_FOR_DELIVERY)
+    late.last_change_at = dt_util.utcnow() - timedelta(hours=2)  # 23:30 the day before
+    await _setup_with(hass, [early, late])
+    for parcel, expected in ((early, 0), (late, None)):
+        state = hass.states.get(f"sensor.paket_{parcel.number.lower()}")
+        assert state.attributes["days_until"] == expected

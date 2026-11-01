@@ -66,14 +66,14 @@ Jede Zeile zeigt den Paketdienst, den Namen, den Status, einen Fortschrittsbalke
 
 | Rechts steht | Bedeutung |
 |---|---|
-| „Heute“ oder „Heute 14:00–16:00 Uhr“ | Liefertag heute, mit Zeitfenster, wenn eines bekannt ist |
+| „Heute“ oder „Heute 14:00–16:00 Uhr“ | Liefertag heute, mit Zeitfenster, wenn eines bekannt ist. Auch ein Paket „in Zustellung“ ohne Liefertag (Hermes nennt keinen) zeigt „Heute“, wenn sich sein Status heute geändert hat |
 | „Morgen“, „In 3 Tagen“ | fester Liefertag |
 | „Bis 5. Okt.“ oder eine Spanne | der Versender nennt nur einen Zeitraum |
 | „Abholbereit“ | liegt in Packstation, Filiale oder PaketShop |
 | „Zugestellt heute“, „Zugestellt gestern“, „Zugestellt am …“ | zugestellt |
 | „Abgeschlossen (ohne Zustellbestätigung)“ | Bestellung ohne Zustellmail, siehe [E-Mail-Import](mail-import.md#bestellungen-ohne-zustellmail) |
 | „Storniert“ | Der Shop hat die Bestellung storniert, sie steht ausgegraut am Ende der Liste, siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird) |
-| „Noch kein Termin“ | Das Paket hat einen Status, aber noch keinen Zustelltag |
+| „Noch kein Termin“ | Das Paket hat einen Status, aber noch keinen Zustelltag. Ein Paket „in Zustellung“ ohne Liefertag, dessen Status sich nicht heute geändert hat, steht auch hier |
 | „Termin überschritten“ | Der genannte Liefertag ist vorbei |
 | „Kein Live-Status“ | Der Paketdienst lässt sich nicht abfragen, weil der DHL-API-Key oder die UPS-Zugangsdaten fehlen |
 
@@ -304,11 +304,19 @@ person: person.anna
 include_unassigned: true
 ```
 
-- `person`: nur die Pakete dieser Person. Alles, was keine Personen-Entität ist, schaltet den Filter aus. Die Schilder oben rechts und die Zahlen zählen nur diese Pakete. Ist nichts da, steht „Keine Pakete für Anna.“
+- `person`: nur die Pakete dieser Person. Alles, was keine Personen-Entität ist (außer `auto`), schaltet den Filter aus. Die Schilder oben rechts und die Zahlen zählen nur diese Pakete. Ist nichts da, steht „Keine Pakete für Anna.“
+- `person: auto` (seit v0.3.47): Die Karte zeigt die Pakete der Person des angemeldeten Benutzers, also der Personen-Entität, deren Benutzer dieser Benutzer ist. Wechselt der Benutzer, wählt die Karte neu. Eine Person, die Home Assistant erst später meldet, übernimmt sie von selbst.
 - `include_unassigned`: Standard `true`. Dann zeigt die Karte zusätzlich die Pakete, die allen gehören. Mit `false` bleiben nur die der Person.
 
+```yaml
+type: custom:parcel-tracker-card
+person: auto
+```
+
+Hat der angemeldete Benutzer keine Person, zeigt `person: auto` nur die Pakete von **allen** (mit `include_unassigned: false` keine) und sonst den üblichen Hinweis „Noch keine Pakete …“. Das trifft zum Beispiel einen Wand-Tablet-Benutzer ohne Person: Er sieht nur die Pakete von allen. Nimm für ein solches Tablet daher **keine** `person`-Option, dann zeigt die Karte alle Pakete.
+
 !!! warning "Der Filter ist nur eine Anzeige"
-    Die Pakete aller Personen bleiben als Sensoren sichtbar. Siehe [Datenschutz](datenschutz.md#personen).
+    Die Pakete aller Personen bleiben als Sensoren sichtbar. Das gilt auch für `person: auto`. Siehe [Datenschutz](datenschutz.md#personen).
 
 ### Sichtbarkeit von Home Assistant nutzen
 

@@ -1293,7 +1293,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 29. Oktober 2026, Version 0.3.46." in text
+    assert "*Stand: 1. November 2026, Version 0.3.47." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1796,3 +1796,25 @@ def test_changelog_names_v0346():
     assert "http" not in section
     features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
     _all_have(features, ["`header`", "löscht er erkannte Mails"])
+
+
+# ----- v0.3.47: In Zustellung ohne Termin zeigt „Heute“, person: auto -----
+
+
+def test_card_docs_describe_person_auto_and_the_undated_delivery():
+    section = _section(CARD, "Gehört: pro Paket und Filter")
+    _all_have(section, [
+        "person: auto", "seit v0.3.47", "nur die Pakete von **allen**", "Wand-Tablet",
+        "keine** `person`-Option", "Noch keine Pakete.", "Das gilt auch für `person: auto`",
+    ])
+    text = TEXTS[CARD]
+    assert "Hermes nennt keinen" in text
+    assert "dessen Status sich nicht heute geändert hat" in text
+
+
+def test_changelog_names_v0347():
+    section = CHANGELOG.split("### v0.3.47 (2026-11-01)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/39", "person: auto",
+        "Wunsch/Meldung aus dem simon42-Forum", "`days_until` ist dann 0",
+    ])

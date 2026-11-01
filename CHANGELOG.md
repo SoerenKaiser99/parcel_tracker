@@ -34,6 +34,13 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.47 (2026-11-01)
+
+Wunsch/Meldung aus dem simon42-Forum (In Zustellung ohne Termin); `person: auto` zu [Issue #39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39).
+
+- **„In Zustellung“ ohne Termin zeigt „Heute“:** Ein Paket in Zustellung, für das der Paketdienst keinen Tag nennt (Hermes, manchmal auch DPD und GLS), steht auf der Karte als „Heute“ und ganz oben, wenn sich sein Status heute geändert hat. Das Attribut `days_until` ist dann 0, dieselbe Regel wie beim Zähler „heute“. Ein Paket, das schon gestern in Zustellung ging, bleibt bei „Noch kein Termin“.
+- **Kartenoption `person: auto`:** Die Karte zeigt die Pakete der Person des angemeldeten Benutzers, plus die Pakete von allen (`include_unassigned`, Standard `true`). Sie wählt bei einem Benutzerwechsel neu. Hat der Benutzer keine Person, bleiben nur die Pakete von allen. Das ist nur eine Anzeige, kein Schutz.
+
 ### v0.3.46 (2026-10-29)
 
 Wunsch aus dem simon42-Forum.

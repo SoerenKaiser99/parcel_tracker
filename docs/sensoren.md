@@ -52,7 +52,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `eta_date` | erwarteter Liefertag (bei einer Lieferspanne ihr erster Tag) |
 | `eta_latest` | letzter Tag einer Lieferspanne |
 | `eta_from`, `eta_to` | Beginn und Ende des Zeitfensters |
-| `days_until` | Tage bis zum Liefertag (0 = heute) |
+| `days_until` | Tage bis zum Liefertag (0 = heute). Ein Paket „in Zustellung“ ohne Liefertag, dessen Status sich heute geändert hat, steht auf 0 |
 | `location` | Standort, wenn bekannt |
 | `location_source` | `17track`, wenn der Ort von 17track stammt, sonst leer |
 | `pickup_point` | Abholpunkt (Packstation, Filiale, PaketShop), wenn bekannt |

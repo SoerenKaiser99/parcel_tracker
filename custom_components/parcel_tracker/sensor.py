@@ -19,7 +19,7 @@ from .coordinator import ParcelCoordinator
 from .links import tracking_url
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .models import carrier_name as _carrier_name
-from .schedule import ParcelSummary, days_until, summarize
+from .schedule import ParcelSummary, parcel_days_until, summarize
 
 
 def _iso(value) -> str | None:
@@ -145,7 +145,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         if p is None:
             return {}
         r = p.result
-        today = dt_util.now().date()
+        now = dt_util.now()
+        today = now.date()
         return {
             "carrier": p.carrier,
             "carrier_name": _carrier_name(p),
@@ -156,7 +157,7 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "eta_latest": _iso(r.eta_latest) if r else None,
             "eta_from": _iso(r.eta_from) if r else None,
             "eta_to": _iso(r.eta_to) if r else None,
-            "days_until": days_until(r.eta_date, today) if r else None,
+            "days_until": parcel_days_until(p, today, now.tzinfo),
             "location": r.location if r else None,
             "location_source": _location_source(p),
             "pickup_point": r.pickup_point if r else None,

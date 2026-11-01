@@ -108,7 +108,7 @@ function makeHass(opts) {
   }
   const log = opts.log;
   return {
-    states, entities, user: { id: opts.user || "u-anna" },
+    states, entities, user: opts.user === null ? undefined : { id: opts.user || "u-anna" },
     callWS: async (msg) => {
       log.ws.push(msg);
       if (msg.type === "parcel_tracker/gift_viewer") return { viewer: !!opts.viewer };
@@ -174,6 +174,36 @@ function mount(config, opts = {}) {
     { parcels: [], benName: "<b>Ben</b>" });
   out.emptyPerson = none.els.list.innerHTML;
   out.emptyAll = mount({}, { parcels: [] }).els.list.innerHTML;
+
+  // ---- person: auto (v0.3.47) ------------------------------------------------------------
+  const rowsOf = (m) => Object.keys(m.rows()).sort();
+  const au = mount({ person: "auto" });
+  out.auto = { shown: rowsOf(au), badges: au.els.today.innerHTML };
+  out.autoStrict = rowsOf(mount({ person: "auto", include_unassigned: false }));
+  out.autoBen = rowsOf(mount({ person: "auto" }, { user: "u-ben" }));
+  // A user switch on the same card re-resolves the person.
+  const sw = mount({ person: "auto", include_unassigned: false });
+  const before = rowsOf(sw);
+  sw.again({ user: "u-ben" });
+  const afterBen = rowsOf(sw);
+  sw.again({ user: "u-nobody" });
+  out.autoSwitch = { before, afterBen, nobody: rowsOf(sw), empty: sw.els.list.innerHTML };
+  // Person states that arrive later.
+  const late = mount({ person: "auto", include_unassigned: false }, { noPersons: true });
+  const beforePersons = rowsOf(late);
+  late.again({ noPersons: false });
+  out.autoLate = { before: beforePersons, after: rowsOf(late) };
+  // A user without a person sees the parcels of everybody only, and the plain empty text.
+  const nob = mount({ person: "auto" }, { user: "u-nobody" });
+  out.autoNobody = { shown: rowsOf(nob), badges: nob.els.today.innerHTML };
+  out.autoNobodyStrict = mount({ person: "auto", include_unassigned: false }, { user: "u-nobody" })
+    .els.list.innerHTML;
+  out.autoNoUser = rowsOf(mount({ person: "auto" }, { user: null }));
+  // The person of the user, escaped, when there is nothing for them.
+  out.autoEscaped = mount({ person: "auto", include_unassigned: false },
+    { parcels: [], benName: "<b>Ben</b>", user: "u-ben" }).els.list.innerHTML;
+  // Explicit person: unchanged, even for another logged-in user.
+  out.explicitOther = rowsOf(mount({ person: "person.anna" }, { user: "u-ben" }));
 
   // ---- select in the expanded parcel ---------------------------------------------------
   const s = mount({});
@@ -489,3 +519,51 @@ def test_default_all_shows_standard_allen_without_a_second_allen(card):
     assert got["call"] == ["parcel_tracker", "add_parcel", {
         "number": "00340999999999999969", "carrier": "auto",
     }]
+
+
+def _sorted(*numbers):
+    return sorted(numbers)
+
+
+def test_auto_shows_the_parcels_of_the_logged_in_users_person(card):
+    assert card["auto"]["shown"] == _sorted(A, D, N)
+    assert _badges(card["auto"]["badges"]) == _badges(card["anna"]["badges"])
+    assert card["autoBen"] == _sorted(B, G, N)
+
+
+def test_auto_with_include_unassigned_false_hides_everybodys_parcels(card):
+    assert card["autoStrict"] == _sorted(A, D)
+
+
+def test_auto_follows_a_user_switch(card):
+    assert card["autoSwitch"]["before"] == _sorted(A, D)
+    assert card["autoSwitch"]["afterBen"] == _sorted(B, G)
+    assert card["autoSwitch"]["nobody"] == []
+    empty = card["autoSwitch"]["empty"]
+    assert "Keine Pakete für" not in empty
+    assert "Noch keine Pakete." in empty
+
+
+def test_auto_picks_up_person_states_that_arrive_later(card):
+    assert card["autoLate"] == {"before": [], "after": _sorted(A, D)}
+
+
+def test_auto_without_a_person_shows_only_everybodys_parcels(card):
+    assert card["autoNobody"]["shown"] == [N]
+    assert _badges(card["autoNobody"]["badges"]) == ["1 möglich"]
+    assert card["autoNoUser"] == [N]
+
+
+def test_auto_without_a_person_and_nothing_to_show_has_no_bad_name(card):
+    html = card["autoNobodyStrict"]
+    assert "Keine Pakete für" not in html
+    assert "auto" not in html
+    assert "Noch keine Pakete." in html
+
+
+def test_auto_escapes_the_persons_name(card):
+    assert card["autoEscaped"] == '<div class="sub">Keine Pakete für &lt;b&gt;Ben&lt;/b&gt;.</div>'
+
+
+def test_an_explicit_person_ignores_the_logged_in_user(card):
+    assert card["explicitOther"] == _sorted(A, D, N)
