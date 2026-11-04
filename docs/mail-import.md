@@ -351,6 +351,7 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Der Anzeigename eines Paketdienstes („DHL Paketankündigung“, „DHL Zustell-Update“) wird nie zum Namen: Ohne Shop heißt das Paket `DHL <Nummer>`. Nennt der Betreff eine Firma des Paketdienstes selbst („Ihre DHL Paket (Austria) GmbH c/o … Sendung“), gibt es ebenfalls keinen Namen.
     - Trägt ein Paket aus einer älteren Version noch so einen Namen, ersetzt ihn die nächste Mail, die einen Shop nennt – aber nur, wenn der Name aus einem Paketdienst (DHL, DPD, GLS, Hermes, UPS, Deutsche Post) und Wörtern einer Benachrichtigung besteht und sonst nichts enthält („DHL Paketankündigung“, „DHL Zustell-Update“, „DPD Versandinfo“, „DHL Paket“). Jeder andere Name bleibt, auch „Hermes“, „DHL Express“ oder „Paket“: Er kann selbst vergeben sein.
     - Eine „Amazon Sendung“ landet beim passenden Amazon-Paket, siehe [Zusammenführen](#zusammenfuhren-carrier-mail-und-bestellung).
+    - Einlieferungsbelege („Einlieferungsbeleg“ im Betreff) legen ein versendetes Paket an, siehe [Versendete Pakete](#versendete-pakete-einlieferungsbelege).
     - Abholcodes liest der Import nie.
 
 === "DPD"
@@ -386,6 +387,31 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Der Shop aus der Mail wird nur dann zum Namen, wenn es ein bekannter Shop ist (z. B. Amazon, eBay, Otto, Zalando) und das Paket noch keinen Namen hat – Namen privater Absender übernimmt die Integration nie.
     - Den Text des Wunsch-Ablageorts übernimmt die Integration nie – weder in Attribute noch ins Log.
     - Alte Amazon-Versandmails mit Hermes-Nummer hängen die Nummer an das Amazon-Paket; ab dann fragt es Hermes ab.
+
+## Versendete Pakete (Einlieferungsbelege)
+
+Verschickst du selbst ein Paket, schickt dir DHL einen Einlieferungsbeleg. Auch den kann der Import lesen. Das Paket steht dann als **versendet** in der Liste und wird wie jedes andere verfolgt, nur dass es nicht zu dem zählt, was bei dir ankommt.
+
+**Was erkannt wird**
+
+- Mails von `dhl.de`, in deren Betreff „Einlieferungsbeleg“ steht, auch weitergeleitet („WG:“, „Fwd:“).
+- Der Beleg der **Zustellkraft** (an der Haustür abgegeben) ist mit einer echten Mail geprüft. Belege aus der **Filiale oder dem Shop** und von der **Packstation** erkennt der Import am selben Muster, mit echten Mails geprüft ist das noch nicht.
+- Das Paket bekommt den Status „unterwegs“, als Zeit gilt der Abgabezeitpunkt aus dem Beleg.
+- Kennt die Integration die Nummer schon (etwa aus der Abfrage bei DHL), wird dieses Paket zu einem versendeten. Zurück zu „empfangen“ wird es nie.
+- Wie bei jeder Mail bestimmt die Zuordnung der Mail, wem das Paket gehört, siehe [Pakete Personen zuordnen](#pakete-personen-zuordnen).
+
+**Wie ein versendetes Paket sich verhält**
+
+- Es steht auf der Karte mit dem Schild „Versendet“ in der normalen Liste, ohne Knopf „Erhalten“, ohne Code, ohne Geschenkbox, ohne Abholort und Abholfrist und ohne Zoll.
+- Es zählt in keinem Zählsensor (heute, unterwegs, möglich, zugestellt heute, abholbereit) und steht in keiner `parcels`-Liste. Einen Kalendereintrag gibt es nicht.
+- Es ist nie ein Geschenk.
+- Eine Meldung bekommst du **einmal**: wenn das Paket beim Empfänger zugestellt ist oder dort zur Abholung bereitliegt. Voraussetzung ist, dass bei den [Benachrichtigungen](benachrichtigungen.md#ereignisse) „Zugestellt“ gewählt ist. Alle anderen Meldungen entfallen.
+- Dass es angekommen ist, erfährt die Integration nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen) oder wenn du auf der Karte „Details über 17track holen“ antippst. Ohne Key und ohne 17track bleibt das Paket auf „unterwegs“, bis du es löschst oder es nach 30 Tagen ohne Änderung aus der Liste fällt.
+
+**Filterregel:** Die Belege kommen von `noreply@dhl.de`. Steht diese Adresse oder die ganze Domain `dhl.de` in deiner [Filterregel](#filterregel-anlegen), kommen sie ohne Änderung an.
+
+!!! question "Belege anderer Paketdienste gesucht"
+    Gebaut ist bisher nur der DHL-Beleg. Mit einer echten Mail geprüft ist nur der Beleg der Zustellkraft. Für **Hermes, DPD, GLS und UPS** sowie für die **DHL Packstation** und die **DHL Filiale** fehlen noch echte Belege. Wenn du so einen hast, reich ihn anonymisiert ein: [Beispielmails einreichen](hilfe.md#beispielmails-einreichen).
 
 ## Bestellungen ohne Zustellmail
 

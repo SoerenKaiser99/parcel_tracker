@@ -76,7 +76,7 @@ Die Optionen findest du unter **Einstellungen → Geräte & Dienste → Paket Tr
 
 4. **Immer noch nichts?** Dann ist es ein Fehler, den ich kennen sollte: [Fehler melden](#fehler-melden) – mit der Diagnose-Datei und, wenn du magst, dem passenden Auszug aus dem Log von Home Assistant.
 
-Leere Felder für Keys, Benutzername, Passwort und Secret behalten beim Speichern die gespeicherten Werte. Du musst sie nicht jedes Mal neu eintragen.
+Leere Felder für Keys, Benutzername, Passwort und Secret behalten beim Speichern die gespeicherten Werte. Du musst sie nicht jedes Mal neu eintragen. Einen DHL- oder 17track-Key löschst du mit dem Häkchen **DHL-API-Key entfernen** bzw. **17track-API-Key entfernen** (nur sichtbar, wenn ein Key gespeichert ist).
 
 ## DHL
 
@@ -126,6 +126,10 @@ Mehr dazu: [Port und Verbindung](mail-import.md#port-und-verbindung).
 Das Feld **Ordner** braucht den Namen so, wie der Mailserver ihn führt. Ein Unterordner heißt je nach Anbieter `Pakete/DHL` oder `INBOX.Pakete`; viele Mailprogramme zeigen den vollen Namen in den Eigenschaften des Ordners. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Siehe [Eigener Ordner](mail-import.md#eigener-ordner).
 
 Kommen seit einer Weile keine Pakete mehr aus Mails und steht im Protokoll von Home Assistant eine Warnung zum Ordner des Mail-Imports? Dann wurde der Ordner umbenannt oder gelöscht: Trag unter **Konfigurieren** den richtigen ein.
+
+### Im Log steht „The mailbox could not be reached …“
+
+Die Warnung lautet „The mailbox could not be reached N times in a row (…); the mail import keeps retrying“. In der Klammer steht die Art des Fehlers. Sie kommt, wenn das Postfach dreimal hintereinander nicht erreichbar war, und nur einmal je Störung. Der Server oder das Netz ist gerade nicht erreichbar, zum Beispiel bei einer Störung des Mailanbieters. Der Import versucht es von selbst weiter, und nach einem Abruf, der klappt, beginnt die Zählung neu. Du musst nichts tun, solange das nicht dauerhaft so bleibt. Dann prüf Servernamen, Port und Verbindung unter **Konfigurieren**.
 
 ### Eine Mail wird nicht erkannt
 

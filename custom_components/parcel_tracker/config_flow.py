@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import voluptuous as vol
@@ -43,6 +43,7 @@ from .const import (
     CONF_DEFAULT_OWNER,
     CONF_DELETE_PROCESSED_DAYS,
     CONF_DHL_API_KEY,
+    CONF_DHL_API_KEY_REMOVE,
     CONF_GIFT_SECTION,
     CONF_GIFT_VIEWERS,
     CONF_HIDE_NAMES,
@@ -69,6 +70,7 @@ from .const import (
     CONF_REMOVE_PERSON,
     CONF_SHARED_ADDRESSES,
     CONF_TRACK17_API_KEY,
+    CONF_TRACK17_API_KEY_REMOVE,
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
@@ -510,12 +512,17 @@ def _schema(
     notify_available: Sequence[SelectOptionDict] = (),
     hide_names: bool = False,
     gift: Mapping[str, Any] | None = None,
+    removable: Collection[str] = (),
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
         fields[vol.Optional(CONF_DHL_API_KEY)] = _KEY
+        if CONF_DHL_API_KEY in removable:
+            fields[vol.Optional(CONF_DHL_API_KEY_REMOVE, default=False)] = bool
     if track17:
         fields[vol.Optional(CONF_TRACK17_API_KEY)] = _KEY
+        if CONF_TRACK17_API_KEY in removable:
+            fields[vol.Optional(CONF_TRACK17_API_KEY_REMOVE, default=False)] = bool
     fields[
         vol.Optional(CONF_COUNTRY, default=known_country(defaults.get(CONF_COUNTRY)))
     ] = _COUNTRY
@@ -1021,6 +1028,13 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
+            # The tick box wins over a new key in the field: that one is not even checked.
+            drop_dhl = user_input.get(CONF_DHL_API_KEY_REMOVE) is True
+            drop_track17 = user_input.get(CONF_TRACK17_API_KEY_REMOVE) is True
+            if drop_dhl:
+                key_value = ""
+            if drop_track17:
+                track17_key = ""
             country = known_country(user_input.get(CONF_COUNTRY) or stored_country)
             stored_plain = options.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True
             plain_names = mail.get(CONF_PLAIN_NAMES, stored_plain) is True
@@ -1123,6 +1137,10 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     data[CONF_DHL_API_KEY] = key_value
                 if track17_key:
                     data[CONF_TRACK17_API_KEY] = track17_key
+                if drop_dhl:
+                    data.pop(CONF_DHL_API_KEY, None)
+                if drop_track17:
+                    data.pop(CONF_TRACK17_API_KEY, None)
                 if user and new_password:
                     data[CONF_IMAP_PASSWORD] = new_password
                 if mail_off:  # switched off explicitly: drop the secret
@@ -1159,6 +1177,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 notify_available=_available_targets(self.hass),
                 hide_names=True,
                 gift=gift_shown,
+                removable={
+                    key
+                    for key in (CONF_DHL_API_KEY, CONF_TRACK17_API_KEY)
+                    if self.config_entry.data.get(key)
+                },
             ),
             errors=errors,
         )

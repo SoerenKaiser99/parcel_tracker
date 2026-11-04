@@ -1061,3 +1061,51 @@ def test_a_delivered_amazon_parcel_is_never_folded_into_a_seller_order():
     # an order of Amazon's own takes it, as before
     parcels[ORDER].shipment_ids = [AMAZON_NOW]
     assert fold_delivered(parcels, parcel, NOW.astimezone(BERLIN)) is parcels[ORDER]
+
+
+# ----- an outgoing parcel (receipt of a handover) is no delivery to an order -----
+def _outgoing_parcel(status=ParcelStatus.DELIVERED, **kwargs) -> Parcel:
+    result = TrackingResult(status, "Zugestellt", None, None, None, None, None, None, None, [])
+    parcel = Parcel(SHORT_DHL, "dhl", "mail", "Beispielmarke GmbH", NOW, NOW, result=result,
+                    **kwargs)
+    parcel.outgoing = True
+    return parcel
+
+
+def _hinted_order() -> Parcel:
+    first, last = _range()
+    order = _order(ORDER, "Beispielmarke Trinkflasche", first, last)
+    order.shipping_carrier_hint = "DHL Paket"
+    return order
+
+
+def test_delivered_outgoing_parcel_is_never_folded_into_an_order():
+    order = _hinted_order()
+    parcel = _outgoing_parcel()
+    parcels = {ORDER: order, SHORT_DHL: parcel}
+    assert fold_delivered(parcels, parcel, NOW.astimezone(BERLIN)) is None
+    assert set(parcels) == {ORDER, SHORT_DHL}
+    assert parcel.outgoing is True
+    assert order.tracking_ref is None and order.status is ParcelStatus.IN_TRANSIT
+
+
+def test_outgoing_update_does_not_merge_into_an_open_dhl_order():
+    parcels = {ORDER: _hinted_order()}
+    update = MailUpdate(SHORT_DHL, "dhl", ParcelStatus.IN_TRANSIT, NOW.astimezone(BERLIN),
+                        title="Beispielmarke GmbH", eta_date=TODAY, outgoing=True)
+    change = apply_update(parcels, update, NOW)
+    assert change.created and change.parcel is parcels[SHORT_DHL]
+    assert parcels[SHORT_DHL].outgoing is True
+    assert parcels[ORDER].tracking_ref is None
+
+
+def test_receipt_flips_a_known_parcel_clears_gift_and_works_after_manual_receive():
+    parcel = _outgoing_parcel(ParcelStatus.IN_TRANSIT, gift=True, gift_for=["person.ben"])
+    parcel.outgoing = False
+    parcel.manual_delivered = True
+    parcels = {SHORT_DHL: parcel}
+    update = MailUpdate(SHORT_DHL, "dhl", ParcelStatus.IN_TRANSIT, NOW.astimezone(BERLIN),
+                        outgoing=True)
+    assert apply_update(parcels, update, NOW) is not None or parcel.outgoing
+    assert parcel.outgoing is True
+    assert parcel.gift is False and parcel.gift_for == []

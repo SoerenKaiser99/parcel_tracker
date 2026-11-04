@@ -1293,7 +1293,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 1. November 2026, Version 0.3.47." in text
+    assert "*Stand: 4. November 2026, Version 0.3.48." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1818,3 +1818,95 @@ def test_changelog_names_v0347():
         "https://github.com/SoerenKaiser99/parcel_tracker/issues/39", "person: auto",
         "Wunsch/Meldung aus dem simon42-Forum", "`days_until` ist dann 0",
     ])
+
+
+# ----- v0.3.48: versendete Pakete, Key entfernen, Postfach-Warnung -----
+
+
+def test_mail_docs_describe_outgoing_parcels():
+    section = _section(MAIL, "Versendete Pakete (Einlieferungsbelege)")
+    _all_have(section, [
+        "Einlieferungsbeleg", "dhl.de", "WG:", "Packstation", "Zustellkraft", "Abgabezeitpunkt",
+        "Versendet", "Zählsensor", "Geschenk", "einmal", "Hermes, DPD, GLS und UPS",
+        "hilfe.md#beispielmails-einreichen",
+    ])
+
+
+def test_sensor_docs_name_outgoing_in_attribute_event_and_error():
+    text = TEXTS[SENSORS]
+    _all_have(text, [
+        "`outgoing`", "`gift_outgoing`", "Ein versendetes Paket kann kein Geschenk sein.",
+    ])
+    _all_have(TEXTS[AUTOMATIONS], ["`outgoing`"])
+    _all_have(TEXTS[CARD], ["Versendet", "`header: false` und `add_form: never`"])
+
+
+def test_help_docs_explain_key_removal_and_mailbox_warning():
+    text = TEXTS[HELP]
+    _all_have(text, [
+        "The mailbox could not be reached", "dreimal hintereinander",
+        "DHL-API-Key entfernen", "17track-API-Key entfernen",
+    ])
+
+
+def test_outgoing_docs_tell_when_the_arrival_is_seen():
+    """Without a DHL key or 17track a sent parcel stays "unterwegs": said wherever its
+    one notification is described."""
+    section = _section(MAIL, "Versendete Pakete (Einlieferungsbelege)")
+    _all_have(section, [
+        "nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen)",
+        "„Details über 17track holen“", "bleibt das Paket auf „unterwegs“",
+        "nach 30 Tagen ohne Änderung",
+    ])
+    _all_have(TEXTS[NOTIFY], ["Ohne beides bleibt das Paket auf „unterwegs“"])
+    v0348 = CHANGELOG.split("### v0.3.48 (2026-11-04)\n")[1].split("\n### ")[0]
+    _all_have(v0348, ["nur mit DHL-API-Key oder nach „Details über 17track holen“"])
+
+
+def test_outgoing_docs_say_only_the_courier_receipt_was_checked():
+    section = _section(MAIL, "Versendete Pakete (Einlieferungsbelege)")
+    _all_have(section, [
+        "Der Beleg der **Zustellkraft** (an der Haustür abgegeben) ist mit einer echten Mail "
+        "geprüft",
+        "erkennt der Import am selben Muster, mit echten Mails geprüft ist das noch nicht",
+        "Mit einer echten Mail geprüft ist nur der Beleg der Zustellkraft.",
+        "Die Belege kommen von `noreply@dhl.de`",
+    ])
+    assert "steht schon in der [Filterregel]" not in section
+    _all_have(TEXTS[STATUS], ["nur der Beleg der Zustellkraft ist mit einer echten Mail geprüft"])
+    _all_have(TEXTS[HELPING], ["**Versendete Pakete (DHL-Einlieferungsbeleg)**"])
+
+
+def test_blueprint_docs_describe_sent_parcels():
+    section = _section(NOTIFY, "Blueprint")
+    _all_have(section, [
+        "| `outgoing` |", "„✅ Dein verschicktes Paket … wurde zugestellt“",
+        "„✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“",
+        "`outgoing` seit v0.3.48", "nach dem Update auf 0.3.48 oder neuer",
+    ])
+
+
+def test_sensor_docs_say_what_a_sent_parcel_leaves_empty():
+    _all_have(TEXTS[SENSORS], [
+        "Bei ihm sind `pickup_point`, `pickup_until`, `customs_amount` und `customs_currency` "
+        "leer, `customs_cash` und `has_delivery_code` sind `false`",
+    ])
+
+
+def test_v0348_docs_render_cleanly():
+    """No raw angle brackets (they vanish in the page) and closing German quotes."""
+    assert "<Art des Fehlers>" not in TEXTS[HELP]
+    assert "(…); the mail import keeps retrying" in TEXTS[HELP]
+    assert 'ohne Knopf „Erhalten"' not in TEXTS[CARD]
+    assert "ohne Knopf „Erhalten“, ohne Code" in TEXTS[CARD]
+
+
+def test_changelog_names_v0348():
+    section = CHANGELOG.split("### v0.3.48 (2026-11-04)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/66",
+        "Wunsch aus dem simon42-Forum",
+        "`outgoing`", "`gift_outgoing`", "DHL-API-Key entfernen", "Hermes, DPD, GLS, UPS",
+    ])
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    _all_have(features, ["Versendete Pakete"])

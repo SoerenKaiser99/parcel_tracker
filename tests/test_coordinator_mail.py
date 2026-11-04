@@ -889,3 +889,40 @@ async def test_amazon_mail_read_again_counts_as_one_miss(hass):
     assert coord._amazon_misses == 0
     await _import(coord, [("8", unknown_amazon_mail(5))])
     assert coord._amazon_misses == 1
+
+
+async def test_mail_unavailable_warns_once_after_three(hass, freezer, caplog):
+    """Three failed calls in a row: one warning (kind of error only), then quiet."""
+    mailbox = FakeMailbox(error=ImapUnavailable("TimeoutError"))
+    coord = await _coordinator(hass, mailbox, {"imap_host": "imap.example.org",
+                                               "imap_user": "max@example.org"})
+
+    async def fail():
+        coord._mail_next = None
+        await coord.async_import_mail()
+
+    def warnings():
+        return [r for r in caplog.records
+                if r.levelname == "WARNING" and "could not be reached" in r.getMessage()]
+
+    caplog.set_level("DEBUG")
+    await fail()
+    await fail()
+    assert warnings() == []
+    await fail()
+    assert len(warnings()) == 1
+    assert "3 times" in warnings()[0].getMessage()
+    assert "TimeoutError" in warnings()[0].getMessage()
+    await fail()
+    assert len(warnings()) == 1  # a fourth failure: no new warning
+    assert "imap.example.org" not in caplog.text
+    assert "max@example.org" not in caplog.text
+    mailbox.error = None
+    await fail()  # a success ends the outage
+    mailbox.error = ImapUnavailable("TimeoutError")
+    await fail()
+    await fail()
+    assert len(warnings()) == 1
+    await fail()
+    assert len(warnings()) == 2
+    assert "3 times" in warnings()[1].getMessage()

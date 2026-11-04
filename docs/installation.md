@@ -63,6 +63,7 @@ Alle vier Felder änderst du später über **Konfigurieren** an der Integration.
 Gut zu wissen:
 
 - Lässt du das Key-Feld beim Ändern leer, bleibt der vorhandene Key erhalten.
+- Einen gespeicherten Key löschst du mit dem Häkchen **DHL-API-Key entfernen** bzw. **17track-API-Key entfernen**. Die Häkchen erscheinen nur, wenn ein Key gespeichert ist. Das Häkchen gewinnt, auch wenn du im Feld darüber einen neuen Key tippst.
 - Bestehende Einrichtungen bleiben ohne Zutun auf Deutschland.
 - Wechselst du das Land, trag die PLZ im selben Formular neu ein. Passt die gespeicherte PLZ nicht zur Länge des neuen Landes, meldet das Formular das, statt sie zu verwerfen.
 

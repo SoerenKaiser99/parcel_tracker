@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 
+from ..carriers.base import BERLIN
 from ..models import ParcelStatus
 from .base import (
     DPD_DOMAINS,
@@ -90,10 +91,19 @@ _DHL_CUSTOMS = re.compile(
     re.IGNORECASE,
 )
 _DHL_CASH = re.compile(r"\bin\s{1,3}bar\b", re.IGNORECASE)
-# The receipt of a Packstation ("Einlieferungsbeleg: Ihr Versand an der Packstation") is
-# about a parcel somebody sent, not one that comes. Its text part names no number, and the
-# HTML part is not searched for one.
+# The receipt of a handover ("Digitaler Einlieferungsbeleg", "Einlieferungsbeleg: Ihr
+# Versand an der Packstation") is about a parcel somebody sent, not one that comes: it
+# always takes its own path (``_dhl_receipt``) and gives an outgoing parcel.
 _DHL_RECEIPT = re.compile(r"\bEinlieferungsbeleg\b", re.IGNORECASE)
+# "Sendungsnummer" or "Ihre Sendungsnummer": the number is looked for in the 80 characters
+# from the label on (a colon, a line break or blanks may stand between).
+_DHL_LABEL = re.compile(r"Sendungsnummer", re.IGNORECASE)
+# "Abgabezeitpunkt\n03.11.2026 14:14 Uhr"
+_DHL_HANDOVER = re.compile(
+    r"Abgabezeitpunkt\s{0,40}:?\s{0,40}"
+    r"(\d{1,2})\.(\d{1,2})\.(\d{4})\s{1,5}(\d{1,2}):(\d{2})\s{0,3}Uhr",
+    re.IGNORECASE,
+)
 # DHL's newer layout leaves HTML table markup in its text/plain part.
 _MARKUP = re.compile(r"<(?:table|tr|td|p|div|br|span)\b", re.IGNORECASE)
 # "Ihre <Shop> Sendung ist unterwegs" / "… kommt heute …" / "… wurde zugestellt" / "… wird
@@ -236,6 +246,48 @@ def _plain_name(text: str) -> str | None:
     return shorten(name)
 
 
+def is_dhl_receipt(msg: EmailMessage) -> bool:
+    """A receipt of a handover: only ``parse_dhl_mail`` reads it, never the generic parser."""
+    return bool(_DHL_RECEIPT.search(subject(msg)))
+
+
+def _dhl_receipt(msg: EmailMessage, text: str, sent: datetime) -> list[MailUpdate]:
+    """The digital receipt of a handover: one outgoing parcel "unterwegs", dated by the
+    "Abgabezeitpunkt" (Europe/Berlin) or else by the mail. Nothing without a DHL number
+    behind "Sendungsnummer" (text part first, then the HTML part). No code, no duty, no name.
+    """
+    number = None
+    bodies = (text, html_body_text(msg))
+    for body in bodies:
+        for label in _DHL_LABEL.finditer(body):
+            if found := _dhl_numbers(body[label.start() : label.start() + 80]):
+                number = found[0]
+                break
+        if number:
+            break
+    if number is None:
+        return []
+    when = sent
+    for body in bodies:
+        if (m := _DHL_HANDOVER.search(body)) is not None:
+            day, month, year, hour, minute = (int(g) for g in m.groups())
+            try:
+                when = datetime(year, month, day, hour, minute, tzinfo=BERLIN)
+            except ValueError:
+                pass
+            break
+    return [
+        MailUpdate(
+            number=number,
+            carrier="dhl",
+            status=ParcelStatus.IN_TRANSIT,
+            sent_at=when,
+            title=None,
+            outgoing=True,
+        )
+    ]
+
+
 def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpdate]:
     """DHL notification: number, status, day or today's window, the shop the subject names.
 
@@ -259,9 +311,9 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
     if _MARKUP.search(text):
         text = html_text(text)
     sent = sent_at(msg)
+    if _DHL_RECEIPT.search(subj):
+        return _dhl_receipt(msg, text, sent)
     numbers = _dhl_numbers(text)
-    if not numbers and _DHL_RECEIPT.search(subj):
-        return []
     if not numbers:
         # Nothing in the text part: the HTML part is read instead, for the day as well.
         text = html_body_text(msg)

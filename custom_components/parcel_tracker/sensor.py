@@ -160,8 +160,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "days_until": parcel_days_until(p, today, now.tzinfo),
             "location": r.location if r else None,
             "location_source": _location_source(p),
-            "pickup_point": r.pickup_point if r else None,
-            "pickup_until": _iso(r.pickup_until) if r else None,
+            # A sent parcel's pickup point and deadline are the recipient's: never shown.
+            "pickup_point": r.pickup_point if r and not p.outgoing else None,
+            "pickup_until": _iso(r.pickup_until) if r and not p.outgoing else None,
             "status_text": r.status_text if r else None,
             "last_update": _iso(p.last_poll_at),
             "stale": p.last_error is not None and r is not None,
@@ -183,6 +184,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids and not p.gift else None,
             # Marked as a gift (Geschenkmodus): shown by its gift name, no links.
             "gift": p.gift,
+            # Sent by the user (a DHL receipt of a handover): counted nowhere, the card
+            # marks it "Versendet".
+            "outgoing": p.outgoing,
             # The person the parcel belongs to (entity id), None for everybody: the owner
             # a mail named or the user set, else the default person ("Unklare Pakete
             # gehören"). ``owner_detected``: the parcel has an owner of its own (a person

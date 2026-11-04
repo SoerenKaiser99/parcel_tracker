@@ -135,6 +135,23 @@ def _pickup(parcel: Parcel) -> str:
     return text
 
 
+_ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
+
+
+def _outgoing(
+    parcel: Parcel, label: str, old_status: ParcelStatus | None
+) -> tuple[str, str] | None:
+    """A parcel the user sent: only its arrival, once (ready for pickup and then
+    delivered is one arrival, also with a step back in between: ``Parcel.arrival_told``).
+    No place, no deadline: those are the recipient's."""
+    status = parcel.result.status
+    if status not in _ARRIVED or old_status in _ARRIVED or parcel.arrival_told:
+        return None
+    if status is ParcelStatus.DELIVERED:
+        return TITLE, f"✅ Dein verschicktes Paket {label} wurde zugestellt"
+    return TITLE, f"✅ Dein verschicktes Paket {label} liegt beim Empfänger zur Abholung bereit"
+
+
 def build_notification(
     parcel: Parcel, old_status: ParcelStatus | None, now: datetime, hide_names: bool = False
 ) -> tuple[str, str] | None:
@@ -151,6 +168,8 @@ def build_notification(
     if parcel.manual_delivered:
         return None  # marked as received by hand: the user knows
     label = _label(parcel, hide_names)
+    if parcel.outgoing:
+        return _outgoing(parcel, label, old_status)
     match result.status:
         case ParcelStatus.OUT_FOR_DELIVERY:
             message = f"📦 {label} ist in Zustellung{_window_today(parcel, now)}{_customs(parcel)}"

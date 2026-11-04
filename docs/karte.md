@@ -57,6 +57,7 @@ Oben rechts stehen bis zu drei Schilder, gelesen aus `sensor.pakete_heute`:
 - Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“. Die Karte zeigt dann z. B. nur „1 zugestellt“.
 - Steht kein Schild da, bleibt die Kopfzeile ohne Lücke: nur Titel und Plus-Knopf. Bis v0.3.45 stand dort immer mindestens ein Schild mit 0.
 - Eine Bestellung, die ohne Zustellmail abgeschlossen wurde, zählt dabei nicht mit. In der Liste steht bei ihr „Abgeschlossen (ohne Zustellbestätigung)“ statt „Zugestellt …“.
+- Ein versendetes Paket (Einlieferungsbeleg, siehe [E-Mail-Import](mail-import.md#versendete-pakete-einlieferungsbelege)) zählt in keinem dieser Schilder. Es steht in der normalen Liste mit dem Schild „Versendet“, ohne Knopf „Erhalten“, ohne Code, Geschenkbox, Abholort und Zoll.
 - Die Erklärung steht auch als Tooltip auf jedem Schild.
 - Auf schmalen Karten rutschen die Schilder gemeinsam unter den Titel, der Plus-Knopf bleibt rechts.
 
@@ -254,6 +255,7 @@ header: false
 ```
 
 - Statt des Plus-Knopfs steht über der Liste ein kleiner Knopf „Paket hinzufügen“. Er klappt die Eingabe auf und wieder zu. Mit `add_form: always` ist die Eingabe immer offen, mit `add_form: never` gibt es keine.
+- Mit `header: false` und `add_form: never` steht über der ersten Zeile keine Linie mehr (bis v0.3.47 blieb dort ein Strich).
 - Den Geschenkmodus schaltest du ohne Kopfzeile über die Entität `switch.paket_tracker_geschenkmodus`, z. B. in einer Schalter-Karte oder einer [Automation](automationen.md#geschenkmodus-per-automation-schalten). Die Rückfrage, ob offene Pakete auch Geschenke werden, gibt es dann nicht.
 
 ### Beide Optionen zusammen

@@ -25,6 +25,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` und `set_owner`.
 - **Event und Auslöser:** das Event `parcel_tracker_status_changed`, das Event `parcel_tracker_parcel_added` für neue Pakete und fünf Auslöser im Automations-Editor ohne YAML.
 - **Einfuhrabgaben (Zoll):** Betrag und Barzahlung aus der DHL-Mail am Zustelltag auf der Karte und in der Benachrichtigung.
+- **Versendete Pakete:** ein DHL-Einlieferungsbeleg legt ein Paket als versendet an (Schild „Versendet“, `outgoing`), außerhalb aller Zähler, mit einer Meldung bei Zustellung.
 - **Abholbereit:** Packstation, Filiale und PaketShop mit Abholort und letztem Abholtag.
 - **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert und in keinem Attribut (der Sensor zeigt nur `has_delivery_code`).
 - **Datensparsam:** kein Cloud-Konto, Zugangsdaten bleiben in Home Assistant, nur ein eigenes Paket-Postfach wird gelesen.
@@ -33,6 +34,17 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.48 (2026-11-04)
+
+Wunsch aus dem simon42-Forum (Kartenlinie, Warnung bei unerreichbarem Postfach); Key entfernen zu [Issue #66](https://github.com/SoerenKaiser99/parcel_tracker/issues/66).
+
+- **Versendete Pakete:** Ein DHL-Einlieferungsbeleg („Einlieferungsbeleg“ im Betreff, Absender `dhl.de`, auch weitergeleitet; Filiale/Shop, Packstation, Zustellkraft, mit echter Mail geprüft nur die Zustellkraft) legt ein Paket als versendet an (Attribut `outgoing: true`) oder macht ein bekanntes dazu, nie zurück. Status „unterwegs“, Zeit ist der Abgabezeitpunkt. Es wird wie jedes Paket verfolgt, die Ankunft sieht die Integration aber nur mit DHL-API-Key oder nach „Details über 17track holen“ auf der Karte; sonst bleibt es auf „unterwegs“, bis es gelöscht wird oder nach 30 Tagen ohne Änderung aus der Liste fällt. Es zählt in keinem Zählsensor (heute, unterwegs, möglich, zugestellt heute, abholbereit) und keiner `parcels`-Liste und hat keinen Kalendereintrag. Die Karte zeigt es mit dem Schild „Versendet“, ohne Knopf „Erhalten“, Code, Geschenkbox, Abholort und Zoll.
+- **Eine Meldung für versendete Pakete:** Genau eine, wenn es beim Empfänger zugestellt ist oder zur Abholung bereitliegt, nur mit gewähltem „Zugestellt“: „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „… liegt beim Empfänger zur Abholung bereit“. Der Blueprint meldet versendete Pakete genauso (neu importieren). Die Events `parcel_tracker_status_changed` und `parcel_tracker_parcel_added` tragen `outgoing`. `set_gift` mit `gift` für ein versendetes Paket meldet `gift_outgoing` („Ein versendetes Paket kann kein Geschenk sein.“), für alle offenen Pakete überspringt es sie.
+- **API-Key entfernen:** In den Optionen löscht das Häkchen „DHL-API-Key entfernen“ bzw. „17track-API-Key entfernen“ den gespeicherten Key. Es erscheint nur, wenn ein Key gespeichert ist, und gewinnt gegen einen neu getippten Key. Ein leeres Feld behält den Key weiter ([Issue #66](https://github.com/SoerenKaiser99/parcel_tracker/issues/66)).
+- **Keine Linie mehr über der ersten Zeile:** Mit `header: false` und `add_form: never` steht über der ersten Zeile der Karte kein Strich mehr (Wunsch aus dem simon42-Forum).
+- **Warnung bei unerreichbarem Postfach:** Nach dem dritten Mal hintereinander steht im Log einmal je Störung „The mailbox could not be reached N times in a row …“. Nach einem Abruf, der klappt, beginnt die Zählung neu (Wunsch aus dem simon42-Forum).
+- **Belege gesucht:** Echte Einlieferungsbelege von Hermes, DPD, GLS, UPS, der DHL Packstation und der DHL Filiale helfen weiter, siehe [Beispielmails einreichen](https://soerenkaiser99.github.io/parcel_tracker/hilfe/#beispielmails-einreichen).
 
 ### v0.3.47 (2026-11-01)
 

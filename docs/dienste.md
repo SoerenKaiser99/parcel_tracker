@@ -36,7 +36,7 @@ Abgefragt wird über die offizielle API „Shipment Tracking – Unified“. Die
 6. Du brauchst nur den **API Key**, das Secret nicht.
 7. Die Freischaltung dauert bis zu 24 Stunden.
 
-Den Key trägst du bei der Einrichtung ein oder später unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren**.
+Den Key trägst du bei der Einrichtung ein oder später unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren**. Willst du ihn wieder löschen, setz dort das Häkchen **DHL-API-Key entfernen** und speichere; ein leeres Key-Feld allein behält den Key. Das Häkchen gewinnt, auch wenn im Feld ein neuer Key steht.
 
 !!! tip "Wichtig beim Antrag"
     Gib als Zweck an, dass du deine eigenen Sendungen verfolgen möchtest – am besten wörtlich **„I want to track my own shipments“**. Laut einem Hinweis aus dem DHL-API-Team bekommt grundsätzlich jeder Zugriff, der seine eigenen Sendungen verfolgen will. Dafür ist die Tracking-API gedacht.

@@ -45,7 +45,9 @@
         "title": "Paket Tracker – Optionen",
         "data": {
           "dhl_api_key": "DHL-API-Key (optional)",
+          "dhl_api_key_remove": "DHL-API-Key entfernen",
           "track17_api_key": "17track-API-Key (optional)",
+          "track17_api_key_remove": "17track-API-Key entfernen",
           "country": "Land",
           "postcode": "PLZ (optional)",
           "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)",
@@ -55,7 +57,9 @@
           "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
           "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010).",
           "dhl_api_key": "Ohne Key kommen DHL-Pakete aus den DHL-Mails über den Mail-Import, mit Key gibt es den Live-Status. Leer lassen behält den gespeicherten Key.",
+          "dhl_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten DHL-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist.",
           "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key.",
+          "track17_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten 17track-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist.",
           "hide_names": "Pakete heißen nur nach dem Paketdienst (z. B. „DHL-Paket“, „Amazon-Bestellung“) – auf der Karte, im Kalender, in den Sensoren und in den Benachrichtigungen. Für Geschenke auf einem gemeinsamen Dashboard. Ein selbst eingetippter Name bleibt sichtbar; die gespeicherten Namen werden nicht verändert."
         },
         "sections": {
@@ -237,6 +241,7 @@
     "gift_remove_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk löschen."},
     "gift_rename_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk umbenennen."},
     "gift_owner_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört."},
+    "gift_outgoing": {"message": "Ein versendetes Paket kann kein Geschenk sein."},
     "owner_unknown": {"message": "Diese Person ist im Paket Tracker nicht eingerichtet."},
     "gift_target": {"message": "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete."},
     "gift_for_unknown": {"message": "Wähle bei gift_for vorhandene Personen."},

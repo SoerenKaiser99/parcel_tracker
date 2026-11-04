@@ -254,9 +254,12 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_last: datetime | None = None  # start of the last import run
         # "auth" | "folder" | "certificate" | "login_disabled" | "unavailable" | "error"
         self._mail_error: str | None = None
-        # Kinds of trouble ("certificate", "login_disabled") that were logged in this
+        # Kinds of trouble ("certificate", "login_disabled", "unavailable") that were logged in this
         # outage: each once, until an import works again.
         self._mail_told: set[str] = set()
+        # Failed calls in a row with "mailbox not reachable" (any success or other kind
+        # of trouble starts the count again).
+        self._unavailable_streak = 0
         # Deleting old recognised mails: the local day it last ran (once a day), the number
         # deleted then (None: not yet, or it failed) and whether its failure was logged.
         self._purge_day: date | None = None
@@ -360,6 +363,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         async with self._lock:
             if number is not None:
                 parcel = self.store.parcels[normalize(number)]
+                if gift and parcel.outgoing:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN, translation_key="gift_outgoing"
+                    )
                 if guarded and self.is_gift_recipient(parcel, user_id):
                     raise HomeAssistantError(
                         translation_domain=DOMAIN, translation_key="gift_not_allowed"
@@ -370,6 +377,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                     p
                     for p in self.store.parcels.values()
                     if p.status not in CLOSED_STATUSES
+                    and not p.outgoing  # a sent parcel is never a gift
                     and not (guarded and self.is_gift_recipient(p, user_id))
                 ]
             changed = False
@@ -490,7 +498,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         """The parcel's valid delivery code, only while "Zustell-Codes mitlesen" is on.
 
         Never put into an attribute: the card asks for it (WebSocket delivery_code).
+        Never for a parcel the user sent: a code there is the recipient's.
         """
+        if parcel.outgoing:
+            return None
         return parcel.active_code(today) if self._read_otp else None
 
     @property
@@ -822,6 +833,17 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 self._mail_failed(now, "login_disabled")
             except ImapUnavailable as err:
                 _LOGGER.debug("Parcel mailbox not reachable: %s", err)
+                self._unavailable_streak += 1
+                # From the third failed call in a row, once per outage. Only the kind
+                # of error: never host or user.
+                if self._unavailable_streak >= 3 and "unavailable" not in self._mail_told:
+                    self._mail_told.add("unavailable")
+                    _LOGGER.warning(
+                        "The mailbox could not be reached %d times in a row (%s); "
+                        "the mail import keeps retrying",
+                        self._unavailable_streak,
+                        err,
+                    )
                 self._mail_failed(now, "unavailable")
             except Exception as err:  # noqa: BLE001 - isolate the import from the refresh
                 # Only the error type: mail contents never go into the log.
@@ -847,6 +869,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_streak = 0
         self._mail_error = None
         self._mail_told.clear()
+        self._unavailable_streak = 0
         if not mails:
             return
         parsed = await self.hass.async_add_executor_job(
@@ -914,6 +937,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._purge_last = count if isinstance(count, int) else None
 
     def _mail_failed(self, now: datetime, code: str) -> None:
+        if code != "unavailable":
+            self._unavailable_streak = 0
         self._mail_error = code
         self._mail_streak += 1
         delay = min(MAIL_INTERVAL * 2 ** (self._mail_streak - 1), MAIL_MAX_BACKOFF)
@@ -1569,6 +1594,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # Whom it belongs to (person entity ID), None for everybody.
                 "owner": self.effective_owner(parcel),
                 "gift": parcel.gift,
+                # Sent by the user (a DHL receipt of a handover), not coming to the home.
+                "outgoing": parcel.outgoing,
             },
         )
 
@@ -1626,6 +1653,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "owner": self.effective_owner(parcel),
                 # A gift (its name is the gift name then); whom it is for is never told.
                 "gift": parcel.gift,
+                # Sent by the user: the built-in push only tells its arrival.
+                "outgoing": parcel.outgoing,
             },
         )
         # One box, several orders (they share a carrier number), or a carrier's parcel
@@ -1637,12 +1666,16 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # assumed closing or a hand mark of one order says nothing about the box.
         shared = parcel.tracking_ref is not None and parcel.carrier in SHOP_CARRIERS
         box = self._box_key(parcel)
-        if shared and self._box_told.get(box) is r.status:
-            return
-        if self._notify(parcel, old):
-            self._box_told[box] = r.status
-        else:
-            self._box_told.pop(box, None)
+        if not (shared and self._box_told.get(box) is r.status):
+            if self._notify(parcel, old):
+                self._box_told[box] = r.status
+            else:
+                self._box_told.pop(box, None)
+        # A sent parcel arrives once (pushed or not, e.g. "delivered" not chosen): a later
+        # arrival after a step back of the carrier is not told again. Stored with the parcel
+        # (every caller saves afterwards).
+        if parcel.outgoing and r.status in (ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP):
+            parcel.arrival_told = True
 
     def _audience(self, parcel: Parcel) -> tuple[str, ...]:
         """The notify targets a push about this parcel goes to (its owner's or the general)."""
@@ -1683,7 +1716,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         """
         try:
             targets = self.push_targets(parcel)
-            if not targets or parcel.result.status.value not in self._notify_events:
+            # A sent parcel only tells its arrival, chosen with "delivered" (see
+            # ``build_notification``).
+            event = "delivered" if parcel.outgoing else parcel.result.status.value
+            if not targets or event not in self._notify_events:
                 return False
             built = build_notification(parcel, old, dt_util.now(), self.hide_names)
             tag = notification_tag(parcel.number)

@@ -213,10 +213,14 @@ def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> Pa
     Today's lists count boxes: several shop orders that come in one box (they carry the
     same carrier number) are one entry there, the first of them. On the way and ready
     for pickup is every order.
+
+    A parcel the user sent (``Parcel.outgoing``) comes to somebody else: it is in no list.
     """
     summary = ParcelSummary()
     seen: set[tuple[str, str | None, str]] = set()
     for parcel in parcels:
+        if parcel.outgoing:
+            continue
         if parcel.status not in CLOSED_STATUSES:
             summary.active.append(parcel)
         if parcel.status is ParcelStatus.AWAITING_PICKUP:

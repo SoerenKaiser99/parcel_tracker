@@ -290,7 +290,9 @@ async def test_a_gift_never_tells_its_real_name(hass):
         assert event.data["gift"] is True
         assert event.data["name"].startswith("Geschenk · ")
         assert "Lego" not in repr(event.data)
-        assert set(event.data) == {"entry_id", "number", "name", "carrier", "owner", "gift"}
+        assert set(event.data) == {
+            "entry_id", "number", "name", "carrier", "owner", "gift", "outgoing",
+        }
 
 
 async def test_nothing_fires_when_the_stored_parcels_load_again(hass):

@@ -15,7 +15,7 @@
 //   ?empty=1      no parcels at all: together with ?show=… the card hides itself
 //   ?edit=1       pretend the dashboard is being edited (preview): a hidden card stays and
 //                 says in one line why it would be hidden
-//   ?shot=1       only the card (used for the README screenshots)
+//   ?shot=1       only the card (used for the README screenshots), without the sent parcel
 //   ?person=person.anna  card option person: only Anna's parcels and everybody's
 //                 (?unassigned=0: card option include_unassigned: false, only Anna's)
 //   ?gifts=hide   card option gifts: hide (no gift at all, for a shared display); with
@@ -121,7 +121,7 @@
       status_text: null, last_update: UPDATED, stale: false, last_error: null,
       progress: STEP[state], delivered_at: null, events: [],
       tracking_ref: null, tracking_carrier: null, shipping_carrier_hint: null,
-      has_delivery_code: false, track17: false, track17_carrier: null, gift: false,
+      has_delivery_code: false, track17: false, track17_carrier: null, gift: false, outgoing: false,
       owner: null, owner_detected: false, friendly_name: name,
     };
     delete extra.eta_days;
@@ -213,6 +213,12 @@
     parcel("unknown", "dhl", "00340999999999999911", "Ersatzakku", {
       last_error: "missing_key",
     }),
+    // Sent by the demo user (a DHL receipt of a handover): the badge "Versendet", no
+    // "Erhalten", counted in no sensor.
+    parcel("in_transit", "dhl", "00340999999999999915", "Buch an Oma", {
+      eta_days: 1, outgoing: true,
+      events: [event(0, 10, 5, "Die Sendung wurde in der Filiale eingeliefert.", "Musterstadt")],
+    }),
     // Delivered today: the third badge ("zugestellt").
     parcel("delivered", "gls", "99999999910", "Hundefutter", {
       delivered_at: stamp(0, 9, 5),
@@ -222,7 +228,10 @@
       ],
     }),
   ];
-  const PARCELS = params.has("empty") ? [] : ALL_PARCELS;
+  // The README screenshots (?shot=1) show the twelve incoming parcels they describe; the
+  // sent one is only on the demo page.
+  const PARCELS = params.has("empty") ? []
+    : ALL_PARCELS.filter((p) => !(params.has("shot") && p.attributes.outgoing));
   // The real names of gifts, as the integration keeps them (number -> name, mail title).
   const GIFT_NAMES = { H9999999999999999903: ["Geburtstagsgeschenk", "Ihre Bestellung: Brettspiel"] };
   const GIFT_ENTITY = "switch.paket_tracker_geschenkmodus";
@@ -242,9 +251,10 @@
   // or a fixed day today, "possible" a delivery window of several days that includes today.
   // In delivery ends with the estimate; without one it holds on the day of the last change
   // (here: the newest event, the demo's parcels carry no other time of change).
+  // A sent parcel (outgoing) is in no list, like summarize() leaves it out.
   const todayGroup = (p) => {
     const a = p.attributes;
-    if (p.state === "delivered") return null;
+    if (p.state === "delivered" || a.outgoing) return null;
     if (p.state === "out_for_delivery") {
       const end = a.eta_latest || a.eta_date;
       if (end) return end >= day(0) ? "sure" : null;
@@ -259,7 +269,7 @@
   // decides, without one the day of the last change (here again: the newest event).
   const deliveredToday = (p) => {
     const a = p.attributes;
-    if (p.state !== "delivered") return false;
+    if (p.state !== "delivered" || a.outgoing) return false;
     const when = a.delivered_at || (a.events && a.events[0] ? a.events[0].timestamp : null);
     return !!when && localDay(new Date(when)) === day(0);
   };
@@ -268,7 +278,8 @@
       eta_from: p.attributes.eta_from, eta_to: p.attributes.eta_to, gift: p.attributes.gift });
   const items = (group) => PARCELS.filter((p) => todayGroup(p) === group).map(item);
   const delivered = PARCELS.filter(deliveredToday).map(item);
-  const pickup = PARCELS.filter((p) => p.state === "awaiting_pickup").map(item);
+  const counted = PARCELS.filter((p) => !p.attributes.outgoing);
+  const pickup = counted.filter((p) => p.state === "awaiting_pickup").map(item);
   add("sensor.pakete_heute", String(items("sure").length), {
     friendly_name: "Pakete heute",
     parcels: items("sure"), possible: items("possible"),
@@ -285,7 +296,7 @@
     default_owner: null,
   });
   // The count sensors: not delivered yet, possible today, delivered today, ready for pickup.
-  const active = PARCELS.filter((p) => p.state !== "delivered").map(item);
+  const active = counted.filter((p) => p.state !== "delivered").map(item);
   add("sensor.pakete_unterwegs", String(active.length), {
     friendly_name: "Pakete unterwegs", parcels: active });
   add("sensor.pakete_moeglich", String(items("possible").length), {

@@ -261,6 +261,12 @@ class Parcel:
     customs_amount: float | None = None
     customs_currency: str | None = None
     customs_cash: bool = False
+    # The user sent this parcel (a mail with the receipt of the handover): it does not come
+    # to them. One-way, persisted; a parcel stored by an older version is no outgoing one.
+    outgoing: bool = False
+    # A sent parcel's arrival (delivered or ready for pickup) was told: it is pushed at
+    # most once, also after a step back of the carrier. Persisted; False in older stores.
+    arrival_told: bool = False
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -271,9 +277,13 @@ class Parcel:
         """(amount, currency, cash asked for) of the import duty still to pay, else None.
 
         It is due at delivery, so it is told until the parcel is delivered (by a carrier, a
-        mail or by hand) and never after.
+        mail or by hand) and never after. Never for a parcel the user sent: the recipient pays.
         """
-        if self.customs_amount is None or self.status is ParcelStatus.DELIVERED:
+        if (
+            self.customs_amount is None
+            or self.outgoing
+            or self.status is ParcelStatus.DELIVERED
+        ):
             return None
         return self.customs_amount, self.customs_currency or "EUR", self.customs_cash
 
@@ -348,6 +358,8 @@ class Parcel:
             "customs_amount": self.customs_amount,
             "customs_currency": self.customs_currency,
             "customs_cash": self.customs_cash,
+            "outgoing": self.outgoing,
+            "arrival_told": self.arrival_told,
         }
 
     @classmethod
@@ -402,6 +414,8 @@ class Parcel:
                 cur if isinstance(cur := data.get("customs_currency"), str) and cur else None
             ),
             customs_cash=data.get("customs_cash") is True,
+            outgoing=data.get("outgoing") is True,
+            arrival_told=data.get("arrival_told") is True,
         )
 
 

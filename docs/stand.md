@@ -50,6 +50,7 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Personen zuordnen (v0.3.41, [#39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39)): Person aus den Kopfzeilen der Mail erkennen, Karte mit Auswahl „Gehört“ und Filter `person`, Dienst `set_owner`, Meldungen nur an den Besitzer | umgesetzt, durch automatische Tests abgedeckt; mit echten Mails verschiedener Anbieter noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
 | DHL eCommerce (v0.3.42): Mails von `noreply@dhlecommerce.nl`, 20-stellige Nummern (SSCC) | umgesetzt nach anonymisierten Beispielmails; im Alltag noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
 | Land Österreich: GLS-Abfrage | mit echten Paketen noch nicht getestet |
+| Versendete Pakete (v0.3.48): DHL-Einlieferungsbeleg aus Filiale/Shop, Packstation und Zustellkraft, Schild „Versendet“, eine Meldung bei Zustellung | umgesetzt, durch automatische Tests abgedeckt; nur der Beleg der Zustellkraft ist mit einer echten Mail geprüft, Filiale/Shop und Packstation nach demselben Muster ungeprüft; im Alltag noch nicht bestätigt, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege) |
 
 ## Offen
 
@@ -62,6 +63,7 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | **Zielgruppe pro Geschenk (`visible_to`)** (Wunsch aus [Issue #64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)) | Teilweise erledigt: Seit v0.3.45 nennt `gift_for` die Personen, die ein Geschenk nicht sehen. Offen ist der umgekehrte Weg, ein Geschenk nur bestimmten Personen zu zeigen |
 | **Mailbox per OAuth/Microsoft Graph** (Wunsch aus [Issue #65](https://github.com/SoerenKaiser99/parcel_tracker/issues/65)) | Das Paket-Postfach über OAuth und Microsoft Graph lesen statt per IMAP mit Passwort |
 | **Zählsensoren ohne Geschenke** (Wunsch aus [Issue #64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)) | Zählvarianten, die Geschenke nicht mitzählen. Bis dahin lassen eigene Templates Geschenke über `gift` in den Listen weg |
+| **Einlieferungsbelege weiterer Paketdienste** | Gesucht werden echte, anonymisierte Belege von Hermes, DPD, GLS, UPS sowie der DHL Packstation und der DHL Filiale: [Beispielmails einreichen](hilfe.md#beispielmails-einreichen) |
 | **Absender aus der DHL-Abfrage** | Den Absender eines DHL-Pakets aus der offiziellen API übernehmen, statt ihn nur aus den Mails zu lesen |
 
 Was in Österreich und der Schweiz heute geht und was nicht, steht unter [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).

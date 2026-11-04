@@ -50,6 +50,7 @@ from .shipping import (
     DHL_SENDER,
     KNOWN_SENDER_DOMAINS,
     UPS_SENDER,
+    is_dhl_receipt,
     parse_dhl_ecommerce_mail,
     parse_dhl_express_mail,
     parse_dhl_mail,
@@ -192,10 +193,12 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
         if updates or real_amazon:
             return MailResult(updates=updates, amazon=real_amazon)
         return MailResult(updates=parse_generic(msg))
-    if (domain == DHL_DOMAIN or domain.endswith(f".{DHL_DOMAIN}")) and (
-        updates := parse_dhl_mail(msg, plain_names)
-    ):
-        return MailResult(updates=updates)
+    if domain == DHL_DOMAIN or domain.endswith(f".{DHL_DOMAIN}"):
+        updates = parse_dhl_mail(msg, plain_names)
+        # A receipt of a parcel somebody sent never goes to the generic parser: it would
+        # make the number an incoming parcel.
+        if updates or is_dhl_receipt(msg):
+            return MailResult(updates=updates)
     if (domain == DHL_COM_DOMAIN or domain.endswith(f".{DHL_COM_DOMAIN}")) and (
         updates := parse_dhl_express_mail(msg)
     ):

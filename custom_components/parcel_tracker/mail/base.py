@@ -88,6 +88,9 @@ class MailUpdate:
     customs_amount: float | None = None
     customs_currency: str | None = None
     customs_cash: bool = False
+    # The mail is the receipt of a handover: the parcel was sent by the user, it does not
+    # come to them. One-way: no update takes the flag back (see ``apply._forward``).
+    outgoing: bool = False
 
 
 @dataclass

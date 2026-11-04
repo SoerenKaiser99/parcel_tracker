@@ -212,7 +212,10 @@ def _parcels(now: datetime) -> list[Parcel]:
     )
     return [
         Parcel(JJD, "dhl", "auto", NAME, now, now, now, later, result=window),
-        Parcel(DHL, "dhl", "manual", None, now, now, now, later, result=_result()),
+        Parcel(
+            DHL, "dhl", "manual", None, now, now, now, later, result=_result(),
+            outgoing=True, arrival_told=True,
+        ),
         Parcel(
             DPD, "dpd", "auto", None, now, now, now, later,
             last_error="unavailable", error_streak=3, first_error_at=now,
@@ -433,7 +436,12 @@ async def test_diagnostics_parcels(hass, hass_storage, freezer):
         "track17_carrier": None,
         "track17_next_at": None,
         "has_track17_result": False,
+        "outgoing": False,
+        "arrival_told": False,
     }
+
+    dhl = by_number[MASKED[DHL]]
+    assert (dhl["outgoing"], dhl["arrival_told"]) == (True, True)
 
     dpd = by_number[MASKED[DPD]]
     assert (dpd["status"], dpd["last_error"], dpd["error_streak"]) == (None, "unavailable", 3)

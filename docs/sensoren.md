@@ -47,6 +47,7 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `number` | Nummer des Pakets |
 | `name` | Name, wie er angezeigt wird (mit „Namen ausblenden“ der neutrale Name, bei einem Geschenk `Geschenk · …`) |
 | `gift` | `true`, wenn das Paket ein Geschenk ist (siehe [Geschenkmodus](datenschutz.md#geschenkmodus)), sonst `false` |
+| `outgoing` | `true`, wenn du das Paket verschickt hast (Einlieferungsbeleg, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)), sonst `false`. Ein versendetes Paket ist nie ein Geschenk. Bei ihm sind `pickup_point`, `pickup_until`, `customs_amount` und `customs_currency` leer, `customs_cash` und `has_delivery_code` sind `false` |
 | `owner` | die Person, der das Paket gehört, als Entität (z. B. `person.anna`); leer, wenn es allen gehört. Das ist der geltende Besitzer, bei einem Paket ohne eigenen Besitzer also die Person aus **Unklare Pakete gehören**. Ein Besitzer, der nicht mehr unter Personen eingerichtet ist (entfernt oder umbenannt), zählt wie kein eigener Besitzer |
 | `owner_detected` | `true`, wenn eine eingerichtete Person aus einer Mail erkannt oder von Hand gesetzt wurde. `false`, wenn der Besitzer aus der Standard-Person kommt oder von Hand „allen“ gesetzt wurde |
 | `eta_date` | erwarteter Liefertag (bei einer Lieferspanne ihr erster Tag) |
@@ -119,7 +120,7 @@ In Templates:
 
 ## Die vier Zählsensoren
 
-Vier weitere Sensoren liefern je eine Zahl als Zustand (0, wenn nichts da ist) und die Pakete im Attribut `parcels` (aufgebaut wie bei `sensor.pakete_heute`). Sie eignen sich für Bedingungen in Dashboards und Automationen.
+Vier weitere Sensoren liefern je eine Zahl als Zustand (0, wenn nichts da ist) und die Pakete im Attribut `parcels` (aufgebaut wie bei `sensor.pakete_heute`). Sie eignen sich für Bedingungen in Dashboards und Automationen. **Versendete Pakete** (Attribut `outgoing`) zählen in keinem dieser Sensoren und stehen in keiner `parcels`-Liste, auch nicht in `sensor.pakete_heute`.
 
 | Sensor | Zählt | Entspricht |
 |---|---|---|
@@ -257,7 +258,7 @@ Markiert ein Paket oder alle offenen Pakete (weder zugestellt noch storniert) al
 
 Markieren darf jeder. Wieder sichtbar machen dürfen nur Personen, die Geschenke sehen dürfen, und Aufrufe ohne Benutzer (Automationen). Ohne `number` und ohne `open_parcels` oder mit beidem gibt es einen Fehler.
 
-Mit `gift_for` sehen die genannten Personen das Geschenk auf der Karte wie jemand, der Geschenke nicht sehen darf, auch wenn sie sonst Geschenk-Seher sind. Meldungen zum Paket gehen nicht an ihre Ziele. `gift_for` setzen oder leeren dürfen nur Geschenk-Seher, die selbst nicht in `gift_for` stehen, und Aufrufe ohne Benutzer. `gift: false` leert `gift_for`. Wer in `gift_for` steht, darf das Geschenk auch nicht umbenennen, löschen oder einem anderen geben. Mit `open_parcels` überspringt der Dienst solche Geschenke ohne Hinweis. Für wen ein Geschenk ist, steht in keinem Attribut und keinem Event. Mehr unter [Geschenk für bestimmte Personen](datenschutz.md#geschenk-fur-bestimmte-personen-gift_for).
+Mit `gift_for` sehen die genannten Personen das Geschenk auf der Karte wie jemand, der Geschenke nicht sehen darf, auch wenn sie sonst Geschenk-Seher sind. Meldungen zum Paket gehen nicht an ihre Ziele. `gift_for` setzen oder leeren dürfen nur Geschenk-Seher, die selbst nicht in `gift_for` stehen, und Aufrufe ohne Benutzer. `gift: false` leert `gift_for`. Wer in `gift_for` steht, darf das Geschenk auch nicht umbenennen, löschen oder einem anderen geben. Mit `open_parcels` überspringt der Dienst solche Geschenke ohne Hinweis. Ein versendetes Paket (`outgoing`) kann kein Geschenk sein: Mit `number` gibt es den Fehler `gift_outgoing`, mit `open_parcels` überspringt der Dienst es ohne Hinweis. Für wen ein Geschenk ist, steht in keinem Attribut und keinem Event. Mehr unter [Geschenk für bestimmte Personen](datenschutz.md#geschenk-fur-bestimmte-personen-gift_for).
 
 ### `parcel_tracker.set_owner`
 
@@ -283,6 +284,7 @@ Gibt ein Paket einer Person (`person` als Entität wie `person.anna`) oder allen
 | „Nur wer Geschenke sehen darf, kann ein Geschenk wieder sichtbar machen.“ | `set_gift` mit `gift: false` von jemandem, der Geschenke nicht sehen darf |
 | „Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete.“ | `set_gift` ohne `number` und `open_parcels` oder mit beidem |
 | „Nur wer Geschenke sehen darf, kann ein Geschenk wieder sichtbar machen.“ | außerdem: `set_gift` mit `gift_for` von jemandem, der Geschenke nicht sehen darf oder selbst in `gift_for` steht |
+| „Ein versendetes Paket kann kein Geschenk sein.“ (`gift_outgoing`) | `set_gift` mit `gift: true` für ein versendetes Paket |
 | „Wähle bei gift_for vorhandene Personen.“ | `set_gift` mit einer Person in `gift_for`, die es nicht gibt |
 | „gift_for geht nur mit eingeschaltetem gift.“ | `set_gift` mit `gift: false` und Personen in `gift_for` |
 | „Diese Person ist im Paket Tracker nicht eingerichtet.“ | `set_owner` oder `add_parcel` mit einer Person, die unter **Personen** nicht eingerichtet ist oder die es nicht gibt |
@@ -291,7 +293,7 @@ Gibt ein Paket einer Person (`person` als Entität wie `person.anna`) oder allen
 
 ## Event und Auslöser
 
-Das Event `parcel_tracker_status_changed` und die Auslöser im Automations-Editor stehen unter [Automationen](automationen.md). Es trägt seit v0.3.45 auch `gift` (`true` bei einem Geschenk), siehe [Felder des Events](automationen.md#felder-des-events). Für neue Pakete gibt es ein eigenes Event: [Event beim Anlegen](#event-beim-anlegen-parcel_tracker_parcel_added).
+Das Event `parcel_tracker_status_changed` und die Auslöser im Automations-Editor stehen unter [Automationen](automationen.md). Es trägt seit v0.3.45 auch `gift` (`true` bei einem Geschenk) und seit v0.3.48 `outgoing` (`true` bei einem versendeten Paket), siehe [Felder des Events](automationen.md#felder-des-events). Für neue Pakete gibt es ein eigenes Event: [Event beim Anlegen](#event-beim-anlegen-parcel_tracker_parcel_added).
 
 ## Event beim Anlegen: `parcel_tracker_parcel_added`
 
@@ -304,6 +306,7 @@ Feuert einmal, sobald ein Paket neu angelegt ist: aus einer Mail (auch ein weite
 | `name` | der angezeigte Name; bei einem Geschenk der Geschenk-Name („Geschenk · DHL-Paket …2557“), nie der echte |
 | `carrier` | Paketdienst oder Shop (`dhl`, `amazon` …), leer, solange er nicht erkannt ist |
 | `owner` | wem das Paket gehört (z. B. `person.anna`), leer für alle |
+| `outgoing` | `true`, wenn das Paket schon beim Anlegen ein versendetes ist (Einlieferungsbeleg), sonst `false` |
 | `gift` | `true`, wenn das Paket schon beim Anlegen ein Geschenk ist: Geschenkmodus an oder weiterer Karton einer Bestellung, die ein Geschenk ist (auch bei ausgeschaltetem Modus) |
 
 Beispiel: Push mit Knopf „Geschenk?“ an die Home-Assistant-App. Ein Tipp macht das Paket zum Geschenk. `notify.mobile_app_handy` ersetzt du durch dein Gerät.

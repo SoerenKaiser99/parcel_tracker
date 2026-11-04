@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.47"
+VERSION = "0.3.48"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -33,6 +33,9 @@ CONF_UPS_CLIENT_ID = "ups_client_id"
 CONF_UPS_CLIENT_SECRET = "ups_client_secret"
 CONF_UPS_BUDGET = "ups_monthly_budget"
 CONF_TRACK17_API_KEY = "track17_api_key"
+# Tick boxes of the options form (never stored): drop the saved key.
+CONF_DHL_API_KEY_REMOVE = "dhl_api_key_remove"
+CONF_TRACK17_API_KEY_REMOVE = "track17_api_key_remove"
 CONF_NOTIFY_SECTION = "notify"
 CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_TARGETS = "notify_targets"

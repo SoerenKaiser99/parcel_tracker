@@ -357,7 +357,10 @@ def test_readme_screenshots_show_all_three_badges_worth_of_parcels():
     intro = README.split("## Was es kann")[0]
     assert "zwölf Pakete" in intro and "elf Pakete" not in intro
     js = (DEMO / "demo.js").read_text(encoding="utf-8")
-    assert len(re.findall(r'^    parcel\("', js, re.M)) == 12
+    # v0.3.48: a thirteenth, sent parcel is on the demo page only, not in the screenshots.
+    assert len(re.findall(r'^    parcel\("', js, re.M)) == 13
+    assert js.count("outgoing: true") == 1
+    assert 'params.has("shot") && p.attributes.outgoing' in js
     assert "delivered_today:" in js and "delivered_today_count:" in js
 
 
