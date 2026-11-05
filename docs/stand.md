@@ -5,7 +5,7 @@ Was ist umgesetzt, was ist von Testern bestätigt, was ist noch ungetestet? Dies
 Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/SoerenKaiser99/parcel_tracker/releases).
 
 !!! info "HACS-Standardkatalog"
-    Die Aufnahme in den Standardkatalog von HACS ist beantragt ([hacs/default#11781](https://github.com/hacs/default/pull/11781)) und liegt dort in der Warteschlange. Bis dahin installierst du Paket Tracker als benutzerdefiniertes Repository, siehe [Installation](installation.md).
+    Seit dem 4. November 2026 steht Paket Tracker im Standardkatalog von HACS ([hacs/default#11781](https://github.com/hacs/default/pull/11781)). Du findest ihn in HACS über die Suche, siehe [Installation](installation.md).
 
 ## Von Testern bestätigt
 

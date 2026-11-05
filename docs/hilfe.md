@@ -18,7 +18,7 @@ Die Integration zu entfernen und neu hinzuzufügen ist nie nötig. Dabei gingen 
 
 - Prüf in HACS, ob die Integration unter den heruntergeladenen steht.
 - Starte Home Assistant noch einmal neu.
-- Dass das Repository nach dem Herunterladen nicht mehr im Dialog „Benutzerdefinierte Repositories“ erscheint, ist kein Fehler.
+- Findet HACS „Paket Tracker“ gar nicht, trägst du das Repository von Hand ein, siehe [Installation](installation.md#mit-hacs-empfohlen).
 
 ### Karte wird nicht gefunden?
 

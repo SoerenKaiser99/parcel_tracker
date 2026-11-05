@@ -43,15 +43,17 @@ Die Integration ist für Deutschland gebaut (deutsche Carrier und deutsche Mail-
 
 ## Installation
 
-Voraussetzung: [HACS](https://hacs.xyz/docs/use/) ist in Home Assistant installiert. Der Knopf öffnet HACS im eigenen Home Assistant und trägt das Repository als Quelle ein (Schritt 1):
+Voraussetzung: [HACS](https://hacs.xyz/docs/use/) ist in Home Assistant installiert. Paket Tracker steht im Standardkatalog von HACS.
 
-[![Repository in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=SoerenKaiser99&repository=parcel_tracker&category=integration)
+[![Paket Tracker in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=SoerenKaiser99&repository=parcel_tracker&category=integration)
 
-1. Das Repository in HACS als benutzerdefiniertes Repository eintragen – mit dem Knopf oder von Hand: HACS → Menü (⋮) → **Benutzerdefinierte Repositories** → `https://github.com/SoerenKaiser99/parcel_tracker`, Typ **Integration**.
-2. In HACS nach „Paket Tracker“ suchen, **Herunterladen** wählen und Home Assistant neu starten.
-3. **Einstellungen → Geräte & Dienste → Integration hinzufügen** → „Paket Tracker“ einrichten, die Seite einmal neu laden und im Dashboard die Karte „Paket Tracker“ hinzufügen.
+1. In HACS nach „Paket Tracker“ suchen (oder den Knopf nutzen), **Herunterladen** wählen und Home Assistant neu starten.
+2. **Einstellungen → Geräte & Dienste → Integration hinzufügen** → „Paket Tracker“ einrichten.
+3. Die Seite einmal neu laden und im Dashboard die Karte „Paket Tracker“ hinzufügen.
 
-HACS lädt die Integration nur herunter; ohne Schritt 3 passiert nichts. Installation ohne HACS, die Einrichtungsfelder und die Schritte nach einem Update: [Installation](https://soerenkaiser99.github.io/parcel_tracker/installation/).
+Findet HACS die Integration nicht, kannst du sie weiter als benutzerdefiniertes Repository eintragen: HACS → Menü (⋮) → **Benutzerdefinierte Repositories** → `https://github.com/SoerenKaiser99/parcel_tracker`, Typ **Integration**.
+
+HACS lädt die Integration nur herunter; ohne Schritt 2 passiert nichts. Installation ohne HACS, die Einrichtungsfelder und die Schritte nach einem Update: [Installation](https://soerenkaiser99.github.io/parcel_tracker/installation/).
 
 ## Anleitung
 
@@ -100,4 +102,4 @@ Was umgesetzt, von Testern bestätigt, noch ungetestet oder offen ist, steht unt
 
 ## English summary
 
-Paket Tracker is a Home Assistant custom integration, built for Germany, that tracks parcels from DHL, DPD, GLS, Hermes and, optionally, UPS. Why: one place in Home Assistant that answers "is a parcel coming today, and when?" across all carriers – parcels appear by themselves from shipping mails (Amazon, eBay, AliExpress, the carriers, and Eventim tickets sent by post), and everything runs locally with no cloud account and no third-party tracking service. It ships its own Lovelace card (`custom:parcel-tracker-card`), one sensor per parcel plus summary sensors, a delivery calendar, a `parcel_tracker_status_changed` event with device triggers for automations without YAML, and optional push notifications (notify entities or classic notify services such as Pushover) with a blueprint for custom texts. Install it through HACS as a custom repository. Tracking numbers are sent only to the matching carrier (or, on request, to 17track), and the postcode is sent only to DHL and GLS. A country setting (Germany, Austria, Switzerland) sets the postcode length; abroad, DHL, UPS and 17track work, while the mail import reads German mails only. The card and the documentation are in German: see the [documentation](https://soerenkaiser99.github.io/parcel_tracker/) and [Roadmap & Status](https://soerenkaiser99.github.io/parcel_tracker/stand/).
+Paket Tracker is a Home Assistant custom integration, built for Germany, that tracks parcels from DHL, DPD, GLS, Hermes and, optionally, UPS. Why: one place in Home Assistant that answers "is a parcel coming today, and when?" across all carriers – parcels appear by themselves from shipping mails (Amazon, eBay, AliExpress, the carriers, and Eventim tickets sent by post), and everything runs locally with no cloud account and no third-party tracking service. It ships its own Lovelace card (`custom:parcel-tracker-card`), one sensor per parcel plus summary sensors, a delivery calendar, a `parcel_tracker_status_changed` event with device triggers for automations without YAML, and optional push notifications (notify entities or classic notify services such as Pushover) with a blueprint for custom texts. Install it through HACS: it is in the HACS default catalog, just search for "Paket Tracker". Tracking numbers are sent only to the matching carrier (or, on request, to 17track), and the postcode is sent only to DHL and GLS. A country setting (Germany, Austria, Switzerland) sets the postcode length; abroad, DHL, UPS and 17track work, while the mail import reads German mails only. The card and the documentation are in German: see the [documentation](https://soerenkaiser99.github.io/parcel_tracker/) and [Roadmap & Status](https://soerenkaiser99.github.io/parcel_tracker/stand/).

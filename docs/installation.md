@@ -2,44 +2,34 @@
 
 Die Installation hat drei Teile: Integration herunterladen, Integration einrichten, Karte hinzufügen.
 
-!!! info "Aufnahme in den HACS-Standardkatalog ist beantragt"
-    Der Antrag liegt in der Warteschlange von HACS ([hacs/default#11781](https://github.com/hacs/default/pull/11781)). Bis er bearbeitet ist, trägst du das Repository in HACS als benutzerdefiniertes Repository ein. Das macht der Knopf unten für dich.
-
 ## Mit HACS (empfohlen)
 
-Voraussetzung: [HACS](https://hacs.xyz/docs/use/) ist in Home Assistant installiert.
+Voraussetzung: [HACS](https://hacs.xyz/docs/use/) ist in Home Assistant installiert. Paket Tracker steht seit November 2026 im Standardkatalog von HACS, du musst kein Repository mehr eintragen.
 
-HACS lädt die Integration nur herunter. Eingerichtet wird sie danach in Home Assistant selbst (Schritt 5). Ohne diesen Schritt passiert nichts.
+HACS lädt die Integration nur herunter. Eingerichtet wird sie danach in Home Assistant selbst (Schritt 3). Ohne diesen Schritt passiert nichts.
 
-=== "Mit dem Knopf"
+1. In HACS nach „Paket Tracker“ suchen, öffnen und **Herunterladen** wählen. Der Knopf öffnet die Seite in deinem Home Assistant direkt:
 
-    Der Knopf öffnet HACS in deinem Home Assistant und trägt das Repository als Quelle ein:
+    [![Paket Tracker in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=SoerenKaiser99&repository=parcel_tracker&category=integration)
 
-    [![Repository in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=SoerenKaiser99&repository=parcel_tracker&category=integration)
+2. Home Assistant neu starten.
+3. **Einstellungen → Geräte & Dienste → Integration hinzufügen** → „Paket Tracker“ suchen und einrichten (siehe [Integration einrichten](#integration-einrichten)).
+4. Seite einmal neu laden, dann im Dashboard die Karte „Paket Tracker“ hinzufügen (siehe [Karte hinzufügen](#karte-hinzufugen)).
 
-    Danach weiter bei Schritt 3.
+!!! question "„Paket Tracker“ taucht in Schritt 3 nicht auf?"
+    Prüf in HACS, ob die Integration unter den heruntergeladenen steht, und starte Home Assistant noch einmal neu.
 
-=== "Von Hand"
+??? note "Findet HACS „Paket Tracker“ nicht?"
+    Das kann bei einer älteren HACS-Version oder kurz nach einer Neuinstallation von HACS passieren. Dann trägst du das Repository von Hand ein: HACS → Menü (⋮) oben rechts → **Benutzerdefinierte Repositories** → `https://github.com/SoerenKaiser99/parcel_tracker`, Typ **Integration**. Danach weiter bei Schritt 1.
 
-    1. HACS öffnen → Menü (⋮) oben rechts → **Benutzerdefinierte Repositories**.
-    2. Repository `https://github.com/SoerenKaiser99/parcel_tracker` eintragen, Typ **Integration** wählen, hinzufügen.
-
-Dann geht es für beide Wege gleich weiter:
-
-3. In HACS nach „Paket Tracker“ suchen, öffnen und **Herunterladen** wählen.
-4. Home Assistant neu starten.
-5. **Einstellungen → Geräte & Dienste → Integration hinzufügen** → „Paket Tracker“ suchen und einrichten (siehe [Integration einrichten](#integration-einrichten)).
-6. Seite einmal neu laden, dann im Dashboard die Karte „Paket Tracker“ hinzufügen (siehe [Karte hinzufügen](#karte-hinzufugen)).
-
-!!! question "„Paket Tracker“ taucht in Schritt 5 nicht auf?"
-    Prüf in HACS, ob die Integration unter den heruntergeladenen steht, und starte Home Assistant noch einmal neu. Dass das Repository nach dem Herunterladen nicht mehr im Dialog „Benutzerdefinierte Repositories“ erscheint, ist kein Fehler.
+    Wer Paket Tracker früher so eingetragen hat, muss nichts ändern: Updates kommen weiter wie gewohnt.
 
 ## Ohne HACS (ZIP von Hand)
 
 1. Auf der [Release-Seite](https://github.com/SoerenKaiser99/parcel_tracker/releases/latest) die Datei `parcel_tracker.zip` herunterladen.
 2. Im Konfigurationsordner von Home Assistant den Ordner `custom_components/parcel_tracker` anlegen und den Inhalt der ZIP-Datei dort hinein entpacken. Die Datei `manifest.json` liegt dann direkt in diesem Ordner.
 3. Home Assistant neu starten.
-4. Weiter wie oben ab Schritt 5.
+4. Weiter wie oben ab Schritt 3.
 
 Updates kommen auf diesem Weg nicht von selbst: Für eine neue Version lädst du die ZIP-Datei erneut herunter, ersetzt den Ordnerinhalt und startest Home Assistant neu.
 
