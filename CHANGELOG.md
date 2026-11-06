@@ -35,6 +35,13 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.49 (2026-11-06)
+
+Aus dem simon42-Forum (Postfach zeitweise nicht erreichbar).
+
+- **Diagnose:** Unter `mail_import` steht jetzt auch `last_error_kind`, die Art des letzten Fehlers beim Mail-Abruf. Ist das Postfach nicht erreichbar, steht dort zum Beispiel `TimeoutError` oder `login failed`, dieselbe Angabe wie in der Warnung im Protokoll. Die Meldung des Servers, den Server und den Benutzer enthält das Feld nie. Nach einem Abruf, der klappt, ist es wieder leer.
+- **Doku:** Die Installation läuft jetzt über den Standardkatalog von HACS. Die Hilfe sagt, wo die Warnung zum Postfach im Protokoll steht.
+
 ### v0.3.48 (2026-11-04)
 
 Wunsch aus dem simon42-Forum (Kartenlinie, Warnung bei unerreichbarem Postfach); Key entfernen zu [Issue #66](https://github.com/SoerenKaiser99/parcel_tracker/issues/66).

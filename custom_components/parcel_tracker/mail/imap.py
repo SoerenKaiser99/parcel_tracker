@@ -62,6 +62,22 @@ class ImapAuthError(ImapError):
     """Login rejected."""
 
 
+# The fixed texts ImapUnavailable is raised with here; any other text shows as "other".
+_UNAVAILABLE_CODES = frozenset({"abort", "login failed", "search failed", "select failed"})
+
+
+def unavailable_kind(err: Exception) -> str:
+    """The kind of an ImapUnavailable for the diagnostics: never a server's words.
+
+    The type of the error it wraps (``TimeoutError``, ``abort`` …), one of the fixed codes
+    above, else ``other``.
+    """
+    if err.__cause__ is not None:
+        return type(err.__cause__).__name__
+    text = str(err)
+    return text if text in _UNAVAILABLE_CODES else "other"
+
+
 class ImapUnavailable(ImapError):
     """Server unreachable, timeout or protocol error."""
 

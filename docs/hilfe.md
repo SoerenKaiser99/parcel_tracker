@@ -131,6 +131,8 @@ Kommen seit einer Weile keine Pakete mehr aus Mails und steht im Protokoll von H
 
 Die Warnung lautet „The mailbox could not be reached N times in a row (…); the mail import keeps retrying“. In der Klammer steht die Art des Fehlers. Sie kommt, wenn das Postfach dreimal hintereinander nicht erreichbar war, und nur einmal je Störung. Der Server oder das Netz ist gerade nicht erreichbar, zum Beispiel bei einer Störung des Mailanbieters. Der Import versucht es von selbst weiter, und nach einem Abruf, der klappt, beginnt die Zählung neu. Du musst nichts tun, solange das nicht dauerhaft so bleibt. Dann prüf Servernamen, Port und Verbindung unter **Konfigurieren**.
 
+Du findest die Warnung unter **Einstellungen → System → Protokolle** (ins Suchfeld „parcel“ eingeben, notfalls über ⋮ → **Vollständige Protokolle anzeigen**). Dieselbe Art des Fehlers steht in der [Diagnose](sensoren.md#diagnose) unter `mail_import` → `last_error_kind`, solange die Störung anhält.
+
 ### Eine Mail wird nicht erkannt
 
 Das prüfst du der Reihe nach:

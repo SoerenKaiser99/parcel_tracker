@@ -121,6 +121,7 @@ from .mail.imap import (
     ImapLoginDisabled,
     ImapUnavailable,
     MailboxClient,
+    unavailable_kind,
 )
 from .mail.owner import owner_from_message
 from .models import (
@@ -254,6 +255,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_last: datetime | None = None  # start of the last import run
         # "auth" | "folder" | "certificate" | "login_disabled" | "unavailable" | "error"
         self._mail_error: str | None = None
+        # The kind behind "unavailable" or "error" (an exception type or a fixed code from
+        # mail/imap.py, as in the warning): never a server's message, host or user.
+        self._mail_error_kind: str | None = None
         # Kinds of trouble ("certificate", "login_disabled", "unavailable") that were logged in this
         # outage: each once, until an import works again.
         self._mail_told: set[str] = set()
@@ -844,11 +848,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                         self._unavailable_streak,
                         err,
                     )
-                self._mail_failed(now, "unavailable")
+                self._mail_failed(now, "unavailable", unavailable_kind(err))
             except Exception as err:  # noqa: BLE001 - isolate the import from the refresh
                 # Only the error type: mail contents never go into the log.
                 _LOGGER.warning("Mail import failed (%s); trying again later", type(err).__name__)
-                self._mail_failed(now, "error")
+                self._mail_failed(now, "error", type(err).__name__)
             # The refresh left settling the orders to this import (see
             # ``_async_update_data``): also when no mail came or the mailbox failed.
             async with self._lock:
@@ -867,7 +871,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         mails = await self.hass.async_add_executor_job(mailbox.fetch_unseen)
         ir.async_delete_issue(self.hass, DOMAIN, "imap_auth")
         self._mail_streak = 0
-        self._mail_error = None
+        self._mail_error = self._mail_error_kind = None
         self._mail_told.clear()
         self._unavailable_streak = 0
         if not mails:
@@ -936,10 +940,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._purge_warned = False
         self._purge_last = count if isinstance(count, int) else None
 
-    def _mail_failed(self, now: datetime, code: str) -> None:
+    def _mail_failed(self, now: datetime, code: str, kind: str | None = None) -> None:
         if code != "unavailable":
             self._unavailable_streak = 0
         self._mail_error = code
+        self._mail_error_kind = kind
         self._mail_streak += 1
         delay = min(MAIL_INTERVAL * 2 ** (self._mail_streak - 1), MAIL_MAX_BACKOFF)
         self._mail_next = now + delay
@@ -2100,6 +2105,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # After an error this is the end of the backoff (see error_streak).
                 "next_run": self._mail_next.isoformat() if self._mail_next else None,
                 "last_error": self._mail_error,
+                "last_error_kind": self._mail_error_kind,
                 "error_streak": self._mail_streak,
                 "recognized": self._mail_recognized,
                 "unrecognized": self._mail_unrecognized,

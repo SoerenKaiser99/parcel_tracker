@@ -893,7 +893,9 @@ async def test_amazon_mail_read_again_counts_as_one_miss(hass):
 
 async def test_mail_unavailable_warns_once_after_three(hass, freezer, caplog):
     """Three failed calls in a row: one warning (kind of error only), then quiet."""
-    mailbox = FakeMailbox(error=ImapUnavailable("TimeoutError"))
+    timeout = ImapUnavailable("TimeoutError")
+    timeout.__cause__ = TimeoutError("imap.example.org timed out")
+    mailbox = FakeMailbox(error=timeout)
     coord = await _coordinator(hass, mailbox, {"imap_host": "imap.example.org",
                                                "imap_user": "max@example.org"})
 
@@ -913,12 +915,17 @@ async def test_mail_unavailable_warns_once_after_three(hass, freezer, caplog):
     assert len(warnings()) == 1
     assert "3 times" in warnings()[0].getMessage()
     assert "TimeoutError" in warnings()[0].getMessage()
+    # The diagnostics name the same kind of error as the warning, never host or user.
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["last_error_kind"]) == ("unavailable", "TimeoutError")
+    assert "imap.example.org" not in str(state) and "max@example.org" not in str(state)
     await fail()
     assert len(warnings()) == 1  # a fourth failure: no new warning
     assert "imap.example.org" not in caplog.text
     assert "max@example.org" not in caplog.text
     mailbox.error = None
     await fail()  # a success ends the outage
+    assert coord.diagnostics()["mail_import"]["last_error_kind"] is None
     mailbox.error = ImapUnavailable("TimeoutError")
     await fail()
     await fail()
@@ -926,3 +933,22 @@ async def test_mail_unavailable_warns_once_after_three(hass, freezer, caplog):
     await fail()
     assert len(warnings()) == 2
     assert "3 times" in warnings()[1].getMessage()
+
+
+async def test_mail_error_kind_for_an_unexpected_error(hass):
+    """An unexpected error shows its type in the diagnostics, never its message."""
+    mailbox = FakeMailbox(error=ValueError("max@example.org said no"))
+    coord = await _coordinator(hass, mailbox)
+    await coord.async_import_mail()
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["last_error_kind"]) == ("error", "ValueError")
+    assert "max@example.org" not in str(state)
+
+
+async def test_mail_error_kind_is_none_for_errors_named_by_their_code(hass):
+    from custom_components.parcel_tracker.mail.imap import ImapFolderNotFound
+
+    coord = await _coordinator(hass, FakeMailbox(error=ImapFolderNotFound("select rejected")))
+    await coord.async_import_mail()
+    state = coord.diagnostics()["mail_import"]
+    assert (state["last_error"], state["last_error_kind"]) == ("folder", None)

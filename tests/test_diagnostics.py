@@ -535,6 +535,7 @@ async def test_diagnostics_without_any_credentials(hass, hass_storage, freezer):
         "last_run": None,
         "next_run": None,
         "last_error": None,
+        "last_error_kind": None,
         "error_streak": 0,
         "recognized": 0,
         "unrecognized": 0,
@@ -737,6 +738,7 @@ async def test_mail_import_backoff_is_visible(hass, freezer):
     assert state["last_run"] == now.isoformat()
     assert state["next_run"] == (now + timedelta(minutes=10)).isoformat()
     assert "synthetic" not in _dump(state)
+    assert state["last_error_kind"] == "other"  # a text it does not know: never echoed
 
 
 async def test_download_through_home_assistant(hass, hass_storage, hass_client):

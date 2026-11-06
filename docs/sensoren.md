@@ -368,7 +368,7 @@ Die Diagnose lädst du unter **Einstellungen → Geräte & Dienste → Paket Tra
 - ob „Namen ausblenden“ eingeschaltet ist und ob „Absendernamen aus DHL-Mails übernehmen“ eingeschaltet ist (und je Paket, ob sein Name von Hand vergeben wurde – nie den Namen selbst),
 - die Einstellungen ohne Geheimnisse,
 - je Paket Carrier, Modus, Status (auch, ob eine Bestellung ohne Zustellmail abgeschlossen wurde), Fehler und Zähler,
-- den Zustand des Mail-Imports: Zeitpunkt des letzten Laufs, Wartezeit nach Fehlern, Zähler für erkannte und nicht erkannte Mails,
+- den Zustand des Mail-Imports: Zeitpunkt des letzten Laufs, Wartezeit nach Fehlern, Zähler für erkannte und nicht erkannte Mails, das Kürzel des letzten Fehlers (`last_error`, z. B. `unavailable`) und dazu die Art des Fehlers (`last_error_kind`, z. B. `TimeoutError` oder `login failed`, dieselbe wie in der Warnung im Protokoll) – nie die Meldung des Servers, den Server oder den Benutzer,
 - ob ein eigener Ordner statt des Posteingangs gelesen wird – nie seinen Namen,
 - ob ein anderer Port als 993 eingestellt ist – nie den Port selbst – und die gewählte Verbindung zum Mailserver,
 - wie der Mail-Import Mails ablegt (Abschnitt `filing`): ob der Server MOVE und UIDPLUS kann, ob er NAMESPACE meldet, sein Präfix für eigene Ordner und das Trennzeichen (nur in den üblichen Schreibweisen wie `INBOX.` oder `INBOX/`, jede andere als `other`), ob die beiden Ablage-Ordner gefunden oder angelegt wurden und wo (oberste Ebene oder unter dem Posteingang), ob das Ablegen gerade scheitert und in welchem der beiden Ordner, welcher Fehler zuletzt auftrat (z. B. `folder_unavailable`, `move_refused`) – nie Ordnernamen oder Inhalte,
