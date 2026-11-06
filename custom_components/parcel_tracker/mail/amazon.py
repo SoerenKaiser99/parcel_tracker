@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from datetime import date, datetime
 from email.message import EmailMessage
 from urllib.parse import parse_qsl, urlsplit
@@ -432,7 +433,8 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     if status is ParcelStatus.PRE_TRANSIT and len(set(numbers)) == 1 and len(numbers) > 1:
         whole = subject_title(subj)
         from_subject = whole if whole and names_more_items(whole) else None
-    shipments = {o: s for o, s in _shipments(msg).items() if numbers.count(o) == 1}
+    links = _shipments(msg)
+    shipments = {o: s for o, s in links.items() if numbers.count(o) == 1}
     ends = [m.start() for m in orders[1:]] + [len(text)]
     # An order the body names is named like one the subject names: its first item and how
     # many more there are ("… und 2 weitere Artikel"), so that cancelling one item does not
@@ -474,6 +476,19 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 **eta,
             )
         )
+    # Amazon packs the boxes of several orders into one: the mail about that box names one
+    # order under "Bestellnr." and links the tracking page of another, with its id, and
+    # lists the items of both. The order only the link names gets the same news with that
+    # id, which finds its box (``apply._by_shipment``). No title: the subject names an item
+    # of either order (the order of the text keeps it, as before: read before its own mails,
+    # its entry is found by it). Only for a mail about one box, else it is not told whose
+    # box it is.
+    if len(orders) == 1:
+        updates += [
+            replace(updates[0], number=order_number(order), title=None, shipment_id=shipment)
+            for order, shipment in links.items()
+            if order not in numbers
+        ]
     return updates
 
 
