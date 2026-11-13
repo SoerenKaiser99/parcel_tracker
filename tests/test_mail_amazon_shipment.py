@@ -4,7 +4,7 @@ Amazon's mails from "Versendet" on link to the shipment's tracking page
 (https://www.amazon.de/progress-tracker/package?orderId=…&shipmentId=…), behind Amazon's
 own redirect: since about March 2025, in the plain layout of "In Zustellung" since about
 August 2025. The id is the same in every mail about that box: it tells which entry of an
-order a mail goes to. Most mails are built here; the fixtures 181-191 and 195-203 are real
+order a mail goes to. Most mails are built here; the fixtures 181-191 and 199-207 are real
 sequences whose links the anonymiser kept as invented ones (the same id for the same box).
 """
 
@@ -603,7 +603,7 @@ def test_the_order_named_after_its_first_item_takes_the_name_of_the_first_box():
 def test_a_box_of_two_orders_delivers_the_order_of_the_linked_box():
     # The linked order's "Versendet" mail named the same id; the box of the other order was
     # put into it, its mails name that order in the text.
-    assert [(p.name, p.status, p.shipment_ids) for p in _replay(195, 199)] == [
+    assert [(p.name, p.status, p.shipment_ids) for p in _replay(199, 203)] == [
         ("Beispiel-USB-Adapter 3 Stück…", DELIVERED, ["TNtuSudJp"]),
         ("3 Stück Beispiel-Wandlermodul… und 1 weiterer Artikel", DELIVERED, ["Tcz89qs8W"]),
     ]
@@ -611,7 +611,7 @@ def test_a_box_of_two_orders_delivers_the_order_of_the_linked_box():
 
 def test_a_box_of_two_orders_under_a_new_id_delivers_the_order_without_one():
     # The linked order's "Versendet" mail was never read; its box comes under a new id.
-    assert [(p.name, p.status, p.shipment_ids) for p in _replay(200, 203)] == [
+    assert [(p.name, p.status, p.shipment_ids) for p in _replay(204, 207)] == [
         ("Beispiel-Reinigungslösung für…", DELIVERED, ["TGnhp0rH9"]),
         ("Beispiel-Unterbauleuchten… und 1 weiterer Artikel", DELIVERED, ["TMPKwjz7V"]),
     ]
