@@ -815,3 +815,31 @@ async def test_a_linked_order_that_tells_nothing_leaves_no_mark(hass, hass_stora
     await _handle(hass, coord, DELIVERY)
     assert coord._told_along == {}
     await coord.async_shutdown()
+
+
+async def test_a_step_back_while_starting_forgets_the_box_told_along(
+    hass, hass_storage, freezer
+):
+    # The linked order came along in the box ("delivered"), then stepped back before the
+    # start (an attempted delivery): nothing is told for it, and its mark goes as well, so
+    # its own later "delivered" is pushed.
+    freezer.move_to(datetime(2026, 10, 20, 17, 0, tzinfo=BERLIN))
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    hass.set_state(CoreState.starting)
+    async_mock_service(hass, "notify", "send_message")
+    coord = await _coordinator(hass, hass_storage, [])
+    await _refresh(hass, coord)
+    for name in (
+        "199_bestellbestaetigung_bestellt.eml",
+        "202_versandbestaetigung_versendet.eml",
+        DELIVERY,
+    ):
+        await _handle(hass, coord, name)
+    assert LINKED_ORDER in coord._told_along
+    parcel = coord.store.parcels[LINKED_ORDER]
+    parcel.result.status, old = parcel.unannounced_from, parcel.result.status
+    coord._fire(parcel, old)
+    assert parcel.unannounced_from is None
+    assert LINKED_ORDER not in coord._told_along
+    await _start(hass)
+    await coord.async_shutdown()

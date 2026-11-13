@@ -1609,8 +1609,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         elif parcel.unannounced_from is None:
             parcel.unannounced_from = old
         elif parcel.status is parcel.unannounced_from:
-            # Back at the status it had before the first change: nothing to tell.
+            # Back at the status it had before the first change: nothing to tell, and
+            # nothing told along in a box any more (a later step there is its own news).
             parcel.unannounced_from = None
+            self._told_along.pop(parcel.number, None)
         # Otherwise several changes in a row become one, from the oldest status to
         # the latest.
 

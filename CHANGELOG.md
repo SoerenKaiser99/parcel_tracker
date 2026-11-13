@@ -26,6 +26,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Event und Auslöser:** das Event `parcel_tracker_status_changed`, das Event `parcel_tracker_parcel_added` für neue Pakete und fünf Auslöser im Automations-Editor ohne YAML.
 - **Einfuhrabgaben (Zoll):** Betrag und Barzahlung aus der DHL-Mail am Zustelltag auf der Karte und in der Benachrichtigung.
 - **Versendete Pakete:** ein DHL-Einlieferungsbeleg legt ein Paket als versendet an (Schild „Versendet“, `outgoing`), außerhalb aller Zähler, mit einer Meldung bei Zustellung.
+- **Mehrere Bestellungen in einem Paket:** stehen auf der Karte als eine Zeile, mit „Erhalten“ fürs ganze Paket.
 - **Abholbereit:** Packstation, Filiale und PaketShop mit Abholort und letztem Abholtag.
 - **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert und in keinem Attribut (der Sensor zeigt nur `has_delivery_code`).
 - **Datensparsam:** kein Cloud-Konto, Zugangsdaten bleiben in Home Assistant, nur ein eigenes Paket-Postfach wird gelesen.
@@ -34,6 +35,14 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.50 (2026-11-13)
+
+Wunsch aus [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) (Sammelzeile); Amazon-Sammelkarton aus [PR #61](https://github.com/SoerenKaiser99/parcel_tracker/pull/61) von benep, Refs [Issue #55](https://github.com/SoerenKaiser99/parcel_tracker/issues/55).
+
+- **Mehrere Bestellungen in einem Paket:** Haben Bestellungen eines Shops dieselbe Sendungsnummer beim selben Paketdienst und denselben Status, zeigt die Karte sie als eine Zeile, z. B. „AliExpress · 3 Bestellungen“. Aufgeklappt stehen Verlauf und Sendungsnummer einmal, darunter jede Bestellung mit Name, Bestellnummer, „Gehört“, „Umbenennen“ und „Löschen“. „Erhalten“ gilt fürs ganze Paket, „Details über 17track holen“ steht einmal. Geschenke bleiben eigene Zeilen, die Option `person` filtert vorher. Sensoren, Events, Kalender und Benachrichtigungen bleiben je Bestellung wie bisher.
+- **Amazon: mehrere Bestellungen in einem Karton** (Beitrag von benep): Nennt eine Versandmail eine Bestellung im Text und eine andere nur im Link zur Sendungsverfolgung, bekommt jetzt auch die zweite die Nachricht über ihre Sendungs-ID. Bisher blieb sie auf „Versendet“ stehen. Pro Karton und Person gibt es eine Meldung, für die Bestellung aus dem Link entsteht kein weiteres Paket. Bestellungen, die die Mail nur über ihre Artikel zeigt, bleiben vorerst offen.
+- **Bekannte Grenzen:** In einer Sammelzeile aus Amazon-Bestellungen fehlt die Zeile „Amazon-Sendung“, und „Code anzeigen“ steht bei jeder Bestellung. Löst sich eine aufgeklappte Sammelzeile auf und bildet sich später neu, ist sie gleich wieder aufgeklappt.
 
 ### v0.3.49 (2026-11-06)
 

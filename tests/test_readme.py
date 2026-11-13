@@ -363,7 +363,9 @@ def test_readme_screenshots_show_all_three_badges_worth_of_parcels():
     # v0.3.48: a thirteenth, sent parcel is on the demo page only, not in the screenshots.
     assert len(re.findall(r'^    parcel\("', js, re.M)) == 13
     assert js.count("outgoing: true") == 1
-    assert 'params.has("shot") && p.attributes.outgoing' in js
+    # v0.3.50: two orders in one parcel (one row on the card), likewise demo page only.
+    assert js.count("{ demoOnly: true }") == 2
+    assert 'params.has("shot") && (p.attributes.outgoing || p.demoOnly)' in js
     assert "delivered_today:" in js and "delivered_today_count:" in js
 
 

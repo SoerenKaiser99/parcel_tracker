@@ -160,6 +160,26 @@ Neben „Pakete“ im Kartenkopf steht ein Geschenk-Symbol: der Schalter „Gesc
 
 Sollen alle anderen ein Geschenk gar nicht sehen, auch keine Zeile und kein Schild: Kartenoption [`gifts`](#gifts-geschenke-ausblenden).
 
+## Mehrere Bestellungen in einem Paket
+
+Packt ein Shop mehrere Bestellungen in ein Paket, haben sie dieselbe Sendungsnummer. Die Karte zeigt sie dann als eine Zeile, zum Beispiel „AliExpress · 3 Bestellungen“. Das gilt für alle Shops (Amazon, eBay, AliExpress, Eventim).
+
+Zusammengefasst wird, wenn
+
+- die Bestellungen dieselbe Sendungsnummer beim selben Paketdienst haben,
+- sie gerade denselben Status haben und
+- es mindestens zwei sind.
+
+Hast du eine der Bestellungen schon von Hand als erhalten markiert, steht sie wieder in einer eigenen Zeile.
+
+Aufgeklappt stehen der Verlauf und die Sendungsnummer einmal. Darunter folgt jede Bestellung mit Namen, Bestellnummer samt Link, „Gehört“ und den Knöpfen „Umbenennen“ und „Löschen“. Die gelten nur für diese eine Bestellung.
+
+**Erhalten** gibt es einmal für das ganze Paket. Nach der Rückfrage „Wirklich erhalten?“ markiert es jede Bestellung im Paket, die sich noch markieren lässt.
+
+- **Geschenke** gehören nie zu einer solchen Zeile. Sie bleiben eigene Zeilen, damit die Sammelzeile nichts verrät.
+- Mit der Option `person` fasst die Karte nur die Bestellungen zusammen, die sie für diese Person ohnehin zeigt.
+- Die Integration selbst ändert nichts: Jede Bestellung behält ihren Sensor, ihre Events und ihren Eintrag im Kalender.
+
 ## Optionen der Karte
 
 Die Karte hat sechs eigene Optionen: `add_form`, `show`, `header`, `gifts`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).

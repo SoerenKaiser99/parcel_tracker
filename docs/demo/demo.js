@@ -16,6 +16,7 @@
 //   ?edit=1       pretend the dashboard is being edited (preview): a hidden card stays and
 //                 says in one line why it would be hidden
 //   ?shot=1       only the card (used for the README screenshots), without the sent parcel
+//                 and without the parcel of two orders
 //   ?person=person.anna  card option person: only Anna's parcels and everybody's
 //                 (?unassigned=0: card option include_unassigned: false, only Anna's)
 //   ?gifts=hide   card option gifts: hide (no gift at all, for a shared display); with
@@ -204,6 +205,18 @@
         event(-8, 19, 30, "Bestellt"),
       ],
     }),
+    // Two AliExpress orders in one DHL parcel: one row "AliExpress · 2 Bestellungen" (only on
+    // the demo page, the README screenshots show the twelve parcels they describe).
+    Object.assign(parcel("in_transit", "aliexpress", "ALI9999999999999916", "Handyhülle", {
+      eta_days: 4, tracking_ref: "00340999999999999917", tracking_carrier: "dhl",
+      shipping_carrier_hint: "dhl",
+      events: [event(-1, 8, 30, "Die Sendung ist im Zielland angekommen.", "Beispielstadt")],
+    }), { demoOnly: true }),
+    Object.assign(parcel("in_transit", "aliexpress", "ALI9999999999999918", "Displayschutzfolie", {
+      eta_days: 4, tracking_ref: "00340999999999999917", tracking_carrier: "dhl",
+      shipping_carrier_hint: "dhl",
+      events: [event(-1, 8, 30, "Die Sendung ist im Zielland angekommen.", "Beispielstadt")],
+    }), { demoOnly: true }),
     parcel("in_transit", "dpd", "09999999999908", "Gartenschlauch", {
       eta_days: 2, stale: true, last_error: "unavailable",
       events: [event(-1, 18, 0, "Im Paketzustellzentrum", "Musterdorf")],
@@ -229,9 +242,9 @@
     }),
   ];
   // The README screenshots (?shot=1) show the twelve incoming parcels they describe; the
-  // sent one is only on the demo page.
+  // sent one and the parcel of two orders are only on the demo page.
   const PARCELS = params.has("empty") ? []
-    : ALL_PARCELS.filter((p) => !(params.has("shot") && p.attributes.outgoing));
+    : ALL_PARCELS.filter((p) => !(params.has("shot") && (p.attributes.outgoing || p.demoOnly)));
   // The real names of gifts, as the integration keeps them (number -> name, mail title).
   const GIFT_NAMES = { H9999999999999999903: ["Geburtstagsgeschenk", "Ihre Bestellung: Brettspiel"] };
   const GIFT_ENTITY = "switch.paket_tracker_geschenkmodus";
