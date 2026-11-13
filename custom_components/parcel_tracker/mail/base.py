@@ -82,6 +82,12 @@ class MailUpdate:
     # Amazon's own id of a shipment, from the link to its tracking page ("shipmentId"): each
     # mail from "Versendet" on names it, the same in every mail about that box.
     shipment_id: str | None = None
+    # The order came along in a box the mail is about another order of (Amazon names one
+    # order in the text and links the tracking page of another): it takes the news, but
+    # makes no entry of its own (``apply._apply_order``). The box is told by the order the
+    # mail names, if that one's change is news; else by this one (the coordinator's
+    # ``_handle_mail``).
+    along: bool = False
     # Import duty the recipient pays at delivery, as DHL's mail of the day names it ("Die
     # Einfuhrabgaben i.H.v. 12,34€ … sind bei Zustellung … in bar zu bezahlen"). Only the
     # amount, its currency and whether cash is asked for, never the rest of the sentence.

@@ -4,8 +4,8 @@ Amazon's mails from "Versendet" on link to the shipment's tracking page
 (https://www.amazon.de/progress-tracker/package?orderId=…&shipmentId=…), behind Amazon's
 own redirect: since about March 2025, in the plain layout of "In Zustellung" since about
 August 2025. The id is the same in every mail about that box: it tells which entry of an
-order a mail goes to. Most mails are built here; the fixtures 181-191 are real sequences
-whose links the anonymiser kept as invented ones (the same id for the same box).
+order a mail goes to. Most mails are built here; the fixtures 181-191 and 199-207 are real
+sequences whose links the anonymiser kept as invented ones (the same id for the same box).
 """
 
 from datetime import datetime, timedelta
@@ -14,8 +14,16 @@ from email.message import EmailMessage
 from urllib.parse import quote
 
 import pytest
+from homeassistant.core import CoreState
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    async_capture_events,
+    async_mock_service,
+)
 
 from custom_components.parcel_tracker.carriers.base import BERLIN
+from custom_components.parcel_tracker.const import EVENT_STATUS_CHANGED
+from custom_components.parcel_tracker.coordinator import _ParsedMail
 from custom_components.parcel_tracker.mail import parse_mail
 from custom_components.parcel_tracker.mail.apply import (
     MANUAL_TEXT,
@@ -27,6 +35,10 @@ from custom_components.parcel_tracker.mail.base import ATTEMPT_TEXT, MailUpdate
 from custom_components.parcel_tracker.models import ParcelStatus
 
 from .conftest import FIXTURES, load_mail
+from .test_coordinator_notify import _start
+from .test_order_closing import _coordinator, _refresh
+from .test_owner_notify import ANNA, ANNA_PHONE, BEN, BEN_PHONE
+from .test_owner_notify import _setup as _setup_persons
 
 ORDER = "999-9156534-2587125"
 OTHER_ORDER = "999-1234567-7654321"
@@ -99,7 +111,6 @@ def test_a_mail_without_the_link_has_no_shipment_id():
         _redirect(_page(shipment="TAb-dE9fG")),
         _redirect(_page(shipment="TAb")),
         _redirect(_page(order="999-9156534")),
-        _redirect(_page(order=OTHER_ORDER)),
     ],
     ids=[
         "redirect-over-http",
@@ -111,12 +122,17 @@ def test_a_mail_without_the_link_has_no_shipment_id():
         "id-with-other-characters",
         "id-too-short",
         "order-cut",
-        "order-the-mail-does-not-name",
     ],
 )
 def test_no_other_link_gives_a_shipment_id(href):
     [update] = _updates(_msg(href))
     assert update.shipment_id is None
+
+
+def test_the_order_of_the_text_takes_no_id_of_an_order_the_mail_does_not_name():
+    # (the linked order gets it, see "one box with the items of several orders")
+    updates = _updates(_msg(_redirect(_page(order=OTHER_ORDER))))
+    assert (updates[0].number, updates[0].shipment_id, updates[0].along) == (NUMBER, None, False)
 
 
 def test_each_order_of_a_mail_takes_the_id_its_link_names():
@@ -156,6 +172,82 @@ def test_an_order_named_as_two_shipments_of_one_mail_takes_no_id():
         apply_update(parcels, update, NOW)
     assert parcels[NUMBER].name == "Alphamarke Trinkflasche 750 ml"
     assert parcels[f"{NUMBER}P2"].name == "Betamarke Kabel 2 m (2)"
+
+
+# ----- one box with the items of several orders -----
+def test_an_order_only_the_link_names_gets_the_news_with_its_id():
+    msg = _msg(
+        _redirect(_page(OTHER_ORDER, "UhIjKl9mN")),
+        subject="Zugestellt: „Beispiel-Maßband 5...“ und 1 weiterer Artikel",
+        sender="order-update@amazon.de",
+    )
+    updates = _updates(msg)
+    # (no title for the linked order: the subject may name the other order's item)
+    assert [(u.number, u.title, u.shipment_id, u.along) for u in updates] == [
+        (NUMBER, "Beispiel-Maßband 5… und 1 weiterer Artikel", None, False),
+        ("AMZ99912345677654321", None, "UhIjKl9mN", True),
+    ]
+    assert {u.status for u in updates} == {ParcelStatus.DELIVERED}
+    assert updates[1].delivered_at == updates[0].delivered_at
+
+
+def test_a_mail_about_several_boxes_gives_no_order_only_its_links_name():
+    # Which box the third order lies in is not told.
+    msg = _msg(
+        _redirect(_page()),
+        _redirect(_page("999-7654321-1234567", "VwXyZa9bC")),
+        orders=(ORDER, OTHER_ORDER),
+    )
+    assert [u.number for u in _updates(msg)] == [NUMBER, "AMZ99912345677654321"]
+
+
+def _box_of_two(**fields) -> EmailMessage:
+    return _msg(
+        _redirect(_page(OTHER_ORDER, "UhIjKl9mN")),
+        subject="Zugestellt: „Beispiel-Maßband 5...“ und 1 weiterer Artikel",
+        sender="order-update@amazon.de",
+        **fields,
+    )
+
+
+def test_a_linked_order_whose_box_has_another_id_makes_no_entry():
+    # Its own "Versendet" named another id: the box it came along in is not its own entry,
+    # and no phantom "… (2)" is delivered next to it. It stays as it was.
+    parcels: dict = {}
+    _apply(parcels, _msg(_redirect(_page(OTHER_ORDER, "QrStUv9wX")), orders=(OTHER_ORDER,)))
+    changes = _apply(parcels, _box_of_two())
+    assert changes[1] is None
+    assert [(p.number, p.status) for p in parcels.values()] == [
+        ("AMZ99912345677654321", ParcelStatus.IN_TRANSIT),
+        (NUMBER, ParcelStatus.DELIVERED),
+    ]
+
+
+def test_a_linked_order_never_seen_makes_its_entry_its_own_mails_find():
+    # The box's mail read before the linked order's own ones: they find its entry by the
+    # id and give it its name; the delivery stays.
+    parcels: dict = {}
+    _apply(parcels, _box_of_two())
+    _apply(parcels, _msg(_redirect(_page(OTHER_ORDER, "UhIjKl9mN")), orders=(OTHER_ORDER,)))
+    linked = parcels["AMZ99912345677654321"]
+    assert list(parcels) == [NUMBER, "AMZ99912345677654321"]
+    assert (linked.name, linked.status, linked.shipment_ids) == (
+        "Beispiel-Maßband 5…",
+        ParcelStatus.DELIVERED,
+        ["UhIjKl9mN"],
+    )
+
+
+def test_a_linked_order_takes_the_news_into_its_entry():
+    parcels: dict = {}
+    _apply(parcels, _msg(_redirect(_page(OTHER_ORDER, "UhIjKl9mN")), orders=(OTHER_ORDER,)))
+    text, linked = _apply(parcels, _box_of_two())
+    assert text.created and not linked.created
+    assert (linked.parcel.number, linked.old_status, linked.parcel.status) == (
+        "AMZ99912345677654321",
+        ParcelStatus.IN_TRANSIT,
+        ParcelStatus.DELIVERED,
+    )
 
 
 def _apply(parcels: dict, msg: EmailMessage):
@@ -543,7 +635,7 @@ def test_a_further_box_delivered_long_ago_is_not_announced():
 
 # ----- real sequences: every mail of an order, in the order they were sent -----
 def _replay(first: int, last: int) -> list:
-    names = sorted(p.name for p in (FIXTURES / "mail").glob("1[89][0-9]_*.eml"))
+    names = sorted(p.name for p in (FIXTURES / "mail").glob("[0-9][0-9][0-9]_*.eml"))
     names = [n for n in names if first <= int(n[:3]) <= last]
     updates = [u for name in names for u in parse_mail(load_mail(name)).updates]
     parcels: dict = {}
@@ -571,3 +663,155 @@ def test_the_order_named_after_its_first_item_takes_the_name_of_the_first_box():
         ("OVNSHVN…", SHIPPED, ["T6DlR8pGJ"]),
         ("Fasgear 240W… und 1 weiterer Artikel (2)", SHIPPED, ["TXAnNg2hP"]),
     ]
+
+
+# ----- real sequences: one box with the items of two orders -----
+# The box's mails name one order in the text and link the other one with the id of its box.
+def test_a_box_of_two_orders_delivers_the_order_of_the_linked_box():
+    # The linked order's "Versendet" mail named the same id; the box of the other order was
+    # put into it, its mails name that order in the text.
+    assert [(p.name, p.status, p.shipment_ids) for p in _replay(199, 203)] == [
+        ("Beispiel-USB-Adapter 3 Stück…", DELIVERED, ["TNtuSudJp"]),
+        ("3 Stück Beispiel-Wandlermodul… und 1 weiterer Artikel", DELIVERED, ["Tcz89qs8W"]),
+    ]
+
+
+def test_a_box_of_two_orders_under_a_new_id_delivers_the_order_without_one():
+    # The linked order's "Versendet" mail was never read; its box comes under a new id.
+    assert [(p.name, p.status, p.shipment_ids) for p in _replay(204, 207)] == [
+        ("Beispiel-Reinigungslösung für…", DELIVERED, ["TGnhp0rH9"]),
+        ("Beispiel-Unterbauleuchten… und 1 weiterer Artikel", DELIVERED, ["TMPKwjz7V"]),
+    ]
+
+
+# ----- one box of two orders through the coordinator: one push -----
+# Amazon's own delivery: no carrier number. The order of the text (999-1589149-…) tells
+# the box, the linked one (999-5973488-…) changes as well (an event), without a push.
+TEXT_ORDER, LINKED_ORDER = "AMZ99915891494255542", "AMZ99959734885799171"
+DELIVERY = "200_order_update_zugestellt.eml"
+
+
+async def test_a_box_of_two_orders_is_one_notification(hass, hass_storage, freezer):
+    # (the order they were sent in: the delivery came last)
+    before = (
+        "199_bestellbestaetigung_bestellt.eml",
+        "201_versandbestaetigung_versendet.eml",
+        "202_versandbestaetigung_versendet.eml",
+        "203_shipment_tracking_in_zustellung.eml",
+    )
+    events, pushes = await _delivery_after(hass, hass_storage, freezer, before)
+    assert sorted((e.data["number"], e.data["new_status"]) for e in events) == [
+        (TEXT_ORDER, "delivered"),
+        (LINKED_ORDER, "delivered"),
+    ]
+    assert pushes == 1
+
+
+async def test_the_linked_order_tells_the_box_when_the_order_of_the_text_is_new(
+    hass, hass_storage, freezer
+):
+    # None of the text order's mails was read: its first status is no news. The box is
+    # told all the same, by the linked order.
+    before = ("199_bestellbestaetigung_bestellt.eml",)
+    events, pushes = await _delivery_after(hass, hass_storage, freezer, before)
+    assert [(e.data["number"], e.data["new_status"]) for e in events] == [
+        (LINKED_ORDER, "delivered")
+    ]
+    assert pushes == 1
+
+
+async def _delivery_after(hass, hass_storage, freezer, before: tuple[str, ...]):
+    """Import ``before``, then the delivery: its events and how many pushes it made."""
+    freezer.move_to(datetime(2026, 10, 20, 17, 0, tzinfo=BERLIN))
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    calls = async_mock_service(hass, "notify", "send_message")
+    events = async_capture_events(hass, EVENT_STATUS_CHANGED)
+    coord = await _coordinator(hass, hass_storage, [])
+    await _refresh(hass, coord)
+    await _start(hass)
+    for name in before:
+        await _handle(hass, coord, name)
+    pushed, told = len(calls), len(events)
+    await _handle(hass, coord, DELIVERY)
+    await coord.async_shutdown()
+    return events[told:], len(calls) - pushed
+
+
+async def _handle(hass, coord, name: str) -> None:
+    mail = _ParsedMail(message_id=f"<{name}@example.org>", result=parse_mail(load_mail(name)))
+    async with coord._lock:
+        coord._handle_mail(mail, dt_util.utcnow())
+    await hass.async_block_till_done()
+
+
+async def test_a_box_of_two_owners_pushes_once_to_each(hass):
+    # The order of the text is Anna's, the linked one Ben's: each hears of the box once.
+    coord = await _setup_persons(hass)
+    calls = async_mock_service(hass, "notify", "send_message")
+    await _handle_msg(hass, coord, _msg(_redirect(_page())), ANNA)
+    linked = _msg(_redirect(_page(OTHER_ORDER, "UhIjKl9mN")), orders=(OTHER_ORDER,))
+    await _handle_msg(hass, coord, linked, BEN)
+    await _handle_msg(hass, coord, _box_of_two(), None)
+    assert sorted(call.data["entity_id"] for call in calls) == [ANNA_PHONE, BEN_PHONE]
+
+
+async def test_a_box_of_one_owner_pushes_once(hass):
+    coord = await _setup_persons(hass)
+    calls = async_mock_service(hass, "notify", "send_message")
+    await _handle_msg(hass, coord, _msg(_redirect(_page())), ANNA)
+    linked = _msg(_redirect(_page(OTHER_ORDER, "UhIjKl9mN")), orders=(OTHER_ORDER,))
+    await _handle_msg(hass, coord, linked, ANNA)
+    await _handle_msg(hass, coord, _box_of_two(), None)
+    assert [call.data["entity_id"] for call in calls] == [ANNA_PHONE]
+
+
+async def _handle_msg(hass, coord, msg: EmailMessage, owner: str | None) -> None:
+    mail = _ParsedMail(message_id=msg["Subject"] + (owner or ""), result=parse_mail(msg))
+    mail.owner = owner
+    async with coord._lock:
+        coord._handle_mail(mail, dt_util.utcnow())
+    await hass.async_block_till_done()
+
+
+async def test_a_box_of_two_orders_read_while_starting_is_one_notification(
+    hass, hass_storage, freezer
+):
+    # Both changes wait for the start; then the box is pushed once.
+    freezer.move_to(datetime(2026, 10, 20, 17, 0, tzinfo=BERLIN))
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    hass.set_state(CoreState.starting)
+    calls = async_mock_service(hass, "notify", "send_message")
+    events = async_capture_events(hass, EVENT_STATUS_CHANGED)
+    coord = await _coordinator(hass, hass_storage, [])
+    await _refresh(hass, coord)
+    for name in (
+        "199_bestellbestaetigung_bestellt.eml",
+        "202_versandbestaetigung_versendet.eml",
+        DELIVERY,
+    ):
+        await _handle(hass, coord, name)
+    assert calls == [] and events == []
+    await _start(hass)
+    assert sorted(e.data["number"] for e in events) == [TEXT_ORDER, LINKED_ORDER]
+    assert len(calls) == 1
+    await coord.async_shutdown()
+
+
+async def test_a_linked_order_that_tells_nothing_leaves_no_mark(hass, hass_storage, freezer):
+    # Delivered already: the box's mail changes nothing it would tell, so nothing may
+    # swallow a later push of that order.
+    freezer.move_to(datetime(2026, 10, 20, 17, 0, tzinfo=BERLIN))
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    coord = await _coordinator(hass, hass_storage, [])
+    await _refresh(hass, coord)
+    await _start(hass)
+    for name in (
+        "202_versandbestaetigung_versendet.eml",
+        "199_bestellbestaetigung_bestellt.eml",
+        "201_versandbestaetigung_versendet.eml",
+    ):
+        await _handle(hass, coord, name)
+    coord.store.parcels[LINKED_ORDER].result.status = ParcelStatus.DELIVERED
+    await _handle(hass, coord, DELIVERY)
+    assert coord._told_along == {}
+    await coord.async_shutdown()

@@ -82,8 +82,10 @@ class Change:
     old_status: ParcelStatus | None
     created: bool
     # The order took in a carrier's parcel that was delivered already and whose delivery
-    # waits for no announcement: the box's delivery is told. The order's change is its
-    # own event, but no notification (see the coordinator's ``_mail_changed``).
+    # waits for no announcement: the box's delivery is told. Or the order came along in
+    # the box of another order whose change the same mail told (``MailUpdate.along``, set
+    # by the coordinator's ``_handle_mail``). The order's change is its own event, but no
+    # notification (see the coordinator's ``_mail_changed``).
     told: bool = False
     # A mail made this parcel, delivered right away, and it is news all the same: a
     # carrier's parcel (see ``_apply_tracking``) or a further box of a known order (see
@@ -706,6 +708,12 @@ def _apply_order(
             open_ = [p for p in siblings if p.status not in CLOSED_STATUSES]
             cancelled = [p for p in siblings if p.status is ParcelStatus.CANCELLED]
             target = (open_ or cancelled or siblings)[0]
+    if target is None and update.along and siblings:
+        # An order that came along in another order's box makes no further entry: no
+        # phantom "… (2)" delivered next to its entry, left behind when its own box has
+        # another id. (An order never seen makes its first one, as a mail read before the
+        # order's own mails does; those find it by its id.)
+        return None
     if target is not None and _cancelled_before(target, update):
         return None
     if target is None:
