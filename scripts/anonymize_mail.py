@@ -825,8 +825,9 @@ _T_GREETING = (
     r"|Sehr geehrte(?:[rs]|\(r\)|/r)?|Dear|Hello)"
     r"(?:[ \t]+(?i:Frau/Herr|Herr/Frau|Herrn?|Frau|Familie|Mr\.?|Mrs\.?|Ms\.?))?"
 )
-# "Liebe Grüße," closes a mail, it greets nobody.
-_T_NO_HELLO = r"(?!(?i:gr(?:ü|ue|u)(?:ß|ss)))"
+# "Liebe Grüße," closes a mail, it greets nobody; "Sehr geehrte Damen und Herren" and "Liebe
+# Kundin" greet everybody.
+_T_NO_HELLO = r"(?!(?i:gr(?:ü|ue|u)(?:ß|ss)|damen\b|kund(?:e|en|in|innen)\b))"
 _T_HELLO = re.compile(
     rf"(?m)^(?P<hello>[*_> \t]*{_T_GREETING})[ \t]+{_T_NO_HELLO}"
     r"(?P<name>[^\s,!:*]+(?:[ \t]+[^\s,!:*]+){0,3}?)(?P<end>[ \t]*[,!:*])"
@@ -849,24 +850,35 @@ _T_HELLO_NAMED = re.compile(
 # empty line: "Viele Grüße\nVorname Nachname". Only a person counts (_t_person): most mails
 # close with a team or a company ("Ihr DHL Team"), and that stays. The name is replaced as a
 # whole in every mail, not each of its words: an employee's surname may be a brand elsewhere.
+# "LG" and "VG" are brands too ("LG\nGram Notebook Pro"): see _T_BYE_SHORT. The name ends
+# with a character that the end cannot take, so a long line is read once (no lazy name).
 _T_BYE = re.compile(
     r"(?im)^(?P<bye>[*_> \t]*(?:(?:(?:(?:kind|best|warm)[ \t]+)?regards|best[ \t]+wishes"
     r"|(?:[^\W\d_]+[ \t]+){0,3}gr(?:ü|ue|u)(?:ß|ss)(?:e|en)?)\b[^\n]{0,40}"
     r"|(?:mfg|lg|vg)[ \t,!.]*)\n(?:[*_> \t]*\n)?[*_> \t]*)"
-    r"(?P<name>[^\s*_>][^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>(?:\n[^\n]*\S[^\n]*){0,4})"
+    r"(?P<name>[^\s*_>](?:[^\n]*[^\n*_ \t])?)(?P<end>[*_ \t]*)$"
+    r"(?P<rest>(?:\n[^\n]*\S[^\n]*){0,4})"
 )
-# The same with the name on the line of the formula: "Viele Grüße, Vorname Nachname".
+# The same with the name on the line of the formula: "Viele Grüße, Vorname Nachname",
+# "Mit freundlichen Grüßen, Vorname Nachname", "MfG Vorname Nachname".
 _T_BYE_SAME = re.compile(
     r"(?im)^(?P<bye>[*_> \t]*(?:(?:viele|liebe|beste|freundliche)[ \t]+gr(?:ü|ue)(?:ß|ss)e"
-    r"|gru(?:ß|ss))[ \t]*,?[ \t]+)"
-    r"(?=[A-ZÄÖÜ])(?P<name>[^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>)"
+    r"|mit[ \t]+(?:freundlichen|besten|lieben|vielen)[ \t]+gr(?:ü|ue)(?:ß|ss)en"
+    r"|gru(?:ß|ss)|mfg)[ \t]*,?[ \t]+)"
+    r"(?=[A-ZÄÖÜ])(?P<name>[^\n]*[^\n*_ \t])(?P<end>[*_ \t]*)$(?P<rest>)"
 )
-# And with a short form: "VG V. Nachname". Only at the end of a text (_t_at_end): "LG Gram
-# Notebook Pro" in an order is a brand and an article.
+# And with "LG" or "VG", which are brands as well: "VG V. Nachname". Only below a sentence and
+# at the end of a text (_t_sentence_above, _t_at_end): "LG Gram Notebook Pro" in an order is
+# an article.
 _T_BYE_SHORT = re.compile(
-    r"(?im)^(?P<bye>[*_> \t]*(?:mfg|lg|vg)[ \t]*,?[ \t]+)"
-    r"(?=[A-ZÄÖÜ])(?P<name>[^\n]*?)(?P<end>[*_ \t]*)$(?P<rest>)"
+    r"(?im)^(?P<bye>[*_> \t]*(?:lg|vg)[ \t]*,?[ \t]+)"
+    r"(?=[A-ZÄÖÜ])(?P<name>[^\n]*[^\n*_ \t])(?P<end>[*_ \t]*)$(?P<rest>)"
 )
+# Example names, not persons: never learnt word by word.
+_T_PLACEHOLDER_NAMES = {"max mustermann", "erika musterfrau", "erika mustermann", "erika beispiel"}
+# "LG" or "VG" on a line of its own above the name (_T_BYE).
+_T_BYE_BRAND = re.compile(r"(?i)[*_> \t]*(?:lg|vg)[ \t,!.]*\n")
+_T_THANKS = re.compile(r"(?i)(?:(?:vielen|besten)[ \t]+)?dank(?:e)?(?:[ \t]*(?:schön|sehr))?")
 # A line where a quoted mail begins, or the next message of a thread ("Hallo NAME," at eBay).
 _T_QUOTE_START = re.compile(
     r"(?i)[ \t]*(?:-{2,}|_{5,}|(?:Von|From)[ \t]*:|Am\b.*\bschrieb|On\b.*\bwrote"
@@ -1155,17 +1167,19 @@ def _t_at_end(text, start, lead):
     return True
 
 
-def _t_label_above(text, start):
-    """True if the last line with text above position start (a line start) is a label
-    ("Artikel:"): what follows is its value, not a closing formula."""
-    end = start - 1
-    while end > 0:
-        begin = text.rfind("\n", 0, end) + 1
-        line = text[begin:end].strip("*_> \t")
-        if line:
-            return line.endswith(":")
-        end = begin - 1
-    return False
+def _t_line_above(text, start):
+    """The line above position start (a line start), without quote marks; "" at the top."""
+    if start == 0:
+        return ""
+    return text[text.rfind("\n", 0, start - 1) + 1:start - 1].strip("*_> \t")
+
+
+def _t_sentence_above(text, start):
+    """True if the line above position start (a line start) is empty, ends a sentence or
+    thanks ("Danke"): a closing formula follows the text. Below a label ("Artikel:"), a
+    heading ("Ihre Artikel") or a quantity ("Menge 1") stands an article."""
+    line = _t_line_above(text, start)
+    return not line or line[-1] in ".!?" or bool(_T_THANKS.fullmatch(line))
 
 
 def _t_person(name):
@@ -1260,6 +1274,10 @@ class _TScrubber:
             not re.fullmatch(r"[^\W\d_](?:[^\W\d_]|['’.-])*", t) or _T_NOT_NAME.fullmatch(t)
             or not (t[0].isupper() or _T_PARTICLE.fullmatch(t)) for t in tokens
         ):
+            return
+        if " ".join(tokens).casefold() in _T_PLACEHOLDER_NAMES:
+            # an example name, as the script writes it: "Erika" of a sample sender would else
+            # turn the "Erika Beispiel" of a legal footer into "Max Beispiel"
             return
         if len(tokens) > 1:
             self._note(" ".join(tokens), "Max Mustermann")
@@ -1404,10 +1422,15 @@ class _TScrubber:
 
     def _hello_named(self, match):
         """"Hallo, NAME," and "Vielen Dank NAME!": only if the words are a name; a first name
-        becomes "Max", a title stays ("Danke, Herr Mustermann,")."""
+        becomes "Max", a title stays ("Danke, Herr Mustermann,"). Behind thanks only one word
+        is a name: "Danke schön Apple Watch!" thanks for an article."""
         words = match.group("name").split()
         titled = bool(_T_TITLE.fullmatch(words[0]))
-        if not _t_name_line(match.group("name")) or len(words) == titled:
+        thanks = re.search(r"(?i)dank", match.group("hello"))
+        if (
+            not _t_name_line(match.group("name")) or len(words) == titled
+            or (thanks and len(words) - titled > 1)
+        ):
             return match.group(0)
         self._person(" ".join(words[titled:]), "Mustermann" if titled else "Max")
         name = "Max" if len(words) == 1 else "Max Mustermann"
@@ -1427,10 +1450,13 @@ class _TScrubber:
         return f"{match.group(1)} {_T_MAIL}"
 
     def _bye(self, match):
-        """The writer's name below a closing formula: a person, replaced in every mail."""
-        name = match.group("name")
-        if not _t_person(name):
+        """The writer's name below or beside a closing formula: a person, replaced in every
+        mail. Below a label it is an article ("Ihre Karte:\nViele Grüße, NAME")."""
+        name, text = match.group("name"), match.string
+        if not _t_person(name) or _t_line_above(text, match.start()).endswith(":"):
             return match.group(0)
+        if _T_BYE_BRAND.match(match.group("bye")):
+            return self._bye_short(match)
         # Only the whole name: the surname of a shop's employee may be a brand elsewhere.
         self._note(name, "Max Mustermann")
         # The person's own web address in the signature, only at this place.
@@ -1441,14 +1467,21 @@ class _TScrubber:
         return f"{match.group('bye')}Max Mustermann{match.group('end')}{rest}"
 
     def _bye_short(self, match):
-        """"VG NAME": only at the end of a text and not below a label, else it may be an
-        article that starts with a brand ("Artikel:\nLG Gram Notebook Pro")."""
-        text = match.string
-        if _t_label_above(text, match.start()) or not _t_at_end(
-            text, match.end(), match.group("bye")
+        """"VG NAME" and "LG\nNAME": two words at most, below a sentence and at the end of a
+        text, else it may be an article that starts with a brand ("Ihre Artikel\nLG Gram
+        Notebook Pro"). Replaced only here and never learnt: if it is a brand after all, other
+        mails keep it."""
+        name, text = match.group("name"), match.string
+        lead = match.group("bye").rsplit("\n", 1)[-1]
+        if (
+            len(name.split()) > 2 or not _t_person(name)
+            or not _t_sentence_above(text, match.start())
+            or not _t_at_end(text, match.end("end"), lead)
+            or any(found.casefold() == name.casefold() for found in self.learned)
         ):
             return match.group(0)
-        return self._bye(match)
+        rest = _T_SIGNED_WEB.sub(r"\1www.example.org", match.group("rest"))
+        return f"{match.group('bye')}Max Mustermann{match.group('end')}{rest}"
 
     def _sender(self, match):
         """A person as sender becomes a placeholder, a company stays; the address never stays."""
@@ -1538,12 +1571,12 @@ class _TScrubber:
 
     def _neighbour_at(self, match):
         """For "bei NAME (address) abgegeben": a branch or a shop stays, a street in the brackets
-        goes with the name."""
+        goes with the name. Replaced only here and never learnt: a shop without a telling word
+        ("bei Tankstelle Aral abgegeben") would else be replaced in every mail."""
         name, address = match.group("name"), match.group("address") or ""
         first = name.split()[0]
         if _T_NOT_NAME.fullmatch(first) or _t_company(name) or _T_SERVICE.search(name):
             return match.group(0)
-        self._note(name, "Beispielnachbar")
         if re.fullmatch(_T_STREET, address.strip(" \t()")):
             address = " (Musterstraße 1)"
         return (match.group("label") + match.group("gap") + "Beispielnachbar" + address
