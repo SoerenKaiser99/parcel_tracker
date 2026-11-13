@@ -39,11 +39,15 @@ def plan_resource(
     return action, keep.get("id"), extras
 
 
-def _yaml_mode(hass: HomeAssistant, resources: Any, url: str) -> None:
+def _yaml_mode(hass: HomeAssistant, resources: Any, url: str) -> bool:
     """YAML resources cannot be written: tell the user to list the card by hand."""
-    if any(_is_ours(item) for item in resources.async_items() or []):
+    # An old /local entry does not count: the integration no longer updates the copy it points to.
+    if any(
+        str(item.get("url", "")).split("?", 1)[0] == CARD_URL
+        for item in resources.async_items() or []
+    ):
         ir.async_delete_issue(hass, DOMAIN, ISSUE_YAML)
-        return
+        return True
     _LOGGER.info("Lovelace resources in YAML mode, card resource not registered")
     ir.async_create_issue(
         hass,
@@ -54,23 +58,26 @@ def _yaml_mode(hass: HomeAssistant, resources: Any, url: str) -> None:
         translation_key=ISSUE_YAML,
         translation_placeholders={"url": url},
     )
+    return False
 
 
-async def async_ensure_resource(hass: HomeAssistant, url: str) -> None:
-    """Create or update the module resource. Never raises."""
+async def async_ensure_resource(hass: HomeAssistant, url: str) -> bool:
+    """Create or update the module resource. Never raises.
+
+    Returns True only when the resource is confirmed to be on the integration URL.
+    """
     try:
         from homeassistant.components.lovelace.const import LOVELACE_DATA  # noqa: PLC0415
 
         data = hass.data.get(LOVELACE_DATA)
         if data is None:
             _LOGGER.info("Lovelace not available, card resource not registered")
-            return
+            return False
         resources = data.resources
         if getattr(data, "resource_mode", "storage") != "storage" or not hasattr(
             resources, "async_create_item"
         ):
-            _yaml_mode(hass, resources, url)
-            return
+            return _yaml_mode(hass, resources, url)
         ir.async_delete_issue(hass, DOMAIN, ISSUE_YAML)
         await resources.async_get_info()  # ensures the collection is loaded
         action, item_id, extras = plan_resource(resources.async_items(), url)
@@ -85,5 +92,7 @@ async def async_ensure_resource(hass: HomeAssistant, url: str) -> None:
         for extra_id in extras:
             await resources.async_delete_item(extra_id)
             _LOGGER.info("Removed duplicate card resource %s", extra_id)
+        return True
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Could not register the Paket Tracker card as a Lovelace resource: %s", err)
+        return False

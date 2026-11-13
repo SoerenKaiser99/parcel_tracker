@@ -1,14 +1,14 @@
-"""Copy the bundled card into <config>/www so /local serves it from HA start."""
+"""Card URL and cleanup of the copy older versions left in <config>/www."""
 
 from __future__ import annotations
 
 import hashlib
+import logging
 from pathlib import Path
-from typing import Any
 
-from aiohttp.web_urldispatcher import StaticResource
+from .const import CARD_URL, VERSION
 
-from .const import CARD_URL, LOCAL_CARD_URL, VERSION
+_LOGGER = logging.getLogger(__name__)
 
 CARD_FILE = "parcel-tracker-card.js"
 BUNDLED_CARD = Path(__file__).parent / "frontend" / CARD_FILE
@@ -19,38 +19,30 @@ def card_hash(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()[:8]
 
 
-def install_card(source: Path, target: Path) -> tuple[str, bool, bool]:
-    """Copy source to target if the content differs (blocking, run in executor).
+def remove_old_copy(www_dir: Path) -> bool:
+    """Delete the card copy v0.3.x wrote to <www>/parcel_tracker (blocking).
 
-    Returns (hash, www_existed_before, written).
+    Only our own file goes, and our folder only if it is empty afterwards;
+    anything else in www stays. Returns whether the card file was removed.
+    Errors are logged, never raised.
     """
-    content = source.read_bytes()
-    www_existed = target.parent.parent.is_dir()
-    written = False
-    if not target.is_file() or target.read_bytes() != content:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
-        written = True
-    return card_hash(content), www_existed, written
+    folder = www_dir / "parcel_tracker"
+    card = folder / CARD_FILE
+    try:
+        if folder.is_symlink() or card.is_symlink() or not card.is_file():
+            return False  # never follow links out of www
+        card.unlink()
+        try:
+            folder.rmdir()  # fails (and is ignored) when foreign files remain
+        except OSError:
+            pass
+    except OSError as err:
+        _LOGGER.warning("Could not remove the old card copy %s: %s", card, err)
+        return False
+    _LOGGER.info("Removed the old card copy %s; the card is served by the integration", card)
+    return True
 
 
-def local_is_served(hass: Any) -> bool | None:
-    """Whether the running Home Assistant serves /local; None if that is unknown.
-
-    The frontend registers the /local static route once at startup, and only if
-    <config>/www exists at that moment. A www folder created later (by us or by
-    another tool) is on disk but not served until the next restart: /local/...
-    answers 404, and clients may cache that. So ask the router, not the disk.
-    """
-    app = getattr(getattr(hass, "http", None), "app", None)
-    if app is None:
-        return None
-    return any(
-        isinstance(resource, StaticResource) and resource.canonical == "/local"
-        for resource in app.router.resources()
-    )
-
-
-def card_url(digest: str, use_local: bool) -> str:
-    """Resource URL for the chosen serving path."""
-    return f"{LOCAL_CARD_URL if use_local else CARD_URL}?v={VERSION}-{digest}"
+def card_url(digest: str) -> str:
+    """Resource URL of the card served by the integration itself."""
+    return f"{CARD_URL}?v={VERSION}-{digest}"

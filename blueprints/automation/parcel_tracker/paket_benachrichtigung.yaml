@@ -55,7 +55,8 @@ blueprint:
       description: >-
         Vorlage für den Text. Variablen: `name` (Name des Pakets, ohne Namen
         „Paket …“ und die letzten vier Stellen der Nummer), `carrier` (z. B. DHL),
-        `new_status` und `old_status` (z. B. out_for_delivery) sowie `text`
+        `new_status` und `old_status` (z. B. out_for_delivery), `outgoing` (true bei
+        einem versendeten Paket) sowie `text`
         (der fertige Standardsatz, z. B. „Kopfhörer (DHL) ist in Zustellung“).
       default: "{{ text }}"
       selector:
@@ -100,6 +101,9 @@ variables:
   replace_previous: !input replace_previous
   new_status: "{{ trigger.event.data.new_status }}"
   old_status: "{{ trigger.event.data.old_status }}"
+  # A parcel the user sent (a DHL receipt of a handover): only its arrival is told.
+  # An event of a version before 0.3.48 carries no such field.
+  outgoing: "{{ trigger.event.data.outgoing | default(false) }}"
   name: >-
     {{ trigger.event.data.name
        or 'Paket …' ~ (trigger.event.data.number | string)[-4:] }}
@@ -114,7 +118,9 @@ variables:
       'out_for_delivery': 'ist in Zustellung',
       'awaiting_pickup': 'liegt zur Abholung bereit',
       'delivered': 'wurde zugestellt'} %}
-    {% if new_status == 'exception' %}{{ label }}: Problem bei der Zustellung
+    {% if outgoing and new_status == 'delivered' %}✅ Dein verschicktes Paket {{ label }} wurde zugestellt
+    {%- elif outgoing %}✅ Dein verschicktes Paket {{ label }} liegt beim Empfänger zur Abholung bereit
+    {%- elif new_status == 'exception' %}{{ label }}: Problem bei der Zustellung
     {%- else %}{{ label }} {{ phrases.get(new_status, 'hat einen neuen Status') }}
     {%- endif %}
   # Extras of the Home Assistant app: `url` (iOS) and `clickAction` (Android) open the
@@ -126,8 +132,15 @@ variables:
             if replace_previous else {})) }}
 
 conditions:
+  # A sent parcel comes with "Zugestellt" chosen, like the built-in push.
   - condition: template
-    value_template: "{{ new_status in statuses }}"
+    value_template: "{{ ('delivered' if outgoing else new_status) in statuses }}"
+  # A sent parcel: only its arrival at the recipient, once (ready for pickup and then
+  # picked up is one arrival).
+  - condition: template
+    value_template: >-
+      {{ not outgoing or (new_status in ['delivered', 'awaiting_pickup']
+                          and old_status not in ['delivered', 'awaiting_pickup']) }}
   # A shop order closed without a delivery mail ("Abgeschlossen ohne
   # Zustellbestätigung"): nothing arrived just now, so nothing is announced.
   - condition: template

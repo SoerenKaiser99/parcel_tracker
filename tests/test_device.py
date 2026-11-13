@@ -16,7 +16,7 @@ from custom_components.parcel_tracker.const import CONF_POSTCODE, DOMAIN, VERSIO
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
 
 FETCH = "custom_components.parcel_tracker.carriers.dhl.DhlCarrier.fetch"
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+NOW = datetime.now(UTC)  # a fixed date would be removed as stale after 30 days
 NUMBER = "00340999999999999901"
 ENTRY_ID = "0123456789abcdef0123456789abcdef"
 
@@ -32,6 +32,7 @@ ENTITIES = (
         "track17_quota",
         "Paket Tracker 17track-Kontingent",
     ),
+    ("switch.paket_tracker_geschenkmodus", "gift_mode", "Geschenkmodus"),
     (f"sensor.paket_{NUMBER}", NUMBER, "Oma"),
     ("calendar.pakete", "calendar", "Pakete"),
 )

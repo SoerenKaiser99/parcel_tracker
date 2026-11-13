@@ -196,6 +196,8 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
         "track17_carrier": code if isinstance(code, int) else None,
         "track17_next_at": _iso(parcel.track17_next_at),
         "has_track17_result": parcel.track17_result is not None,
+        "outgoing": parcel.outgoing,
+        "arrival_told": parcel.arrival_told,
     }
 
 
@@ -222,12 +224,22 @@ async def async_get_config_entry_diagnostics(
     coordinator: ParcelCoordinator = entry.runtime_data
     state = coordinator.diagnostics()
     budget = coordinator.store.ups_budget
+    persons = coordinator.persons()
     return {
         "integration_version": VERSION,
         "home_assistant_version": HA_VERSION,
         "country": entry_country(entry),
         # Whether "Namen ausblenden" is on; names themselves are never part of this file.
         "hide_names": coordinator.hide_names,
+        # Only how many persons may see gifts, never who.
+        "gift_viewers": len(coordinator.gift_viewer_user_ids()),
+        # Only how many persons and addresses are set up, never who or which.
+        "persons": {
+            "persons": len(persons),
+            "addresses": sum(len(person.addresses) for person in persons),
+            "default_owner": coordinator.default_owner is not None,
+            "shared_addresses": len(coordinator.shared_addresses()),
+        },
         "entry": {"data": _redact(entry.data), "options": _redact(entry.options)},
         "carriers": {
             "active": list(coordinator.carriers),

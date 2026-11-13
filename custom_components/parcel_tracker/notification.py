@@ -72,7 +72,9 @@ def _label(parcel: Parcel, hide_names: bool = False) -> str:
     With ``hide_names`` only a name the user typed in is named; every other parcel is
     its neutral name, which tells the carrier already ('DHL-Paket …2557').
     """
-    if hide_names:
+    if parcel.gift:
+        name = display_name(parcel, hide_names)
+    elif hide_names:
         if not (parcel.name and parcel.name_manual):
             return display_name(parcel, True)
         name = _short(parcel.name)
@@ -102,6 +104,24 @@ def _window_today(parcel: Parcel, now: datetime) -> str:
     return f" – heute {start:%H:%M}–{end:%H:%M} Uhr"
 
 
+def _money(amount: float, currency: str) -> str:
+    """'12,34 €' (German writing: comma for the cents, a dot between the thousands)."""
+    text = f"{amount:,.2f}".replace(",", "\x00").replace(".", ",").replace("\x00", ".")
+    return f"{text} {'€' if currency == 'EUR' else currency}"
+
+
+def _customs(parcel: Parcel) -> str:
+    """' – Einfuhrabgaben 12,34 € bar bereithalten' while import duty is due; only when the
+    amount is known (a DHL mail named it, see ``Parcel.customs_due``)."""
+    due = parcel.customs_due
+    if due is None:
+        return ""
+    amount, currency, cash = due
+    return f" – Einfuhrabgaben {_money(amount, currency)} " + (
+        "bar bereithalten" if cash else "bei Zustellung"
+    )
+
+
 def _pickup(parcel: Parcel) -> str:
     """' – <place>' and ' bis <day>' if known: named by the carrier or by a shop's pickup
     mail (Amazon "Paket zur Abholung bereit"). A result that is 17track's alone names no
@@ -113,6 +133,23 @@ def _pickup(parcel: Parcel) -> str:
     if result.pickup_until is not None:
         text += f" bis {result.pickup_until:%d.%m.}"
     return text
+
+
+_ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
+
+
+def _outgoing(
+    parcel: Parcel, label: str, old_status: ParcelStatus | None
+) -> tuple[str, str] | None:
+    """A parcel the user sent: only its arrival, once (ready for pickup and then
+    delivered is one arrival, also with a step back in between: ``Parcel.arrival_told``).
+    No place, no deadline: those are the recipient's."""
+    status = parcel.result.status
+    if status not in _ARRIVED or old_status in _ARRIVED or parcel.arrival_told:
+        return None
+    if status is ParcelStatus.DELIVERED:
+        return TITLE, f"✅ Dein verschicktes Paket {label} wurde zugestellt"
+    return TITLE, f"✅ Dein verschicktes Paket {label} liegt beim Empfänger zur Abholung bereit"
 
 
 def build_notification(
@@ -131,9 +168,11 @@ def build_notification(
     if parcel.manual_delivered:
         return None  # marked as received by hand: the user knows
     label = _label(parcel, hide_names)
+    if parcel.outgoing:
+        return _outgoing(parcel, label, old_status)
     match result.status:
         case ParcelStatus.OUT_FOR_DELIVERY:
-            message = f"📦 {label} ist in Zustellung{_window_today(parcel, now)}"
+            message = f"📦 {label} ist in Zustellung{_window_today(parcel, now)}{_customs(parcel)}"
         case ParcelStatus.DELIVERED:
             message = f"✅ {label} wurde zugestellt"
         case ParcelStatus.AWAITING_PICKUP:

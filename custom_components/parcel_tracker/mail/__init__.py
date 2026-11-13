@@ -31,7 +31,7 @@ from .base import (
     unrelay,
 )
 from .dpd import DPD_AT_DOMAIN, DPD_AT_SENDER, parse_dpd_de_mail, parse_dpd_mail
-from .ebay import EBAY_SENDER, parse_ebay
+from .ebay import EBAY_SENDER, is_cancel_request, parse_ebay
 from .eventim import (
     EVENTIM_DOMAIN,
     EVENTIM_PRESENTS_DOMAIN,
@@ -44,10 +44,14 @@ from .hermes import HERMES_SENDER, parse_hermes_mail
 from .shipping import (
     DHL_COM_DOMAIN,
     DHL_DOMAIN,
+    DHL_ECOMMERCE_DOMAIN,
+    DHL_ECOMMERCE_SENDER,
     DHL_EXPRESS_SENDER,
     DHL_SENDER,
     KNOWN_SENDER_DOMAINS,
     UPS_SENDER,
+    is_dhl_receipt,
+    parse_dhl_ecommerce_mail,
     parse_dhl_express_mail,
     parse_dhl_mail,
     parse_generic,
@@ -76,6 +80,7 @@ _KNOWN_SENDERS = (
     HERMES_SENDER,
     DHL_SENDER,
     DHL_EXPRESS_SENDER,
+    DHL_ECOMMERCE_SENDER,
     UPS_SENDER,
     ALIEXPRESS_SENDER,
     # (every sender at eventim.de is booked under that domain, a sub-domain as its parent)
@@ -161,6 +166,8 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
     if address == EBAY_SENDER:
         # eBay mails never go to the generic parser: their item numbers look like
         # tracking numbers. Unknown subjects are simply unrecognised.
+        if is_cancel_request(msg):
+            return MailResult(ignored=True)
         return MailResult(updates=parse_ebay(msg))
     domain = domain_of(address)
     if domain == ALIEXPRESS_DOMAIN or domain.endswith(f".{ALIEXPRESS_DOMAIN}"):
@@ -186,12 +193,18 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
         if updates or real_amazon:
             return MailResult(updates=updates, amazon=real_amazon)
         return MailResult(updates=parse_generic(msg))
-    if (domain == DHL_DOMAIN or domain.endswith(f".{DHL_DOMAIN}")) and (
-        updates := parse_dhl_mail(msg, plain_names)
-    ):
-        return MailResult(updates=updates)
+    if domain == DHL_DOMAIN or domain.endswith(f".{DHL_DOMAIN}"):
+        updates = parse_dhl_mail(msg, plain_names)
+        # A receipt of a parcel somebody sent never goes to the generic parser: it would
+        # make the number an incoming parcel.
+        if updates or is_dhl_receipt(msg):
+            return MailResult(updates=updates)
     if (domain == DHL_COM_DOMAIN or domain.endswith(f".{DHL_COM_DOMAIN}")) and (
         updates := parse_dhl_express_mail(msg)
+    ):
+        return MailResult(updates=updates)
+    if (domain == DHL_ECOMMERCE_DOMAIN or domain.endswith(f".{DHL_ECOMMERCE_DOMAIN}")) and (
+        updates := parse_dhl_ecommerce_mail(msg, plain_names)
     ):
         return MailResult(updates=updates)
     if address == UPS_SENDER and (updates := parse_ups_mail(msg)):

@@ -22,7 +22,7 @@ Die kurze Antwort: DPD, GLS und Hermes funktionieren sofort. DHL und UPS brauche
 
 ## DHL
 
-Abgefragt wird über die offizielle API „Shipment Tracking – Unified“. Die Schnittstelle kennt alle DHL-Sendungen: DHL Paket in Deutschland, aber auch Express und eCommerce. Mit Key und hinterlegter PLZ liefert DHL zusätzliche Details, z. B. den Standort.
+Abgefragt wird über die offizielle API „Shipment Tracking – Unified“. Die Schnittstelle kennt alle DHL-Sendungen: DHL Paket in Deutschland, aber auch Express und eCommerce. Mit Key und hinterlegter PLZ liefert DHL zusätzliche Details, z. B. den Standort. Die Integration fragt DHL selbst ab. Meldungen, die DHL von sich aus schickt, müsste laut DHL jeder Nutzer selbst bei DHL beantragen. Deshalb bleibt es beim Abfragen.
 
 **Der Key ist optional – nicht darauf versteifen.** DHL prüft jeden Antrag selbst. Ohne passende Angaben wird er manchmal abgelehnt. Wer keinen Key bekommt, verliert wenig: siehe [Kein Key? Dann die DHL-Mails](#kein-key-dann-die-dhl-mails).
 
@@ -36,7 +36,7 @@ Abgefragt wird über die offizielle API „Shipment Tracking – Unified“. Die
 6. Du brauchst nur den **API Key**, das Secret nicht.
 7. Die Freischaltung dauert bis zu 24 Stunden.
 
-Den Key trägst du bei der Einrichtung ein oder später unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren**.
+Den Key trägst du bei der Einrichtung ein oder später unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren**. Willst du ihn wieder löschen, setz dort das Häkchen **DHL-API-Key entfernen** und speichere; ein leeres Key-Feld allein behält den Key. Das Häkchen gewinnt, auch wenn im Feld ein neuer Key steht.
 
 !!! tip "Wichtig beim Antrag"
     Gib als Zweck an, dass du deine eigenen Sendungen verfolgen möchtest – am besten wörtlich **„I want to track my own shipments“**. Laut einem Hinweis aus dem DHL-API-Team bekommt grundsätzlich jeder Zugriff, der seine eigenen Sendungen verfolgen will. Dafür ist die Tracking-API gedacht.
@@ -46,7 +46,8 @@ Den Key trägst du bei der Einrichtung ein oder später unter **Einstellungen �
 Laut DHL werden die Anträge von Hand geprüft, weil Bots die Schnittstelle missbrauchen.
 
 - Am zuverlässigsten klappt es bisher mit einer Adresse unter eigener Domain, die zum angegebenen Firmennamen passt.
-- Adressen bei gmx.de und web.de haben laut DHL bessere Chancen als Gmail, hotmail.com und outlook.com. Sie wurden bei Testern aber ebenfalls abgelehnt.
+- Freemail-Adressen wie Gmail, Outlook, GMX oder web.de sperrt DHL laut DHL nicht grundsätzlich. Weil sie aber oft missbraucht werden, prüft DHL sie strenger.
+- Wegwerf-Adressen (Adressen für den einmaligen Gebrauch) lehnt DHL ab. Nimm eine Adresse, die du dauerhaft nutzt.
 - Eine Garantie gibt es bei Freemail-Adressen nicht.
 
 Klappt es nicht: Der Key ist kein Muss, die DHL-Mails reichen.
@@ -66,7 +67,7 @@ Ohne DHL-Key läuft die Integration trotzdem: DPD, GLS und Hermes brauchen keine
 So kommen DHL-Pakete ohne Key von selbst in die Übersicht:
 
 1. Im (kostenlosen) DHL-Kundenkonto die E-Mail-Benachrichtigungen zu Sendungen einschalten.
-2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de`, `sendungsupdate@dhl.de` und `abholung@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen. Siehe [E-Mail-Import](mail-import.md#filterregel-anlegen).
+2. Die DHL-Absender `noreply@dhl.de`, `paketankuendigung@dhl.de`, `zustellung@dhl.de`, `sendungsupdate@dhl.de` und `abholung@dhl.de` (oder gleich die ganze Domain `dhl.de`) in die Filterregel zum Paket-Postfach aufnehmen. Kommen Sendungen aus den Niederlanden, kommt `noreply@dhlecommerce.nl` (DHL eCommerce) dazu. Siehe [E-Mail-Import](mail-import.md#filterregel-anlegen).
 3. Fertig: Die Integration legt die Pakete aus den Mails an und führt den Status mit – samt Liefertag, wenn die Mail ihn nennt. Mit Key kämen nur Ort und Verlauf dazu.
 
 Den Status liest der Import nur aus dem Betreff der DHL-Mail:
@@ -130,6 +131,9 @@ GLS-Pakete fragt die Integration über die offene Sendungsverfolgung von gls-gro
 Ohne Zugangsdaten kommen UPS-Pakete nur aus den UPS-Mails. Eine von Hand eingetragene `1Z…`-Nummer zeigt dann „Kein Live-Status“, aufgeklappt „Kein Live-Status: UPS-Zugangsdaten fehlen (unter „Konfigurieren“ eintragen).“, bis eine UPS-Mail zu ihr kommt.
 
 Mit einer eigenen UPS-App fragt die Integration zusätzlich die offizielle UPS Track API ab – auch für von Hand eingetragene `1Z…`-Nummern.
+
+!!! note "Nur mit UPS-Konto mit Abrechnung"
+    Eine App auf developer.ups.com braucht immer ein UPS-Konto mit Abrechnung (Versenderkonto). Ohne dieses Konto gibt es keine App. UPS-Pakete kommen dann über die [UPS-Mails](mail-import.md) oder über [17track](#17track-optional).
 
 1. Auf [developer.ups.com](https://developer.ups.com) ein Konto anlegen oder anmelden.
 2. Eine App anlegen und als Produkt **Tracking** wählen (nicht „Track Alert“).

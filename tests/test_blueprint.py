@@ -21,6 +21,9 @@ ROOT = Path(__file__).parent.parent
 RELATIVE = "parcel_tracker/paket_benachrichtigung.yaml"
 PATH = ROOT / "blueprints" / "automation" / RELATIVE
 NUMBER = "00340434161094042557"
+# No status to be told about: no parcel is "unknown" on purpose, and a cancelled order is
+# never announced (see test_order_cancelled).
+NOT_OFFERED = (ParcelStatus.UNKNOWN, ParcelStatus.CANCELLED)
 EVENT = {
     "number": NUMBER,
     "name": "Kopfhörer",
@@ -69,7 +72,7 @@ def test_blueprint_inputs():
     select = statuses["selector"]["select"]
     assert select["multiple"] is True
     assert [option["value"] for option in select["options"]] == [
-        s.value for s in ParcelStatus if s is not ParcelStatus.UNKNOWN
+        s.value for s in ParcelStatus if s not in NOT_OFFERED
     ]
     assert inputs["notify_service"]["default"] == "notify.notify"
     assert list(inputs["notify_service"]["selector"]) == ["text"]
@@ -135,7 +138,7 @@ async def test_defaults_send_a_plain_text_without_app_data(hass):
 
 async def test_every_status_has_a_default_text(hass):
     calls = async_mock_service(hass, "notify", "notify")
-    statuses = [s.value for s in ParcelStatus if s is not ParcelStatus.UNKNOWN]
+    statuses = [s.value for s in ParcelStatus if s not in NOT_OFFERED]
     await _automation(hass, statuses=statuses)
     for status in statuses:
         await _fire(hass, new_status=status, old_status="unknown")
@@ -261,3 +264,46 @@ async def test_a_parcel_marked_as_received_by_hand_is_not_announced(hass):
     assert len(calls) == 2
     conditions = [c.get("value_template") for c in _load()["conditions"]]
     assert "{{ not trigger.event.data.get('manual', false) }}" in conditions
+
+
+async def test_a_sent_parcel_only_tells_its_arrival(hass):
+    """v0.3.48: a parcel the user sent (``outgoing: true``) is only announced when it
+    arrives at the recipient, with its own text; every other status stays quiet."""
+    calls = async_mock_service(hass, "notify", "notify")
+    statuses = [s.value for s in ParcelStatus if s not in NOT_OFFERED]
+    await _automation(hass, statuses=statuses)
+    for status in ("pre_transit", "in_transit", "at_delivery_depot", "out_for_delivery",
+                   "exception"):
+        await _fire(hass, new_status=status, outgoing=True)
+    assert calls == []
+    await _fire(hass, new_status="delivered", old_status="in_transit", outgoing=True)
+    await _fire(hass, new_status="awaiting_pickup", old_status="in_transit", outgoing=True)
+    assert [call.data["message"] for call in calls] == [
+        "✅ Dein verschicktes Paket Kopfhörer (DHL) wurde zugestellt",
+        "✅ Dein verschicktes Paket Kopfhörer (DHL) liegt beim Empfänger zur Abholung bereit",
+    ]
+    # Picked up after it lay ready: the same arrival, told once.
+    await _fire(hass, new_status="delivered", old_status="awaiting_pickup", outgoing=True)
+    assert len(calls) == 2
+    # An event of an older version of the integration carries no such field.
+    await _fire(hass, new_status="in_transit")
+    assert calls[2].data["message"] == "Kopfhörer (DHL) ist unterwegs"
+
+
+async def test_a_sent_parcel_is_told_only_with_delivered_chosen(hass):
+    """Like the built-in push: the arrival of a sent parcel comes with "Zugestellt"."""
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass, statuses=["awaiting_pickup"])
+    await _fire(hass, new_status="awaiting_pickup", old_status="in_transit", outgoing=True)
+    assert calls == []
+    await _fire(hass, new_status="awaiting_pickup", old_status="in_transit")
+    assert len(calls) == 1
+
+
+async def test_a_sent_parcel_ready_for_pickup_is_told_with_delivered_alone(hass):
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass, statuses=["delivered"])
+    await _fire(hass, new_status="awaiting_pickup", old_status="in_transit", outgoing=True)
+    assert [call.data["message"] for call in calls] == [
+        "✅ Dein verschicktes Paket Kopfhörer (DHL) liegt beim Empfänger zur Abholung bereit",
+    ]

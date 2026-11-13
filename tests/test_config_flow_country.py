@@ -19,6 +19,8 @@ from custom_components.parcel_tracker.const import (
     entry_country,
 )
 
+from .conftest import open_options
+
 SETUP = "custom_components.parcel_tracker.async_setup_entry"
 
 
@@ -36,7 +38,7 @@ async def _user_form(hass):
 async def _options_form(hass, data=None, options=None):
     entry = MockConfigEntry(domain=DOMAIN, data=data or {}, options=options or {})
     entry.add_to_hass(hass)
-    return entry, await hass.config_entries.options.async_init(entry.entry_id)
+    return entry, await open_options(hass, entry)
 
 
 def test_the_three_countries():

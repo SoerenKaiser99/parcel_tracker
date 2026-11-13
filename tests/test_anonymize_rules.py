@@ -97,6 +97,52 @@ def test_address_blocks_with_other_labels_and_postcode_layouts(tmp_path):
     _absent(msg, "erika", "sonnenschein", "alten hafen", "anderswo", "67890")
 
 
+# ----- eBay: purchase confirmations and messages, each mail on its own -----
+
+EBAY = "eBay <ebay@ebay.com>"
+TILDA = ("tilda", "sonnberg", "ahornallee", "80000", "anderswo", "kugelfisch77")
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        # the current layout: the country above the name, a phone number above the postcode
+        "Ihre Bestellung wird verschickt an:\nDeutschland\nTilda Sonnberg\nAhornallee 5\n"
+        "0151 2345678\n80000 Anderswo\n",
+        "Ihre Bestellung wird verschickt nach:\nTilda Sonnberg\nAhornallee 5, 0151 2345678\n"
+        "Anderswo 80000\n",
+        "Versandziel:\nTilda Sonnberg\nAhornallee 5\n80000 Anderswo\n",
+    ],
+)
+def test_ebay_purchase_confirmation_keeps_no_name_address_or_user_name(tmp_path, block):
+    raw = _mail(
+        EBAY, "kugelfisch77, Ihre Bestellung wurde bestätigt.",
+        "Willkommen zurück, kugelfisch77! Danke, dass Sie wieder bei uns gekauft haben.\n"
+        f"{block}\nDiese Nachricht wurde von eBay an Tilda Sonnberg (kugelfisch77) gesendet.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, *TILDA)
+    assert msg["Subject"] == "beispielnutzer, Ihre Bestellung wurde bestätigt."
+    assert "Willkommen zurück, beispielnutzer! Danke" in text
+    assert "Max Mustermann\nMusterstraße 1\n12345 Musterstadt" in text
+    assert "von eBay an Max Mustermann (beispielnutzer) gesendet." in text
+
+
+def test_ebay_message_keeps_no_name_or_user_name_of_the_buyer(tmp_path):
+    raw = _mail(
+        "eBay - kugelfisch77 <member@ebay.com>",
+        "kugelfisch77 hat eine Nachricht gesendet zu Akku-Laubbläser #123456789012",
+        "Hallo, ich bräuchte noch eine Rechnung.\nVG T. Sonnberg\n- kugelfisch77\n\n"
+        "Diese Nachricht wurde von eBay gesendet an Tilda Sonnberg (kugelfisch77). Mehr.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, *TILDA)
+    assert "\n- beispielnutzer\n" in text
+    assert msg["Subject"].startswith("beispielnutzer hat eine Nachricht gesendet zu")
+
+
 # ----- 2: private senders -----
 
 def test_private_sender_names_in_sentences_and_label_lines(tmp_path):
@@ -323,6 +369,110 @@ def test_terminal_with_only_empty_answers_needs_the_flag_too(tmp_path):
     assert not (src / "anonymisiert").exists()
 
 
+# ----- more layouts of addresses, forms and recipients -----
+
+def test_name_behind_recipient_without_an_address(tmp_path):
+    raw = _mail(
+        "DPD <noreply@service.dpd.de>", "Ihr Paket kommt heute",
+        "Empfänger:\nTilda Sonnberg\nPaket live verfolgen\n"
+        "[01234567890123](https://my.dpd.de/x)Empfänger:Tilda Sonnberg   [Paket live verfolgen]\n"
+        "Empfänger: DPD Deutschland GmbH\nEmpfänger:\nDeutsche Post\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "tilda", "sonnberg")
+    assert "Empfänger:\nMax Mustermann\nPaket live verfolgen\n" in text
+    assert "Empfänger: DPD Deutschland GmbH\nEmpfänger:\nDeutsche Post\n" in text
+
+
+def test_fields_of_a_form(tmp_path):
+    raw = _mail(
+        SHOP, "Auftragsbestätigung",
+        "Name / Unternehmen: Tilda Sonnberg\nStraßenname: Ahornallee 5\nPLZ & Ort: 80000 Anderswo\n"
+        "Land: Deutschland\n\nVorname:\nTilda\nNachname:\nSonnberg\n\n"
+        "Straßenname:\nPostfach\nKundenname: Paketflitzer Service\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "tilda", "sonnberg", "ahornallee", "80000", "anderswo")
+    assert (
+        "Name / Unternehmen: Max Mustermann\nStraßenname: Musterstraße 1\n"
+        "PLZ & Ort: 12345 Musterstadt\nLand: Deutschland\n\nVorname:\nMax\nNachname:\nMustermann\n"
+    ) in text
+    assert "Straßenname:\nPostfach\nKundenname: Paketflitzer Service\n" in text
+
+
+def test_postcode_behind_a_pickup_place_in_bold(tmp_path):
+    raw = _mail(
+        "DHL <noreply@dhl.de>", "Ihr Paket liegt bereit",
+        "Abgabestelle\n**Packstation 123, ****80000 Anderswo**\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    _absent(msg, "80000", "anderswo")
+    assert ", ****12345 Musterstadt**\n" in _text(msg)
+
+
+def test_first_name_and_place_below_amazons_old_ship_to(tmp_path):
+    raw = _mail(
+        "Amazon.de <versandbestaetigung@amazon.de>", "Ihre Amazon.de-Bestellung wurde versandt",
+        "Die Sendung geht an:\n    Tilda\n    Anderswo\nGesamtbetrag der Bestellung: EUR 18,99\n"
+        "Hallo Tilda, Anderswo freut sich.\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "tilda", "anderswo")
+    assert "Die Sendung geht an:\n    Max\n    Musterstadt\nGesamtbetrag der Bestellung:" in text
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        "an folgende Adresse zu:\nTilda Sonnberg\nTilda Sonnberg\nAhornallee 5\n"
+        "DE-80000 Anderswo\n",
+        "Ich habe Ihr Paket erfolgreich zugestellt:\nTilda Sonnberg\nAhornallee 5\n"
+        "DE-80000 Anderswo\n",
+        "Das Paket wurde an folgender Adresse zugestellt (bei einer Wunschzustellung ggf. "
+        "abweichend):\n  Tilda Sonnberg, 0151 2345678\nAhornallee 5\n80000 Anderswo\n",
+        "Ship to\nAhornallee, 5\nAnderswo, Bayern\nTilda Sonnberg (+49)1512345678\n",
+        "Ship to\nAhornallee, 5, Anderswo, Bayern\nPayment method\n",
+        "Lieferanschrift\nAnderswo, Bavaria, Ahornallee 5\nDE\n",
+    ],
+)
+def test_more_address_blocks(tmp_path, block):
+    raw = _mail(SHOP, "Ihre Sendung", f"Ihr Paket kommt.\n{block}Viel Freude damit.\n")
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    _absent(msg, "tilda", "sonnberg", "ahornallee", "80000", "anderswo")
+    assert "Viel Freude damit.\n" in _text(msg)
+
+
+@pytest.mark.parametrize(
+    "place",
+    [
+        "Adresse\nPackstation 123\nLindenstr. 9, Supermarkt\n80000Anderswo\n",
+        "Pickup Paketshop:\nKiosk Beispiel\nBirkenweg 3\nDE-80000 Anderswo\n",
+    ],
+)
+def test_street_of_a_pickup_place_with_more_layouts(tmp_path, place):
+    raw = _mail("DHL <noreply@dhl.de>", "Ihr Paket liegt bereit", f"Abholen bei:\n{place}")
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    _absent(msg, "lindenstr", "birkenweg", "80000", "anderswo")
+
+
+def test_more_fields_of_a_form(tmp_path):
+    raw = _mail(
+        SHOP, "Auftragsbestätigung",
+        "Straße | Nr.: Ahornallee 5\nPlz: 80000\nOrt: Anderswo\nPLZ, Ort: 80000 Anderswo\n"
+        "Ort: 80000 Anderswo\nOrt: Haustür ist zu\n",
+    )
+    _, [(_, msg)] = _run(tmp_path, [raw])
+    text = _text(msg)
+    _absent(msg, "ahornallee", "80000", "anderswo")
+    assert (
+        "Straße | Nr.: Musterstraße 1\nPlz: 12345\nOrt: Musterstadt\nPLZ, Ort: 12345 Musterstadt\n"
+        "Ort: 12345 Musterstadt\nOrt: Haustür ist zu\n"
+    ) in text
+
+
 # ----- 5: forwarded and private mails -----
 
 def test_forwarded_mail_of_a_private_sender_with_an_own_domain(tmp_path):
@@ -364,6 +514,101 @@ def test_every_forward_and_reply_prefix_marks_the_sender_as_private(tmp_path, pr
     _, [(name, msg)] = _run(tmp_path, [raw])
     assert name == "001_privat.eml"
     assert str(msg["From"]) == "Max Mustermann <max@example.org>"
+
+
+# ----- officers of a company in its legal footer -----
+
+@pytest.mark.parametrize(
+    ("footer", "expected"),
+    [
+        ("Geschäftsführer: Tilda Sonnberg, Dr. Kuno Haselnuss (CEO). Amtsgericht Anderswo HRB 1",
+         "Geschäftsführer: Erika Beispiel, Dr. Erika Beispiel (CEO). Amtsgericht Anderswo HRB 1"),
+        ("Vertreten durch die Geschäftsführung der Paketflitzer GmbH Tilda Sonnberg, "
+         "Frank-Kuno Feldhase",
+         "Vertreten durch die Geschäftsführung der Paketflitzer GmbH Erika Beispiel, "
+         "Erika Beispiel"),
+        ("Vorsitzender des Aufsichtsrates: Kuno van Haselnuss Registergericht Anderswo HRB 1",
+         "Vorsitzender des Aufsichtsrates: Erika Beispiel Registergericht Anderswo HRB 1"),
+        ("Vorstand Dr. Kuno Haselnuss, Vorsitz Tilda Sonnberg Ole Feldhase",
+         "Vorstand Dr. Erika Beispiel, Vorsitz Erika Beispiel Erika Beispiel"),
+        ("Persönlich haftende Gesellschafter: - Paketflitzer Beteiligungs GmbH, Sitz: Anderswo",
+         "Persönlich haftende Gesellschafter: - Paketflitzer Beteiligungs GmbH, Sitz: Anderswo"),
+    ],
+)
+def test_officers_of_a_company_in_its_legal_footer(tmp_path, footer, expected):
+    raw = _mail(SHOP, "Ihr Paket", f"Ihr Paket kommt.\n\n{footer}\n")
+    _, [(_, first)] = _run(tmp_path, [raw])
+    assert f"{expected}\n" in _text(first)
+
+
+@pytest.mark.parametrize(
+    ("footer", "expected"),
+    [
+        ("Inhaber: Tilda Sonnberg | Hammerwerk Profi",
+         "Inhaber: Erika Beispiel | Hammerwerk Profi"),
+        ("Inhaber: Tilda Sonnberg · Hammerwerk Profi Fachhändler",
+         "Inhaber: Erika Beispiel · Hammerwerk Profi Fachhändler"),
+        ("Inhaber: Tilda Sonnberg – Hammerwerk Profi Fachhändler",
+         "Inhaber: Erika Beispiel – Hammerwerk Profi Fachhändler"),
+        ("Inhaber der Kundenkarte ist Tilda Sonnberg. Hammerwerk Profi Akku 18 V",
+         "Inhaber der Kundenkarte ist Erika Beispiel. Hammerwerk Profi Akku 18 V"),
+        ("Inhaber: Prof. Dr. Tilda A. Sonnberg, Paketflitzer GmbH & Co. KG Kuno Haselnuss",
+         "Inhaber: Prof. Dr. Erika Beispiel, Paketflitzer GmbH & Co. KG Erika Beispiel"),
+        # a separator between names goes on, a new list after it starts again
+        ("Geschäftsführung: Tilda Sonnberg | Dr. Kuno Haselnuss (CEO) | Frank-Kuno Feldhase"
+         " | Vorsitzender des Aufsichtsrates: Ole Feldhase | Hammerwerk Profi",
+         "Geschäftsführung: Erika Beispiel | Dr. Erika Beispiel (CEO) | Erika Beispiel"
+         " | Vorsitzender des Aufsichtsrates: Erika Beispiel | Hammerwerk Profi"),
+        ("Geschäftsführer: Tilda Sonnberg Datenschutzerklärung / Privacy Policy"
+         " ( https://paketflitzer.example )",
+         "Geschäftsführer: Erika Beispiel Datenschutzerklärung / Privacy Policy"
+         " ( https://paketflitzer.example )"),
+    ],
+)
+def test_officers_end_at_the_sentence_and_are_not_learnt(tmp_path, footer, expected):
+    raw = _mail(SHOP, "Ihr Paket", f"Ihr Paket kommt.\n\n{footer}\n")
+    other = _mail(SHOP, "Versendet", "1x Hammerwerk Profi Akku, Tilda Sonnberg\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
+    assert f"{expected}\n" in _text(first)
+    # replaced where it stands only: what follows "Inhaber" may be a brand
+    assert "1x Hammerwerk Profi Akku, Tilda Sonnberg\n" in _text(second)
+
+
+@pytest.mark.parametrize(
+    ("footer", "expected"),
+    [
+        ("Vertreten durch den Vorstand der Paketflitzer GmbH\n"
+         "Tilda Sonnberg, Dr. Kuno Haselnuss, Frank-Kuno Feldhase \n",
+         "Vertreten durch den Vorstand der Paketflitzer GmbH\n"
+         "Erika Beispiel, Dr. Erika Beispiel, Erika Beispiel \n"),
+        ("<p>Vertreten durch die Geschäftsführung der Paketflitzer GmbH</p>\n"
+         "<p>Tilda Sonnberg, Dr. Kuno Ole Haselnuss-Feldhase</p>\n<p>Paketflitzer GmbH</p>\n",
+         "<p>Vertreten durch die Geschäftsführung der Paketflitzer GmbH</p>\n"
+         "<p>Erika Beispiel, Dr. Erika Beispiel</p>\n<p>Paketflitzer GmbH</p>\n"),
+        ("Geschäftsführung:\nTilda Sonnberg\nDr. Kuno Haselnuss (CEO)\nAhornallee 5\n",
+         "Geschäftsführung:\nErika Beispiel\nDr. Erika Beispiel (CEO)\nAhornallee 5\n"),
+        # a sentence with the word in it is no heading
+        ("Der Inhaber der Kundenkarte kann sie sperren\nHammerwerk Profi\n",
+         "Der Inhaber der Kundenkarte kann sie sperren\nHammerwerk Profi\n"),
+        ("Inhaber der Paketflitzer GmbH\nHammerwerk Profi, Paketflitzer Werkzeug\n",
+         "Inhaber der Paketflitzer GmbH\nHammerwerk Profi, Paketflitzer Werkzeug\n"),
+    ],
+)
+def test_officers_in_the_lines_below_their_heading(tmp_path, footer, expected):
+    raw = _mail(SHOP, "Ihr Paket", f"Ihr Paket kommt.\n\n{footer}")
+    _, [(_, first)] = _run(tmp_path, [raw])
+    assert expected in _text(first)
+
+
+def test_officer_above_the_company_address_is_no_recipient(tmp_path):
+    raw = _mail(
+        SHOP, "Ihre Rechnung",
+        "Dein Paketflitzer-Team\nGeschäftsführer Tilda Sonnberg\nAhornallee 5\nD-80000 Anderswo\n",
+    )
+    other = _mail(SHOP, "Impressum", "Geschäftsführer und Vorstand grüßen.\n")
+    _, [(_, first), (_, second)] = _run(tmp_path, [raw, other])
+    assert "Geschäftsführer Erika Beispiel\n" in _text(first)
+    assert "Geschäftsführer und Vorstand grüßen.\n" in _text(second)
 
 
 # ----- 7 to 9: phone numbers, drop-off permissions, encoded sender addresses -----
@@ -456,7 +701,8 @@ def test_sender_named_in_a_carrier_sentence(tmp_path):
         "Im Auftrag von Ballermann möchten wir Sie mit dieser Benachrichtigung informieren.\n"
         "This message was sent to you at the request of Donnerwetter to notify you.\n"
         "Auf Antrag von Holzwurm Möbel GmbH , um Sie zu informieren.\n"
-        "Von: Kirschbaum\n\nKontrollnummer: 1Z999AA10123456784\n",
+        "Von: Kirschbaum\n\nKontrollnummer: 1Z999AA10123456784\n"
+        "Der Zustellversuch für deine Sendungvon Haselnuss findet am Donnerstag statt.\n",
     )
     _, [(name, msg)] = _run(tmp_path, [raw])
     text = _text(msg)
@@ -466,7 +712,8 @@ def test_sender_named_in_a_carrier_sentence(tmp_path):
     assert "at the request of Beispielversender to notify you.\n" in text
     assert "Auf Antrag von Holzwurm Möbel GmbH , um Sie zu informieren.\n" in text
     assert "Von: Beispielversender\n" in text
-    _absent(msg, "kirschbaum", "ballermann", "donnerwetter")
+    assert "deine Sendungvon Beispielversender findet am Donnerstag statt.\n" in text
+    _absent(msg, "kirschbaum", "ballermann", "donnerwetter", "haselnuss")
 
 
 # ----- --salt: each mail gives the same file in every run, alone or with others -----
