@@ -6,8 +6,11 @@ import sys
 from email import policy
 from email.message import EmailMessage
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
+
+from custom_components.parcel_tracker.mail import parse_mail
 
 SCRIPT = Path(__file__).parent.parent / "scripts" / "anonymize_mail.py"
 ARGS = ["54321", "Beispielhausen", "Jörg", "Probst", "privatpost"]
@@ -327,6 +330,54 @@ def test_unknown_option_is_an_error(tmp_path, option):
     assert f"unknown option {option.split('=')[0]}" in done.stderr
     assert "holzwurm" not in done.stderr  # an option's value may be private
     assert written == {}
+
+
+# ----- Amazon: the link to the tracking page -----
+TRACKER = "https://www.amazon.de/progress-tracker/package?orderId={}&shipmentId={}&vt=X"
+
+
+def _amazon_shipped(subject: str, shipment: str, redirect: bool = False) -> bytes:
+    order = "999-0000000-0000001"
+    link = TRACKER.format(order, shipment)
+    if redirect:
+        link = f"https://www.amazon.de/gp/r.html?C=X&U={quote(link, safe='')}&H=X"
+    return _mail(
+        '"Amazon.de" <versandbestaetigung@amazon.de>',
+        subject,
+        f"Jörg – Beispielhausen\nBestellnr.\n{order}\nLieferung verfolgen\n{link}\n"
+        "* Tastatur mit Beleuchtung\nWeitere Hilfe: https://www.amazon.de/gp/help?nodeId=1\n",
+    )
+
+
+@pytest.fixture(scope="module")
+def tracked(tmp_path_factory) -> list[EmailMessage]:
+    mails = [
+        _amazon_shipped("Versendet: „Tastatur...“", "TxYz9AbC1"),
+        _amazon_shipped("In Zustellung: „Tastatur...“", "TxYz9AbC1", redirect=True),
+        _amazon_shipped("Versendet: „Tastatur...“ ", "DqRs8TuV2"),
+    ]
+    _, written = _run(tmp_path_factory.mktemp("anon_amazon"), mails)
+    return list(written.values())
+
+
+def test_the_tracking_link_stays_with_an_invented_order_and_box(tracked):
+    updates = [parse_mail(msg).updates[0] for msg in tracked]
+    assert [u.number for u in updates] == [updates[0].number] * 3
+    assert updates[0].number.startswith("AMZ999")
+    first, again, other = (u.shipment_id for u in updates)
+    # (the same box keeps one invented id, also behind the redirect; the letter in front stays)
+    assert first == again != other
+    assert first[0] == "T" and other[0] == "D"
+    assert len(first) == len("TxYz9AbC1")
+
+
+def test_no_real_order_or_box_survives_and_other_links_are_cut(tracked):
+    for msg in tracked:
+        text = msg.get_body(("plain",)).get_content()
+        for value in ("0000000-0000001", "TxYz9AbC1", "DqRs8TuV2", "Jörg", "Beispielhausen"):
+            assert value not in text, value
+        assert "https://www.amazon.de/…" in text
+        assert "progress-tracker" in text
 
 
 def test_missing_arguments_are_an_error(tmp_path):

@@ -37,6 +37,8 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 !!! danger "Nie das Hauptpostfach eintragen"
     Das IMAP-Passwort gibt Vollzugriff auf das Postfach. Trag nur ein eigenes Paket-Postfach ein, das ausschließlich Paketmails bekommt. Siehe [E-Mail-Import](mail-import.md).
 
+Wie lange erkannte Paketmails im Postfach liegen, legst du selbst fest: Mit **Erkannte Mails löschen nach (Tagen)** löscht der Import sie nach der eingestellten Zeit endgültig, nur im Ordner `Paket-Tracker-Verarbeitet`. Standard ist aus. Siehe [Erkannte Mails löschen](mail-import.md#erkannte-mails-loschen).
+
 ## Was aus Mails übernommen wird – und was nie
 
 **Übernommen wird nur:**
@@ -46,6 +48,7 @@ Der DHL-Key, das IMAP-Passwort, die UPS-Zugangsdaten und der 17track-Key liegen 
 - der Name eines Shops oder einer Firma – nur bis zur Rechtsform, nie der einer Privatperson und nie der Anzeigename eines Paketdienstes. Das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD. Statt eines Händlernamens bei Amazon oder eBay steht nur „Amazon“ bzw. „eBay“. Einzige Ausnahme ist die Option [Absendernamen aus DHL-Mails übernehmen](#absendernamen-aus-dhl-mails-ubernehmen), die du selbst einschalten musst,
 - Status, Liefertag und Zeitfenster,
 - bei einem abholbereiten Paket aus der Amazon-Mail „Paket zur Abholung bereit“: Name und Straße der Abholstelle (ohne Postleitzahl, Ort und interne Nummer des Shops) und der letzte Abholtag,
+- bei einer DHL-Sendung aus dem Ausland der Betrag der Einfuhrabgaben (Zoll), seine Währung und ob bar gezahlt werden soll – nicht der Satz aus der Mail. Der Betrag steht bis zur Zustellung in den Attributen, auf der Karte und in der Benachrichtigung „In Zustellung“. Danach wird er gelöscht. Der Verlauf von Home Assistant zeichnet ihn nicht auf,
 - bei einem abholbereiten Paket aus der Abholmail von DHL: Filiale bzw. Packstation und Straße (ohne Postleitzahl und Ort),
 - der Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: der Zustell-Code.
@@ -145,6 +148,93 @@ Bei Namen, die vor v0.3.24 vergeben wurden, weiß die Integration nicht, wer sie
     - Wer die Dateien von Home Assistant lesen kann, sieht dort auch die gespeicherten Namen.
     - Der Schalter ist für den Blick aufs Dashboard gedacht.
 
+## Geschenkmodus
+
+Für Familien in der Weihnachtszeit: Während der Geschenkmodus läuft, zeigt das Dashboard nicht, was in einem neuen Paket steckt. Anders als „Namen ausblenden“ (alle Pakete, immer) gilt der Modus nur für Pakete, die man als Geschenk kennzeichnet, und nur bestimmte Personen sehen, was drin ist. Die Karte und ihre Bedienung stehen unter [Die Karte](karte.md#geschenkmodus).
+
+### Wer was darf
+
+Wer Geschenke sehen darf, legst du unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** im Bereich **Geschenkmodus (optional)** fest: Das sind Personen von Home Assistant (`person`-Entitäten), die ein Benutzerkonto haben.
+
+| Aktion | Wer darf das |
+|---|---|
+| Geschenkmodus einschalten, Pakete als Geschenk kennzeichnen | jeder |
+| Geschenkmodus ausschalten | nur wer Geschenke sehen darf – und ein Aufruf ohne Benutzer (Automation) |
+| Den echten Namen auf der Karte ansehen, ein Geschenk wieder sichtbar machen, umbenennen oder löschen | nur wer Geschenke sehen darf – und Aufrufe ohne Benutzer |
+| Ein Geschenk mit `gift_for` ansehen oder ändern (auch `gift_for` selbst) | nur wer Geschenke sehen darf und nicht in `gift_for` steht – und Aufrufe ohne Benutzer |
+
+!!! warning "Wähle zuerst, wer Geschenke sehen darf"
+    Ist niemand gewählt, kann den Modus über die Oberfläche **niemand** mehr ausschalten – nur eine Automation, siehe [Geschenkmodus per Automation schalten](automationen.md#geschenkmodus-per-automation-schalten). Lege die Personen deshalb fest, bevor du den Modus einschaltest.
+
+!!! warning "Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer"
+    Home Assistant erkennt, wer die Karte öffnet, nur am angemeldeten Benutzer. Ein Wandtablet oder das Handy eines Kindes, das mit dem Konto der Eltern angemeldet ist, gilt als dieser Elternteil. Gib solchen Geräten einen **eigenen Benutzer** in Home Assistant, der nicht zu den Personen gehört, die Geschenke sehen dürfen.
+
+### Was ein Geschenk verbirgt
+
+Ein Geschenk heißt überall `Geschenk · DHL-Paket …2557` (der neutrale Name wie bei „Namen ausblenden“, mit dem Vorsatz „Geschenk · “). Das gilt für Karte, Sensoren, Kalender, Event und Benachrichtigungen. Das Kennzeichen gewinnt gegen „Namen ausblenden“ und gegen einen von Hand eingetippten Namen.
+
+- **Verborgen:** der Name (auch ein von Hand vergebener), der Mail-Titel, die Links zur Sendungsverfolgung und zur Bestellung und Amazons Kennung der Sendung (`amazon_shipment`).
+- **Sichtbar:** Status, Liefertag, Zeitfenster, Ort, Abholort, der Verlauf des Paketdienstes und die Einfuhrabgaben (Zoll). Im Verlauf steht kein Artikel. Der Betrag bleibt sichtbar, weil jeder, der an die Tür geht, ihn bar zahlen können muss. Er verrät aber ungefähr, was das Paket wert ist.
+- **Benachrichtigungen** gehen an alle eingerichteten Ziele, mit dem Namen des Geschenks. Ausnahme: die Ziele der Personen in [`gift_for`](#geschenk-fur-bestimmte-personen-gift_for).
+- **Die Zeile selbst** bleibt auf der Karte stehen, mit Status und Liefertag, und zählt in den Schildern mit. Soll die Karte Geschenke für alle anderen ganz weglassen, nimm die Kartenoption [`gifts`](karte.md#gifts-geschenke-ausblenden).
+
+Einmal Geschenk, immer Geschenk: Das Kennzeichen bleibt, auch wenn der Modus ausgeschaltet wird und das Paket zugestellt ist. Es geht nur von Hand weg, über „Nicht mehr verbergen“ auf der Karte oder den Dienst [`parcel_tracker.set_gift`](sensoren.md#parcel_trackerset_gift), und das darf nur, wer Geschenke sehen darf.
+
+Der echte Name kommt nur über eine Abfrage, die den angemeldeten Benutzer prüft, auf die Karte dieses einen Geräts. Er wird nicht gespeichert und nicht an andere Geräte geschickt.
+
+### Geschenk für bestimmte Personen (`gift_for`)
+
+Beschenkt ihr euch gegenseitig, hilft die Liste der Geschenk-Seher allein nicht: Wer sie ist, sieht alle Geschenke, auch die eigenen. Mit `gift_for` beim Dienst [`parcel_tracker.set_gift`](sensoren.md#parcel_trackerset_gift) nennst du die Personen, für die ein Geschenk ist. Ohne `gift_for` bleibt alles wie bisher.
+
+Beispiel: A und B dürfen beide Geschenke sehen, das Wandtablet hat einen eigenen Benutzer ohne dieses Recht. A bestellt etwas für B und setzt:
+
+```yaml
+action: parcel_tracker.set_gift
+data:
+  number: "00340999999999999901"
+  gift: true
+  gift_for:
+    - person.b
+```
+
+- **A** sieht das Geschenk wie bisher: echter Name, Links, Umbenennen, Löschen, Besitzer.
+- **B** sieht es wie jemand, der Geschenke nicht sehen darf: nur „Geschenk · …“, kein echter Name, keine Änderung. Mit der Kartenoption [`gifts: hide_for_others`](karte.md#gifts-geschenke-ausblenden) fehlt die Zeile ganz und zählt nicht in den Schildern.
+- **Meldungen** zum Paket gehen nicht an die Ziele, die bei B unter [Personen](mail-import.md#pakete-personen-zuordnen) eingetragen sind. Gehört das Paket B und hat B eigene Ziele, geht keine Meldung raus.
+- **Das Tablet** sieht es wie jedes Geschenk.
+
+Für wen ein Geschenk ist, steht in keinem Attribut, keinem Event, nicht in der Diagnose und nicht im Log der Integration. Sonst fände B es in den Entwicklerwerkzeugen. Die Karte fragt es pro Benutzer bei der Integration ab, neu bei jeder Änderung eines Geschenks und für Geschenk-Seher etwa jede Minute.
+
+Grenzen:
+
+- Allgemeine Benachrichtigungs-Ziele, die bei keiner Person eingetragen sind, kann die Integration B nicht zuordnen. Sie bekommen die Meldung weiter. Trag Bs Handy deshalb bei B unter Personen ein.
+- B sieht nicht, was das Geschenk ist. Dass es ein Geschenk gibt, steht für jeden im Attribut `gift`. Als Geschenk-Seher merkt B aber, dass ein Geschenk für ihn ist: Die Karte zeigt es ihm anders als sonst.
+- Admins können den Speicher der Integration lesen. Home Assistant selbst zeichnet den Aufruf von `set_gift` samt `gift_for` auf (Datenbank, Traces der Automation, Debug-Log). Auch das lesen nur Admins.
+- Ändert jemand nur `gift_for` an einem Geschenk, das B gerade offen auf der Karte hat, wirkt das dort innerhalb von etwa einer Minute oder sobald B den Tab wieder öffnet. Den echten Namen bekommt B auch vorher nicht.
+- Trägst du dich selbst oder alle Geschenk-Seher in `gift_for` ein, kann das Geschenk auf der Karte niemand mehr ändern. Rückgängig macht es dann nur eine Automation oder ein Geschenk-Seher, der nicht in der Liste steht.
+
+### Der Schalter
+
+Der Schalter `switch.paket_tracker_geschenkmodus` ist eine Konfigurations-Entität. Home Assistant gibt solche Entitäten Sprachassistenten nicht von selbst frei, und das soll so bleiben.
+
+!!! danger "Den Schalter nicht für Assist, Alexa oder Google freigeben"
+    Diese Assistenten rufen Schalter ohne Benutzer oder als Besitzer des Kontos auf. Beides darf den Modus ausschalten. Ein Kind könnte ihn per Sprache ausschalten. Gib den Schalter nicht von Hand frei.
+
+### Grenzen
+
+!!! warning "Es geht um das Offensichtliche auf dem Dashboard, nicht um Admins"
+    - Was der Verlauf von Home Assistant (Logbuch, Historie) schon aufgezeichnet hat, bleibt dort. Kennzeichnest du ein Paket erst später als Geschenk, löscht das die alten Einträge nicht. Von dieser Version an zeichnet der Recorder die Attribute `name`, `tracking_url` und `amazon_shipment` und die Listen der Zusammenfassungs- und Zählsensoren nicht mehr auf. Der Anzeigename der Entität (`sensor.paket_<nummer>`) und der Eintrag in `calendar.pakete` bleiben aber im Verlauf: Ein Paket, das du erst später als Geschenk kennzeichnest, behält dort seinen früheren Namen. Schalte den Modus am besten ein, bevor du bestellst. Ältere Einträge bleiben, bis sie ablaufen oder du sie löschst.
+    - Der echte Name bleibt im Speicher der Integration. Wer die Dateien von Home Assistant lesen kann (Admins), findet ihn dort.
+    - Wer das Paket-Postfach lesen kann, liest alles.
+
+## Personen
+
+Die Personen-Zuordnung ist optional. Sie legt fest, wem ein Paket gehört, nicht wer es sehen darf.
+
+- Der Besitzer steht für **jeden Benutzer** von Home Assistant im Attribut `owner` des Paket-Sensors und im Feld `owner` des Ereignisses `parcel_tracker_status_changed`. `owner_detected` ist `true`, wenn eine Person aus einer Mail erkannt oder von Hand gesetzt wurde, und `false`, wenn der Besitzer aus der Standard-Person kommt oder von Hand „allen“ gesetzt wurde.
+- Der Filter `person` der Karte ist nur eine Anzeige. Die Sensoren aller Pakete bleiben für jeden Benutzer lesbar.
+- Ein Wandtablet oder das Handy eines Kindes braucht einen **eigenen Benutzer** in Home Assistant, wie beim [Geschenkmodus](#geschenkmodus). Sonst gilt es als der Benutzer, mit dem es angemeldet ist.
+- Die Mailadressen, die du einer Person einträgst, stehen in den Optionen der Integration. Die Adressen aus den Mails werden nur verglichen, nie gespeichert oder ins Log geschrieben. Der Diagnose-Download nennt nur, wie viele Personen und Adressen eingerichtet sind.
+
 ## Zustell-Codes
 
 Manche Amazon-Lieferungen gibt der Fahrer nur gegen einen Code heraus (Einmalpasswort). Die Option **Zustell-Codes (Einmalpasswörter) mitlesen** im Bereich E-Mail-Import ist von Haus aus **aus**.
@@ -153,12 +243,12 @@ Mit eingeschalteter Option:
 
 - Der Import liest den Code aus der Mail.
 - Die Karte zeigt ihn verdeckt: erst „Code anzeigen“, dann die Rückfrage „Zustell-Code anzeigen?“. Beim Zuklappen verschwindet er wieder.
-- Der Code steht im Attribut `delivery_code`.
+- Der Code steht in keinem Attribut. Der Sensor zeigt nur `has_delivery_code` (`true` oder `false`). Die Karte holt den Code erst, wenn du „Code anzeigen“ tippst und das bestätigst.
 - Er wird nie gespeichert, landet nie im Verlauf (Recorder) und verfällt nach dem Liefertag.
 - Er steht nie in einer Benachrichtigung.
 
-!!! warning "Verdeckt ist er nur auf der Karte"
-    Wer Zugriff auf die Entitäts-Attribute oder die API von Home Assistant hat (Entwicklerwerkzeuge, Automationen, andere Dashboards, Apps), kann den Code im Klartext lesen.
+!!! warning "Jeder angemeldete Benutzer kann ihn abrufen"
+    Der Code steht nicht mehr in den Entitäts-Attributen. Die Karte fragt ihn aber über die Schnittstelle von Home Assistant ab (WebSocket-Befehl `parcel_tracker/delivery_code`). Das kann jeder angemeldete Benutzer, auch ohne die Karte. Der Code gilt auch bei einem Geschenk. Wer den Code nicht teilen will, lässt die Option aus.
 
 Abholcodes aus DHL-Mails liest der Import nie.
 

@@ -6,6 +6,7 @@ import asyncio
 import email
 import logging
 from collections import deque
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from email import policy
@@ -14,6 +15,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.start import async_at_started
@@ -49,6 +51,9 @@ from .const import (
     CARRIER_AUTO,
     CARRIER_BROKEN_AFTER,
     CARRIER_OTHER,
+    CONF_DEFAULT_OWNER,
+    CONF_DELETE_PROCESSED_DAYS,
+    CONF_GIFT_VIEWERS,
     CONF_HIDE_NAMES,
     CONF_KEEP_DELIVERED_DAYS,
     CONF_MAIL_INTERVAL,
@@ -58,16 +63,20 @@ from .const import (
     CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
+    DEFAULT_DELETE_PROCESSED_DAYS,
+    DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
     DEFAULT_NOTIFY_EVENTS,
+    DEFAULT_OWNER,
     DEFAULT_PLAIN_NAMES,
     DEFAULT_READ_OTP,
     DHL_DAILY_SOFT_LIMIT,
     DHL_FALLBACK_TRIES,
     DOMAIN,
+    EVENT_PARCEL_ADDED,
     EVENT_STATUS_CHANGED,
     FOLDER_PROCESSED,
     FOLDER_UNRECOGNIZED,
@@ -79,6 +88,8 @@ from .const import (
     MAIL_INTERVAL,
     MAIL_MAX_AGE,
     MAIL_MAX_BACKOFF,
+    MAX_DELETE_PROCESSED_DAYS,
+    MIN_DELETE_PROCESSED_DAYS,
     NOTIFY_APP_SERVICE_PREFIX,
     NOTIFY_SERVICE_PREFIX,
     OPTIONAL_API_CARRIERS,
@@ -105,19 +116,26 @@ from .mail.base import MailResult, is_forwarded, sender, sent_at
 from .mail.imap import (
     ImapAuthError,
     ImapCertificateError,
+    ImapExpungeRefused,
     ImapFolderNotFound,
     ImapLoginDisabled,
     ImapUnavailable,
     MailboxClient,
+    unavailable_kind,
 )
+from .mail.owner import owner_from_message
 from .models import (
+    CLOSED_STATUSES,
     NO_ETA_STATUSES,
     PROGRESS_STEP,
     Parcel,
     ParcelStatus,
+    PersonConfig,
     TrackingResult,
     carrier_name,
     display_name,
+    person_configs,
+    shared_addresses,
 )
 from .notification import build_notification, notification_tag, service_name
 from .schedule import GLS_MIN_INTERVAL, backoff, order_overdue, poll_interval, should_remove
@@ -145,10 +163,17 @@ class _ParsedMail:
     # For the diagnostics: a known shop/carrier domain or "other", never the address.
     domain: str = OTHER_DOMAIN
     forwarded: bool = False
+    # The person the mail's headers name (see ``mail.owner``); None: unclear or no persons.
+    owner: str | None = None
 
 
 def _parse_one(
-    raw: bytes, read_otp: bool, now: datetime, plain_names: bool = False
+    raw: bytes,
+    read_otp: bool,
+    now: datetime,
+    plain_names: bool = False,
+    persons: Sequence[PersonConfig] = (),
+    shared: Collection[str] = (),
 ) -> _ParsedMail:
     item = _ParsedMail()
     try:
@@ -162,6 +187,10 @@ def _parse_one(
         except Exception:  # noqa: BLE001 - odd headers: the parser below reports them
             pass
         try:
+            item.owner = owner_from_message(msg, persons, shared)
+        except Exception:  # noqa: BLE001 - headers that name nobody readable: unclear
+            item.owner = None
+        try:
             item.stale = now - sent_at(msg) > MAIL_MAX_AGE
         except (TypeError, ValueError):
             item.stale = False  # no usable Date: let the parser decide
@@ -173,10 +202,15 @@ def _parse_one(
 
 
 def _parse_mails(
-    raws: list[bytes], read_otp: bool, now: datetime, plain_names: bool = False
+    raws: list[bytes],
+    read_otp: bool,
+    now: datetime,
+    plain_names: bool = False,
+    persons: Sequence[PersonConfig] = (),
+    shared: Collection[str] = (),
 ) -> list[_ParsedMail]:
     """Parse mails (blocking, runs in the executor)."""
-    return [_parse_one(raw, read_otp, now, plain_names) for raw in raws]
+    return [_parse_one(raw, read_otp, now, plain_names, persons, shared) for raw in raws]
 
 
 class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
@@ -221,9 +255,20 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         self._mail_last: datetime | None = None  # start of the last import run
         # "auth" | "folder" | "certificate" | "login_disabled" | "unavailable" | "error"
         self._mail_error: str | None = None
-        # Kinds of trouble ("certificate", "login_disabled") that were logged in this
+        # The kind behind "unavailable" or "error" (an exception type or a fixed code from
+        # mail/imap.py, as in the warning): never a server's message, host or user.
+        self._mail_error_kind: str | None = None
+        # Kinds of trouble ("certificate", "login_disabled", "unavailable") that were logged in this
         # outage: each once, until an import works again.
         self._mail_told: set[str] = set()
+        # Failed calls in a row with "mailbox not reachable" (any success or other kind
+        # of trouble starts the count again).
+        self._unavailable_streak = 0
+        # Deleting old recognised mails: the local day it last ran (once a day), the number
+        # deleted then (None: not yet, or it failed) and whether its failure was logged.
+        self._purge_day: date | None = None
+        self._purge_last: int | None = None
+        self._purge_warned = False
         self._mail_recognized = 0
         self._mail_unrecognized = 0
         # Sender domain (known shop/carrier or "other") and forwarded flag of the last
@@ -249,7 +294,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # ``_announce``): several orders of one box fire an event each, the notification
         # goes out once. Memory only: after a restart the first order that tells a
         # status pushes it.
-        self._box_told: dict[tuple[str | None, str], ParcelStatus] = {}
+        # (carrier, number of the box, owner told) -> the status pushed for it.
+        self._box_told: dict[tuple[str | None, str, tuple[str, ...]], ParcelStatus] = {}
 
     # ----- settings -----
     @property
@@ -260,6 +306,154 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def hide_names(self) -> bool:
         """The option "Namen ausblenden": parcels are shown by their carrier only."""
         return self.entry.options.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True
+
+    @property
+    def gift_mode(self) -> bool:
+        """The Geschenkmodus is on: every parcel that is added now is a gift."""
+        return self.store.gift_mode
+
+    async def async_set_gift_mode(self, on: bool, user_id: str | None) -> None:
+        """Turn the Geschenkmodus on or off.
+
+        On is open to everybody. Off needs a gift viewer; a call without a user (an
+        automation, the system) may do it as well.
+        """
+        if not on and user_id is not None and not self.is_gift_viewer(user_id):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="gift_mode_not_allowed"
+            )
+        if self.store.gift_mode != on:
+            self.store.gift_mode = on
+            await self.store.async_save()
+        self.async_update_listeners()
+
+    async def async_set_gift(
+        self,
+        number: str | None,
+        open_parcels: bool,
+        gift: bool,
+        user_id: str | None,
+        gift_for: list[str] | None = None,
+    ) -> None:
+        """Mark a parcel (or every parcel not delivered yet) as a gift, or take it back.
+
+        Marking is open to everybody; un-marking needs a gift viewer (a call without a
+        user may do it). ``gift_for``: the persons the gift is for (None: left as it is,
+        empty: nobody any more); it needs a gift viewer as well. Taking a gift back
+        empties it. A gift viewer the gift is for may change neither (refused for the
+        number asked for, skipped without a word with ``open_parcels``). KeyError for a
+        number that is not tracked, ValueError when neither or both of number and
+        open_parcels are given.
+        """
+        if (number is None) == (not open_parcels):
+            raise ValueError("number_or_open")
+        persons = list(dict.fromkeys(gift_for)) if gift_for is not None else None
+        if persons and not gift:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="gift_for_no_gift"
+            )
+        if persons:
+            self._check_gift_for(persons)
+        if (
+            (not gift or persons is not None)
+            and user_id is not None
+            and not self.is_gift_viewer(user_id)
+        ):
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="gift_not_allowed"
+            )
+        # Who it is for is changed (also by taking the gift back): not by a person it is for.
+        guarded = not gift or persons is not None
+        async with self._lock:
+            if number is not None:
+                parcel = self.store.parcels[normalize(number)]
+                if gift and parcel.outgoing:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN, translation_key="gift_outgoing"
+                    )
+                if guarded and self.is_gift_recipient(parcel, user_id):
+                    raise HomeAssistantError(
+                        translation_domain=DOMAIN, translation_key="gift_not_allowed"
+                    )
+                targets = [parcel]
+            else:
+                targets = [
+                    p
+                    for p in self.store.parcels.values()
+                    if p.status not in CLOSED_STATUSES
+                    and not p.outgoing  # a sent parcel is never a gift
+                    and not (guarded and self.is_gift_recipient(p, user_id))
+                ]
+            changed = False
+            for parcel in targets:
+                wanted = [] if not gift else (persons if persons is not None else parcel.gift_for)
+                if parcel.gift != gift or parcel.gift_for != wanted:
+                    parcel.gift = gift
+                    parcel.gift_for = list(wanted)
+                    changed = True
+            if changed:
+                await self.store.async_save()
+                self.async_set_updated_data(dict(self.store.parcels))
+
+    def _check_gift_for(self, persons: list[str]) -> None:
+        """Every person a gift is for must be a person entity that exists."""
+        if any(
+            not person.startswith("person.") or self.hass.states.get(person) is None
+            for person in persons
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="gift_for_unknown"
+            )
+
+    def _user_persons(self, user_id: str | None) -> set[str]:
+        """The person entities whose state names this user (``user_id``)."""
+        if user_id is None:
+            return set()
+        return {
+            state.entity_id
+            for state in self.hass.states.async_all("person")
+            if state.attributes.get("user_id") == user_id
+        }
+
+    def is_gift_recipient(self, parcel: Parcel, user_id: str | None) -> bool:
+        """The parcel is a gift for this user's person (``Parcel.gift_for``); never for a
+        call without a user."""
+        if not parcel.gift or not parcel.gift_for or user_id is None:
+            return False
+        return not self._user_persons(user_id).isdisjoint(parcel.gift_for)
+
+    def hidden_gifts(self, user_id: str | None) -> list[str]:
+        """The numbers of the gifts for this user's person, for a gift viewer only (to
+        anybody else no gift is shown anyway, and the list would tell whom it is for)."""
+        if not self.is_gift_viewer(user_id):
+            return []
+        mine = self._user_persons(user_id)
+        return sorted(
+            p.number
+            for p in self.store.parcels.values()
+            if p.gift and not mine.isdisjoint(p.gift_for)
+        )
+
+    def gift_viewer_user_ids(self) -> set[str]:
+        """User IDs of the persons chosen as gift viewers (Geschenkmodus).
+
+        Read from the ``user_id`` of each person's state; a person that was removed,
+        has no state or no user is skipped.
+        """
+        chosen = self.entry.options.get(CONF_GIFT_VIEWERS, DEFAULT_GIFT_VIEWERS)
+        if not isinstance(chosen, (list, tuple)):
+            return set()
+        ids: set[str] = set()
+        for entity_id in chosen:
+            state = self.hass.states.get(entity_id) if isinstance(entity_id, str) else None
+            user_id = state.attributes.get("user_id") if state else None
+            if isinstance(user_id, str) and user_id:
+                ids.add(user_id)
+        return ids
+
+    def is_gift_viewer(self, user_id: str | None) -> bool:
+        """Whether this user may see gifts (never for a call without a user)."""
+        return user_id is not None and user_id in self.gift_viewer_user_ids()
 
     def display_name(self, parcel: Parcel) -> str | None:
         """The name a parcel is shown by (sensors, calendar, event, notification)."""
@@ -277,6 +471,25 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         return self.entry.options.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED)
 
     @property
+    def _delete_processed_days(self) -> int:
+        """Days after which recognised mails are deleted; 0 (off) for anything odd."""
+        value = self.entry.options.get(CONF_DELETE_PROCESSED_DAYS, DEFAULT_DELETE_PROCESSED_DAYS)
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and MIN_DELETE_PROCESSED_DAYS <= value <= MAX_DELETE_PROCESSED_DAYS
+        ):
+            return value
+        return DEFAULT_DELETE_PROCESSED_DAYS
+
+    @property
+    def _purge_enabled(self) -> bool:
+        """Deleting only ever happens in the folder mails are moved into."""
+        return self._move_processed and self._delete_processed_days > 0
+
+    @property
     def _mail_interval(self) -> timedelta:
         minutes = self.entry.options.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL)
         return timedelta(minutes=minutes)
@@ -284,6 +497,16 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     @property
     def _read_otp(self) -> bool:
         return self.entry.options.get(CONF_READ_OTP, DEFAULT_READ_OTP)
+
+    def delivery_code(self, parcel: Parcel, today: date) -> str | None:
+        """The parcel's valid delivery code, only while "Zustell-Codes mitlesen" is on.
+
+        Never put into an attribute: the card asks for it (WebSocket delivery_code).
+        Never for a parcel the user sent: a code there is the recipient's.
+        """
+        if parcel.outgoing:
+            return None
+        return parcel.active_code(today) if self._read_otp else None
 
     @property
     def _plain_names(self) -> bool:
@@ -293,6 +516,64 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def _notify_targets(self) -> list[str]:
         """Notify entities and classic services to push to; none = notifications off."""
         return list(self.entry.options.get(CONF_NOTIFY_TARGETS) or ())
+
+    def persons(self) -> list[PersonConfig]:
+        """The persons set up in the options (each person once); none = no persons."""
+        return person_configs(self.entry.options)
+
+    @property
+    def default_owner(self) -> str | None:
+        """The person unclear parcels belong to; None for everybody ("all").
+
+        A stored person that is no longer set up counts as everybody.
+        """
+        chosen = self.entry.options.get(CONF_DEFAULT_OWNER, DEFAULT_OWNER)
+        if chosen == DEFAULT_OWNER or not isinstance(chosen, str):
+            return None
+        return chosen if any(p.person == chosen for p in self.persons()) else None
+
+    def effective_default_owner(self) -> str | None:
+        """The person unclear parcels go to right now: ``default_owner`` while that
+        person exists in Home Assistant, otherwise None (everybody). Read it each time it
+        is needed, not at startup (person entities may load later); never stored with a
+        parcel (see ``effective_owner``)."""
+        owner = self.default_owner
+        return owner if owner is not None and self.hass.states.get(owner) is not None else None
+
+    def shared_addresses(self) -> tuple[str, ...]:
+        """The addresses several persons share: mails to them belong to everybody."""
+        return shared_addresses(self.entry.options)
+
+    def effective_owner(self, parcel: Parcel) -> str | None:
+        """Whom the parcel belongs to now: its stored owner (detected from a mail or set
+        by hand), else the default person while she exists; None: everybody. A parcel
+        set to everybody by hand (``owner_manual`` without an owner) stays everybody's.
+
+        The default person is never stored with a parcel, so changing it applies to the
+        open parcels at once, and a later mail that names a person still claims one.
+
+        A stored owner that is no person set up here (any more: removed or renamed in the
+        options) counts as unassigned, also one set by hand: the default person applies.
+        Nothing stored changes, so setting the person up again gives the parcels back."""
+        if self.has_own_owner(parcel):
+            return parcel.owner
+        if parcel.owner is None and parcel.owner_manual:
+            return None
+        return self.effective_default_owner()
+
+    def has_own_owner(self, parcel: Parcel) -> bool:
+        """The parcel has a person of its own (from a mail or set by hand) that is set up
+        here; not the default person, not "everybody"."""
+        return parcel.owner is not None and any(p.person == parcel.owner for p in self.persons())
+
+    def owner_targets(self, owner: str | None) -> list[str]:
+        """Where a notification about a parcel of this owner goes: the owner's own
+        targets if she has any, otherwise the general ones (as before persons)."""
+        if owner is not None:
+            for person in self.persons():
+                if person.person == owner and person.notify_targets:
+                    return list(person.notify_targets)
+        return self._notify_targets
 
     @property
     def _notify_events(self) -> frozenset[str]:
@@ -425,12 +706,19 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             parcels = self.store.parcels.values()
             boxes = {(p.tracking_carrier, p.tracking_ref) for p in parcels}
             boxes |= {(p.carrier, p.number) for p in parcels}
-            self._box_told = {box: s for box, s in self._box_told.items() if box in boxes}
+            self._box_told = {
+                box: s for box, s in self._box_told.items() if box[:2] in boxes
+            }
         today = dt_util.as_local(now).date()
+        cleared = False
         for parcel in self.store.parcels.values():
             if parcel.delivery_code and parcel.active_code(today) is None:
                 parcel.delivery_code = parcel.delivery_code_day = None
-        return bool(removed)
+            if parcel.status is ParcelStatus.DELIVERED and parcel.clear_customs():
+                # Import duty is due at delivery, however the delivery became known
+                # (carrier, mail, "Erhalten", closed order): nothing left to keep.
+                cleared = True
+        return bool(removed) or cleared
 
     def _settle_orders(self, now: datetime) -> bool:
         """Close shop orders that get no "delivered" mail; True if something changed.
@@ -505,6 +793,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self._mail_last = now
             try:
                 await self._import_mail(self.mailbox, now)
+                await self._purge_processed(self.mailbox, now)
             except ImapAuthError:
                 self._mail_failed(now, "auth")
                 ir.async_create_issue(
@@ -548,11 +837,22 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 self._mail_failed(now, "login_disabled")
             except ImapUnavailable as err:
                 _LOGGER.debug("Parcel mailbox not reachable: %s", err)
-                self._mail_failed(now, "unavailable")
+                self._unavailable_streak += 1
+                # From the third failed call in a row, once per outage. Only the kind
+                # of error: never host or user.
+                if self._unavailable_streak >= 3 and "unavailable" not in self._mail_told:
+                    self._mail_told.add("unavailable")
+                    _LOGGER.warning(
+                        "The mailbox could not be reached %d times in a row (%s); "
+                        "the mail import keeps retrying",
+                        self._unavailable_streak,
+                        err,
+                    )
+                self._mail_failed(now, "unavailable", unavailable_kind(err))
             except Exception as err:  # noqa: BLE001 - isolate the import from the refresh
                 # Only the error type: mail contents never go into the log.
                 _LOGGER.warning("Mail import failed (%s); trying again later", type(err).__name__)
-                self._mail_failed(now, "error")
+                self._mail_failed(now, "error", type(err).__name__)
             # The refresh left settling the orders to this import (see
             # ``_async_update_data``): also when no mail came or the mailbox failed.
             async with self._lock:
@@ -571,20 +871,33 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         mails = await self.hass.async_add_executor_job(mailbox.fetch_unseen)
         ir.async_delete_issue(self.hass, DOMAIN, "imap_auth")
         self._mail_streak = 0
-        self._mail_error = None
+        self._mail_error = self._mail_error_kind = None
         self._mail_told.clear()
+        self._unavailable_streak = 0
         if not mails:
             return
         parsed = await self.hass.async_add_executor_job(
-            _parse_mails, [raw for _, raw in mails], self._read_otp, now, self._plain_names
+            _parse_mails,
+            [raw for _, raw in mails],
+            self._read_otp,
+            now,
+            self._plain_names,
+            self.persons(),
+            self.shared_addresses(),
         )
         async with self._lock:
+            known = set(self.store.parcels)
             dispositions = [
                 (uid, self._handle_mail(item, now))
                 for (uid, _), item in zip(mails, parsed, strict=True)
             ]
             self._settle_orders(now)
             await self.store.async_save()
+            added = self._added_since(known)
+        if added:
+            # Like the HTTP import and add_parcel: the sensors know the parcel first.
+            self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added_all(added)
         try:
             await self.hass.async_add_executor_job(
                 mailbox.finish, dispositions, self._move_processed
@@ -595,8 +908,43 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # counted and logged only once (``_unrecognized``).
             _LOGGER.debug("Could not file processed mails: %s", err)
 
-    def _mail_failed(self, now: datetime, code: str) -> None:
+    async def _purge_processed(self, mailbox: MailboxClient, now: datetime) -> None:
+        """Delete old mails in Paket-Tracker-Verarbeitet, at most once a (local) day.
+
+        Called after a fetch that worked. Never raises: a failure is one warning (only the
+        kind of error, no folder or user) until it works again, and is not retried the
+        same day. The Message-IDs of the mails deleted stay known.
+        """
+        if not self._purge_enabled:
+            return
+        purge = getattr(mailbox, "purge_processed", None)
+        today = dt_util.as_local(now).date()
+        if not callable(purge) or self._purge_day == today:
+            return
+        self._purge_day = today
+        try:
+            count = await self.hass.async_add_executor_job(
+                purge, self._delete_processed_days, today
+            )
+        except Exception as err:  # noqa: BLE001 - never stops the import
+            # Refused EXPUNGE: the mails stay (marked), none counts as deleted.
+            self._purge_last = 0 if isinstance(err, ImapExpungeRefused) else None
+            if not self._purge_warned:
+                self._purge_warned = True
+                _LOGGER.warning(
+                    "Could not delete old recognised mails (%s); the mail import goes on, "
+                    "the next try is tomorrow",
+                    type(err).__name__,
+                )
+            return
+        self._purge_warned = False
+        self._purge_last = count if isinstance(count, int) else None
+
+    def _mail_failed(self, now: datetime, code: str, kind: str | None = None) -> None:
+        if code != "unavailable":
+            self._unavailable_streak = 0
         self._mail_error = code
+        self._mail_error_kind = kind
         self._mail_streak += 1
         delay = min(MAIL_INTERVAL * 2 ** (self._mail_streak - 1), MAIL_MAX_BACKOFF)
         self._mail_next = now + delay
@@ -627,8 +975,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 self._count_amazon(recognized=True)
             if item.message_id:
                 self.store.remember_message(item.message_id)
+            # Only a detected owner is stored; an unclear mail leaves the owner open and
+            # the default person applies while it is open (``effective_owner``).
             for update in result.updates:
-                if change := apply_update(self.store.parcels, update, now):
+                change = apply_update(
+                    self.store.parcels, update, now, self.gift_mode, item.owner
+                )
+                if change:
                     self._mail_changed(change)
         except Exception as err:  # noqa: BLE001 - one odd mail must not stop the import
             if self._unrecognized(item):
@@ -652,7 +1005,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         """
         now = dt_util.utcnow()
         [item] = await self.hass.async_add_executor_job(
-            _parse_mails, [raw], self._read_otp, now, self._plain_names
+            _parse_mails,
+            [raw],
+            self._read_otp,
+            now,
+            self._plain_names,
+            self.persons(),
+            self.shared_addresses(),
         )
         async with self._lock:
             if self._stopped:
@@ -663,9 +1022,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self._settle_orders(now)
             after = {number: parcel.to_dict() for number, parcel in self.store.parcels.items()}
             await self.store.async_save()
+            added = self._added_since(before)
         if after != before:
             # Not for a mail that changed nothing: every call would push the next tick back.
             self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added_all(added)
         if duplicate:
             result = "duplicate"
         elif folder == FOLDER_PROCESSED:
@@ -712,9 +1073,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel = change.parcel
         if change.old_status is None and parcel.status is ParcelStatus.DELIVERED:
             if change.announce:
-                # Delivered as its first status, but news (see ``Change.announce``):
-                # told once like a change to "delivered", by the parcel itself. Nobody
-                # told anything about it before, so it had no status: "unknown".
+                # Delivered as its first status, but news (see ``Change.announce``: a
+                # carrier's parcel, or a further box of a shop order): told once like a
+                # change to "delivered", by the parcel itself. Nobody told anything about
+                # it before, so it had no status: "unknown".
                 self._fire(parcel, ParcelStatus.UNKNOWN)
             else:
                 self._untold(parcel)
@@ -722,7 +1084,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # The order took in a carrier's parcel whose delivery was announced already
             # (see ``Change.told``): its own step is an event below, but the box is not
             # pushed again, also not after a restart emptied the push memory.
-            self._box_told[(parcel.tracking_carrier, parcel.tracking_ref)] = parcel.status
+            box = (parcel.tracking_carrier, parcel.tracking_ref, self._audience(parcel))
+            self._box_told[box] = parcel.status
         if (
             change.old_status is not None
             and parcel.status is not None
@@ -1220,6 +1583,51 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # Otherwise several changes in a row become one, from the oldest status to
         # the latest.
 
+    def _fire_added(self, parcel: Parcel) -> None:
+        """A parcel is new in the store: tell automations (``parcel_tracker_parcel_added``).
+
+        Only what the sensors show as well: the display name (a gift's is its gift name,
+        never the real one), no title, no link, no mail subject.
+        """
+        self.hass.bus.async_fire(
+            EVENT_PARCEL_ADDED,
+            {
+                "entry_id": self.entry.entry_id,
+                "number": parcel.number,
+                "name": self.display_name(parcel),
+                "carrier": parcel.carrier,
+                # Whom it belongs to (person entity ID), None for everybody.
+                "owner": self.effective_owner(parcel),
+                "gift": parcel.gift,
+                # Sent by the user (a DHL receipt of a handover), not coming to the home.
+                "outgoing": parcel.outgoing,
+            },
+        )
+
+    def _added_since(self, known: Collection[str]) -> list[Parcel]:
+        """The entries stored now that are new to ``known`` (the numbers stored before).
+
+        A mail import creates its entries deep in ``mail.apply`` (a new parcel, an order,
+        a further box): comparing the numbers before and after is the one place that sees
+        each of them. An entry folded into another one within the same import is gone
+        again; a mail that only changes an entry or is merged into one that exists adds
+        no number. One box, one event: a new order that took in a parcel stored before
+        (it carries that parcel's number, and the parcel is gone) is no new box - the
+        parcel was announced already.
+        """
+        return [
+            parcel
+            for number, parcel in self.store.parcels.items()
+            if number not in known
+            and not (
+                parcel.tracking_ref in known and parcel.tracking_ref not in self.store.parcels
+            )
+        ]
+
+    def _fire_added_all(self, parcels: list[Parcel]) -> None:
+        for parcel in parcels:
+            self._fire_added(parcel)
+
     def _announce(self, parcel: Parcel, old: ParcelStatus) -> None:
         r = parcel.result
         if r.status is ParcelStatus.DELIVERED and not parcel.assumed_delivered:
@@ -1246,24 +1654,60 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # True when the user marked the parcel as received ("Erhalten"); such a
                 # change is never pushed either.
                 "manual": parcel.manual_delivered,
+                # Whom it belongs to (person entity ID), None for everybody.
+                "owner": self.effective_owner(parcel),
+                # A gift (its name is the gift name then); whom it is for is never told.
+                "gift": parcel.gift,
+                # Sent by the user: the built-in push only tells its arrival.
+                "outgoing": parcel.outgoing,
             },
         )
         # One box, several orders (they share a carrier number), or a carrier's parcel
         # and the order that took it in: the event above is each entry's own, the
         # notification is the box's. An order does not push a status that was pushed
-        # for its box already. Only a notification that really went out counts: an
+        # for its box already - to the same targets: orders of two persons in one box
+        # tell each person once, and two owners without targets of their own share
+        # the general targets' one push. Only a notification that really went out counts: an
         # assumed closing or a hand mark of one order says nothing about the box.
         shared = parcel.tracking_ref is not None and parcel.carrier in SHOP_CARRIERS
-        if shared:
-            box = (parcel.tracking_carrier, parcel.tracking_ref)
-        else:
-            box = (parcel.carrier, parcel.number)
-        if shared and self._box_told.get(box) is r.status:
-            return
-        if self._notify(parcel, old):
-            self._box_told[box] = r.status
-        else:
-            self._box_told.pop(box, None)
+        box = self._box_key(parcel)
+        if not (shared and self._box_told.get(box) is r.status):
+            if self._notify(parcel, old):
+                self._box_told[box] = r.status
+            else:
+                self._box_told.pop(box, None)
+        # A sent parcel arrives once (pushed or not, e.g. "delivered" not chosen): a later
+        # arrival after a step back of the carrier is not told again. Stored with the parcel
+        # (every caller saves afterwards).
+        if parcel.outgoing and r.status in (ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP):
+            parcel.arrival_told = True
+
+    def _audience(self, parcel: Parcel) -> tuple[str, ...]:
+        """The notify targets a push about this parcel goes to (its owner's or the general)."""
+        return tuple(sorted(self.push_targets(parcel)))
+
+    def push_targets(self, parcel: Parcel) -> list[str]:
+        """Where a push about this parcel goes: its owner's targets (``owner_targets``)
+        without those of the persons a gift is for (``Parcel.gift_for``). A general target
+        no person is set up with cannot be told apart and stays."""
+        targets = self.owner_targets(self.effective_owner(parcel))
+        if not parcel.gift or not parcel.gift_for:
+            return targets
+        theirs = {
+            target
+            for person in self.persons()
+            if person.person in parcel.gift_for
+            for target in person.notify_targets
+        }
+        return [target for target in targets if target not in theirs]
+
+    def _box_key(self, parcel: Parcel) -> tuple[str | None, str, tuple[str, ...]]:
+        """The push memory's key: the box (the carrier's number of a shop order, else
+        the parcel's own) and whom it is told to (the targets of its effective owner)."""
+        audience = self._audience(parcel)
+        if parcel.tracking_ref is not None and parcel.carrier in SHOP_CARRIERS:
+            return (parcel.tracking_carrier, parcel.tracking_ref, audience)
+        return (parcel.carrier, parcel.number, audience)
 
     # ----- push notifications -----
     def _notify(self, parcel: Parcel, old: ParcelStatus) -> bool:
@@ -1276,8 +1720,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         delivery mail is never pushed (``build_notification`` gives no text for it).
         """
         try:
-            targets = self._notify_targets
-            if not targets or parcel.result.status.value not in self._notify_events:
+            targets = self.push_targets(parcel)
+            # A sent parcel only tells its arrival, chosen with "delivered" (see
+            # ``build_notification``).
+            event = "delivered" if parcel.outgoing else parcel.result.status.value
+            if not targets or event not in self._notify_events:
                 return False
             built = build_notification(parcel, old, dt_util.now(), self.hide_names)
             tag = notification_tag(parcel.number)
@@ -1582,7 +2029,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         await self.async_update_quota()
         return parcel
 
-    async def _add_other(self, number: str, name: str | None) -> Parcel:
+    async def _add_other(
+        self, number: str, name: str | None, owner: str | None = None
+    ) -> Parcel:
         """A carrier without own connection: adding it registers it at 17track first."""
         self._t17_client()
         async with self._lock:
@@ -1602,10 +2051,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 track17=True,
                 track17_carrier=code,
                 track17_next_at=now + TRACK17_FIRST_POLL,
+                gift=self.gift_mode,
             )
+            if owner is not None:
+                self._give_owner(parcel, owner)
             self.store.add(parcel)
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added(parcel)
         await self.async_update_quota()
         return parcel
 
@@ -1652,6 +2105,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # After an error this is the end of the backoff (see error_streak).
                 "next_run": self._mail_next.isoformat() if self._mail_next else None,
                 "last_error": self._mail_error,
+                "last_error_kind": self._mail_error_kind,
                 "error_streak": self._mail_streak,
                 "recognized": self._mail_recognized,
                 "unrecognized": self._mail_unrecognized,
@@ -1666,15 +2120,69 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                     if callable(filing := getattr(self.mailbox, "filing_state", None))
                     else None
                 ),
+                # Deleting recognised mails: only whether it is on and how many went the
+                # last time (None: not run yet or failed), never the days or a folder.
+                "delete_processed": {
+                    "enabled": self.mailbox is not None and self._purge_enabled,
+                    "last_deleted": self._purge_last,
+                },
             },
         }
 
     # ----- public API used by services -----
-    async def async_add(self, number: str, carrier: str, name: str | None) -> Parcel:
+    def _check_owner(self, person: str) -> None:
+        """An owner is "all" or a person set up here that exists in Home Assistant."""
+        if person != DEFAULT_OWNER and not (
+            person in {cfg.person for cfg in self.persons()}
+            and self.hass.states.get(person) is not None
+        ):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="owner_unknown"
+            )
+
+    @staticmethod
+    def _give_owner(parcel: Parcel, person: str) -> None:
+        parcel.owner = None if person == DEFAULT_OWNER else person
+        parcel.owner_manual = True  # a mail never overwrites it
+
+    async def async_set_owner(
+        self, number: str, person: str, user_id: str | None = None
+    ) -> None:
+        """Hand a parcel to a person ("all": to everybody). KeyError: not tracked."""
+        async with self._lock:  # not while a refresh or a mail works on the parcels
+            parcel = self.store.parcels[normalize(number)]
+            # One box, one push: every entry of the same box changes hands together.
+            group = [parcel]
+            if parcel.tracking_ref is not None and parcel.tracking_carrier is not None:
+                group += [
+                    p
+                    for p in self.store.parcels.values()
+                    if p is not parcel
+                    and (p.tracking_carrier, p.tracking_ref)
+                    == (parcel.tracking_carrier, parcel.tracking_ref)
+                ]
+            # Only the parcel asked for is refused when it is a gift the user may not
+            # change; a gift in the same box is left as it is, without a word (that
+            # would tell there is a gift in it).
+            self._guard_gift(parcel, user_id, "gift_owner_not_allowed")
+            group = [
+                item for item in group if item is parcel or self._may_change_gift(item, user_id)
+            ]
+            self._check_owner(person)
+            for item in group:
+                self._give_owner(item, person)
+            await self.store.async_save()
+            self.async_set_updated_data(dict(self.store.parcels))
+
+    async def async_add(
+        self, number: str, carrier: str, name: str | None, owner: str | None = None
+    ) -> Parcel:
+        if owner is not None:
+            self._check_owner(owner)
         norm = normalize(number)
         keys = candidates(norm, self.carriers)  # raises UnsupportedNumber
         if carrier == CARRIER_OTHER:
-            return await self._add_other(norm, name)
+            return await self._add_other(norm, name, owner)
         mode = "auto" if carrier == CARRIER_AUTO else "manual"
         if carrier == CARRIER_AUTO and not keys and UpsCarrier.matches(norm) is Match.SURE:
             carrier = "ups"  # mail-only until UPS API credentials are configured
@@ -1694,7 +2202,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             name_manual=given is not None,  # typed in: shown with "Namen ausblenden" too
             added_at=now,
             last_change_at=now,
+            gift=self.gift_mode,
         )
+        if owner is not None:
+            self._give_owner(parcel, owner)
         async with self._lock:
             if self._gls_twin(parcel) is not None:
                 raise DuplicateParcel(norm)
@@ -1718,6 +2229,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 raise DuplicateParcel(norm)
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
+            self._fire_added(parcel)
         return parcel
 
     def _gls_twin(self, parcel: Parcel) -> Parcel | None:
@@ -1746,15 +2258,32 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             None,
         )
 
-    async def async_remove(self, number: str) -> None:
+    def _may_change_gift(self, parcel: Parcel, user_id: str | None) -> bool:
+        """A gift is changed only by a gift viewer it is not for, or a call without a user."""
+        return (
+            not parcel.gift
+            or user_id is None
+            or (self.is_gift_viewer(user_id) and not self.is_gift_recipient(parcel, user_id))
+        )
+
+    def _guard_gift(self, parcel: Parcel, user_id: str | None, key: str) -> None:
+        if not self._may_change_gift(parcel, user_id):
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key=key)
+
+    async def async_remove(self, number: str, user_id: str | None = None) -> None:
         async with self._lock:  # not while a refresh or a registration works on the parcels
+            # Removing a gift would drop its mark: a mail would bring it back as no gift.
+            if (parcel := self.store.parcels.get(normalize(number))) is not None:
+                self._guard_gift(parcel, user_id, "gift_remove_not_allowed")
             self.store.remove(normalize(number))  # KeyError: not tracked
             self._announced.pop(normalize(number), None)
             self._forget_idle_carriers()
             await self.store.async_save()
             self.async_set_updated_data(dict(self.store.parcels))
 
-    async def async_rename(self, number: str, name: str | None) -> None:
+    async def async_rename(
+        self, number: str, name: str | None, user_id: str | None = None
+    ) -> None:
         """Give a parcel the name the user typed in; an empty one takes its name away.
 
         The card prefills the field with the name it shows. Saved as it is, nothing
@@ -1763,6 +2292,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         does not replace the stored name.
         """
         parcel = self.store.parcels[normalize(number)]
+        self._guard_gift(parcel, user_id, "gift_rename_not_allowed")
         given = (name or "").strip() or None
         if given is not None and given in (parcel.name, self.display_name(parcel)):
             return
@@ -1774,7 +2304,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     async def async_mark_delivered(self, number: str) -> None:
         """Mark a parcel as received by hand ("Erhalten", see ``mark_received``).
 
-        KeyError for a number that is not tracked, ValueError for a parcel that is
+        KeyError for a number that is not tracked, ValueError "cancelled" for an order the
+        shop cancelled (nothing comes, as the card has no button for it either) and
+        "already_delivered" for a parcel that is
         delivered already (an order closed without a delivery mail is not: marking it
         confirms the delivery, and only that - it does not count as delivered today
         and is kept no longer than before). The hand mark wins from now on: the parcel
@@ -1787,6 +2319,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         async with self._lock:  # not while a refresh or a mail works on the parcels
             parcel = self.store.parcels[normalize(number)]
             old = parcel.status
+            if old is ParcelStatus.CANCELLED:
+                raise ValueError("cancelled")
             if old is ParcelStatus.DELIVERED and not parcel.assumed_delivered:
                 raise ValueError("already_delivered")
             now = dt_util.utcnow()

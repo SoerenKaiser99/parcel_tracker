@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from custom_components.parcel_tracker.mail.base import sscc_valid
+
 from .test_anonymize_tester import _call
 
 NUMBER = "00340434161094012345"  # invented
@@ -309,3 +311,50 @@ def test_real_numbers_in_groups_next_to_dates_are_still_replaced(tmp_path, line,
         _replaced(number, text)
         for part in line.split("{}"):
             assert part.strip() in text
+
+
+SSCC = "00012345678901234560"  # invented SSCC (DHL eCommerce), valid check digit
+
+
+def test_sscc_keeps_its_00_and_a_valid_check_digit(tmp_path):
+    """v0.3.42: an SSCC ("00" and 18 digits) stays one, so the sample is still recognised."""
+    assert sscc_valid(SSCC)
+    [(plain, markup)] = _run(tmp_path, _mail(SSCC))
+    found = set(re.findall(r"(?<!\d)\d{20}(?!\d)", plain + markup))
+    [invented] = found
+    assert invented != SSCC and SSCC not in plain + markup
+    assert invented.startswith("00") and not invented.startswith("00340")
+    assert sscc_valid(invented)
+
+
+def test_00340_numbers_are_invented_as_before(tmp_path):
+    [(plain, _)] = _run(tmp_path, _mail(NUMBER))
+    [invented] = set(_numbers(plain))
+    assert invented.startswith("00340") and invented != NUMBER
+
+
+def _ssccs(count: int) -> list[str]:
+    """``count`` invented SSCCs with valid check digits (none of DHL's 00340)."""
+    found = []
+    for serial in range(count):
+        body = f"001{serial:016d}"
+        found += [body + d for d in "0123456789" if sscc_valid(body + d)]
+    return found
+
+
+def test_an_invented_sscc_never_reads_as_dhls_00340(tmp_path):
+    """About one in a thousand invented digits start with "340": such a number would count as
+    DHL's own anywhere. Each run has a salt of its own, so many numbers are tried."""
+    numbers = _ssccs(3000)
+    body = "".join(f"Sendungsnummer: {number}\n" for number in numbers)
+    msg = EmailMessage()
+    msg["From"] = "Beispiel Shop <shop@example.org>"
+    msg["To"] = "Erika Beispiel <erika@privatpost.example>"
+    msg["Subject"] = "Ihre Bestellung ist unterwegs"
+    msg["Date"] = "Mon, 05 Oct 2026 02:01:41 +0200"
+    msg.set_content(body)
+    [(plain, _)] = _run(tmp_path, bytes(msg))
+    invented = re.findall(r"Sendungsnummer: (\d{20})\n", plain)
+    assert len(invented) == len(numbers) and not set(invented) & set(numbers)
+    assert all(sscc_valid(number) for number in invented)
+    assert not [number for number in invented if number.startswith("00340")]

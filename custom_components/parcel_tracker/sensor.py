@@ -19,7 +19,7 @@ from .coordinator import ParcelCoordinator
 from .links import tracking_url
 from .models import PROGRESS_STEP, Parcel, ParcelStatus
 from .models import carrier_name as _carrier_name
-from .schedule import ParcelSummary, days_until, summarize
+from .schedule import ParcelSummary, parcel_days_until, summarize
 
 
 def _iso(value) -> str | None:
@@ -99,7 +99,19 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
     _attr_options = [s.value for s in ParcelStatus]
     _attr_translation_key = "parcel"
     _attr_icon = "mdi:package-variant-closed"
-    _unrecorded_attributes = frozenset({"events", "status_text", "delivery_code"})
+    # (the customs amount is deleted on delivery: the history must not keep it either)
+    _unrecorded_attributes = frozenset(
+        {
+            "events",
+            "status_text",
+            "name",
+            "tracking_url",
+            "amazon_shipment",
+            "customs_amount",
+            "customs_currency",
+            "customs_cash",
+        }
+    )
 
     def __init__(self, coordinator: ParcelCoordinator, number: str) -> None:
         super().__init__(coordinator)
@@ -133,7 +145,8 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         if p is None:
             return {}
         r = p.result
-        today = dt_util.now().date()
+        now = dt_util.now()
+        today = now.date()
         return {
             "carrier": p.carrier,
             "carrier_name": _carrier_name(p),
@@ -144,11 +157,12 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "eta_latest": _iso(r.eta_latest) if r else None,
             "eta_from": _iso(r.eta_from) if r else None,
             "eta_to": _iso(r.eta_to) if r else None,
-            "days_until": days_until(r.eta_date, today) if r else None,
+            "days_until": parcel_days_until(p, today, now.tzinfo),
             "location": r.location if r else None,
             "location_source": _location_source(p),
-            "pickup_point": r.pickup_point if r else None,
-            "pickup_until": _iso(r.pickup_until) if r else None,
+            # A sent parcel's pickup point and deadline are the recipient's: never shown.
+            "pickup_point": r.pickup_point if r and not p.outgoing else None,
+            "pickup_until": _iso(r.pickup_until) if r and not p.outgoing else None,
             "status_text": r.status_text if r else None,
             "last_update": _iso(p.last_poll_at),
             "stale": p.last_error is not None and r is not None,
@@ -164,11 +178,30 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "tracking_carrier": p.tracking_carrier,
             # The carrier's public tracking page (None: shop order without a carrier
             # number, 17track only, carrier unknown); the card links to it.
-            "tracking_url": tracking_url(p),
+            # (a gift gives out neither this nor the shipment id)
+            "tracking_url": None if p.gift else tracking_url(p),
             # Amazon's id of the order's newest shipment (from its mails); the card shows it.
-            "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids else None,
+            "amazon_shipment": p.shipment_ids[-1] if p.shipment_ids and not p.gift else None,
+            # Marked as a gift (Geschenkmodus): shown by its gift name, no links.
+            "gift": p.gift,
+            # Sent by the user (a DHL receipt of a handover): counted nowhere, the card
+            # marks it "Versendet".
+            "outgoing": p.outgoing,
+            # The person the parcel belongs to (entity id), None for everybody: the owner
+            # a mail named or the user set, else the default person ("Unklare Pakete
+            # gehören"). ``owner_detected``: the parcel has an owner of its own (a person
+            # set up under "Personen"; one removed there counts as none).
+            "owner": self.coordinator.effective_owner(p),
+            "owner_detected": self.coordinator.has_own_owner(p),
             "shipping_carrier_hint": p.shipping_carrier_hint,
-            "delivery_code": p.active_code(today),
+            # Only whether a delivery code is there: the code itself is a secret and never
+            # an attribute; the card asks for it (WebSocket parcel_tracker/delivery_code).
+            "has_delivery_code": self.coordinator.delivery_code(p, today) is not None,
+            # Import duty still to pay at delivery, as a DHL mail named it (None until then
+            # and after the delivery); customs_cash: the carrier asks for cash.
+            "customs_amount": due[0] if (due := p.customs_due) else None,
+            "customs_currency": due[1] if due else None,
+            "customs_cash": due[2] if due else False,
             "track17": p.track17,
             "track17_carrier": p.track17_carrier,
         }
@@ -183,6 +216,9 @@ def _items(coordinator: ParcelCoordinator, parcels: list[Parcel]) -> list[dict[s
             "carrier": p.carrier,
             "eta_from": _iso(p.result.eta_from) if p.result else None,
             "eta_to": _iso(p.result.eta_to) if p.result else None,
+            # Whether it is a gift (its name is the gift name then): own chips and
+            # counters can leave gifts out.
+            "gift": p.gift,
         }
         for p in parcels
     ]
@@ -211,7 +247,18 @@ class TodaySensor(_SummarySensor):
 
     _attr_translation_key = "today"
     _attr_icon = "mdi:truck-delivery"
-    _unrecorded_attributes = frozenset({"integration_version"})
+    # The lists carry the names: not in the history (a gift's name must not be kept).
+    _unrecorded_attributes = frozenset(
+        {
+            "integration_version",
+            "parcels",
+            "possible",
+            "delivered_today",
+            "awaiting_pickup",
+            "persons",
+            "default_owner",
+        }
+    )
 
     def __init__(self, coordinator: ParcelCoordinator) -> None:
         super().__init__(coordinator)
@@ -237,6 +284,11 @@ class TodaySensor(_SummarySensor):
             # The card compares this with its own version: a browser that still runs the
             # card from before an update shows a hint to reload the page.
             "integration_version": VERSION,
+            # The persons set up under "Personen" (entity ids only, never an address)
+            # and the one unclear parcels go to (None: everybody). The card offers
+            # "Gehört" only with persons set up, and only these persons.
+            "persons": [p.person for p in self.coordinator.persons()],
+            "default_owner": self.coordinator.effective_default_owner(),
         }
 
 
@@ -273,6 +325,8 @@ class GroupCountSensor(_SummarySensor):
         self.entity_id = entity_id
         self._attr_name = name
         self._attr_icon = icon
+
+    _unrecorded_attributes = frozenset({"parcels"})
 
     def _parcels(self) -> list[Parcel]:
         return getattr(self._summary(), self._group)

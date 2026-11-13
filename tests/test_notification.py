@@ -71,6 +71,61 @@ def test_out_for_delivery():
     assert _message(parcel) == "📦 Kopfhörer (DHL) ist in Zustellung"
 
 
+def _with_duty(parcel, amount=12.34, currency="EUR", cash=True) -> Parcel:
+    parcel.customs_amount, parcel.customs_currency, parcel.customs_cash = amount, currency, cash
+    return parcel
+
+
+def test_out_for_delivery_names_the_import_duty_to_have_ready():
+    parcel = _with_duty(_parcel(ParcelStatus.OUT_FOR_DELIVERY))
+    assert _message(parcel) == (
+        "📦 Kopfhörer (DHL) ist in Zustellung – Einfuhrabgaben 12,34 € bar bereithalten"
+    )
+
+
+def test_import_duty_comes_after_the_window():
+    parcel = _with_duty(
+        _parcel(
+            ParcelStatus.OUT_FOR_DELIVERY,
+            eta_from=datetime(2026, 9, 29, 14, 0, tzinfo=BERLIN),
+            eta_to=datetime(2026, 9, 29, 16, 0, tzinfo=BERLIN),
+        )
+    )
+    assert _message(parcel) == (
+        "📦 Kopfhörer (DHL) ist in Zustellung – heute 14:00–16:00 Uhr"
+        " – Einfuhrabgaben 12,34 € bar bereithalten"
+    )
+
+
+@pytest.mark.parametrize(
+    ("amount", "currency", "cash", "text"),
+    [
+        (1234.5, "EUR", True, "1.234,50 € bar bereithalten"),
+        (5.0, "EUR", True, "5,00 € bar bereithalten"),
+        (12.34, "EUR", False, "12,34 € bei Zustellung"),
+        (12.34, "CHF", True, "12,34 CHF bar bereithalten"),
+    ],
+)
+def test_import_duty_amount_and_way_of_paying(amount, currency, cash, text):
+    parcel = _with_duty(_parcel(ParcelStatus.OUT_FOR_DELIVERY), amount, currency, cash)
+    assert _message(parcel).endswith(f" – Einfuhrabgaben {text}")
+
+
+def test_no_amount_no_import_duty_line():
+    parcel = _parcel(ParcelStatus.OUT_FOR_DELIVERY)  # no mail named an amount
+    assert "Einfuhrabgaben" not in _message(parcel)
+    # (a cash request without an amount is none either)
+    parcel.customs_cash = True
+    assert "Einfuhrabgaben" not in _message(parcel)
+
+
+def test_import_duty_is_told_with_the_delivery_only_before_it():
+    delivered = _with_duty(_parcel(ParcelStatus.DELIVERED))
+    assert "Einfuhrabgaben" not in _message(delivered)
+    pickup = _with_duty(_parcel(ParcelStatus.AWAITING_PICKUP))
+    assert "Einfuhrabgaben" not in _message(pickup)
+
+
 def test_out_for_delivery_with_a_window_for_today():
     parcel = _parcel(
         ParcelStatus.OUT_FOR_DELIVERY,

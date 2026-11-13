@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import HomeAssistant, callback, split_entity_id, valid_entity_id
 from homeassistant.data_entry_flow import section
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -23,6 +28,8 @@ from homeassistant.helpers.selector import (
     TextSelectorConfig,
     TextSelectorType,
 )
+from homeassistant.helpers.translation import async_get_translations
+from homeassistant.util import slugify
 from homeassistant.util.ssl import client_context, client_context_no_verify
 
 from .carriers.base import AuthError, CarrierError, CarrierUnavailable
@@ -30,8 +37,15 @@ from .carriers.dhl import DhlCarrier
 from .carriers.track17 import Track17Client
 from .carriers.ups import ApiBudget, UpsCarrier
 from .const import (
+    CONF_ADDRESSES,
+    CONF_CONFIGURED_PERSON,
     CONF_COUNTRY,
+    CONF_DEFAULT_OWNER,
+    CONF_DELETE_PROCESSED_DAYS,
     CONF_DHL_API_KEY,
+    CONF_DHL_API_KEY_REMOVE,
+    CONF_GIFT_SECTION,
+    CONF_GIFT_VIEWERS,
     CONF_HIDE_NAMES,
     CONF_IMAP_FOLDER,
     CONF_IMAP_HOST,
@@ -48,25 +62,32 @@ from .const import (
     CONF_NOTIFY_EVENTS,
     CONF_NOTIFY_SECTION,
     CONF_NOTIFY_TARGETS,
+    CONF_PERSON,
+    CONF_PERSONS,
     CONF_PLAIN_NAMES,
     CONF_POSTCODE,
     CONF_READ_OTP,
+    CONF_REMOVE_PERSON,
+    CONF_SHARED_ADDRESSES,
     CONF_TRACK17_API_KEY,
+    CONF_TRACK17_API_KEY_REMOVE,
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
     CONF_UPS_ENABLED,
     CONF_UPS_SECTION,
     COUNTRIES,
+    DEFAULT_DELETE_PROCESSED_DAYS,
+    DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_IMAP_FOLDER,
-    DEFAULT_IMAP_HOST,
     DEFAULT_IMAP_PORT,
     DEFAULT_IMAP_SECURITY,
     DEFAULT_KEEP_DELIVERED_DAYS,
     DEFAULT_MAIL_INTERVAL,
     DEFAULT_MOVE_PROCESSED,
     DEFAULT_NOTIFY_EVENTS,
+    DEFAULT_OWNER,
     DEFAULT_PLAIN_NAMES,
     DEFAULT_POSTCODE,
     DEFAULT_READ_OTP,
@@ -75,14 +96,17 @@ from .const import (
     IMAP_SECURITIES,
     IMAP_SECURITY_NOVERIFY,
     IMAP_SECURITY_PLAIN,
+    MAX_DELETE_PROCESSED_DAYS,
     MAX_IMAP_PORT,
     MAX_KEEP_DELIVERED_DAYS,
     MAX_MAIL_INTERVAL,
     MAX_UPS_BUDGET,
+    MIN_DELETE_PROCESSED_DAYS,
     MIN_IMAP_PORT,
     MIN_KEEP_DELIVERED_DAYS,
     MIN_MAIL_INTERVAL,
     MIN_UPS_BUDGET,
+    NOTIFY_APP_SERVICE_PREFIX,
     NOTIFY_EVENTS,
     NOTIFY_SERVICE_ALL,
     POSTCODE_DIGITS,
@@ -101,6 +125,7 @@ from .mail.imap import (
     clean_security,
     is_reserved_folder,
 )
+from .models import PersonConfig, person_configs, shared_addresses
 from .notification import service_name, service_target
 
 _COUNTRY = SelectSelector(
@@ -117,6 +142,11 @@ _DAYS = NumberSelector(
 _MINUTES = NumberSelector(
     NumberSelectorConfig(
         min=MIN_MAIL_INTERVAL, max=MAX_MAIL_INTERVAL, mode=NumberSelectorMode.BOX
+    )
+)
+_PURGE_DAYS = NumberSelector(
+    NumberSelectorConfig(
+        min=0, max=MAX_DELETE_PROCESSED_DAYS, step=1, mode=NumberSelectorMode.BOX
     )
 )
 _PORT = NumberSelector(
@@ -226,6 +256,86 @@ def _targets_selector(
     )
 
 
+_PERSON_PICK = EntitySelector(EntitySelectorConfig(domain="person"))
+_ADDRESSES = TextSelector(TextSelectorConfig(multiline=True))
+_REMOVE = BooleanSelector()
+# Enough to catch a name or a typo without "@"; the mail server decides the rest.
+_ADDRESS = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+_ALL_LABEL = "allen"
+# Behind a person set up here that Home Assistant no longer has (translated, see
+# ``_stale_hint``); this English text only if the translation cannot be read.
+_STALE_KEY = f"component.{DOMAIN}.selector.configured_person.options.stale"
+_STALE_HINT = "no longer in Home Assistant"
+
+
+async def _stale_hint(hass: HomeAssistant) -> str:
+    """The hint behind a person that is gone, in Home Assistant's language."""
+    texts = await async_get_translations(hass, hass.config.language, "selector", {DOMAIN})
+    return texts.get(_STALE_KEY) or _STALE_HINT
+
+
+def _addresses(text: str) -> list[str]:
+    """One address per line: trimmed, lower case, empty lines and repeats dropped."""
+    lines = (line.strip().lower() for line in text.splitlines())
+    return list(dict.fromkeys(line for line in lines if line))
+
+
+def _person_name(hass: HomeAssistant, person: str) -> str:
+    state = hass.states.get(person)
+    return state.name if state is not None else person
+
+
+def _suggested_targets(hass: HomeAssistant, person: str, offered: set[str]) -> list[str]:
+    """The notify targets of the phones the person is tracked by (``device_trackers``
+    of her state): a notify entity of the tracker's device, else the classic service
+    ``notify.mobile_app_<device name>`` of the Home Assistant app. Only what the form
+    offers is suggested."""
+    state = hass.states.get(person)
+    trackers = state.attributes.get("device_trackers") if state is not None else None
+    if not isinstance(trackers, list):
+        return []
+    entities = er.async_get(hass)
+    devices = dr.async_get(hass)
+    found: list[str] = []
+    for tracker in trackers:
+        entry = entities.async_get(tracker) if isinstance(tracker, str) else None
+        if entry is None or entry.device_id is None:
+            continue
+        notify = sorted(
+            item.entity_id
+            for item in er.async_entries_for_device(entities, entry.device_id)
+            if item.domain == "notify" and item.entity_id in offered
+        )
+        if notify:
+            found.extend(notify)
+            continue
+        device = devices.async_get(entry.device_id)
+        for name in (device.name, device.name_by_user) if device is not None else ():
+            service = NOTIFY_APP_SERVICE_PREFIX + slugify(name or "")
+            if name and service_target(service) in offered:
+                found.append(service_target(service))
+                break
+    return list(dict.fromkeys(found))
+
+
+def _with_owner(options: dict[str, Any], owner: object) -> dict[str, Any]:
+    """Store "Unklare Pakete gehören" only when it is a person set up in ``options``."""
+    if owner != DEFAULT_OWNER and owner in {p.person for p in person_configs(options)}:
+        options[CONF_DEFAULT_OWNER] = owner
+    else:
+        options.pop(CONF_DEFAULT_OWNER, None)
+    return options
+
+
+def _with_shared(options: dict[str, Any], shared: list[str]) -> dict[str, Any]:
+    """Store "Gemeinsame Adressen" only when there is one."""
+    if shared:
+        options[CONF_SHARED_ADDRESSES] = shared
+    else:
+        options.pop(CONF_SHARED_ADDRESSES, None)
+    return options
+
+
 def _stored_events(current: Mapping[str, Any]) -> list[str]:
     """The stored events in their fixed order; the defaults if nothing usable is stored."""
     stored = current.get(CONF_NOTIFY_EVENTS, DEFAULT_NOTIFY_EVENTS)
@@ -262,6 +372,33 @@ def _notify_section(
     )
 
 
+def _stored_viewers(current: Mapping[str, Any]) -> list[str]:
+    """The stored gift viewers (person entity IDs); nobody if nothing usable is stored."""
+    stored = current.get(CONF_GIFT_VIEWERS, DEFAULT_GIFT_VIEWERS)
+    if not isinstance(stored, (list, tuple)):
+        return []
+    return list(dict.fromkeys(v for v in stored if isinstance(v, str) and v))
+
+
+def _gift_section(current: Mapping[str, Any]) -> section:
+    """Collapsible 'gift mode' block of the options form: who may see gifts.
+
+    Prefilled through ``default`` with the stored persons, so an untouched form
+    sends back what is stored.
+    """
+    viewers = _stored_viewers(current)
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(CONF_GIFT_VIEWERS, default=viewers): EntitySelector(
+                    EntitySelectorConfig(domain="person", multiple=True)
+                ),
+            }
+        ),
+        {"collapsed": not viewers},
+    )
+
+
 def _ups_section(current: Mapping[str, Any]) -> section:
     """Collapsible 'UPS live status' block of the options form.
 
@@ -293,6 +430,22 @@ def _shown_folder(value: object) -> str:
     return value.strip() if isinstance(value, str) and value.strip() else DEFAULT_IMAP_FOLDER
 
 
+def _purge_days(value: object) -> int:
+    """Days after which recognised mails are deleted, as stored or typed; 0 (off) else.
+
+    A whole number from 1 to 365; the number box hands in a float.
+    """
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and MIN_DELETE_PROCESSED_DAYS <= value <= MAX_DELETE_PROCESSED_DAYS
+    ):
+        return value
+    return DEFAULT_DELETE_PROCESSED_DAYS
+
+
 def _mail_section(current: Mapping[str, Any]) -> section:
     """Collapsible 'mail import' block of the options form.
 
@@ -310,7 +463,7 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                     CONF_MAIL_ENABLED, default=bool(current.get(CONF_MAIL_ENABLED, bool(user)))
                 ): bool,
                 vol.Optional(
-                    CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+                    CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or vol.UNDEFINED
                 ): str,
                 vol.Optional(
                     CONF_IMAP_PORT, default=clean_port(current.get(CONF_IMAP_PORT))
@@ -327,6 +480,10 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                     CONF_MOVE_PROCESSED,
                     default=current.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED),
                 ): bool,
+                vol.Optional(
+                    CONF_DELETE_PROCESSED_DAYS,
+                    default=_purge_days(current.get(CONF_DELETE_PROCESSED_DAYS)),
+                ): _PURGE_DAYS,
                 vol.Optional(
                     CONF_READ_OTP, default=current.get(CONF_READ_OTP, DEFAULT_READ_OTP)
                 ): bool,
@@ -354,12 +511,18 @@ def _schema(
     notify: Mapping[str, Any] | None = None,
     notify_available: Sequence[SelectOptionDict] = (),
     hide_names: bool = False,
+    gift: Mapping[str, Any] | None = None,
+    removable: Collection[str] = (),
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
         fields[vol.Optional(CONF_DHL_API_KEY)] = _KEY
+        if CONF_DHL_API_KEY in removable:
+            fields[vol.Optional(CONF_DHL_API_KEY_REMOVE, default=False)] = bool
     if track17:
         fields[vol.Optional(CONF_TRACK17_API_KEY)] = _KEY
+        if CONF_TRACK17_API_KEY in removable:
+            fields[vol.Optional(CONF_TRACK17_API_KEY_REMOVE, default=False)] = bool
     fields[
         vol.Optional(CONF_COUNTRY, default=known_country(defaults.get(CONF_COUNTRY)))
     ] = _COUNTRY
@@ -393,6 +556,8 @@ def _schema(
         fields[vol.Optional(CONF_UPS_SECTION)] = _ups_section(ups)
     if notify is not None:
         fields[vol.Optional(CONF_NOTIFY_SECTION)] = _notify_section(notify, notify_available)
+    if gift is not None:
+        fields[vol.Optional(CONF_GIFT_SECTION)] = _gift_section(gift)
     return vol.Schema(fields)
 
 
@@ -553,8 +718,10 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class ParcelTrackerOptionsFlow(OptionsFlow):
-    """Change keys, country, postcode, keep days, "Namen ausblenden", the mail import, the
-    UPS API, the 17track key and the push notifications.
+    """A menu of two parts. "Einstellungen" (``settings``): keys, country, postcode, keep
+    days, "Namen ausblenden", the mail import, the UPS API, the 17track key and the push
+    notifications. "Personen" (``persons``): addresses and notify targets per person and
+    who unclear parcels belong to; each part leaves the options of the other as they are.
 
     Secrets (DHL key, 17track key, IMAP password, UPS client ID and secret) are stored in the
     config entry's ``data`` (the same place reauth writes the key) so flows never
@@ -599,14 +766,201 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     sending.
     """
 
+    _person: str = ""
+    _default_owner: str = DEFAULT_OWNER
+    _shared: list[str] | None = None  # "Gemeinsame Adressen" as submitted on "persons"
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """A menu: the settings as before, or the persons."""
+        return self.async_show_menu(step_id="init", menu_options=["settings", "persons"])
+
+    async def async_step_persons(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick a person to set up (or none), choose who unclear parcels belong to and
+        which addresses several persons share ("Gemeinsame Adressen").
+
+        Without a person picked this saves both right away; an untouched form changes
+        nothing. Shared addresses are one per line, stored trimmed and in lower case and
+        only when there is one; an address of a person (``address_twice``) or without
+        the shape of a mail address (``address_invalid``) is a form error.
+        """
+        errors: dict[str, str] = {}
+        options = self.config_entry.options
+        configs = person_configs(options)
+        stored_shared = list(shared_addresses(options))
+        shown_shared = "\n".join(stored_shared)
+        # Persons removed from Home Assistant stay listed (to edit or remove them) but
+        # are not offered for unclear parcels; such a stored choice is shown as "all".
+        present = [c.person for c in configs if self.hass.states.get(c.person) is not None]
+        stored_owner = options.get(CONF_DEFAULT_OWNER, DEFAULT_OWNER)
+        if stored_owner not in present:
+            stored_owner = DEFAULT_OWNER
+        if user_input is not None:
+            self._default_owner = user_input.get(CONF_DEFAULT_OWNER, stored_owner)
+            text = user_input.get(CONF_SHARED_ADDRESSES)
+            shared = _addresses(text) if isinstance(text, str) else stored_shared
+            persons_addresses = {a for config in configs for a in config.addresses}
+            if any(not _ADDRESS.fullmatch(a) for a in shared):
+                errors[CONF_SHARED_ADDRESSES] = "address_invalid"
+            elif any(a in persons_addresses for a in shared):
+                errors[CONF_SHARED_ADDRESSES] = "address_twice"
+            else:
+                self._shared = shared
+                for key in (CONF_CONFIGURED_PERSON, CONF_PERSON):
+                    person = user_input.get(key)
+                    if isinstance(person, str) and person:
+                        self._person = person
+                        return await self.async_step_person()
+                return self.async_create_entry(
+                    data=_with_shared(_with_owner(dict(options), self._default_owner), shared)
+                )
+            shown_shared = text if isinstance(text, str) else shown_shared
+            if self._default_owner in (DEFAULT_OWNER, *present):
+                stored_owner = self._default_owner
+        owners = [SelectOptionDict(value=DEFAULT_OWNER, label=_ALL_LABEL)] + [
+            SelectOptionDict(value=person, label=_person_name(self.hass, person))
+            for person in present
+        ]
+        fields: dict[Any, Any] = {}
+        if configs:
+            stale = (
+                await _stale_hint(self.hass)
+                if any(c.person not in present for c in configs)
+                else _STALE_HINT
+            )
+            fields[vol.Optional(CONF_CONFIGURED_PERSON)] = SelectSelector(
+                SelectSelectorConfig(
+                    options=[
+                        SelectOptionDict(
+                            value=c.person,
+                            label=_person_name(self.hass, c.person)
+                            if c.person in present
+                            else f"{c.person} ({stale})",
+                        )
+                        for c in configs
+                    ],
+                    mode=SelectSelectorMode.DROPDOWN,
+                )
+            )
+        fields[vol.Optional(CONF_PERSON)] = _PERSON_PICK
+        return self.async_show_form(
+            step_id="persons",
+            data_schema=vol.Schema(
+                {
+                    **fields,
+                    vol.Optional(CONF_DEFAULT_OWNER, default=stored_owner): SelectSelector(
+                        SelectSelectorConfig(
+                            options=owners,
+                            mode=SelectSelectorMode.DROPDOWN,
+                            translation_key=CONF_DEFAULT_OWNER,
+                        )
+                    ),
+                    vol.Optional(CONF_SHARED_ADDRESSES, default=shown_shared): _ADDRESSES,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_person(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Addresses and notify targets of the picked person, or remove her.
+
+        Addresses are one per line, stored trimmed and in lower case; an address of
+        another person or a shared one (``address_twice``) or without the shape of a
+        mail address (``address_invalid``) is a form error. Missing from the submitted form, the
+        addresses and the targets keep their stored values. A person without
+        addresses and targets is not stored. A new person gets the notify targets of
+        her phones suggested.
+        """
+        errors: dict[str, str] = {}
+        options = self.config_entry.options
+        person = self._person
+        configs = person_configs(options)
+        stored = next((config for config in configs if config.person == person), None)
+        available = _available_targets(self.hass)
+        stored_addresses = list(stored.addresses) if stored is not None else []
+        stored_targets = list(stored.notify_targets) if stored is not None else []
+        if user_input is not None:
+            text = user_input.get(CONF_ADDRESSES)
+            addresses = _addresses(text) if isinstance(text, str) else stored_addresses
+            chosen = user_input.get(CONF_NOTIFY_TARGETS)
+            targets = list(dict.fromkeys(chosen)) if isinstance(chosen, list) else stored_targets
+            shared = self._shared if self._shared is not None else list(shared_addresses(options))
+            taken = {a for config in configs if config.person != person for a in config.addresses}
+            taken.update(shared)
+            remove = user_input.get(CONF_REMOVE_PERSON) is True
+            if not remove and any(not _ADDRESS.fullmatch(a) for a in addresses):
+                errors[CONF_ADDRESSES] = "address_invalid"
+            elif not remove and any(a in taken for a in addresses):
+                errors[CONF_ADDRESSES] = "address_twice"
+            else:
+                raw = options.get(CONF_PERSONS)
+                entries = [
+                    entry
+                    for entry in (raw if isinstance(raw, list) else ())
+                    if PersonConfig.from_option(entry) is not None
+                ]
+                if remove or not (addresses or targets):
+                    entries = [entry for entry in entries if entry["person"] != person]
+                else:
+                    value = {
+                        "person": person,
+                        CONF_ADDRESSES: addresses,
+                        CONF_NOTIFY_TARGETS: targets,
+                    }
+                    if any(entry["person"] == person for entry in entries):
+                        entries = [
+                            value if entry["person"] == person else entry for entry in entries
+                        ]
+                    else:
+                        entries.append(value)
+                new_options = dict(options)
+                if entries:
+                    new_options[CONF_PERSONS] = entries
+                else:
+                    new_options.pop(CONF_PERSONS, None)
+                return self.async_create_entry(
+                    data=_with_shared(_with_owner(new_options, self._default_owner), shared)
+                )
+        if user_input is not None:
+            shown_addresses = user_input.get(CONF_ADDRESSES, "")
+            shown_targets = user_input.get(CONF_NOTIFY_TARGETS, stored_targets)
+        else:
+            shown_addresses = "\n".join(stored_addresses)
+            shown_targets = (
+                stored_targets
+                if stored is not None
+                else _suggested_targets(
+                    self.hass, person, {option["value"] for option in available}
+                )
+            )
+        return self.async_show_form(
+            step_id="person",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_ADDRESSES, default=shown_addresses): _ADDRESSES,
+                    vol.Optional(CONF_NOTIFY_TARGETS, default=shown_targets): _targets_selector(
+                        available, shown_targets
+                    ),
+                    vol.Optional(CONF_REMOVE_PERSON, default=False): _REMOVE,
+                }
+            ),
+            errors=errors,
+            description_placeholders={"person": _person_name(self.hass, person)},
+        )
+
+    async def async_step_settings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         current = {**self.config_entry.data, **self.config_entry.options}
         stored_country = entry_country(self.config_entry)
         if user_input is not None:
             options = self.config_entry.options
             mail = user_input.get(CONF_MAIL_SECTION) or {}
-            stored_host = options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+            stored_host = options.get(CONF_IMAP_HOST) or ""
             stored_user = options.get(CONF_IMAP_USER) or ""
             # Off only on an explicit "False" while an import is set up; a user
             # typed into a not yet configured form sets the import up either way.
@@ -666,9 +1020,21 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 events = [event for event in NOTIFY_EVENTS if event in chosen]
             else:
                 events = _stored_events(options)
+            gift = user_input.get(CONF_GIFT_SECTION) or {}
+            if isinstance(gift.get(CONF_GIFT_VIEWERS), list):
+                viewers = _stored_viewers(gift)
+            else:
+                viewers = _stored_viewers(options)
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
+            # The tick box wins over a new key in the field: that one is not even checked.
+            drop_dhl = user_input.get(CONF_DHL_API_KEY_REMOVE) is True
+            drop_track17 = user_input.get(CONF_TRACK17_API_KEY_REMOVE) is True
+            if drop_dhl:
+                key_value = ""
+            if drop_track17:
+                track17_key = ""
             country = known_country(user_input.get(CONF_COUNTRY) or stored_country)
             stored_plain = options.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True
             plain_names = mail.get(CONF_PLAIN_NAMES, stored_plain) is True
@@ -684,6 +1050,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 errors[CONF_TRACK17_API_KEY] = err
             elif folder_changed and is_reserved_folder(folder):
                 errors["base"] = "folder_reserved"
+            elif user and not host:
+                errors["base"] = "host_required"
             elif user and not password:
                 errors["base"] = "imap_password_missing"
             elif (
@@ -732,12 +1100,23 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     CONF_NOTIFY_TARGETS: targets,
                     CONF_NOTIFY_EVENTS: events,
                 }
+                # Set up under "Personen"; this form leaves them as they are.
+                for key in (CONF_PERSONS, CONF_DEFAULT_OWNER, CONF_SHARED_ADDRESSES):
+                    if key in options:
+                        new_options[key] = options[key]
                 if CONF_COUNTRY in options or country != stored_country:
                     new_options[CONF_COUNTRY] = country
                 if CONF_HIDE_NAMES in options or hide:
                     new_options[CONF_HIDE_NAMES] = hide
+                if CONF_GIFT_VIEWERS in options or viewers:
+                    new_options[CONF_GIFT_VIEWERS] = viewers
                 if CONF_PLAIN_NAMES in options or plain_names:
                     new_options[CONF_PLAIN_NAMES] = plain_names
+                # Only stored when on: 0 (the default, off) leaves no key behind.
+                if purge_days := _purge_days(
+                    mail.get(CONF_DELETE_PROCESSED_DAYS, options.get(CONF_DELETE_PROCESSED_DAYS))
+                ):
+                    new_options[CONF_DELETE_PROCESSED_DAYS] = purge_days
                 if CONF_IMAP_FOLDER in options or folder != DEFAULT_IMAP_FOLDER:
                     # An untouched form writes back exactly what is stored.
                     new_options[CONF_IMAP_FOLDER] = (
@@ -758,6 +1137,10 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     data[CONF_DHL_API_KEY] = key_value
                 if track17_key:
                     data[CONF_TRACK17_API_KEY] = track17_key
+                if drop_dhl:
+                    data.pop(CONF_DHL_API_KEY, None)
+                if drop_track17:
+                    data.pop(CONF_TRACK17_API_KEY, None)
                 if user and new_password:
                     data[CONF_IMAP_PASSWORD] = new_password
                 if mail_off:  # switched off explicitly: drop the secret
@@ -780,8 +1163,9 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
         mail_shown = {**current, **((user_input or {}).get(CONF_MAIL_SECTION) or {})}
         ups_shown = {**current, **((user_input or {}).get(CONF_UPS_SECTION) or {})}
         notify_shown = {**current, **((user_input or {}).get(CONF_NOTIFY_SECTION) or {})}
+        gift_shown = {**current, **((user_input or {}).get(CONF_GIFT_SECTION) or {})}
         return self.async_show_form(
-            step_id="init",
+            step_id="settings",
             data_schema=_schema(
                 shown,
                 True,
@@ -792,6 +1176,12 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 notify=notify_shown,
                 notify_available=_available_targets(self.hass),
                 hide_names=True,
+                gift=gift_shown,
+                removable={
+                    key
+                    for key in (CONF_DHL_API_KEY, CONF_TRACK17_API_KEY)
+                    if self.config_entry.data.get(key)
+                },
             ),
             errors=errors,
         )

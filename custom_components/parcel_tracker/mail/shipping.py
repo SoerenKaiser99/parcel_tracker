@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from email.message import EmailMessage
 
+from ..carriers.base import BERLIN
 from ..models import ParcelStatus
 from .base import (
     DPD_DOMAINS,
@@ -33,11 +34,16 @@ DHL_SENDER = "noreply@dhl.de"
 DHL_DOMAIN = "dhl.de"  # every sender there (also paketankuendigung@dhl.de) is DHL
 DHL_COM_DOMAIN = "dhl.com"  # DHL Express
 DHL_EXPRESS_SENDER = "noreply.odd@dhl.com"
+# DHL eCommerce: shipments from the Netherlands (shops there, also German brands' warehouses)
+DHL_ECOMMERCE_DOMAIN = "dhlecommerce.nl"
+DHL_ECOMMERCE_SENDER = "noreply@dhlecommerce.nl"
 UPS_SENDER = "pkginfo@ups.com"
 AMAZON_DHL_NAME = "Amazon-Sendung (DHL)"
 # Shops and carriers we know: only the display name of such a sender is looked at as a
 # parcel name, and only a shop's passes (``company_name``), never a carrier's.
-KNOWN_SENDER_DOMAINS = frozenset({"amazon.de", "dhl.de", "ups.com", *DPD_DOMAINS})
+KNOWN_SENDER_DOMAINS = frozenset(
+    {"amazon.de", "dhl.de", DHL_ECOMMERCE_DOMAIN, "ups.com", *DPD_DOMAINS}
+)
 
 # Read only in a mail for today. The layouts up to 2024-08 write "und" or "bis" and leave out
 # "heute" ("Ihr Paket kommt zwischen 14:45 bis 16:15"), or break the line inside the window.
@@ -65,21 +71,45 @@ _DHL_S10 = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2}\d{9}[A-Z]{2})(?![A-Za-z0-9])")
 # look like that): read only in DHL's own mails and only right behind its label, which may
 # stand in the table cell or on the line before the number.
 _DHL_SHORT = re.compile(r"\bSendungsnummer\s*:?\s*(\d{12})(?!\d)")
+# An SSCC ("00" and 18 digits, DHL eCommerce): anywhere else only with a valid check digit
+# (``find_numbers``), in DHL's own mails right behind its label whatever the check digit says,
+# like the UPU S10 numbers: DHL decides whether it knows the number.
+_DHL_SSCC = re.compile(r"\bSendungsnummer\s*:?\s*(00\d{18})(?!\d)")
 # The text part of some mails is empty, or names the number only in a link (the text of the
 # link is a placeholder nobody filled in). The HTML part shows the number on a line of its
 # own below the button. Read there are only the forms seen there that the patterns above do
 # not find: 12 digits, a UPU S10 number (found above already), five letters and 16
-# digits ("JJATA…" from Austria), "JJD" with up to 24 digits. Anything else on that line
-# (an invoice number, 15 digits) is no number of DHL's.
+# digits ("JJATA…" from Austria), "JJD" with up to 24 digits, an SSCC ("00" and 18 digits).
+# Anything else on that line (an invoice number, 15 digits) is no number of DHL's.
 _DHL_SHOWN = re.compile(
     r"^(?:Sendungs(?:status|verlauf) einsehen|Ihre Sendung)\n"
-    r"(\d{12}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{5}\d{16}|JJD\d{18,24})$",
+    r"(\d{12}|[A-Z]{2}\d{9}[A-Z]{2}|[A-Z]{5}\d{16}|JJD\d{18,24}|00\d{18})$",
     re.MULTILINE,
 )
-# The receipt of a Packstation ("Einlieferungsbeleg: Ihr Versand an der Packstation") is
-# about a parcel somebody sent, not one that comes. Its text part names no number, and the
-# HTML part is not searched for one.
+# Import duty (issue #36): the mail of the day of delivery for a parcel from abroad has a box
+# "Die Einfuhrabgaben i.H.v. 12,34€ (inkl. 7,50€ Auslagepauschale und darin enthaltener MWSt.)
+# sind bei Zustellung, möglichst passend, in bar zu bezahlen." Only the first amount counts
+# (what is due, the part in brackets is made up of fees); "in bar" is looked for in the
+# 300 characters behind it. Every part is bounded, so a long line is read in linear time.
+_DHL_CUSTOMS = re.compile(
+    r"Einfuhrabgaben\s{1,5}i\.\s?H\.\s?v\.\s{0,5}"
+    r"(?P<euro>\d{1,3}(?:\.\d{3}){0,2}|\d{1,7})(?:,(?P<cent>\d{1,2}))?\s{0,3}(?:€|EUR)",
+    re.IGNORECASE,
+)
+_DHL_CASH = re.compile(r"\bin\s{1,3}bar\b", re.IGNORECASE)
+# The receipt of a handover ("Digitaler Einlieferungsbeleg", "Einlieferungsbeleg: Ihr
+# Versand an der Packstation") is about a parcel somebody sent, not one that comes: it
+# always takes its own path (``_dhl_receipt``) and gives an outgoing parcel.
 _DHL_RECEIPT = re.compile(r"\bEinlieferungsbeleg\b", re.IGNORECASE)
+# "Sendungsnummer" or "Ihre Sendungsnummer": the number is looked for in the 80 characters
+# from the label on (a colon, a line break or blanks may stand between).
+_DHL_LABEL = re.compile(r"Sendungsnummer", re.IGNORECASE)
+# "Abgabezeitpunkt\n03.11.2026 14:14 Uhr"
+_DHL_HANDOVER = re.compile(
+    r"Abgabezeitpunkt\s{0,40}:?\s{0,40}"
+    r"(\d{1,2})\.(\d{1,2})\.(\d{4})\s{1,5}(\d{1,2}):(\d{2})\s{0,3}Uhr",
+    re.IGNORECASE,
+)
 # DHL's newer layout leaves HTML table markup in its text/plain part.
 _MARKUP = re.compile(r"<(?:table|tr|td|p|div|br|span)\b", re.IGNORECASE)
 # "Ihre <Shop> Sendung ist unterwegs" / "… kommt heute …" / "… wurde zugestellt" / "… wird
@@ -190,7 +220,25 @@ def _dhl_pickup_point(msg: EmailMessage, text: str) -> str | None:
 
 def _dhl_numbers(text: str) -> list[str]:
     numbers = [n for carrier, n in find_numbers(text) if carrier == "dhl"]
-    return numbers or _DHL_S10.findall(text) or _DHL_SHORT.findall(text)
+    return (
+        numbers
+        or _DHL_S10.findall(text)
+        or _DHL_SHORT.findall(text)
+        or _DHL_SSCC.findall(text)
+    )
+
+
+def _dhl_customs(text: str) -> tuple[float, bool] | None:
+    """(amount in euro, cash asked for) of the import duty a DHL mail names, else None."""
+    found = _DHL_CUSTOMS.search(text)
+    if found is None:
+        return None
+    euro = found.group("euro").replace(".", "")
+    cent = (found.group("cent") or "").ljust(2, "0")
+    amount = float(f"{euro}.{cent or '00'}")
+    if amount <= 0:
+        return None
+    return amount, _DHL_CASH.search(text[found.end() : found.end() + 300]) is not None
 
 
 def _plain_name(text: str) -> str | None:
@@ -205,6 +253,48 @@ def _plain_name(text: str) -> str | None:
     if len(name) < 2 or not re.search(r"[^\W\d_]", name) or names_carrier(name):
         return None
     return shorten(name)
+
+
+def is_dhl_receipt(msg: EmailMessage) -> bool:
+    """A receipt of a handover: only ``parse_dhl_mail`` reads it, never the generic parser."""
+    return bool(_DHL_RECEIPT.search(subject(msg)))
+
+
+def _dhl_receipt(msg: EmailMessage, text: str, sent: datetime) -> list[MailUpdate]:
+    """The digital receipt of a handover: one outgoing parcel "unterwegs", dated by the
+    "Abgabezeitpunkt" (Europe/Berlin) or else by the mail. Nothing without a DHL number
+    behind "Sendungsnummer" (text part first, then the HTML part). No code, no duty, no name.
+    """
+    number = None
+    bodies = (text, html_body_text(msg))
+    for body in bodies:
+        for label in _DHL_LABEL.finditer(body):
+            if found := _dhl_numbers(body[label.start() : label.start() + 80]):
+                number = found[0]
+                break
+        if number:
+            break
+    if number is None:
+        return []
+    when = sent
+    for body in bodies:
+        if (m := _DHL_HANDOVER.search(body)) is not None:
+            day, month, year, hour, minute = (int(g) for g in m.groups())
+            try:
+                when = datetime(year, month, day, hour, minute, tzinfo=BERLIN)
+            except ValueError:
+                pass
+            break
+    return [
+        MailUpdate(
+            number=number,
+            carrier="dhl",
+            status=ParcelStatus.IN_TRANSIT,
+            sent_at=when,
+            title=None,
+            outgoing=True,
+        )
+    ]
 
 
 def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpdate]:
@@ -231,9 +321,9 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
     if _MARKUP.search(text):
         text = html_text(text)
     sent = sent_at(msg)
+    if _DHL_RECEIPT.search(subj):
+        return _dhl_receipt(msg, text, sent)
     numbers = _dhl_numbers(text)
-    if not numbers and _DHL_RECEIPT.search(subj):
-        return []
     if not numbers:
         # Nothing in the text part: the HTML part is read instead, for the day as well.
         text = html_body_text(msg)
@@ -253,6 +343,8 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
             if title is None and plain_names:
                 title = _plain_name(shop)
     status, ahead = _dhl_status(subj)
+    # (like the pickup point: the text read for the number, else the HTML part)
+    customs = _dhl_customs(text) or _dhl_customs(html_body_text(msg))
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
     if status is ParcelStatus.OUT_FOR_DELIVERY:
@@ -285,7 +377,74 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
             shop=shop_name,
             postponed=postponed,
             status_text=_dhl_words(subj, status),
+            customs_amount=customs[0] if customs else None,
+            customs_currency="EUR" if customs else None,
+            customs_cash=customs[1] if customs else False,
             pickup_point=pickup_point,
+        )
+    ]
+
+
+# ----- dhlecommerce.nl: DHL eCommerce -----
+# "Soon our courier will deliver shipment 00…<link> from <Shop> to you." (below "WE WILL
+# DELIVER SOON", subject "Shipment on its way"). The text is folded into one line first: the
+# HTML part puts "from" and the shop on lines of their own.
+_ECOMMERCE_NUMBER = re.compile(r"\bdeliver\s+shipment\s+(00\d{18})(?!\d)", re.IGNORECASE)
+_ECOMMERCE_SHOP = re.compile(
+    r"\bdeliver\s+shipment\s+00\d{18}(?:\s*<[^<>\s]{1,300}>)?\s+from\s+"
+    r"(?P<shop>[^<>\n]{1,100}?)\s+to\s+you\b",
+    re.IGNORECASE,
+)
+_ECOMMERCE_ON_ITS_WAY = re.compile(
+    r"\bshipment\s+on\s+its\s+way\b|\bwe\s+will\s+deliver\s+soon\b", re.IGNORECASE
+)
+
+
+def _ecommerce_numbers(text: str) -> list[str]:
+    """The SSCC the shipment sentence names (DHL's own: whatever its check digit), else the
+    DHL numbers ``find_numbers`` takes (an SSCC behind "Shipment number" with its check digit)."""
+    return _ECOMMERCE_NUMBER.findall(text) or [
+        number for carrier, number in find_numbers(text) if carrier == "dhl"
+    ]
+
+
+def parse_dhl_ecommerce_mail(
+    msg: EmailMessage, plain_names: bool = False
+) -> list[MailUpdate]:
+    """DHL eCommerce (dhlecommerce.nl): the number, "on its way" and the shop.
+
+    "Shipment on its way" (subject) or "WE WILL DELIVER SOON" (text) means on its way, without
+    a day; any other mail of DHL eCommerce only names the number. The shop of "… from <Shop>
+    to you" names the parcel through the naming gate (with ``plain_names`` without it, like
+    DHL's own mails), never in a mail forwarded as it is.
+    """
+    subj = subject(msg)
+    text = " ".join(body_text(msg).split())
+    numbers = _ecommerce_numbers(text)
+    if not numbers:
+        text = " ".join(html_body_text(msg).split())
+        numbers = _ecommerce_numbers(text)
+    if not numbers:
+        return []
+    status = (
+        ParcelStatus.IN_TRANSIT if _ECOMMERCE_ON_ITS_WAY.search(f"{subj}\n{text}") else None
+    )
+    title = shop_name = None
+    if found := _ECOMMERCE_SHOP.search(text):
+        shop = found.group("shop")
+        shop_name = shop_of(shop)
+        if not is_forwarded(msg):
+            title = company_name(shop)
+            if title is None and plain_names:
+                title = _plain_name(shop)
+    return [
+        MailUpdate(
+            number=numbers[0],
+            carrier="dhl",
+            status=status,
+            sent_at=sent_at(msg),
+            title=title,
+            shop=shop_name,
         )
     ]
 

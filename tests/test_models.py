@@ -195,3 +195,14 @@ def test_unreadable_shipment_ids_are_dropped(stored, expected):
     data = _mail_parcel().to_dict()
     data["shipment_ids"] = stored
     assert Parcel.from_dict(data).shipment_ids == expected
+
+
+def test_outgoing_roundtrip_and_old_store_without_the_field():
+    now = datetime(2026, 11, 3, 12, 0, tzinfo=UTC)
+    p = Parcel("123", "dhl", "mail", None, now, now)
+    assert p.outgoing is False
+    p.outgoing = True
+    assert Parcel.from_dict(p.to_dict()).outgoing is True
+    data = p.to_dict()
+    del data["outgoing"]
+    assert Parcel.from_dict(data).outgoing is False

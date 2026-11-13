@@ -115,6 +115,8 @@ TOP_LEVEL = [
     "home_assistant_version",
     "country",
     "hide_names",
+    "gift_viewers",
+    "persons",
     "entry",
     "carriers",
     "ups_budget",
@@ -210,7 +212,10 @@ def _parcels(now: datetime) -> list[Parcel]:
     )
     return [
         Parcel(JJD, "dhl", "auto", NAME, now, now, now, later, result=window),
-        Parcel(DHL, "dhl", "manual", None, now, now, now, later, result=_result()),
+        Parcel(
+            DHL, "dhl", "manual", None, now, now, now, later, result=_result(),
+            outgoing=True, arrival_told=True,
+        ),
         Parcel(
             DPD, "dpd", "auto", None, now, now, now, later,
             last_error="unavailable", error_streak=3, first_error_at=now,
@@ -431,7 +436,12 @@ async def test_diagnostics_parcels(hass, hass_storage, freezer):
         "track17_carrier": None,
         "track17_next_at": None,
         "has_track17_result": False,
+        "outgoing": False,
+        "arrival_told": False,
     }
+
+    dhl = by_number[MASKED[DHL]]
+    assert (dhl["outgoing"], dhl["arrival_told"]) == (True, True)
 
     dpd = by_number[MASKED[DPD]]
     assert (dpd["status"], dpd["last_error"], dpd["error_streak"]) == (None, "unavailable", 3)
@@ -525,6 +535,7 @@ async def test_diagnostics_without_any_credentials(hass, hass_storage, freezer):
         "last_run": None,
         "next_run": None,
         "last_error": None,
+        "last_error_kind": None,
         "error_streak": 0,
         "recognized": 0,
         "unrecognized": 0,
@@ -532,6 +543,7 @@ async def test_diagnostics_without_any_credentials(hass, hass_storage, freezer):
         "known_message_ids": 0,
         "last_unrecognized": [],
         "filing": None,
+        "delete_processed": {"enabled": False, "last_deleted": None},
     }
     assert result["parcels"] == []
 
@@ -726,6 +738,7 @@ async def test_mail_import_backoff_is_visible(hass, freezer):
     assert state["last_run"] == now.isoformat()
     assert state["next_run"] == (now + timedelta(minutes=10)).isoformat()
     assert "synthetic" not in _dump(state)
+    assert state["last_error_kind"] == "other"  # a text it does not know: never echoed
 
 
 async def test_download_through_home_assistant(hass, hass_storage, hass_client):
@@ -949,3 +962,55 @@ async def test_diagnostics_tell_how_mails_are_filed_without_host_user_or_folder(
     text = _dump(result)
     assert IMAP_USER not in text
     assert "pakete.tester" not in text
+
+
+async def test_diagnostics_count_persons_and_addresses_only(hass, hass_storage, freezer):
+    """How many persons and addresses; never an address or a person."""
+    entry = await _setup(hass, hass_storage, freezer)
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["persons"] == {
+        "persons": 0, "addresses": 0, "default_owner": False, "shared_addresses": 0
+    }  # fmt: skip
+    hass.config_entries.async_update_entry(
+        entry,
+        options={
+            **entry.options,
+            "persons": [
+                {
+                    "person": "person.erika",
+                    "addresses": ["erika@example.org", "pakete+erika@example.org"],
+                    "notify_targets": ["notify.mobile_app_erika"],
+                },
+                {"person": "person.max", "addresses": ["max@example.org"], "notify_targets": []},
+            ],
+            "default_owner": "person.max",
+            "shared_addresses": ["familie@example.org"],
+        },
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["persons"] == {
+        "persons": 2, "addresses": 3, "default_owner": True, "shared_addresses": 1
+    }  # fmt: skip
+    assert result["entry"]["options"]["persons"] == REDACTED
+    assert result["entry"]["options"]["shared_addresses"] == REDACTED
+    assert result["entry"]["options"]["default_owner"] == REDACTED
+    text = _dump(result)
+    for private in ("erika", "max@", "person.", "example.org", "mobile_app"):
+        assert private not in text, private
+
+
+async def test_diagnostics_tell_only_whether_old_mails_are_deleted(hass, hass_storage, freezer):
+    """v0.3.46: on or off and how many went last time; the days stay redacted."""
+    from custom_components.parcel_tracker.const import CONF_DELETE_PROCESSED_DAYS
+
+    entry = await _setup(hass, hass_storage, freezer)
+    hass.config_entries.async_update_entry(
+        entry, options={**entry.options, CONF_DELETE_PROCESSED_DAYS: 30}
+    )
+    await hass.async_block_till_done()
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert result["entry"]["options"][CONF_DELETE_PROCESSED_DAYS] == REDACTED
+    state = result["mail_import"]["delete_processed"]
+    assert set(state) == {"enabled", "last_deleted"}
+    assert state["last_deleted"] is None

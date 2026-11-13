@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.39"
+VERSION = "0.3.49"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -21,19 +21,41 @@ CONF_IMAP_FOLDER = "imap_folder"
 CONF_IMAP_PORT = "imap_port"
 CONF_IMAP_SECURITY = "imap_security"
 CONF_MOVE_PROCESSED = "move_processed"
+CONF_DELETE_PROCESSED_DAYS = "delete_processed_days"
 CONF_READ_OTP = "read_otp"
 CONF_PLAIN_NAMES = "plain_names"
 CONF_MAIL_INTERVAL = "mail_interval"
 CONF_UPS_SECTION = "ups"
+CONF_GIFT_SECTION = "gift"
+CONF_GIFT_VIEWERS = "gift_viewers"
 CONF_UPS_ENABLED = "ups_enabled"
 CONF_UPS_CLIENT_ID = "ups_client_id"
 CONF_UPS_CLIENT_SECRET = "ups_client_secret"
 CONF_UPS_BUDGET = "ups_monthly_budget"
 CONF_TRACK17_API_KEY = "track17_api_key"
+# Tick boxes of the options form (never stored): drop the saved key.
+CONF_DHL_API_KEY_REMOVE = "dhl_api_key_remove"
+CONF_TRACK17_API_KEY_REMOVE = "track17_api_key_remove"
 CONF_NOTIFY_SECTION = "notify"
 CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_TARGETS = "notify_targets"
 CONF_NOTIFY_EVENTS = "notify_events"
+# Persons (#39): a list of {"person": <person entity ID>, "addresses": [<lower case
+# mail addresses>], "notify_targets": [<targets as CONF_NOTIFY_TARGETS>]}; only stored
+# once a person has been set up.
+CONF_PERSONS = "persons"
+CONF_PERSON = "person"
+# Picks a person already in ``persons`` (also one no longer in Home Assistant).
+CONF_CONFIGURED_PERSON = "configured_person"
+CONF_ADDRESSES = "addresses"
+CONF_REMOVE_PERSON = "remove"
+# Who a parcel belongs to when its mail names no or several persons: a person entity
+# ID, only stored when it is not "all" (DEFAULT_OWNER: everybody, as before persons).
+CONF_DEFAULT_OWNER = "default_owner"
+DEFAULT_OWNER = "all"
+# Addresses several persons share ("familie@…"): a mail to one of them belongs to
+# everybody, whatever else it names. Lower case; only stored when there is one.
+CONF_SHARED_ADDRESSES = "shared_addresses"
 
 # Countries on offer (ISO 3166-1 alpha-2, lower case: selector option values double as
 # translation keys, which hassfest only accepts as [a-z0-9-_]+). An entry without one
@@ -45,10 +67,14 @@ POSTCODE_DIGITS = {"de": 5, "at": 4, "ch": 4}
 DEFAULT_POSTCODE = ""
 DEFAULT_KEEP_DELIVERED_DAYS = 3
 DEFAULT_HIDE_NAMES = False
+# Person entities that may see what is in a gift (Geschenkmodus); nobody by default.
+DEFAULT_GIFT_VIEWERS: tuple = ()
 MIN_KEEP_DELIVERED_DAYS = 1
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30
-DEFAULT_IMAP_HOST = "imap.mailbox.org"
+# Only for the one-time migration of entries from before v0.3.42, which had no host
+# stored and relied on this being the silent default. Never a fallback or a prefill.
+LEGACY_IMAP_HOST = "imap.mailbox.org"
 # The port and the kind of connection of the mail server; entries from before v0.3.32
 # store neither. The kinds are selector option values and so translation keys (lower
 # case): TLS with a checked certificate, TLS without checking it (a self-signed
@@ -62,11 +88,15 @@ IMAP_SECURITY_PLAIN = "plain"
 IMAP_SECURITIES = (IMAP_SECURITY_SSL, IMAP_SECURITY_NOVERIFY, IMAP_SECURITY_PLAIN)
 DEFAULT_IMAP_SECURITY = IMAP_SECURITY_SSL
 DEFAULT_MOVE_PROCESSED = True
+# Recognised mails in Paket-Tracker-Verarbeitet are deleted after this many days; 0: never.
+DEFAULT_DELETE_PROCESSED_DAYS = 0
+MIN_DELETE_PROCESSED_DAYS = 1
+MAX_DELETE_PROCESSED_DAYS = 365
 DEFAULT_READ_OTP = False
 DEFAULT_PLAIN_NAMES = False
 DEFAULT_MAIL_INTERVAL = 5
 MIN_MAIL_INTERVAL = 1
-MAX_MAIL_INTERVAL = 60
+MAX_MAIL_INTERVAL = 1440
 DEFAULT_UPS_BUDGET = 100
 MIN_UPS_BUDGET = 0
 MAX_UPS_BUDGET = 10000
@@ -76,6 +106,8 @@ DHL_DAILY_SOFT_LIMIT = 200
 CARRIER_BROKEN_AFTER = timedelta(hours=24)
 
 EVENT_STATUS_CHANGED = "parcel_tracker_status_changed"
+# A parcel is new in the store (mail, service, card); never for loading or merging.
+EVENT_PARCEL_ADDED = "parcel_tracker_parcel_added"
 # Status changes found while Home Assistant starts are announced once it has started,
 # but never later than this after the first refresh (a start can hang for minutes).
 ANNOUNCE_MAX_WAIT = timedelta(seconds=120)

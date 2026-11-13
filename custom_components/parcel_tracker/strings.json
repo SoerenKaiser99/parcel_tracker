@@ -38,10 +38,16 @@
   "options": {
     "step": {
       "init": {
+        "title": "Paket Tracker",
+        "menu_options": {"settings": "Settings", "persons": "Persons"}
+      },
+      "settings": {
         "title": "Parcel Tracker options",
         "data": {
           "dhl_api_key": "DHL API key (optional)",
+          "dhl_api_key_remove": "Remove DHL API key",
           "track17_api_key": "17track API key (optional)",
+          "track17_api_key_remove": "Remove 17track API key",
           "country": "Country",
           "postcode": "Postcode (optional)",
           "keep_delivered_days": "Hide delivered parcels after (days)",
@@ -51,7 +57,9 @@
           "country": "Decides how many digits the postcode has and which GLS lookup is asked.",
           "postcode": "Germany: 5 digits (e.g. 10115). Austria and Switzerland: 4 digits (e.g. 1010).",
           "dhl_api_key": "Without a key, DHL parcels come from the DHL mails via the mail import; with it you get the live status. Leave empty to keep the saved key.",
+          "dhl_api_key_remove": "Tick and save to delete the saved DHL key. The tick wins, even if a new key is typed in the field above.",
           "track17_api_key": "Free key from api.17track.net (200 numbers once). Only used when you ask for it on the card. Leave empty to keep the saved key.",
+          "track17_api_key_remove": "Tick and save to delete the saved 17track key. The tick wins, even if a new key is typed in the field above.",
           "hide_names": "Parcels are only named after the carrier (e.g. “DHL-Paket”, “Amazon-Bestellung”) – on the card, in the calendar, in the sensors and in the notifications. For gifts on a shared dashboard. A name you typed in yourself stays visible; the stored names are not changed."
         },
         "sections": {
@@ -67,6 +75,7 @@
               "imap_password": "Password",
               "imap_folder": "Folder",
               "move_processed": "Move processed mails to folders",
+              "delete_processed_days": "Delete recognised mails after (days)",
               "read_otp": "Read delivery codes (one-time passwords)",
               "plain_names": "Take sender names from DHL mails without the check",
               "mail_interval": "Check mailbox every (minutes)"
@@ -79,6 +88,7 @@
               "imap_password": "Leave empty to keep the saved password.",
               "imap_folder": "The folder of the mailbox that is read – only this one. Keep \"INBOX\" for a dedicated parcel mailbox. A folder of your main mailbox works too, but then Home Assistant knows the password of that whole mailbox. Leave empty to keep the stored folder.",
               "move_processed": "Folders Paket-Tracker-Verarbeitet and Paket-Tracker-Nicht-erkannt.",
+              "delete_processed_days": "Permanently deletes mails in the folder Paket-Tracker-Verarbeitet once they are this many days old (arrival date), at most once a day. Only this folder, never the folder read and never Paket-Tracker-Nicht-erkannt. Works only with “Move processed mails to folders”. 0 = off.",
               "read_otp": "The card shows a code only after a tap and a confirmation. It never goes into the history.",
               "plain_names": "A DHL subject “Ihre … Sendung …” names the parcel after the name in it, also for a small shop or a private person. Names of private people can then show up on the card, in the calendar, in the sensors and in the notifications. Off by default. “Hide names” still wins: it shows only the carrier name."
             }
@@ -112,7 +122,47 @@
               "notify_targets": "Notify entities (e.g. the Home Assistant app on your phone) and classic notify services such as Pushover, listed as “Dienst notify.…”. Without a target nothing is sent.",
               "notify_events": "The status changes you are notified about."
             }
+          },
+          "gift": {
+            "name": "Gift mode (optional)",
+            "description": "Who may see what is inside a gift.",
+            "data": {
+              "gift_viewers": "Who may see gifts?"
+            },
+            "data_description": {
+              "gift_viewers": "Only these people see what is inside a parcel in gift mode. Wall tablets and children's phones need a user of their own in Home Assistant."
+            }
           }
+        }
+      },
+      "persons": {
+        "title": "Persons",
+        "description": "Pick a person to set up their addresses and notifications. Parcels whose mail names no person or several persons belong to the choice below.",
+        "data": {
+          "configured_person": "Person set up",
+          "person": "Person",
+          "default_owner": "Unclear parcels belong to",
+          "shared_addresses": "Shared addresses (belong to everyone)"
+        },
+        "data_description": {
+          "configured_person": "Change or remove a person set up here, also one no longer in Home Assistant.",
+          "person": "Set up a new person. Leave both empty to only save the fields below.",
+          "default_owner": "Everyone (as before) or one of the persons set up here.",
+          "shared_addresses": "Addresses that belong to several persons, e.g. family@… Parcels to these addresses belong to everyone."
+        }
+      },
+      "person": {
+        "title": "Person",
+        "description": "Addresses and notifications of {person}.",
+        "data": {
+          "addresses": "Addresses (one per line)",
+          "notify_targets": "Notify",
+          "remove": "Remove person"
+        },
+        "data_description": {
+          "addresses": "The person's own mail address, their forwarding address (e.g. parcels+name@…) or the sender address when forwarding by hand. To remove all addresses, remove the person.",
+          "notify_targets": "Notifications about this person's parcels only go here. Empty: to the general targets.",
+          "remove": "Removes the addresses and notifications of this person."
         }
       }
     },
@@ -127,13 +177,16 @@
       "imap_login_disabled": "The mail server accepts no login without encryption. Choose \"Encrypted, don't verify the certificate\" (usually port 993) or allow plain-text logins on the server.",
       "imap_password_missing": "Enter the mailbox password.",
       "folder_not_found": "This folder doesn't exist in the mailbox.",
+      "host_required": "Enter the IMAP server of your mail provider.",
       "folder_reserved": "Paket Tracker files mails into this folder. Choose another folder to read.",
       "ups_auth": "UPS rejected Client ID or Secret.",
       "ups_cannot_connect": "Couldn't reach UPS. Try again later.",
       "ups_secret_missing": "Enter the UPS Client Secret.",
       "track17_invalid_key": "17track rejected this API key.",
       "track17_cannot_connect": "Couldn't reach 17track. Try again later.",
-      "notify_no_target": "Choose at least one target for the notifications."
+      "notify_no_target": "Choose at least one target for the notifications.",
+      "address_twice": "An address already belongs to another person or to the shared addresses.",
+      "address_invalid": "An entry is not a mail address."
     }
   },
   "issues": {
@@ -179,16 +232,27 @@
     },
     "card_resource_yaml": {
       "title": "Add the Paket Tracker card to the dashboard resources",
-      "description": "The dashboard resources are managed in YAML, so Parcel Tracker cannot add its card by itself. Add this entry under `lovelace:` → `resources:` in configuration.yaml and restart Home Assistant:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nThis notice disappears once the card is listed there."
+      "description": "The dashboard resources are managed in YAML, so Parcel Tracker cannot add its card by itself. Add this entry (replacing an older `/local/parcel_tracker/…` entry, if there is one) under `lovelace:` → `resources:` in configuration.yaml and restart Home Assistant:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nThis notice disappears once the card is listed there."
     }
   },
   "exceptions": {
+    "gift_mode_not_allowed": {"message": "Only someone who may see gifts can turn off the gift mode."},
+    "gift_not_allowed": {"message": "Only someone who may see gifts can make a gift visible again."},
+    "gift_remove_not_allowed": {"message": "Only someone who may see gifts can delete a gift."},
+    "gift_rename_not_allowed": {"message": "Only someone who may see gifts can rename a gift."},
+    "gift_owner_not_allowed": {"message": "Only someone who may see gifts can change who a gift belongs to."},
+    "gift_outgoing": {"message": "A sent parcel cannot be a gift."},
+    "owner_unknown": {"message": "This person is not set up in Paket Tracker."},
+    "gift_target": {"message": "Give either a tracking number or choose all open parcels."},
+    "gift_for_unknown": {"message": "Choose existing persons for gift_for."},
+    "gift_for_no_gift": {"message": "gift_for needs gift turned on."},
     "duplicate": {"message": "This parcel is already in the list."},
     "amazon": {"message": "Amazon tracking numbers (TBA…) can't be tracked directly. Forward the Amazon mails to the parcel mailbox instead."},
     "empty": {"message": "Enter a tracking number."},
     "unknown_carrier": {"message": "Unknown carrier."},
     "not_tracked": {"message": "This parcel isn't in the list."},
     "already_delivered": {"message": "This parcel is already delivered."},
+    "cancelled": {"message": "This order was cancelled, nothing more is coming."},
     "track17_off": {"message": "No 17track API key set. Add one in the Parcel Tracker options."},
     "track17_carrier": {"message": "17track couldn't recognise the carrier of this number."},
     "track17_quota": {"message": "Your 17track quota is used up."},
@@ -206,6 +270,9 @@
     }
   },
   "entity": {
+    "switch": {
+      "gift_mode": {"name": "Gift mode"}
+    },
     "sensor": {
       "parcel": {
         "state": {
@@ -216,6 +283,7 @@
           "awaiting_pickup": "Ready for pickup",
           "delivered": "Delivered",
           "exception": "Problem",
+          "cancelled": "Cancelled",
           "unknown": "Unknown"
         }
       },
@@ -229,6 +297,8 @@
     "calendar": {"deliveries": {"name": "Parcels"}}
   },
   "selector": {
+    "default_owner": {"options": {"all": "everyone"}},
+    "configured_person": {"options": {"stale": "no longer in Home Assistant"}},
     "country": {
       "options": {
         "de": "Germany",
@@ -259,7 +329,8 @@
       "fields": {
         "number": {"name": "Tracking number", "description": "As printed, spaces allowed."},
         "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, ups or other (via 17track, needs a 17track API key)."},
-        "name": {"name": "Name", "description": "Optional label."}
+        "name": {"name": "Name", "description": "Optional label."},
+        "owner": {"name": "Owner", "description": "Optional: the person the parcel belongs to (a person set up under Persons, such as person.anna, or all for everybody)."}
       }
     },
     "remove_parcel": {
@@ -284,6 +355,24 @@
       "name": "Refresh",
       "description": "Poll now, including the mailbox if configured.",
       "fields": {"number": {"name": "Tracking number", "description": "Empty for all parcels."}}
+    },
+    "set_gift": {
+      "name": "Mark as gift",
+      "description": "Mark a parcel, or all parcels not delivered yet, as a gift, or make it visible again (marking is open to everyone, only making it visible again is limited to people who may see gifts).",
+      "fields": {
+        "number": {"name": "Tracking number", "description": "Parcel to change. Leave empty when choosing all open parcels."},
+        "open_parcels": {"name": "All open parcels", "description": "Change every parcel that is not delivered yet instead of one."},
+        "gift": {"name": "Gift", "description": "On marks as gift, off makes it visible again."},
+        "gift_for": {"name": "Gift for", "description": "Persons the gift is for: they do not see it like someone who may see gifts, get no notification about it and cannot change it. Only with Gift on; an empty list removes the persons."}
+      }
+    },
+    "set_owner": {
+      "name": "Set owner",
+      "description": "Hand a parcel to a person, or to everybody. A mail never changes an owner set this way.",
+      "fields": {
+        "number": {"name": "Tracking number", "description": "Parcel to change."},
+        "person": {"name": "Person", "description": "A person set up under Persons (person.…) or all"}
+      }
     },
     "track_17track": {
       "name": "Track via 17track",

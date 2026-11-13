@@ -15,6 +15,7 @@ Zum Ausprobieren ohne Home Assistant: [Demo-Karte öffnen](demo/index.html). All
     | `?open=1` | klappt das erste Paket auf |
     | `?add=open` | öffnet die Eingabe hinter dem Plus-Knopf |
     | `?add=always` | zeigt die Eingabe dauerhaft |
+    | `?gifts=hide` | Kartenoption `gifts: hide`, das Geschenk fehlt |
 
     Lokal geht es auch: den Repository-Ordner mit `python3 -m http.server` ausliefern und `docs/demo/index.html` öffnen.
 
@@ -49,12 +50,14 @@ Oben rechts stehen bis zu drei Schilder, gelesen aus `sensor.pakete_heute`:
 
 | Schild | Bedeutung | Sichtbar |
 |---|---|---|
-| „1 heute“ | Kommt heute sicher: in Zustellung oder fester Liefertag heute | immer, auch als „0 heute“ |
+| „1 heute“ | Kommt heute sicher: in Zustellung oder fester Liefertag heute | nur, wenn heute sicher etwas kommt |
 | „1 möglich“ | Lieferzeitraum schließt heute ein. In der Liste bleibt der Zeitraum stehen (z. B. „Bis 5. Okt.“) | nur, wenn es solche Pakete gibt |
 | „1 zugestellt“ | Heute zugestellt | nur, wenn heute etwas zugestellt wurde |
 
-- Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“. Die Karte zeigt dann z. B. „0 heute“ und „1 zugestellt“.
+- Wird ein Paket zugestellt, wechselt es von „heute“ zu „zugestellt“. Die Karte zeigt dann z. B. nur „1 zugestellt“.
+- Steht kein Schild da, bleibt die Kopfzeile ohne Lücke: nur Titel und Plus-Knopf. Bis v0.3.45 stand dort immer mindestens ein Schild mit 0.
 - Eine Bestellung, die ohne Zustellmail abgeschlossen wurde, zählt dabei nicht mit. In der Liste steht bei ihr „Abgeschlossen (ohne Zustellbestätigung)“ statt „Zugestellt …“.
+- Ein versendetes Paket (Einlieferungsbeleg, siehe [E-Mail-Import](mail-import.md#versendete-pakete-einlieferungsbelege)) zählt in keinem dieser Schilder. Es steht in der normalen Liste mit dem Schild „Versendet“, ohne Knopf „Erhalten“, ohne Code, Geschenkbox, Abholort und Zoll.
 - Die Erklärung steht auch als Tooltip auf jedem Schild.
 - Auf schmalen Karten rutschen die Schilder gemeinsam unter den Titel, der Plus-Knopf bleibt rechts.
 
@@ -64,13 +67,14 @@ Jede Zeile zeigt den Paketdienst, den Namen, den Status, einen Fortschrittsbalke
 
 | Rechts steht | Bedeutung |
 |---|---|
-| „Heute“ oder „Heute 14:00–16:00 Uhr“ | Liefertag heute, mit Zeitfenster, wenn eines bekannt ist |
+| „Heute“ oder „Heute 14:00–16:00 Uhr“ | Liefertag heute, mit Zeitfenster, wenn eines bekannt ist. Auch ein Paket „in Zustellung“ ohne Liefertag (Hermes nennt keinen) zeigt „Heute“, wenn sich sein Status heute geändert hat |
 | „Morgen“, „In 3 Tagen“ | fester Liefertag |
 | „Bis 5. Okt.“ oder eine Spanne | der Versender nennt nur einen Zeitraum |
 | „Abholbereit“ | liegt in Packstation, Filiale oder PaketShop |
 | „Zugestellt heute“, „Zugestellt gestern“, „Zugestellt am …“ | zugestellt |
 | „Abgeschlossen (ohne Zustellbestätigung)“ | Bestellung ohne Zustellmail, siehe [E-Mail-Import](mail-import.md#bestellungen-ohne-zustellmail) |
-| „Noch kein Termin“ | Das Paket hat einen Status, aber noch keinen Zustelltag |
+| „Storniert“ | Der Shop hat die Bestellung storniert, sie steht ausgegraut am Ende der Liste, siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird) |
+| „Noch kein Termin“ | Das Paket hat einen Status, aber noch keinen Zustelltag. Ein Paket „in Zustellung“ ohne Liefertag, dessen Status sich nicht heute geändert hat, steht auch hier |
 | „Termin überschritten“ | Der genannte Liefertag ist vorbei |
 | „Kein Live-Status“ | Der Paketdienst lässt sich nicht abfragen, weil der DHL-API-Key oder die UPS-Zugangsdaten fehlen |
 
@@ -82,6 +86,9 @@ Aufgeklappt siehst du:
 
 **Verlauf**
 :   Die Ereignisse der Sendung mit Zeit, Text und – wenn bekannt – Ort. Die Texte stehen als reiner Text da, auch wenn der Paketdienst einen Link mitschickt (seit v0.3.34).
+
+**Einfuhrabgaben**
+:   Nur, wenn eine DHL-Mail für eine Sendung aus dem Ausland einen Zoll genannt hat: „Einfuhrabgaben: 12,34 € in bar bei Zustellung“ über der Sendungsnummer. „in bar“ steht nur da, wenn die Mail Barzahlung verlangt. In der zugeklappten Zeile steht dazu ein kleines Badge „Zoll 12,34 €“, damit man es sieht, ohne das Paket aufzuklappen. Beides verschwindet mit der Zustellung. Siehe [E-Mail-Import](mail-import.md).
 
 **Sendungsnummer, Bestellnummer**
 :   Unter dem Verlauf steht die Nummer des Pakets: „Sendungsnummer: …“. Bei einer Bestellung (Amazon, eBay, AliExpress, Eventim) steht dort „Bestellnummer: …“, so geschrieben wie beim Shop (z. B. `999-9999999-9999999` bei Amazon), und sobald eine Mail die Nummer des Paketdienstes genannt hat, darunter auch deren „Sendungsnummer: …“. Eine Amazon-Bestellung ohne diese Nummer zeigt stattdessen „Amazon-Sendung: …“ (ebenso unter einer Nummer, für deren Paketdienst es keine Verfolgungsseite gibt), Amazons eigene Kennung der Sendung aus den Mails ab „Versendet“; sie gilt nur auf Amazons Seite, nicht beim Zusteller. Ein Tipp auf die Nummer markiert sie ganz, dann lässt sie sich kopieren. Die Nummern stehen auch mit [Namen ausblenden](datenschutz.md#namen-ausblenden) da: Die Option blendet nur Namen aus. Seit v0.3.34.
@@ -134,13 +141,28 @@ Was dann gilt:
 !!! warning "Zurücknehmen geht nicht"
     Ein Paket, das als erhalten markiert ist, bleibt es. Deshalb die Rückfrage. Hast du dich vertippt, lösch das Paket und trag es neu ein.
 
-Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket fehlt der Knopf.
+Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket und einer stornierten Bestellung fehlt der Knopf.
 
 Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
 
+### Geschenkmodus
+
+Neben „Pakete“ im Kartenkopf steht ein Geschenk-Symbol: der Schalter „Geschenkmodus“ (er gehört zu `switch.paket_tracker_geschenkmodus`). Ältere Versionen der Integration haben ihn nicht, dann zeigt die Karte ihn auch nicht. Alles zum Modus und seinen Grenzen: [Geschenkmodus](datenschutz.md#geschenkmodus).
+
+!!! warning "Wähle zuerst, wer Geschenke sehen darf"
+    Unter **Konfigurieren** im Bereich „Geschenkmodus (optional)“ legst du fest, wer Geschenke sehen darf. Ist niemand gewählt, kann den Modus über die Karte keiner mehr ausschalten, nur eine Automation ([so geht's](automationen.md#geschenkmodus-per-automation-schalten)). Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant, sonst gelten sie als der Elternteil, mit dem sie angemeldet sind.
+
+**Einschalten.** Ein Tipp auf das Symbol fragt zuerst: „Auch die N offenen Pakete verbergen?“ Offen heißt: weder zugestellt noch storniert und noch kein Geschenk. „Ja, verbergen“ schaltet den Modus ein und kennzeichnet auch diese Pakete, „Nein, nur neue Pakete“ schaltet nur ein. Sind keine Pakete offen, gibt es „Einschalten“. Mit „Abbrechen“ oder ++esc++ passiert nichts. Wer nicht zu den Personen gehört, die Geschenke sehen dürfen, bekommt in der Rückfrage zusätzlich den Hinweis, zuerst zu wählen, wer das darf.
+
+**Ausschalten** kann nur, wer Geschenke sehen darf, mit einem Tipp, ohne Rückfrage. Alle anderen sehen bei eingeschaltetem Modus nur das Zeichen „Geschenkmodus“ ohne Knopf.
+
+**Ein Geschenk in der Liste.** Es heißt z. B. „Geschenk · DHL-Paket …2557“ und zeigt keine Links. Vorne in der Zeile steht ein Geschenk-Symbol. Wer Geschenke sehen darf, tippt darauf: Der echte Name erscheint nur in dieser Zeile und auf diesem Gerät, mit dem Link zur Sendung und dem Knopf „Nicht mehr verbergen“. Ein zweiter Tipp verbirgt ihn wieder. „Umbenennen“ und „Löschen“ fehlen bei einem Geschenk für alle anderen; „Erhalten“ bleibt.
+
+Sollen alle anderen ein Geschenk gar nicht sehen, auch keine Zeile und kein Schild: Kartenoption [`gifts`](#gifts-geschenke-ausblenden).
+
 ## Optionen der Karte
 
-Die Karte hat zwei eigene Optionen: `add_form` und `show`. Beide trägst du im YAML der Karte ein (Karte bearbeiten).
+Die Karte hat sechs eigene Optionen: `add_form`, `show`, `header`, `gifts`, `person` und `include_unassigned`. Du trägst sie im YAML der Karte ein (Karte bearbeiten).
 
 ### `add_form` – die Eingabe
 
@@ -223,6 +245,19 @@ Gut zu wissen:
 - Solange die Eingabe über den Plus-Knopf offen ist, verschwindet die Karte nicht.
 - Fehlt ein Sensor, den die Option braucht (Integration älter als v0.3.11), bleibt die Karte sichtbar.
 
+### `header` – die Kopfzeile
+
+Mit `header: false` entfällt die ganze Kopfzeile: Titel „Pakete“, Schilder, Geschenk-Schalter und Plus-Knopf. Standard ist `true`, also mit Kopfzeile. Praktisch, wenn die Karte z. B. in einem Stapel unter einer eigenen Überschrift steht.
+
+```yaml
+type: custom:parcel-tracker-card
+header: false
+```
+
+- Statt des Plus-Knopfs steht über der Liste ein kleiner Knopf „Paket hinzufügen“. Er klappt die Eingabe auf und wieder zu. Mit `add_form: always` ist die Eingabe immer offen, mit `add_form: never` gibt es keine.
+- Mit `header: false` und `add_form: never` steht über der ersten Zeile keine Linie mehr (bis v0.3.47 blieb dort ein Strich).
+- Den Geschenkmodus schaltest du ohne Kopfzeile über die Entität `switch.paket_tracker_geschenkmodus`, z. B. in einer Schalter-Karte oder einer [Automation](automationen.md#geschenkmodus-per-automation-schalten). Die Rückfrage, ob offene Pakete auch Geschenke werden, gibt es dann nicht.
+
 ### Beide Optionen zusammen
 
 ```yaml
@@ -230,6 +265,60 @@ type: custom:parcel-tracker-card
 add_form: never
 show: today_possible
 ```
+
+### `gifts` – Geschenke ausblenden
+
+Legt fest, ob die Karte Geschenke als Zeile zeigt.
+
+| Wert | Wirkung |
+|---|---|
+| `show` (Standard) | wie bisher: Geschenke stehen als Zeile „Geschenk · …“ in der Liste |
+| `hide_for_others` | Wer Geschenke sehen darf, sieht sie wie bisher. Alle anderen sehen kein Geschenk: keine Zeile, es zählt nicht in den Schildern, nicht bei `show` und nicht beim Hinweis „Noch keine Pakete.“ |
+| `hide` | nie Geschenke, auch nicht für Geschenk-Seher – z. B. für ein gemeinsames Wandtablet |
+
+Fehlt die Option oder steht dort ein anderer Wert, gilt `show`.
+
+```yaml
+type: custom:parcel-tracker-card
+gifts: hide_for_others
+```
+
+Gut zu wissen:
+
+- Ob jemand Geschenke sehen darf, fragt die Karte bei der Integration nach. Bis die Antwort da ist, zeigt sie keine Geschenke. Meldet sich am Wandtablet ein anderer Benutzer an, gilt sofort dessen Recht.
+- Ein Geschenk, das für die eigene Person ist ([`gift_for`](datenschutz.md#geschenk-fur-bestimmte-personen-gift_for)), zeigt die Karte wie für jemanden, der Geschenke nicht sehen darf. Ein neues Geschenk zeigt sie erst, wenn die Integration geantwortet hat.
+- Wandtablets und Kinder-Handys brauchen dafür einen eigenen Benutzer in Home Assistant.
+- Auch diese Option ist nur eine Anzeige. Die Sensoren der Geschenke bleiben für jeden Benutzer lesbar, mit dem Geschenk-Namen. Siehe [Geschenkmodus](datenschutz.md#geschenkmodus).
+
+### Gehört: pro Paket und Filter
+
+Sind in der Integration [Personen eingerichtet](mail-import.md#pakete-personen-zuordnen), zeigt ein aufgeklapptes Paket die Zeile **Gehört** mit einer Auswahl. Zur Wahl stehen nur die dort eingerichteten Personen, nicht jede Person aus Home Assistant. Ohne eingerichtete Personen fehlt die Auswahl überall, und die Karte fügt Pakete ohne Besitzer hinzu, wie bisher. Bei einem Geschenk sehen die Auswahl nur Geschenk-Seher.
+
+- **allen** und jede eingerichtete Person stehen zur Wahl. Ein Wechsel ruft den Dienst [`parcel_tracker.set_owner`](sensoren.md#parcel_trackerset_owner) auf und gilt für die ganze Box, also für alle Einträge mit derselben Sendungsnummer (z. B. mehrere Amazon-Bestellungen in einem Paket).
+- **Standard (Name)** steht oben, solange das Paket keinen eigenen Besitzer hat und die Person aus **Unklare Pakete gehören** gilt. Wählst du diese Person, bekommt das Paket sie als eigenen Besitzer.
+- In der Eingabe für neue Pakete steht zuerst **Standard (…)**: Das Paket bekommt keinen eigenen Besitzer, es gilt **Unklare Pakete gehören**. Dahinter folgen die eingerichteten Personen und, wenn **Unklare Pakete gehören** eine Person ist, **allen**. Gehören unklare Pakete allen, heißt der erste Eintrag **Standard (allen)** und ein eigenes **allen** gibt es nicht. Die Auswahl steht auf der Person des angemeldeten Benutzers, sonst auf **Standard**.
+
+Zwei Optionen zeigen auf der Karte nur die Pakete einer Person:
+
+```yaml
+type: custom:parcel-tracker-card
+person: person.anna
+include_unassigned: true
+```
+
+- `person`: nur die Pakete dieser Person. Alles, was keine Personen-Entität ist (außer `auto`), schaltet den Filter aus. Die Schilder oben rechts und die Zahlen zählen nur diese Pakete. Ist nichts da, steht „Keine Pakete für Anna.“
+- `person: auto` (seit v0.3.47): Die Karte zeigt die Pakete der Person des angemeldeten Benutzers, also der Personen-Entität, deren Benutzer dieser Benutzer ist. Wechselt der Benutzer, wählt die Karte neu. Eine Person, die Home Assistant erst später meldet, übernimmt sie von selbst.
+- `include_unassigned`: Standard `true`. Dann zeigt die Karte zusätzlich die Pakete, die allen gehören. Mit `false` bleiben nur die der Person.
+
+```yaml
+type: custom:parcel-tracker-card
+person: auto
+```
+
+Hat der angemeldete Benutzer keine Person, zeigt `person: auto` nur die Pakete von **allen** (mit `include_unassigned: false` keine) und sonst den üblichen Hinweis „Noch keine Pakete …“. Das trifft zum Beispiel einen Wand-Tablet-Benutzer ohne Person: Er sieht nur die Pakete von allen. Nimm für ein solches Tablet daher **keine** `person`-Option, dann zeigt die Karte alle Pakete.
+
+!!! warning "Der Filter ist nur eine Anzeige"
+    Die Pakete aller Personen bleiben als Sensoren sichtbar. Das gilt auch für `person: auto`. Siehe [Datenschutz](datenschutz.md#personen).
 
 ### Sichtbarkeit von Home Assistant nutzen
 
@@ -253,4 +342,4 @@ Die Karte merkt das selbst: Sie vergleicht ihre Version mit dem Attribut `integr
 
 Den Hinweis gibt es ab v0.3.9. Eine ältere Karte kennt ihn nicht. Kommst du von einer älteren Version, lädst du die Seite nach dem Update einmal von Hand neu.
 
-Die Kartendatei selbst zu ändern ist nicht nötig. Änderungen daran überschreibt die Integration beim nächsten Start.
+Die Kartendatei selbst zu ändern ist nicht nötig. Sie liegt in der Integration, und ein Update ersetzt sie.

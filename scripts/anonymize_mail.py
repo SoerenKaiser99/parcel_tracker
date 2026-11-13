@@ -429,6 +429,17 @@ _T_DATE = r"\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?!\d)"
 # number, so it is looked for before the phone rule (which took the first digits and left the
 # rest), with fewer digits after it. Without a label in front of it, a row of years ("2026
 # 2027 2028") or of two-digit numbers ("10 20 30 40 50 60") is no number in groups.
+def _t_sscc_check(digits):
+    """The GS1 check digit (mod 10) of the 19 digits in front of it."""
+    total = sum(int(d) * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(digits)))
+    return str((10 - total % 10) % 10)
+
+
+def _t_sscc(run):
+    """An SSCC as carriers print it: "00", 18 digits, the last a check digit that fits."""
+    return bool(re.fullmatch(r"00[0-9]{18}", run)) and _t_sscc_check(run[:-1]) == run[-1]
+
+
 def _t_groups(minimum, labelled=False):
     runs = []
     for gap in (" ", r"\t", r"\.", "-"):
@@ -502,6 +513,8 @@ _T_PLACE_PHRASE = re.compile(
 _T_RECIPIENT = (
     r"(?:(?:Zustell|Liefer|Versand|Rechnungs)-?(?:adresse|anschrift)|Empf(?:ä|ae)nger(?:in)?"
     r"|Geliefert an|Lieferung an|Versand an|Die Sendung geht an"
+    # eBay: "Ihre Bestellung wird verschickt an:", older mails "Versandziel:"
+    r"|(?:Ihre Bestellung )?wird verschickt (?:an|nach)|Versandziel"
     r"|Ship(?:ping)?[ -]?(?:To|Address)|Deliver(?:y(?: Address)?| to))"
 )
 _T_COUNTRY = r"(?:Deutschland|Germany|Österreich|Austria|Schweiz|DE|AT|CH)"
@@ -524,8 +537,11 @@ _T_ADDRESS_LINE = re.compile(
 # "… an folgende Adresse zugestellt:" (DPD Austria), also at the end of a sentence: the
 # lines below it up to the line with the postcode (four or five digits), at most four lines.
 _T_ADDRESS_INTRO = re.compile(
-    r"(?im)^([^\n]{0,80}?\b(?:an[ \t]+)?(?:die[ \t]+)?folgende[n]?[ \t]+(?:Adresse|Anschrift)"
-    r"(?:[ \t]+(?:zugestellt|geliefert|gesendet|versendet|verschickt))?[*_ \t]*:[*_ \t]*\n)"
+    r"(?im)^([^\n]{0,80}?\b(?:(?:an[ \t]+)?(?:die[ \t]+)?folgende[nr]?[ \t]+(?:Adresse|Anschrift)"
+    r"(?:[ \t]+(?:zugestellt|geliefert|gesendet|versendet|verschickt|zu))?"
+    # "(bei einer Wunschzustellung ggf. abweichend)"; DPD in 2020: "Ich habe Ihr Paket
+    # erfolgreich zugestellt:"
+    r"(?:[ \t]*\([^()\n]{0,80}\))?|Ihr Paket erfolgreich zugestellt)[*_ \t]*:[*_ \t]*\n)"
     rf"(?:[^\n]*\n){{0,3}}?(?:{_T_BARE_POSTCODE}|[^\n:]{{0,60}}?\b\d{{5}}\b[^\n]*"
     r"|[ \t]*(?:(?:A|CH|D)[- ])?\d{4}[ \t]+[^\W\d_][^\n]*)"
 )
@@ -534,10 +550,22 @@ _T_ADDRESS_INTRO = re.compile(
 # block has as many lines as the address needs (street, addition, town, state, postcode),
 # so it is read up to the line with the phone number, never beyond the next label.
 _T_ALI_SHIP_TO = re.compile(
-    r"(?im)^(Versand nach[ \t]*\n)"
-    r"(?:(?P<lines>(?:(?![^\n]*\(\+\d+\)|Zahlungsmethode\b)[^\n]*\n){0,12})"
-    r"(?P<name>(?!Zahlungsmethode\b)[^\n(]*)\(\+\d+\)[^\n]*"
+    r"(?im)^((?:Versand nach|Ship to|Lieferanschrift)[ \t]*\n)"
+    r"(?:(?P<lines>(?:(?![^\n]*\(\+\d+\)|Zahlungsmethode\b|Payment method\b)[^\n]*\n){0,12})"
+    r"(?P<name>(?!Zahlungsmethode\b|Payment method\b)[^\n(]*)\(\+\d+\)[^\n]*"
     r"|(?P<single>[^\n]+))"
+)
+# Amazon until 2025: "Die Sendung geht an:", the first name and the place on the lines below.
+_T_AMAZON_SHIP_TO = re.compile(
+    r"(?im)^([*_ \t]*Die Sendung geht an:[*_ \t]*\n[ \t]*)([^\n]{2,40}?)([ \t]*\n[ \t]*)"
+    r"([^\n\d]{2,40}?)([ \t]*\n[ \t]*(?:Gesamtbetrag|Bestellnummer))"
+)
+# The recipient's name behind "Empfänger:" or on the line below it, without an address (DPD).
+_T_RECIPIENT_NAME = re.compile(
+    r"((?i:Empf(?:ä|ae)nger(?:in)?)[*_ \t]*:[*_ \t]*(?:\n[*_ \t]*)?)"
+    r"((?:[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*|[A-ZÄÖÜ]\.)"
+    r"(?:[ \t]+(?:von|van|de|der|zu))?[ \t]+[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*)"
+    r"(?![^\W\d_])"
 )
 # GLS delivery mail: "*an NAME*" and the address lines up to the next rule or empty line.
 _T_DELIVERED_TO = re.compile(
@@ -576,7 +604,10 @@ _T_NOT_NAME = re.compile(
     r"|ablageort|wunschort|abstellort|zusteller\w*|bote\w*|fahrer\w*|besteller\w*"
     r"|k(?:ä|ae)ufer\w*|verk(?:ä|ae)ufer\w*|nutzer\w*|user|gast|mitglied|interessent\w*"
     r"|damen|herren|person|dritte\w*|angeh(?:ö|oe)rige\w*|ehepartner\w*|max|mustermann"
-    r"|beispielversender|beispielnachbar|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    r"|beispielversender|beispielnachbar|beispiel|erforderlich|unbekannt|vorhanden|neu\w*|wichtig\w*"
+    # officers of a company in front of their names ("Geschäftsführer Vorname Nachname")
+    r"|gesch(?:ä|ae)ftsf(?:ü|ue)hr\w*|vorstand\w*|vorsitz\w*|inhaber\w*|direktor\w*"
+    r"|gesellschafter\w*"
     # status words a mail may put above an address ("Abholbereit\nHauptstraße 1\n…")
     r"|abholbereit|zugestellt|hinterlegt|abholort|abholung|abholstation|bereit|abgestellt"
     r"|abgegeben|trafik|zustellung|zustellort|lieferung|lieferort|sendung|paket|status"
@@ -593,11 +624,12 @@ _T_SENDER_NEXT = re.compile(r"(?i)(Paket von(?: dem Absender)?[ \t]*\n\s*)([^\n]
 # "Paket von NAME." and UPS' "auf Antrag von NAME , um ...": up to four capitalised words in
 # front of a verb, a comma or the end.
 _T_SENDER_INLINE = re.compile(
-    r"(?m)((?:(?:Sendung|Paket|Päckchen|Lieferung|Antrag|Auftrag) von|(?:request|behalf) of) )"
+    # Hermes glues the words together in its text part: "deine Sendungvon NAME findet …"
+    r"(?m)((?:(?:Sendung|Paket|Päckchen|Lieferung|Antrag|Auftrag) ?von|(?:request|behalf) of) )"
     r"(?!(?:Ihnen|Ihre[mnrs]?|Dir|Deine[mnrs]?|Uns|Unsere[mnrs]?|Montag|Dienstag|Mittwoch"
     r"|Donnerstag|Freitag|Samstag|Sonnabend|Sonntag|Heute|Gestern|Morgen)\b)"
     r"((?:[A-ZÄÖÜ][^\s,:]* ){0,3}?[A-ZÄÖÜ](?:[^\s,:]*[^\s,:.])?)"
-    r"(?= (?:wurde|wird|kommt|ist|befindet|mit der|hat|liegt|konnte|kann|möchten|to)\b"
+    r"(?= (?:wurde|wird|kommt|ist|befindet|findet|mit der|hat|liegt|konnte|kann|möchten|to)\b"
     r"|[ \t]?[,.]?[ \t]*$|[ \t]?[,.][ \t])"
 )
 # "Absender: NAME" / "Versender: NAME" / "Von: NAME" on one line.
@@ -618,6 +650,68 @@ _T_AMAZON_LINE = re.compile(
     r"(?m)^([ \t]*)([^\W\d_][^\n–—-]{1,30}?)([ \t]+[–—-][ \t]+)([^\W\d_][^\n]{1,40}?)"
     r"([ \t]*\n(?:[ \t]*\n)*[ \t]*Bestell(?:nr\b|nummer))"
 )
+# The officers of a company in its legal footer ("Geschäftsführer: …", "Vorstand: …",
+# "Vorsitzender des Aufsichtsrates: …"): public, but the names of persons all the same. The
+# list ends at the register court or another part of the footer.
+_T_OFFICER_WORDS = (
+    r"gesch(?:ä|ae)ftsf(?:ü|ue)hr(?:er(?:in|innen)?|ung"
+    r"|ende[rn]?[ \t]+(?:Direktor(?:en|in)?|Gesellschafter(?:in)?))"
+    r"|vorstand|aufsichtsrat|vertreten[ \t]+durch|managing[ \t]+directors?|directors?"
+)
+# one person only: a separator after the name ends the list
+_T_OFFICER_ONE = (
+    r"vorsitzende[rs]?[ \t]+des[ \t]+aufsichtsrat(?:e?s)|aufsichtsratsvorsitzende[rs]?"
+    r"|inhaber(?:in)?"
+)
+_T_OFFICERS = re.compile(
+    rf"(?i:\b(?:{_T_OFFICER_WORDS}|(?P<one>{_T_OFFICER_ONE}))\b)"
+    r"(?P<list>(?:(?!\b(?:Sitz|Amtsgericht|Registergericht|Handelsregister\w*|HR[AB]|USt|Umsatz"
+    r"\w*|Steuer\w*|WEEE|Telefon|Tel|E-Mail|Auf diese)\b)[^\n]){1,300})"
+)
+# Where such a list may end early: at a separator of a one-line footer ("|", "·", " – ", " / ")
+# or at the end of a sentence. A title, an initial or "Co." ends nothing.
+_T_OFFICERS_END = re.compile(
+    r"(?P<sep>[ \t]*[|·]|[ \t]+[–—/-][ \t])"
+    r"|(?<![^\W\d_])(?!(?:Dr|Prof|Dipl|Ing|Co|[^\W\d_])\.)[^\W\d_]+(?=\.(?:[ \t]|$))"
+)
+# One name in such a list, with its titles: "Dr. Vorname Nachname", "Vorname de Nachname".
+_T_OFFICER_WORD = r"[A-ZÄÖÜ][^\W\d_]+(?:-[A-ZÄÖÜ][^\W\d_]+)*"
+_T_OFFICER_MIDDLE = r"[dD]e|[vV]an|[vV]on|der|zu|Di|Da|Le|La|[A-ZÄÖÜ]\."
+_T_OFFICER = re.compile(
+    r"(?<![^\W\d_])(?P<title>(?:(?:Dr|Prof)\.[ \t]*)*)"
+    rf"(?P<name>{_T_OFFICER_WORD}(?:[ \t]+(?:{_T_OFFICER_MIDDLE}))*"
+    rf"[ \t]+{_T_OFFICER_WORD})(?![^\W\d_])"
+)
+# In a line of names only a name may have a second given name: "Vorname Vorname Nachname".
+_T_OFFICER_LONG = re.compile(
+    r"(?<![^\W\d_])(?P<title>(?:(?:Dr|Prof)\.[ \t]*)*)"
+    rf"(?P<name>{_T_OFFICER_WORD}(?:[ \t]+(?:{_T_OFFICER_MIDDLE}|{_T_OFFICER_WORD}))*"
+    rf"[ \t]+{_T_OFFICER_WORD})(?![^\W\d_])"
+)
+# The role behind a name: "(CEO)", "(Vorsitzender)".
+_T_OFFICER_ROLE = r"(?:[ \t]*\([^\W\d_][^()\n/:]{0,29}\))?"
+# A part of a one-line footer that holds one name only: "| Dr. Vorname Nachname (CEO) |".
+_T_OFFICER_PART = re.compile(
+    r"[ \t]*" + _T_OFFICER.pattern + _T_OFFICER_ROLE + r"[ \t]*(?:[|·/–—-]|$)"
+)
+# The officers in the lines below their heading: "Vertreten durch die Geschäftsführung der
+# Paket GmbH\nVorname Nachname, Dr. Vorname Nachname" or "Geschäftsführung:\nVorname
+# Nachname\nVorname Nachname". The heading ends at the word, a colon or the company.
+_T_OFFICER_ANY = (
+    rf"(?:(?:Dr|Prof)\.[ \t]*)*{_T_OFFICER_WORD}"
+    rf"(?:[ \t]+(?:{_T_OFFICER_MIDDLE}|{_T_OFFICER_WORD}))*"
+    rf"[ \t]+{_T_OFFICER_WORD}(?![^\W\d_]){_T_OFFICER_ROLE}"
+)
+_T_OFFICER_LINES = re.compile(
+    rf"(?m)(?P<head>^[ \t]*(?:<p>)?[^\n.:;<]{{0,30}}?"
+    rf"(?i:\b(?:{_T_OFFICER_WORDS}|(?P<one>{_T_OFFICER_ONE}))\b)"
+    r"(?:[ \t]*:|[ \t]+(?:der|des|von|of|the)[ \t]+[^\n.:;<]{1,60}?"
+    r"\b(?:GmbH|mbH|AG|SE|KG|KGaA|UG|Ltd|Inc)\.?)?"
+    r"[ \t]*(?:</p>|<br[ \t]*/?>)?[ \t]*\n)"
+    rf"(?P<lines>(?:[ \t]*(?:<p>)?[ \t]*{_T_OFFICER_ANY}"
+    rf"(?:[ \t]*(?:[,;|·&]|und)[ \t]*{_T_OFFICER_ANY})*"
+    r"[ \t,]*(?:</p>|<br[ \t]*/?>)?[ \t]*(?:\n|\Z))+)"
+)
 # An address without a label: [name line,] street with house number, postcode and city.
 _T_STREET = (
     r"[^\W\d_][^\n\d:@,;|]{2,40}?[ \t.]\d{1,4}(?:[ \t]?[a-zA-Z]\b)?"
@@ -625,7 +719,7 @@ _T_STREET = (
     # Austria: staircase and door ("12/3/7", "3/Top 5", "1/Stiege 2/Tür 4")
     r"(?:[ \t]?/[ \t]?(?:(?:Top|Stiege|Stg\.?|Tür|Haus)[ \t]?)?\d{1,4}(?:[ \t]?[a-zA-Z]\b)?){0,3}"
 )
-_T_PLZ = r"(?:D[- ])?(?!12345[ \t]+Musterstadt|00000[ \t]+Beispielstadt)\d{5}"
+_T_PLZ = r"(?:DE?[- ])?(?!12345[ \t]+Musterstadt|00000[ \t]+Beispielstadt)\d{5}"
 # Austria and Switzerland: four digits ("A-6789", "CH-8999"); only below a street line that
 # names a street (four digits alone are too often a year or an amount).
 _T_PLZ4 = r"(?:(?:A|CH)[- ])?\d{4}(?!\d)"
@@ -650,7 +744,17 @@ _T_INLINE_ADDRESS = re.compile(
     rf"(?P<plz>{_T_PLZ}|{_T_PLZ4})[ \t]+(?P<city>{_T_CITY})"
 )
 _T_PLZ_CITY = re.compile(
-    rf"(?m)(?P<lead>^[*_> \t]*|[,|·•][ \t]*)(?P<plz>{_T_PLZ})[ \t]+(?P<city>{_T_CITY})"
+    rf"(?m)(?P<lead>^[*_> \t]*|[,|·•][*_ \t]*)(?P<plz>{_T_PLZ})"
+    # also glued to the place ("12345Musterstadt")
+    rf"(?:[ \t]+|(?=[A-ZÄÖÜ][a-zäöüß]))(?P<city>{_T_CITY})"
+)
+# Fields of a form, the value behind the label or on the line below it.
+_T_FORM = re.compile(
+    r"(?im)^(?P<label>[*_ \t]*(?P<kind>(?:Vor|Nach|Familien|Kunden|Empf(?:ä|ae)nger)name"
+    r"|Name[ \t]*/[ \t]*(?:Unternehmen|Firma)"
+    r"|Stra(?:ß|ss)e(?:nname)?(?:[ \t]*(?:&|und|/|\|)[ \t]*(?:Hausnummer|Haus-?Nr\.?|Nr\.?))?"
+    r"|PLZ(?:[ \t]*(?:&|und|/|,|\|)[ \t]*Ort)?|Postleitzahl|Wohnort|Ort|Stadt)"
+    r"[*_ \t]*:[*_ \t]*(?:\n[*_ \t]*)?)(?P<value>[^\n]*?)[ \t]*$"
 )
 # A place to pick a parcel up at, with its number ("Postfiliale 999", "Packstation 123"): the
 # number tells where the recipient lives, so it is invented like a tracking number (the same
@@ -665,8 +769,10 @@ _T_PICKUP_NUMBER = re.compile(
 # ("Filiale 999 (Hauptstraße 1, 12345 Ort)").
 _T_MARKUP = r"(?:<[^<>\n]{0,300}>|[ \t*_>])*"
 _T_PICKUP_STREET = re.compile(
-    rf"(?im)^{_T_MARKUP}(?:{_T_PICKUP})\b[^\n]{{0,80}}\n{_T_MARKUP}(?P<street>{_T_STREET})"
-    rf"(?![^\W_])[^\n]{{0,80}}\n{_T_MARKUP}(?:D-)?\d{{5}}[ \t]"
+    rf"(?im)^{_T_MARKUP}(?:pickup[ \t]+)?(?:{_T_PICKUP})\b[^\n]{{0,80}}\n"
+    # DPD names the shop on a line of its own above its street
+    rf"(?:{_T_MARKUP}[^\n\d]{{2,60}}\n)?{_T_MARKUP}(?P<street>{_T_STREET})"
+    rf"(?![^\W_])[^\n]{{0,80}}\n{_T_MARKUP}(?:DE?-)?\d{{5}}(?:[ \t]|(?=[^\W\d_]))"
     rf"|(?:{_T_PICKUP})[ \t]*\d{{1,6}}[ \t]*\((?P<inline>{_T_STREET})[ \t]*,[ \t]*(?:D-)?\d{{5}}[ \t]"
 )
 # Quoted header lines of a forwarded mail: the recipients.
@@ -690,6 +796,16 @@ _T_QUOTED_KIND = {
     "gesendet": "date", "sent": "date", "datum": "date", "date": "date",
 }
 _T_INVISIBLE = re.compile("[\u00ad\u034f\u200b-\u200f\u202a-\u202e\u2060\ufeff]")
+# eBay: the buyer's name and user name in the footer ("… von eBay an NAME (NUTZER) gesendet",
+# "… von eBay gesendet an NAME (NUTZER)"), the user name (or the name) in the subject of a
+# purchase confirmation and in "Willkommen zurück, NUTZER!".
+_T_EBAY_FOOTER = re.compile(
+    r"(?i)(\bvon eBay (?:an|gesendet an)[ \t]+)([^()\n]{3,60}?)([ \t]*\()([^()\s]{3,64})(\))"
+)
+_T_EBAY_HANDLE = re.compile(
+    r"(?im)^(?P<head>)(?P<who>[^,\n]{3,64})(?=, Ihre Bestellung wurde bestätigt)"
+    r"|(?P<hi>\bWillkommen zurück, )(?P<user>[^\s!,]{3,64})(?=!)"
+)
 _T_SELLER = re.compile(r"(?i)(Verk(?:ä|ae)ufer(?:in)?:[ \t]*\n?[ \t]*)([^\n]+)")
 _T_GREETING = (
     r"(?i:Hallo|Hi|Hey|Moin|Servus|Guten (?:Tag|Morgen|Abend)|Liebe[rs]?"
@@ -907,6 +1023,9 @@ def _t_address_parts(block):
     """(name, street, postcode, city) of the lines of an address; "" for what is not found."""
     lines = [" ".join(line.split()).strip("*_, ") for line in block.split("\n")]
     lines = [line for line in lines if line]
+    # eBay puts the country above the name
+    while len(lines) > 1 and re.fullmatch(rf"(?i){_T_COUNTRY}", lines[0]):
+        lines.pop(0)
     # five digits anywhere, four (Austria, Switzerland) only in front of the place
     code = re.compile(r"(?<!\d)\d{5}(?!\d)|^(?:(?:A|CH|D)[- ])?(?P<four>\d{4})(?=[ \t]+[^\W\d_])")
     at = next((i for i, line in enumerate(lines) if code.search(line)), None)
@@ -987,6 +1106,7 @@ class _TScrubber:
         self.fixed = salt is not None
         self._salt = secrets.token_hex(16) if salt is None else salt
         self._runs = {}
+        self._mailboxes, self._tags = {}, {}  # real address / plus part (lower case) -> number
         # what must not be readable in a result: every value and every part of a name
         self._check = {v.casefold() for key in values for v in values[key] if len(v) >= 3}
         self._check.update(t.casefold() for v in values["name"] for t in v.split() if len(t) >= 3)
@@ -1113,6 +1233,9 @@ class _TScrubber:
         return match.group(1) + "Max Mustermann, Musterstraße 1, 12345 Musterstadt"
 
     def _ali_ship_to(self, match):
+        # "Lieferanschrift" is a label of other mails too: a block an earlier rule replaced stays
+        if re.match(r"[ \t]*(?:Max Mustermann|Musterstraße 1)\b", match.group(0).split("\n", 1)[1]):
+            return match.group(0)
         if match.group("single") is not None:
             self._note(match.group("single"), "Musterstraße 1, Musterstadt")
             return match.group(1) + "Musterstraße 1, Musterstadt"
@@ -1125,6 +1248,54 @@ class _TScrubber:
         self._recipient(*_t_address_parts(match.group(2) + "\n" + match.group(4)))
         return match.group(1) + "Max Mustermann" + match.group(3) + (
             "Musterstraße 1\n12345 Musterstadt\n" if match.group(4) else "")
+
+    def _recipient_name(self, match):
+        """A person's name behind "Empfänger:", without an address."""
+        name = match.group(2)
+        if not _t_person(name):
+            return match.group(0)
+        self._person(name)
+        return match.group(1) + "Max Mustermann"
+
+    def _amazon_ship_to(self, match):
+        self._person(match.group(2).strip())
+        self._recipient("", "", "", match.group(4).strip())
+        return f"{match.group(1)}Max{match.group(3)}Musterstadt{match.group(5)}"
+
+    def _form(self, match):
+        """A field of a form: name, street, or postcode and place."""
+        kind, value = match.group("kind").casefold(), match.group("value")
+        if kind.startswith(("plz", "postleitzahl", "ort", "wohnort", "stadt")):
+            found = re.fullmatch(rf"({_T_PLZ}|{_T_PLZ4})[ \t]+({_T_CITY})", value)
+            if found:
+                self._recipient("", "", re.sub(r"\D", "", found.group(1)), found.group(2))
+                return match.group("label") + "12345 Musterstadt"
+            if kind.startswith(("plz", "postleitzahl")) and re.fullmatch(_T_PLZ, value):
+                self._recipient("", "", re.sub(r"\D", "", value), "")
+                return match.group("label") + "12345"
+            if kind.startswith("plz") or kind.startswith("postleitzahl") or not (
+                re.fullmatch(_T_CITY, value) and not _T_SERVICE.search(value)
+                and not any(_T_NOT_NAME.fullmatch(word) for word in value.split())
+            ):
+                return match.group(0)
+            self._recipient("", "", "", value)
+            return match.group("label") + "Musterstadt"
+        if kind.startswith("stra"):
+            found = re.match(_T_STREET, value)
+            if not found:
+                return match.group(0)
+            self._recipient("", found.group(0), "", "")
+            return match.group("label") + "Musterstraße 1"
+        if not _t_name_line(value):
+            return match.group(0)
+        if kind.startswith("vor"):
+            self._person(value)
+            return match.group("label") + "Max"
+        if kind.startswith(("nach", "familien")):
+            self._person(value, "Mustermann")
+            return match.group("label") + "Mustermann"
+        self._person(value)
+        return match.group("label") + "Max Mustermann"
 
     def _hello(self, match):
         words = [word for word in match.group("name").split() if not re.search(r"\d", word)]
@@ -1147,6 +1318,28 @@ class _TScrubber:
             name = re.sub(r"[^*_\s](?:[^*\n]*[^*_\s])?", placeholder, name, count=1)
         address = match.re is _T_SENDER_BLOCK and match.group(3)
         return match.group(1) + name + ("\nBeispielweg 2\n00000 Beispielstadt" if address else "")
+
+    def _ebay_footer(self, match):
+        """eBay's footer: the buyer's name and user name, replaced in every mail."""
+        name, user = match.group(2), match.group(4)
+        if _t_person(name):
+            self._person(name)
+        self._note(user, "beispielnutzer", r".")
+        return f"{match.group(1)}Max Mustermann{match.group(3)}beispielnutzer{match.group(5)}"
+
+    def _ebay_handle(self, match):
+        """The buyer's user name (or name) in a purchase confirmation."""
+        if match.group("hi") is not None:
+            self._note(match.group("user"), "beispielnutzer", r".")
+            return match.group("hi") + "beispielnutzer"
+        who = match.group("who").strip()
+        if _t_person(who):
+            self._person(who)
+            return "Max Mustermann"
+        if " " in who or _t_company(who):
+            return match.group(0)
+        self._note(who, "beispielnutzer", r".")
+        return "beispielnutzer"
 
     def _amazon(self, match):
         self._person(match.group(2))
@@ -1193,6 +1386,53 @@ class _TScrubber:
             self._note(found, "Garage")
         return (match.group(1) if match.re is _T_PLACE_NEXT else "") + "Ablageort: Garage"
 
+    def _officers(self, match):
+        """The persons in a list of a company's officers; a company in it stays.
+
+        Only where they stand, nothing is learnt: what follows "Inhaber" may be a brand.
+        """
+        names, rest, pos, out = match.group("list"), "", 0, ""
+        for end in _T_OFFICERS_END.finditer(names):
+            # "Geschäftsführung: Vorname Nachname | Dr. Vorname Nachname" goes on
+            part = (
+                end.group("sep") and not match.group("one")
+                and _T_OFFICER_PART.match(names, end.end())
+            )
+            if not (part and _t_person(part.group("name"))):
+                cut = end.start() if end.group("sep") else end.end()
+                # what follows may be the next list: "| Vorsitzender des Aufsichtsrates: …"
+                names, rest = names[:cut], _T_OFFICERS.sub(self._officers, names[cut:])
+                break
+        while True:
+            found = _T_OFFICER.search(names, pos)
+            if not found:
+                break
+            if _t_person(found.group("name")):
+                out += names[pos:found.start()] + found.group("title") + "Erika Beispiel"
+                pos = found.end()
+            else:
+                # "DHL Paket GmbH Vorname Nachname": try again from the next word
+                step = found.start("name") + len(found.group("name").split()[0])
+                out += names[pos:step]
+                pos = step
+        return match.group(0)[:match.start("list") - match.start()] + out + names[pos:] + rest
+
+    def _officer_lines(self, match):
+        """The names below a heading such as "Geschäftsführung:".
+
+        Line by line up to the first line that holds anything else ("Paket GmbH"); after
+        "Inhaber" one name only.
+        """
+        lines = match.group("lines").splitlines(keepends=True)
+        for i, line in enumerate(lines):
+            found = list(_T_OFFICER_LONG.finditer(line))
+            if not all(_t_person(f.group("name")) for f in found) or (
+                match.group("one") and (i or len(found) > 1)
+            ):
+                break
+            lines[i] = _T_OFFICER_LONG.sub(lambda f: f.group("title") + "Erika Beispiel", line)
+        return match.group("head") + "".join(lines)
+
     # ----- numbers, links -----
     def label(self, msg, number):
         """What stands for a mail in its file name, Message-ID and MIME boundary: its number in
@@ -1204,9 +1444,11 @@ class _TScrubber:
         return hashlib.sha256(self._salt.encode() + b"\0" + source).hexdigest()[:12]
 
     def _run(self, run):
-        """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays."""
+        """Invented digits for digits, letters for letters (hex stays hex); DHL's 00340 stays,
+        and so does the "00" of an SSCC (DHL eCommerce), with a check digit that fits again."""
         if run not in self._runs:
-            keep = 5 if re.fullmatch(r"00340\d{15}", run) else 0
+            sscc = _t_sscc(run) and not run.startswith("00340")
+            keep = 5 if re.fullmatch(r"00340\d{15}", run) else 2 if sscc else 0
             letters = 6 if re.fullmatch(r"[A-Fa-f]+", run) else 26
             attempt = 0
             while True:
@@ -1217,7 +1459,11 @@ class _TScrubber:
                     else chr((65 if char.isupper() else 97) + byte % letters)
                     for char, byte in zip(run[keep:], stream)
                 )
+                if sscc:
+                    invented = invented[:-1] + _t_sscc_check(invented[:-1])
                 attempt += 1
+                if sscc and invented.startswith("00340"):
+                    continue  # (would read as DHL's own number anywhere)
                 if invented != run and not any(a in invented for a in self.avoid):
                     break
             self._runs[run] = invented
@@ -1296,29 +1542,36 @@ class _TScrubber:
             for match in _T_PICKUP_STREET.finditer(text):
                 self._pickup_street(match.group("street") or match.group("inline"))
         text = _T_PICKUP_NUMBER.sub(self._pickup_number, text)
+        text = _T_AMAZON_SHIP_TO.sub(self._amazon_ship_to, text)
         text = _T_ADDRESS_BLOCK.sub(self._block, text)
         text = _T_ADDRESS_INTRO.sub(self._block, text)
         text = _T_ALI_SHIP_TO.sub(self._ali_ship_to, text)
         text = _T_ADDRESS_LINE.sub(self._line, text)
         text = _T_DELIVERED_TO.sub(self._delivered, text)
+        text = _T_RECIPIENT_NAME.sub(self._recipient_name, text)
         text = _T_HELLO.sub(self._hello, text)
         text = _T_HELLO_BARE.sub(self._hello, text)
         text = _T_QUOTED_TO.sub(f"\\1 {_T_MAIL}", text)
         for pattern in (_T_SENDER_BLOCK, _T_SENDER_NEXT, _T_SENDER_INLINE, _T_SENDER_SAME,
                         _T_SELLER):
             text = pattern.sub(self._sender, text)
+        text = _T_EBAY_FOOTER.sub(self._ebay_footer, text)
+        text = _T_EBAY_HANDLE.sub(self._ebay_handle, text)
         text = _T_AMAZON_LINE.sub(self._amazon, text)
+        text = _T_FORM.sub(self._form, text)
         text = _T_PLAIN_BLOCK.sub(self._plain, text)
         text = _T_INLINE_ADDRESS.sub(self._inline, text)
         text = _T_PLZ_CITY.sub("\\g<lead>12345 Musterstadt", text)
+        text = _T_OFFICERS.sub(self._officers, text)
+        text = _T_OFFICER_LINES.sub(self._officer_lines, text)
         text = _T_NEIGHBOUR.sub(self._neighbour, text)
         for pattern, replacement in self.rules:
             text = pattern.sub(replacement, text)
         if not self._learning:
             for found in sorted(self.learned, key=len, reverse=True):
                 source = re.escape(found)
-                if self.learned[found] == "beispielshop":
-                    # a seller's handle only as a whole word ("versand" never in
+                if self.learned[found] in ("beispielshop", "beispielnutzer"):
+                    # a user name only as a whole word ("versand" never in
                     # "Versanddienstleister"; "shop.24" never in "myshop.24" or "shop.245")
                     source = rf"(?<![\w.-]){source}(?![\w-]|\.\w)"
                 text = re.sub(source, self.learned[found], text, flags=re.I)
@@ -1328,6 +1581,17 @@ class _TScrubber:
         text = _T_PLACE_SAME.sub(self._place, text)
         text = _T_PLACE_PHRASE.sub("\\1 Garage \\2", text)
         return _T_GENERIC.sub(lambda m: self._generic(m, keep), text)
+
+    def mailbox(self, real):
+        """The invented address of a real one: ``adresse1@example.org`` for the first address
+        of the run; a plus part stays as ``+person1`` (the same plus part, the same number)."""
+        local, _, host = real.strip().lower().rpartition("@")
+        base, plus, tag = local.partition("+")
+        number = self._mailboxes.setdefault(f"{base}@{host}", len(self._mailboxes) + 1)
+        if not plus:
+            return f"adresse{number}@example.org"
+        tag_number = self._tags.setdefault(tag, len(self._tags) + 1)
+        return f"adresse{number}+person{tag_number}@example.org"
 
     def left(self, text):
         """True if a given value can still be read in ``text``."""
@@ -1501,6 +1765,25 @@ def _t_passed_on(msg):
     )
 
 
+_T_KEPT_ADDRESSES = (
+    "To", "Cc", "Delivered-To", "X-Original-To", "X-Forwarded-To", "X-Forwarded-For",
+    "Resent-From", "Resent-To",
+)
+
+
+def _t_address_headers(msg, out, scrubber):
+    """Copy the headers that tell for whom a mail was meant, in their order, with every
+    address invented (no display names). The detection of the owner reads exactly these."""
+    wanted = {name.lower(): name for name in _T_KEPT_ADDRESSES}
+    for key, value in msg.items():
+        name = wanted.get(str(key).lower())
+        found = re.findall(_T_ADDRESS, " ".join(str(value).split())) if name else []
+        if found:
+            out.add_header(name, ", ".join(scrubber.mailbox(a) for a in found))
+    if "To" not in out:
+        out["To"] = _T_MAIL
+
+
 def _t_set(out, name, value):
     try:
         out[name] = value
@@ -1602,7 +1885,7 @@ def _t_build(msg, number, scrubber):
         _t_set(out, "From", f'"{display}" <{address}>' if display else address)
         if "From" not in out:
             _t_set(out, "From", address)
-    out["To"] = _T_MAIL
+    _t_address_headers(msg, out, scrubber)
     subject = " ".join(scrubber.scrub(raw_subject, keep).split())
     _t_set(out, "Subject", subject)
     if evt:
@@ -2240,7 +2523,61 @@ def fake(kind, real):
         return "1Z999AA1" + digits[:10]
     if kind == "tba":
         return "TBA" + digits[:12]
+    if kind == "shipment":
+        rest = "".join(_AMZ_ALPHABET[(h >> 6 * i) % 62] for i in range(len(real) - 1))
+        return real[0] + rest
     return real
+
+
+# ----- Amazon: the link to the tracking page -----
+# The mails from "Versendet" on link the box's tracking page with the order and the box's id
+# (shipmentId); the mail import tells the boxes of an order apart by it. Each such link is
+# kept where it stands, as one invented link: the replaced order number and an invented id,
+# the same for the same box in every mail, its first letter kept ("D": sent by the seller).
+# Through Amazon's redirect as well. Any other link is cut to the host as before.
+_AMZ_LINK = re.compile(r"(?i)https://(?:www\.)?amazon\.de(/[^?#\s]*)\?([^#\s]*)")
+_AMZ_TRACKER = "/progress-tracker/package"
+_AMZ_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+
+def _unquote(text):
+    return re.sub(r"%([0-9A-Fa-f]{2})", lambda m: chr(int(m.group(1), 16)), text)
+
+
+def _amz_tracker(link, redirect=True):
+    """(order, id) a link to Amazon's tracking page names, else None (no urllib: the script
+    stays clear of every module that could reach the network)."""
+    match = _AMZ_LINK.fullmatch(html.unescape(link))
+    if match is None:
+        return None
+    path = match.group(1)
+    params = dict(part.partition("=")[::2] for part in match.group(2).split("&"))
+    if redirect and path == "/gp/r.html" and params.get("U"):
+        return _amz_tracker(_unquote(params["U"]), redirect=False)
+    order, shipment = _unquote(params.get("orderId", "")), _unquote(params.get("shipmentId", ""))
+    if path == _AMZ_TRACKER and re.fullmatch(r"\d{3}-\d{7}-\d{7}", order) and re.fullmatch(
+        r"[A-Za-z0-9]{5,20}", shipment
+    ):
+        return order, shipment
+    return None
+
+
+def mark_amazon_trackers(t):
+    """(text, links): each link to the tracking page replaced by a mark that ``scrub`` leaves
+    alone, and the invented links in the order of their marks."""
+    links = []
+
+    def mark(match):
+        if (found := _amz_tracker(match.group(0))) is None:
+            return match.group(0)
+        order, shipment = found
+        links.append(
+            f"https://www.amazon.de{_AMZ_TRACKER}?orderId={fake('order', order)}"
+            f"&packageIndex=0&shipmentId={fake('shipment', shipment)}"
+        )
+        return f"\x00{len(links) - 1}\x00"
+
+    return re.sub(r"https?://[^\s<>\]\)\"]+", mark, t), links
 
 
 def scrub(t):
@@ -2310,7 +2647,9 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
         # The text first: parcel numbers are counted in the order of the mail texts.
         text = scrub_gls(text)
         subject = scrub_gls_values(subject)
-    links = []
+    links, tracked = [], []
+    if a.endswith("@amazon.de"):
+        text, tracked = mark_amazon_trackers(text)
     if ali:
         in_subject = re.search(r"(?<!\d)\d{12,20}(?!\d)", subject)
         text = scrub_aliexpress(text, len(in_subject.group(0)) if in_subject else 0)
@@ -2336,7 +2675,7 @@ for path in sorted(glob.glob(SRC + "/*.eml")):
     out["Subject"] = subject
     out["Date"] = evt_date(evt_count) if evt else str(m["Date"])
     out["Message-ID"] = mid
-    text = scrub(text)
+    text = re.sub(r"\x00(\d+)\x00", lambda m: tracked[int(m.group(1))], scrub(text))
     # The orders of an AliExpress parcel: one invented link each, as the mail has them.
     link = "https://www.aliexpress.com/p/tracking/index.html?tradeOrderId="
     if was_html:

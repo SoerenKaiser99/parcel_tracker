@@ -156,13 +156,21 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     assert state.attributes["carrier"] == "amazon"
     assert state.attributes["tracking_ref"] == "JJD000012978217606560"
     assert state.attributes["tracking_carrier"] == "dhl"
-    assert state.attributes["delivery_code"] == "123456"
+    # The code itself is never an attribute (the card asks for it over the WebSocket).
+    assert "delivery_code" not in state.attributes
+    assert "123456" not in repr(dict(state.attributes))
     assert state.attributes["amazon_shipment"] is None
     expired = hass.states.get("sensor.paket_amz99991565342587125")
-    assert expired.attributes["delivery_code"] is None
+    assert expired.attributes["has_delivery_code"] is False
     # The newest of Amazon's shipments of the order.
     assert expired.attributes["amazon_shipment"] == "UhIjKl9mN"
-    assert "delivery_code" in ParcelSensor._unrecorded_attributes
+    assert {"name", "tracking_url", "amazon_shipment"} <= ParcelSensor._unrecorded_attributes
+    # The customs amount is deleted on delivery: the history must not keep it.
+    assert {
+        "customs_amount",
+        "customs_currency",
+        "customs_cash",
+    } <= ParcelSensor._unrecorded_attributes
 
 
 async def test_sensor_exposes_eta_latest(hass):
@@ -242,6 +250,7 @@ async def test_today_counts_only_sure_parcels_and_lists_possible_ones(hass, free
         "carrier": "amazon",
         "eta_from": window[0].isoformat(),
         "eta_to": window[1].isoformat(),
+        "gift": False,
     }
     assert today.attributes["possible"][0] == {
         "number": "AMZ99900000000000003",
@@ -249,6 +258,7 @@ async def test_today_counts_only_sure_parcels_and_lists_possible_ones(hass, free
         "carrier": "amazon",
         "eta_from": None,
         "eta_to": None,
+        "gift": False,
     }
     # The parcel's own attributes keep the range as it is.
     attrs = hass.states.get("sensor.paket_amz99900000000000003").attributes
@@ -373,10 +383,16 @@ async def test_today_lists_the_parcels_delivered_today(hass, freezer):
         "carrier": "amazon",
         "eta_from": None,
         "eta_to": None,
+        "gift": False,
     }
     assert set(today.attributes["delivered_today"][0]) == set(today.attributes["parcels"][0])
-    # Recorded like ``parcels`` and ``possible``: only the version is kept out of the history.
-    assert TodaySensor._unrecorded_attributes == frozenset({"integration_version"})
+    # The version, the lists with names and the persons are kept out of the history.
+    assert TodaySensor._unrecorded_attributes == frozenset(
+        {
+            "integration_version", "parcels", "possible", "delivered_today", "awaiting_pickup",
+            "persons", "default_owner",
+        }
+    )  # fmt: skip
 
 
 async def test_today_without_delivered_parcels_has_an_empty_list(hass, freezer):
@@ -458,7 +474,7 @@ async def test_three_summary_sensors_count_what_the_today_sensor_lists(hass, fre
     assert active.attributes["parcels"][0] == today.attributes["parcels"][0]
     assert active.attributes["parcels"][-1] == {
         "number": "00340999999999999950", "name": "Neu", "carrier": "dhl",
-        "eta_from": None, "eta_to": None,
+        "eta_from": None, "eta_to": None, "gift": False,
     }
     assert possible.state == "1" == str(today.attributes["possible_count"])
     assert possible.attributes["parcels"] == today.attributes["possible"]
@@ -468,8 +484,8 @@ async def test_three_summary_sensors_count_what_the_today_sensor_lists(hass, fre
     assert today.state == "1"
     assert set(today.attributes) == {
         "parcels", "possible", "possible_count", "delivered_today", "delivered_today_count",
-        "awaiting_pickup", "awaiting_pickup_count", "integration_version", "friendly_name",
-        "icon",
+        "awaiting_pickup", "awaiting_pickup_count", "integration_version",
+        "persons", "default_owner", "friendly_name", "icon",
     }
     for state, name, icon in (
         (active, "Pakete unterwegs", "mdi:truck-fast"),
@@ -564,6 +580,7 @@ async def test_pickup_sensor_counts_the_parcels_that_wait_for_pickup(hass, freez
         "carrier": "amazon",
         "eta_from": None,
         "eta_to": None,
+        "gift": False,
     }
     assert set(today.attributes["awaiting_pickup"][0]) == set(
         today.attributes["delivered_today"][0]
@@ -604,3 +621,81 @@ async def test_pickup_sensor_follows_the_status(hass, freezer):
     coordinator.async_set_updated_data(dict(coordinator.store.parcels))
     await hass.async_block_till_done()
     assert hass.states.get("sensor.pakete_abholbereit").state == "0"
+
+
+async def test_import_duty_attributes_while_the_parcel_is_not_delivered(hass):
+    """Issue #36: the amount a DHL mail named, as attributes for automations and the card."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115", "dhl_api_key": "k"})
+    entry.add_to_hass(hass)
+    with patch(FETCH, return_value=_res(ParcelStatus.IN_TRANSIT)):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+    now = dt_util.utcnow()
+    due = Parcel(
+        "LE999999901BE", "dhl", "mail", None, now, now,
+        result=_res(ParcelStatus.OUT_FOR_DELIVERY, eta_today=True),
+        customs_amount=12.34, customs_currency="EUR", customs_cash=True,
+    )
+    delivered = Parcel(
+        "LE999999902BE", "dhl", "mail", None, now, now,
+        result=_res(ParcelStatus.DELIVERED),
+        customs_amount=12.34, customs_currency="EUR", customs_cash=True,
+    )
+    plain = Parcel(
+        "LE999999903BE", "dhl", "mail", None, now, now,
+        result=_res(ParcelStatus.IN_TRANSIT),
+    )
+    for parcel in (due, delivered, plain):
+        coordinator.store.add(parcel)
+    coordinator.async_set_updated_data(dict(coordinator.store.parcels))
+    await hass.async_block_till_done()
+
+    open_ = hass.states.get("sensor.paket_le999999901be").attributes
+    assert (open_["customs_amount"], open_["customs_currency"], open_["customs_cash"]) == (
+        12.34,
+        "EUR",
+        True,
+    )
+    for entity in ("sensor.paket_le999999902be", "sensor.paket_le999999903be"):
+        attrs = hass.states.get(entity).attributes
+        assert (attrs["customs_amount"], attrs["customs_currency"], attrs["customs_cash"]) == (
+            None,
+            None,
+            False,
+        )
+
+
+async def test_in_delivery_without_a_date_has_days_until_zero_when_it_counts_today(hass, freezer):
+    """v0.3.47: Hermes names no day; the parcel the summary counts today shows "Heute"."""
+    freezer.move_to(DAYTIME)
+    fresh = _mail_parcel("AMZ99900000000000001", "Frisch", ParcelStatus.OUT_FOR_DELIVERY)
+    stale = _mail_parcel("AMZ99900000000000002", "Gestern", ParcelStatus.OUT_FOR_DELIVERY)
+    stale.last_change_at -= timedelta(days=2)
+    dated = _mail_parcel("AMZ99900000000000003", "Datum", ParcelStatus.OUT_FOR_DELIVERY, 0)
+    later = _mail_parcel("AMZ99900000000000004", "Morgen", ParcelStatus.OUT_FOR_DELIVERY, 1)
+    transit = _mail_parcel("AMZ99900000000000005", "Unterwegs", ParcelStatus.IN_TRANSIT)
+    await _setup_with(hass, [fresh, stale, dated, later, transit])
+
+    def days(number):
+        return hass.states.get(f"sensor.paket_{number.lower()}").attributes["days_until"]
+
+    assert days(fresh.number) == 0
+    assert days(stale.number) is None
+    assert days(dated.number) == 0
+    assert days(later.number) == 1
+    assert days(transit.number) is None
+
+
+async def test_in_delivery_without_a_date_uses_the_home_time_zone_for_today(hass, freezer):
+    """23:30 UTC is already tomorrow in Berlin: a change at 00:30 there is today."""
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    freezer.move_to("2026-10-01 23:30:00+00:00")  # 01:30 on 2 Oct. in Berlin
+    early = _mail_parcel("AMZ99900000000000001", "Nachts", ParcelStatus.OUT_FOR_DELIVERY)
+    early.last_change_at = dt_util.utcnow() - timedelta(hours=1)  # 00:30 in Berlin
+    late = _mail_parcel("AMZ99900000000000002", "Vortag", ParcelStatus.OUT_FOR_DELIVERY)
+    late.last_change_at = dt_util.utcnow() - timedelta(hours=2)  # 23:30 the day before
+    await _setup_with(hass, [early, late])
+    for parcel, expected in ((early, 0), (late, None)):
+        state = hass.states.get(f"sensor.paket_{parcel.number.lower()}")
+        assert state.attributes["days_until"] == expected

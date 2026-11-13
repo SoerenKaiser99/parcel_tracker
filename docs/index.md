@@ -30,6 +30,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Benachrichtigung aufs Handy.** Sobald ein Paket in Zustellung geht, zugestellt ist oder zur Abholung bereitliegt. Eine Automation brauchst du dafür nicht.
 - **Für Automationen gemacht.** Fertige Auslöser im Automations-Editor, ein Status-Event, ein Kalender mit den Lieferterminen und Sensoren wie „Pakete heute“.
 - **Namen ausblenden.** Ein Schalter für Geschenke auf einem gemeinsamen Dashboard: Pakete heißen dann nur noch nach dem Paketdienst.
+- **Geschenkmodus.** In der Weihnachtszeit verbirgt er, was in neuen Paketen steckt. Nur festgelegte Personen sehen auf der Karte den echten Namen.
 - **Lokal und datensparsam.** Kein Cloud-Konto, kein fremder Tracking-Dienst nötig. Die Zugangsdaten bleiben in Home Assistant.
 - **Weitere Paketdienste auf Wunsch.** Mit einem eigenen 17track-Key verfolgst du auch Paketdienste ohne eigene Anbindung, z. B. FedEx.
 - **Offen.** Open Source, gebaut für deutsche Paketdienste.

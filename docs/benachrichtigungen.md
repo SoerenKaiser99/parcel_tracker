@@ -33,6 +33,16 @@ Home Assistant kennt zwei Arten von Zielen. Beide stehen in derselben Auswahl un
 
 **Ziel verschwunden:** Ein gewähltes Ziel, das es in Home Assistant nicht mehr gibt (Gerät entfernt, Integration gelöscht oder gerade nicht geladen), bleibt gewählt und steht mit dem Zusatz „nicht mehr vorhanden“ in der Auswahl, bis du es abwählst. Beim Senden wird es übersprungen, ebenso ein Ziel, das gerade nicht verfügbar ist.
 
+### An wen geht die Meldung?
+
+Sind [Personen eingerichtet](mail-import.md#pakete-personen-zuordnen), hängt das Ziel vom Besitzer des Pakets ab:
+
+- Hat der Besitzer eigene Ziele (**Benachrichtigungen an** im Formular der Person), geht die Meldung nur dorthin.
+- Hat er keine, oder gehört das Paket allen, gehen die Meldungen an die oben gewählten Ziele, wie ohne Personen.
+- Liegen Bestellungen zweier Personen in einem Paket (gleiche Sendungsnummer), bekommt jede Person die Meldung einmal. Dieselbe Person bekommt sie nicht doppelt.
+
+Welche Ereignisse gemeldet werden, gilt für alle gleich.
+
 ### Ereignisse
 
 | Ereignis | Voreingestellt (ab v0.3.26) |
@@ -44,6 +54,8 @@ Home Assistant kennt zwei Arten von Zielen. Beide stehen in derselben Auswahl un
 
 Hast du die Benachrichtigungen schon vor v0.3.26 eingerichtet, behältst du deine Auswahl.
 
+Für ein **versendetes Paket** (Einlieferungsbeleg, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)) kommt genau eine Meldung, wenn es beim Empfänger zugestellt ist oder zur Abholung bereitliegt, und nur, wenn „Zugestellt“ gewählt ist. Sie lautet „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“. Andere Meldungen gibt es für versendete Pakete nicht. Die Ankunft sieht die Integration nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen) oder nach „Details über 17track holen“ auf der Karte. Ohne beides bleibt das Paket auf „unterwegs“, und die Meldung kommt nie.
+
 ### So sehen die Texte aus
 
 Der Titel ist „Paket Tracker“, der Text eine Zeile:
@@ -51,11 +63,13 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 | Ereignis | Beispiel |
 |---|---|
 | In Zustellung | `📦 Kopfhörer (DHL) ist in Zustellung – heute 14:00–16:00 Uhr` |
+| In Zustellung, mit Zoll | `📦 Kopfhörer (DHL) ist in Zustellung – Einfuhrabgaben 12,34 € bar bereithalten` |
 | Zugestellt | `✅ Kopfhörer (DHL) wurde zugestellt` |
 | Abholbereit | `📍 Kopfhörer (DHL) liegt zur Abholung bereit – Bonn bis 06.10.` |
 | Problem | `⚠️ Kopfhörer (DHL): Problem bei der Zustellung` |
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
+- Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da. Meldet die DHL-Abfrage (mit API-Key) „In Zustellung“, bevor die Mail mit dem Betrag da ist, geht die Meldung ohne Zoll raus, und die spätere Mail löst keine zweite aus; der Betrag steht dann trotzdem auf der Karte und in den Attributen.
 - Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder eine Abholmail sie nennt (Amazon „Paket zur Abholung bereit“, bei DHL nur der Abholort). Der Ort ist höchstens 40 Zeichen lang.
 - Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen).
 - Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.
@@ -73,6 +87,7 @@ Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` fe
 - **Mehrere Wechsel** in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status.
 - **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam („Abgeschlossen ohne Zustellbestätigung“, siehe [Bestellungen ohne Zustellmail](mail-import.md#bestellungen-ohne-zustellmail)), feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.
 - **Von Hand erhalten:** Markierst du ein Paket mit [„Erhalten“](karte.md#erhalten) selbst als erhalten, feuert das Event mit dem Feld `manual` auf `true`. Eine Benachrichtigung gibt es auch dafür nicht.
+- **Storniert:** Storniert ein Shop eine Bestellung, feuert das Event mit `new_status` `cancelled`. Eine Benachrichtigung gibt es nicht: Weder die Optionen noch der Blueprint bieten diesen Status an.
 - **Mehrere Bestellungen in einem Paket** (AliExpress): Das Event feuert für jede Bestellung, die Benachrichtigung aus den Optionen geht für das Paket einmal raus.
 
 Schlägt das Senden fehl, steht eine Warnung ohne Paketdaten im Log. Die Paketabfrage läuft unverändert weiter.
@@ -124,6 +139,7 @@ Sind Dashboard-Pfad und Ersetzen nicht gesetzt, schickt der Blueprint nur Titel 
 | `new_status` | neuer Status, z. B. `out_for_delivery` |
 | `old_status` | vorheriger Status |
 | `text` | der fertige Standardsatz, z. B. „Kopfhörer (DHL) ist in Zustellung“ |
+| `outgoing` | `true` bei einem versendeten Paket, sonst `false` |
 
 Ein Beispiel für das Feld **Text**:
 
@@ -133,9 +149,13 @@ Ein Beispiel für das Feld **Text**:
 
 Die Sendungsnummer, der Zustell-Code und der Ort stehen in keinem der voreingestellten Texte. Bestellungen, die ohne Zustellmail abgeschlossen wurden (`assumed`), und Pakete, die von Hand als erhalten markiert wurden (`manual`), meldet der Blueprint nicht.
 
-!!! warning "Nach dem Update einmal neu importieren"
-    Home Assistant aktualisiert einen importierten Blueprint nicht von selbst. Der Blueprint prüft `assumed` seit v0.3.20 und `manual` seit v0.3.30. Eine Automation aus einer älteren Fassung meldet eine Markierung von Hand als „wurde zugestellt“ – vor v0.3.20 auch eine abgeschlossene Bestellung.
+Ein **versendetes Paket** (`outgoing`) meldet der Blueprint wie die Benachrichtigungen aus den Optionen nur bei der Ankunft und nur, wenn unter **Status** „Zugestellt“ gewählt ist: „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“. Liegt es erst zur Abholung bereit und wird dann abgeholt, kommt nur die erste Meldung. Andere Status meldet er für versendete Pakete nicht.
 
-    Importier den Blueprint nach dem Update auf 0.3.30 oder neuer einmal neu: **Einstellungen → Automationen & Szenen → Blueprints**, im Menü des Blueprints **Blueprint erneut importieren**. Deine Automationen daraus bleiben und nutzen danach die neue Fassung. Für eigene Automationen, die auf `new_status == delivered` filtern, steht die Bedingung unter [Automationen](automationen.md#von-hand-erhalten-manual).
+!!! warning "Nach dem Update einmal neu importieren"
+    Home Assistant aktualisiert einen importierten Blueprint nicht von selbst. Der Blueprint prüft `assumed` seit v0.3.20, `manual` seit v0.3.30 und `outgoing` seit v0.3.48. Eine Automation aus einer älteren Fassung meldet eine Markierung von Hand als „wurde zugestellt“ – vor v0.3.20 auch eine abgeschlossene Bestellung.
+
+    Eine Automation aus einer Fassung vor v0.3.48 meldet ein versendetes Paket wie ein empfangenes, mit jedem gewählten Status.
+
+    Importier den Blueprint nach dem Update auf 0.3.48 oder neuer einmal neu: **Einstellungen → Automationen & Szenen → Blueprints**, im Menü des Blueprints **Blueprint erneut importieren**. Deine Automationen daraus bleiben und nutzen danach die neue Fassung. Für eigene Automationen, die auf `new_status == delivered` filtern, steht die Bedingung unter [Automationen](automationen.md#von-hand-erhalten-manual).
 
 Der Blueprint braucht Home Assistant 2024.10 oder neuer.
