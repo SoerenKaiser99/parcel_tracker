@@ -30,6 +30,7 @@ SENDERS = [
     "sendungsupdate@dhl.de",
     "abholung@dhl.de",
     "noreply.odd@dhl.com",
+    "noreply@dhlecommerce.nl",
     "noreply@service.dpd.de",
     "no_reply@dpd.at",
     "noreply@gls-group.eu",
@@ -123,11 +124,37 @@ def test_docs_explain_the_ebay_purchase_confirmation():
     assert "ab der Kaufbestätigung als „Bestellt“" in TEXTS[SERVICES]
 
 
-def test_docs_say_the_delivery_code_is_readable_via_attributes():
+def test_docs_say_the_delivery_code_is_no_attribute_but_asked_for_by_the_card():
     section = _section(PRIVACY, "Zustell-Codes")
-    assert "Verdeckt ist er nur auf der Karte" in section
-    assert "im Klartext lesen" in section
-    assert "Verdeckt ist der Code nur auf der Karte" in _section(SENSORS, "Attribute")
+    _all_have(section, (
+        "Der Code steht in keinem Attribut", "`has_delivery_code`",
+        "Jeder angemeldete Benutzer kann ihn abrufen", "`parcel_tracker/delivery_code`",
+    ))
+    assert "im Attribut `delivery_code`" not in section
+    sensors = _section(SENSORS, "Attribute")
+    _all_have(sensors, ("| `has_delivery_code` |", "Der Zustell-Code ist kein Attribut mehr",
+                        "das Attribut `delivery_code` lesen"))
+    assert "| `delivery_code` |" not in sensors
+    assert "`status_text`, `delivery_code`" not in sensors
+
+
+def test_docs_say_the_card_is_served_by_the_integration_not_copied_to_www():
+    install = TEXTS[INSTALL]
+    help_page = TEXTS["hilfe.md"]
+    _all_have(install, (
+        "liefert die Karte selbst aus", "Sie legt keine Kopie in deinen Ordner `www`",
+        "stellt diese Ressource beim Start selbst auf die neue Adresse um",
+    ))
+    assert "kopiert sie beim Start nach" not in install
+    assert "/parcel_tracker/parcel-tracker-card.js?v=" in help_page
+    assert "- url: /local/" not in help_page
+
+
+def test_mail_import_docs_say_the_imap_server_is_required_and_name_dhl_ecommerce():
+    text = TEXTS[MAIL]
+    assert "Standard `imap.mailbox.org`" not in text
+    _all_have(text, ("| **IMAP-Server** | Pflicht,", "`noreply@dhlecommerce.nl`",
+                     "20 Ziffern", "meldet DHL „nicht gefunden“"))
 
 
 def test_docs_explain_the_ups_api_and_its_budget():
@@ -475,9 +502,10 @@ def test_docs_trigger_names_match_the_german_translation():
 # ----- Karte -----
 def test_docs_say_when_local_is_used():
     section = _section(INSTALL, "Karte hinzufügen")
-    assert "wenn der Ordner `www` beim Start schon existierte" in section
     assert "`/parcel_tracker/parcel-tracker-card.js`" in section
+    assert "Sie legt keine Kopie in deinen Ordner `www`" in section
     assert "Seite im Browser einmal neu laden" in section
+    assert "/local" not in section.replace("`/local/parcel_tracker/parcel-tracker-card.js`", "")
 
 
 def test_docs_explain_sure_and_possible_parcels_of_today():
@@ -506,7 +534,6 @@ def test_docs_explain_the_three_badges_and_delivered_today():
         "„1 heute“",
         "„1 möglich“",
         "„1 zugestellt“",
-        "immer, auch als „0 heute“",
         "nur, wenn",
         "`sensor.pakete_heute`",
     ))
@@ -958,8 +985,9 @@ def test_docs_sieve_example_names_every_listed_sender():
 def test_docs_match_the_senders_the_parsers_know():
     from custom_components.parcel_tracker.mail.dpd import DPD_AT_SENDER
     from custom_components.parcel_tracker.mail.gls import GLS_GROUP_SENDER, GLS_RTT_SENDER
+    from custom_components.parcel_tracker.mail.shipping import DHL_ECOMMERCE_SENDER
 
-    for address in (DPD_AT_SENDER, GLS_GROUP_SENDER, GLS_RTT_SENDER):
+    for address in (DPD_AT_SENDER, GLS_GROUP_SENDER, GLS_RTT_SENDER, DHL_ECOMMERCE_SENDER):
         assert address in SENDERS
 
 
@@ -1265,7 +1293,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 20. Oktober 2026, Version 0.3.41." in text
+    assert "*Stand: 6. November 2026, Version 0.3.49." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1567,8 +1595,7 @@ def test_mail_import_explains_the_person_assignment():
 
 
 def test_card_docs_describe_the_person_options_and_the_owner_select():
-    text = TEXTS[CARD]
-    assert "vier eigene Optionen: `add_form`, `show`, `person` und `include_unassigned`" in text
+    # (the sentence naming all options: test_card_docs_describe_the_gifts_option)
     section = _section(CARD, "Gehört: pro Paket und Filter")
     _all_have(section, [
         "**Gehört**", "**Standard (Name)**", "**allen**", "ganze Box",
@@ -1604,3 +1631,282 @@ def test_helping_page_asks_for_anonymised_forwarded_mails_per_provider():
     ])
     anonymiser = TEXTS["hilfe.md"]
     _all_have(anonymiser, ["`Delivered-To`", "`adresse1@example.org`", "`+person1`"])
+
+
+# ----- v0.3.44: Geschenke ausblenden, Event beim Anlegen -----
+def test_sensor_docs_describe_the_added_event_and_gift_in_the_lists():
+    section = _section(SENSORS, "Event beim Anlegen: `parcel_tracker_parcel_added`")
+    for field in ("number", "name", "carrier", "owner", "gift", "entry_id"):
+        assert f"| `{field}` |" in section, field
+    _all_have(section, [
+        "Geschenk-Name", "nicht beim Neustart", "zusammengeführt", "ein Event pro Karton",
+        "weiterer Karton einer Bestellung, die ein Geschenk ist",
+        "trigger: event", "event_type: parcel_tracker_parcel_added",
+        "parcel_tracker.set_gift", "actions:", "mobile_app_notification_action",
+    ])
+    lists = _section(SENSORS, "`sensor.pakete_heute`")
+    assert "`eta_to` und `gift`" in lists
+    assert "#event-beim-anlegen-parcel_tracker_parcel_added" in _section(
+        SENSORS, "Event und Auslöser"
+    )
+
+
+def test_card_docs_describe_the_gifts_option():
+    text = TEXTS[CARD]
+    assert (
+        "sechs eigene Optionen: `add_form`, `show`, `header`, `gifts`, `person` und "
+        "`include_unassigned`"
+        in text
+    )
+    section = _section(CARD, "`gifts` – Geschenke ausblenden")
+    _all_have(section, [
+        "`show` (Standard)", "`hide_for_others`", "`hide`", "Schilder", "Noch keine Pakete.",
+        "gifts: hide_for_others", "eigenen Benutzer", "nur eine Anzeige",
+    ])
+    assert "#gifts-geschenke-ausblenden" in _section(CARD, "Geschenkmodus")
+    assert "karte.md#gifts-geschenke-ausblenden" in _section(PRIVACY, "Geschenkmodus")
+
+
+def test_ups_docs_say_an_app_needs_a_ups_account_with_billing():
+    section = _section(SERVICES, "UPS")
+    _all_have(section, ["UPS-Konto mit Abrechnung", "Versenderkonto", "17track"])
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    for text in (readme, features):
+        assert "braucht ein UPS-Konto mit Abrechnung" in text
+
+
+def test_status_page_lists_the_wishes_of_issue_64():
+    open_ = _section(STATUS, "Offen")
+    _all_have(open_, [
+        "Zielgruppe pro Geschenk (`visible_to`)", "Zählsensoren ohne Geschenke",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/64",
+    ])
+
+
+def test_changelog_names_v0344_with_its_issues():
+    section = CHANGELOG.split("### v0.3.44 (2026-10-23)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/64",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/63",
+        "`parcel_tracker_parcel_added`", "`gifts`", "`gift`", "`entry_id`", "ein Event pro Karton",
+    ])
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    _all_have(features, ["`parcel_tracker_parcel_added`", "`gifts`"])
+
+
+# ----- v0.3.45: gift_for, gift im Status-Event -----
+def test_sensor_docs_describe_gift_for_at_set_gift():
+    section = _section(SENSORS, "`parcel_tracker.set_gift`")
+    assert "| `gift_for` | nein |" in section
+    _all_have(section, [
+        "nur mit `gift: true`", "`[]` entfernt nur die Personen", "`gift: false` leert `gift_for`",
+        "nicht in `gift_for` stehen", "Aufrufe ohne Benutzer", "keinem Attribut und keinem Event",
+        "datenschutz.md#geschenk-fur-bestimmte-personen-gift_for",
+    ])
+    errors = _section(SENSORS, "Fehlermeldungen der Dienste")
+    _all_have(errors, [
+        "„Wähle bei gift_for vorhandene Personen.“",
+        "„gift_for geht nur mit eingeschaltetem gift.“",
+    ])
+    added = _section(SENSORS, "Event beim Anlegen: `parcel_tracker_parcel_added`")
+    _all_have(added, ["gift_for:", "- person.b"])
+
+
+def test_status_event_docs_name_gift():
+    fields = _section("automationen.md", "Felder des Events")
+    assert "| `gift` | `true`, wenn das Paket ein Geschenk ist (ab v0.3.45)" in fields
+    assert "Für wen es ist, steht nicht im Event" in fields
+    assert "automationen.md#felder-des-events" in _section(SENSORS, "Event und Auslöser")
+
+
+def test_privacy_docs_explain_gift_for_with_example_and_limits():
+    section = _section(PRIVACY, "Geschenk für bestimmte Personen (`gift_for`)")
+    _all_have(section, [
+        "Ohne `gift_for` bleibt alles wie bisher", "person.b", "**A**", "**B**",
+        "gifts: hide_for_others", "keinem Attribut, keinem Event, nicht in der Diagnose",
+        "Allgemeine Benachrichtigungs-Ziele", "Admins",
+        "B sieht nicht, was das Geschenk ist", "merkt B aber, dass ein Geschenk für ihn ist",
+        "Traces der Automation", "Debug-Log", "innerhalb von etwa einer Minute",
+        "Trägst du dich selbst oder alle Geschenk-Seher in `gift_for` ein",
+    ])
+    rights = _section(PRIVACY, "Wer was darf")
+    assert "nicht in `gift_for` steht" in rights
+    card = _section(CARD, "`gifts` – Geschenke ausblenden")
+    assert "#geschenk-fur-bestimmte-personen-gift_for" in card
+
+
+def test_status_page_names_gift_for_and_issue_65():
+    open_ = _section(STATUS, "Offen")
+    _all_have(open_, [
+        "Teilweise erledigt", "`gift_for`", "Mailbox per OAuth/Microsoft Graph",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/65",
+    ])
+
+
+def test_changelog_names_v0345_with_its_issues():
+    section = CHANGELOG.split("### v0.3.45 (2026-10-27)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/64",
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/65",
+        "`gift_for`", "`set_gift`", "`parcel_tracker_status_changed`", "`gift`",
+    ])
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    assert "`gift_for`" in features
+
+
+# ----- v0.3.46: kein „0 heute“, Kopfzeile abschaltbar, erkannte Mails löschen -----
+
+
+def test_card_docs_no_zero_badge_and_header_option():
+    badges = _section(CARD, "Die Schilder oben rechts")
+    assert "„0 heute“" not in badges
+    _all_have(badges, ["nur, wenn heute sicher etwas kommt", "ohne Lücke"])
+    header = _section(CARD, "`header` – die Kopfzeile")
+    _all_have(header, [
+        "header: false", "Standard", "„Paket hinzufügen“", "`add_form: never`",
+        "`switch.paket_tracker_geschenkmodus`", "Titel", "Schilder",
+    ])
+
+
+def test_mail_docs_explain_deleting_recognised_mails():
+    setup = _section(MAIL, "Einrichten")
+    assert "**Erkannte Mails löschen nach (Tagen)**" in setup
+    section = _section(MAIL, "Erkannte Mails löschen")
+    _all_have(section, [
+        "endgültig", "`Paket-Tracker-Verarbeitet`", "`Paket-Tracker-Nicht-erkannt`",
+        "Eingangsdatum", "einmal am Tag", "Papierkorb", "Mailserver", "UIDPLUS",
+        "„Verarbeitete Mails in Ordner verschieben“", "0", "365", "Message-ID",
+        "`delete_processed`", "Präfix", "einen Tag Sicherheit", "nie kürzer",
+        "Nach einem Neustart von Home Assistant", "nur Mails, die alt genug sind",
+    ])
+
+
+def test_privacy_docs_mention_deleting_recognised_mails():
+    assert "#erkannte-mails-loschen" in TEXTS[PRIVACY]
+    assert "Erkannte Mails löschen nach (Tagen)" in TEXTS[PRIVACY]
+
+
+def test_changelog_names_v0346():
+    section = CHANGELOG.split("### v0.3.46 (2026-10-29)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "Wunsch aus dem simon42-Forum", "„0 heute“", "`header: false`",
+        "Erkannte Mails löschen nach (Tagen)",
+    ])
+    assert "http" not in section
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    _all_have(features, ["`header`", "löscht er erkannte Mails"])
+
+
+# ----- v0.3.47: In Zustellung ohne Termin zeigt „Heute“, person: auto -----
+
+
+def test_card_docs_describe_person_auto_and_the_undated_delivery():
+    section = _section(CARD, "Gehört: pro Paket und Filter")
+    _all_have(section, [
+        "person: auto", "seit v0.3.47", "nur die Pakete von **allen**", "Wand-Tablet",
+        "keine** `person`-Option", "Noch keine Pakete …", "Das gilt auch für `person: auto`",
+    ])
+    text = TEXTS[CARD]
+    assert "Hermes nennt keinen" in text
+    assert "dessen Status sich nicht heute geändert hat" in text
+
+
+def test_changelog_names_v0347():
+    section = CHANGELOG.split("### v0.3.47 (2026-11-01)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/39", "person: auto",
+        "Wunsch/Meldung aus dem simon42-Forum", "`days_until` ist dann 0",
+    ])
+
+
+# ----- v0.3.48: versendete Pakete, Key entfernen, Postfach-Warnung -----
+
+
+def test_mail_docs_describe_outgoing_parcels():
+    section = _section(MAIL, "Versendete Pakete (Einlieferungsbelege)")
+    _all_have(section, [
+        "Einlieferungsbeleg", "dhl.de", "WG:", "Packstation", "Zustellkraft", "Abgabezeitpunkt",
+        "Versendet", "Zählsensor", "Geschenk", "einmal", "Hermes, DPD, GLS und UPS",
+        "hilfe.md#beispielmails-einreichen",
+    ])
+
+
+def test_sensor_docs_name_outgoing_in_attribute_event_and_error():
+    text = TEXTS[SENSORS]
+    _all_have(text, [
+        "`outgoing`", "`gift_outgoing`", "Ein versendetes Paket kann kein Geschenk sein.",
+    ])
+    _all_have(TEXTS[AUTOMATIONS], ["`outgoing`"])
+    _all_have(TEXTS[CARD], ["Versendet", "`header: false` und `add_form: never`"])
+
+
+def test_help_docs_explain_key_removal_and_mailbox_warning():
+    text = TEXTS[HELP]
+    _all_have(text, [
+        "The mailbox could not be reached", "dreimal hintereinander",
+        "DHL-API-Key entfernen", "17track-API-Key entfernen",
+    ])
+
+
+def test_outgoing_docs_tell_when_the_arrival_is_seen():
+    """Without a DHL key or 17track a sent parcel stays "unterwegs": said wherever its
+    one notification is described."""
+    section = _section(MAIL, "Versendete Pakete (Einlieferungsbelege)")
+    _all_have(section, [
+        "nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen)",
+        "„Details über 17track holen“", "bleibt das Paket auf „unterwegs“",
+        "nach 30 Tagen ohne Änderung",
+    ])
+    _all_have(TEXTS[NOTIFY], ["Ohne beides bleibt das Paket auf „unterwegs“"])
+    v0348 = CHANGELOG.split("### v0.3.48 (2026-11-04)\n")[1].split("\n### ")[0]
+    _all_have(v0348, ["nur mit DHL-API-Key oder nach „Details über 17track holen“"])
+
+
+def test_outgoing_docs_say_only_the_courier_receipt_was_checked():
+    section = _section(MAIL, "Versendete Pakete (Einlieferungsbelege)")
+    _all_have(section, [
+        "Der Beleg der **Zustellkraft** (an der Haustür abgegeben) ist mit einer echten Mail "
+        "geprüft",
+        "erkennt der Import am selben Muster, mit echten Mails geprüft ist das noch nicht",
+        "Mit einer echten Mail geprüft ist nur der Beleg der Zustellkraft.",
+        "Die Belege kommen von `noreply@dhl.de`",
+    ])
+    assert "steht schon in der [Filterregel]" not in section
+    _all_have(TEXTS[STATUS], ["nur der Beleg der Zustellkraft ist mit einer echten Mail geprüft"])
+    _all_have(TEXTS[HELPING], ["**Versendete Pakete (DHL-Einlieferungsbeleg)**"])
+
+
+def test_blueprint_docs_describe_sent_parcels():
+    section = _section(NOTIFY, "Blueprint")
+    _all_have(section, [
+        "| `outgoing` |", "„✅ Dein verschicktes Paket … wurde zugestellt“",
+        "„✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“",
+        "`outgoing` seit v0.3.48", "nach dem Update auf 0.3.48 oder neuer",
+    ])
+
+
+def test_sensor_docs_say_what_a_sent_parcel_leaves_empty():
+    _all_have(TEXTS[SENSORS], [
+        "Bei ihm sind `pickup_point`, `pickup_until`, `customs_amount` und `customs_currency` "
+        "leer, `customs_cash` und `has_delivery_code` sind `false`",
+    ])
+
+
+def test_v0348_docs_render_cleanly():
+    """No raw angle brackets (they vanish in the page) and closing German quotes."""
+    assert "<Art des Fehlers>" not in TEXTS[HELP]
+    assert "(…); the mail import keeps retrying" in TEXTS[HELP]
+    assert 'ohne Knopf „Erhalten"' not in TEXTS[CARD]
+    assert "ohne Knopf „Erhalten“, ohne Code" in TEXTS[CARD]
+
+
+def test_changelog_names_v0348():
+    section = CHANGELOG.split("### v0.3.48 (2026-11-04)\n")[1].split("\n### ")[0]
+    _all_have(section, [
+        "https://github.com/SoerenKaiser99/parcel_tracker/issues/66",
+        "Wunsch aus dem simon42-Forum",
+        "`outgoing`", "`gift_outgoing`", "DHL-API-Key entfernen", "Hermes, DPD, GLS, UPS",
+    ])
+    features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
+    _all_have(features, ["Versendete Pakete"])

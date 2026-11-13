@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.41"
+VERSION = "0.3.49"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -21,6 +21,7 @@ CONF_IMAP_FOLDER = "imap_folder"
 CONF_IMAP_PORT = "imap_port"
 CONF_IMAP_SECURITY = "imap_security"
 CONF_MOVE_PROCESSED = "move_processed"
+CONF_DELETE_PROCESSED_DAYS = "delete_processed_days"
 CONF_READ_OTP = "read_otp"
 CONF_PLAIN_NAMES = "plain_names"
 CONF_MAIL_INTERVAL = "mail_interval"
@@ -32,6 +33,9 @@ CONF_UPS_CLIENT_ID = "ups_client_id"
 CONF_UPS_CLIENT_SECRET = "ups_client_secret"
 CONF_UPS_BUDGET = "ups_monthly_budget"
 CONF_TRACK17_API_KEY = "track17_api_key"
+# Tick boxes of the options form (never stored): drop the saved key.
+CONF_DHL_API_KEY_REMOVE = "dhl_api_key_remove"
+CONF_TRACK17_API_KEY_REMOVE = "track17_api_key_remove"
 CONF_NOTIFY_SECTION = "notify"
 CONF_NOTIFY_ENABLED = "notify_enabled"
 CONF_NOTIFY_TARGETS = "notify_targets"
@@ -68,7 +72,9 @@ DEFAULT_GIFT_VIEWERS: tuple = ()
 MIN_KEEP_DELIVERED_DAYS = 1
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30
-DEFAULT_IMAP_HOST = "imap.mailbox.org"
+# Only for the one-time migration of entries from before v0.3.42, which had no host
+# stored and relied on this being the silent default. Never a fallback or a prefill.
+LEGACY_IMAP_HOST = "imap.mailbox.org"
 # The port and the kind of connection of the mail server; entries from before v0.3.32
 # store neither. The kinds are selector option values and so translation keys (lower
 # case): TLS with a checked certificate, TLS without checking it (a self-signed
@@ -82,6 +88,10 @@ IMAP_SECURITY_PLAIN = "plain"
 IMAP_SECURITIES = (IMAP_SECURITY_SSL, IMAP_SECURITY_NOVERIFY, IMAP_SECURITY_PLAIN)
 DEFAULT_IMAP_SECURITY = IMAP_SECURITY_SSL
 DEFAULT_MOVE_PROCESSED = True
+# Recognised mails in Paket-Tracker-Verarbeitet are deleted after this many days; 0: never.
+DEFAULT_DELETE_PROCESSED_DAYS = 0
+MIN_DELETE_PROCESSED_DAYS = 1
+MAX_DELETE_PROCESSED_DAYS = 365
 DEFAULT_READ_OTP = False
 DEFAULT_PLAIN_NAMES = False
 DEFAULT_MAIL_INTERVAL = 5
@@ -96,6 +106,8 @@ DHL_DAILY_SOFT_LIMIT = 200
 CARRIER_BROKEN_AFTER = timedelta(hours=24)
 
 EVENT_STATUS_CHANGED = "parcel_tracker_status_changed"
+# A parcel is new in the store (mail, service, card); never for loading or merging.
+EVENT_PARCEL_ADDED = "parcel_tracker_parcel_added"
 # Status changes found while Home Assistant starts are announced once it has started,
 # but never later than this after the first refresh (a start can hang for minutes).
 ANNOUNCE_MAX_WAIT = timedelta(seconds=120)

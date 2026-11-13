@@ -186,9 +186,12 @@ def test_readme_installs_through_hacs_in_three_steps():
     assert [step[0] for step in steps] == ["1", "2", "3"]
     for text in (
         "[HACS](https://hacs.xyz/docs/use/)",
-        "[![Repository in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)]"
+        "[![Paket Tracker in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)]"
         "(https://my.home-assistant.io/redirect/hacs_repository/?owner=SoerenKaiser99"
         "&repository=parcel_tracker&category=integration)",
+        "Standardkatalog von HACS",
+        "nach „Paket Tracker“ suchen",
+        # Fallback for an HACS that does not find it yet.
         "**Benutzerdefinierte Repositories**",
         f"`{REPO}`",
         "Typ **Integration**",
@@ -272,7 +275,7 @@ def test_readme_english_summary_is_short_and_links_to_the_site():
     assert len(english.split()) < 220
     for text in (
         "Home Assistant custom integration",
-        "Install it through HACS as a custom repository",
+        "it is in the HACS default catalog",
         "`custom:parcel-tracker-card`",
         "`parcel_tracker_status_changed`",
         "device triggers for automations without YAML",
@@ -357,7 +360,10 @@ def test_readme_screenshots_show_all_three_badges_worth_of_parcels():
     intro = README.split("## Was es kann")[0]
     assert "zwölf Pakete" in intro and "elf Pakete" not in intro
     js = (DEMO / "demo.js").read_text(encoding="utf-8")
-    assert len(re.findall(r'^    parcel\("', js, re.M)) == 12
+    # v0.3.48: a thirteenth, sent parcel is on the demo page only, not in the screenshots.
+    assert len(re.findall(r'^    parcel\("', js, re.M)) == 13
+    assert js.count("outgoing: true") == 1
+    assert 'params.has("shot") && p.attributes.outgoing' in js
     assert "delivered_today:" in js and "delivered_today_count:" in js
 
 
@@ -423,7 +429,8 @@ def test_demo_page_shows_one_parcel_per_carrier_and_the_fixed_sensors():
         '"sensor.paket_tracker_17track_kontingent", "187"',
         'location_source: "17track"',
         'shipping_carrier_hint: "hermes"',
-        "delivery_code:",
+        "has_delivery_code: true",
+        '"parcel_tracker/delivery_code"',
         "delivered_at:",
         'last_error: "unavailable"',
         'last_error: "missing_key"',

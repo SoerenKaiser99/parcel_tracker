@@ -24,9 +24,10 @@ async def async_setup_entry(
 
 
 def _event(p: Parcel, name: str | None) -> CalendarEvent | None:
-    """The delivery of a parcel; ``name`` is the name it is shown by, if it has one."""
+    """The delivery of a parcel; ``name`` is the name it is shown by, if it has one.
+    None for a parcel the user sent: it arrives somewhere else."""
     r = p.result
-    if not r or not r.eta_date or r.status in CLOSED_STATUSES:
+    if p.outgoing or not r or not r.eta_date or r.status in CLOSED_STATUSES:
         return None
     if r.eta_date < dt_util.now().date():
         return None

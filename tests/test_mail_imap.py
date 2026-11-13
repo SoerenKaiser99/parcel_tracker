@@ -1163,3 +1163,14 @@ def test_no_namespace_when_no_mail_needs_a_folder():
     assert ("uid", "STORE", "8", "+FLAGS", "(\\Seen)") in calls
     # Filing was never set up: the diagnostics stay as they were.
     assert client.filing_state()["has_namespace"] is None
+
+
+def test_unavailable_kind_names_only_types_and_fixed_codes():
+    from custom_components.parcel_tracker.mail.imap import ImapUnavailable, unavailable_kind
+
+    wrapped = ImapUnavailable("TimeoutError")
+    wrapped.__cause__ = TimeoutError("imap.example.org: timed out")
+    assert unavailable_kind(wrapped) == "TimeoutError"
+    assert unavailable_kind(ImapUnavailable("login failed")) == "login failed"
+    assert unavailable_kind(ImapUnavailable("select failed")) == "select failed"
+    assert unavailable_kind(ImapUnavailable("max@example.org was refused")) == "other"

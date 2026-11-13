@@ -5,7 +5,7 @@ Was ist umgesetzt, was ist von Testern bestätigt, was ist noch ungetestet? Dies
 Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/SoerenKaiser99/parcel_tracker/releases).
 
 !!! info "HACS-Standardkatalog"
-    Die Aufnahme in den Standardkatalog von HACS ist beantragt ([hacs/default#11781](https://github.com/hacs/default/pull/11781)) und liegt dort in der Warteschlange. Bis dahin installierst du Paket Tracker als benutzerdefiniertes Repository, siehe [Installation](installation.md).
+    Seit dem 4. November 2026 steht Paket Tracker im Standardkatalog von HACS ([hacs/default#11781](https://github.com/hacs/default/pull/11781)). Du findest ihn in HACS über die Suche, siehe [Installation](installation.md).
 
 ## Von Testern bestätigt
 
@@ -48,7 +48,9 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Knopf „Erhalten“ und Dienst `parcel_tracker.mark_delivered` (ein Paket von Hand als erhalten markieren) | umgesetzt (v0.3.30); im Alltag noch nicht bestätigt |
 | 17track: Anreicherung bei DPD und GLS | noch ohne Live-Fall (bei einem DHL-Paket live gesehen) |
 | Personen zuordnen (v0.3.41, [#39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39)): Person aus den Kopfzeilen der Mail erkennen, Karte mit Auswahl „Gehört“ und Filter `person`, Dienst `set_owner`, Meldungen nur an den Besitzer | umgesetzt, durch automatische Tests abgedeckt; mit echten Mails verschiedener Anbieter noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
+| DHL eCommerce (v0.3.42): Mails von `noreply@dhlecommerce.nl`, 20-stellige Nummern (SSCC) | umgesetzt nach anonymisierten Beispielmails; im Alltag noch nicht bestätigt, siehe [Wie ihr helfen könnt](mithelfen.md) |
 | Land Österreich: GLS-Abfrage | mit echten Paketen noch nicht getestet |
+| Versendete Pakete (v0.3.48): DHL-Einlieferungsbeleg aus Filiale/Shop, Packstation und Zustellkraft, Schild „Versendet“, eine Meldung bei Zustellung | umgesetzt, durch automatische Tests abgedeckt; nur der Beleg der Zustellkraft ist mit einer echten Mail geprüft, Filiale/Shop und Packstation nach demselben Muster ungeprüft; im Alltag noch nicht bestätigt, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege) |
 
 ## Offen
 
@@ -58,6 +60,10 @@ Die Änderungen jeder Version stehen auf der [Release-Seite](https://github.com/
 | Push-Schnittstelle von DHL (DHL meldet Statusänderungen von sich aus) | geprüft, nicht umgesetzt: Laut DHL müsste sie jeder Nutzer selbst bei DHL beantragen. Die Integration fragt deshalb weiter ab |
 | **Barcode-Scan** (Wunsch aus [Issue #2](https://github.com/SoerenKaiser99/parcel_tracker/issues/2)) | Sendungsnummer mit der Handykamera vom Label erfassen – geplant über den Scanner der Home-Assistant-App bzw. die Barcode-Erkennung des Browsers, ohne Fremdbibliothek. Braucht Beispiel-Scans je Paketdienst, weil auf den Labels oft mehr als die Sendungsnummer steht |
 | **International** | Karte auch auf Englisch, weitere Amazon-Länder im Mail-Import, nationale Paketdienste (Beispiele: Österreichische Post, Royal Mail, PostNL, USPS) – erst sinnvoll mit anonymisierten Beispielmails von Testern aus den jeweiligen Ländern |
+| **Zielgruppe pro Geschenk (`visible_to`)** (Wunsch aus [Issue #64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)) | Teilweise erledigt: Seit v0.3.45 nennt `gift_for` die Personen, die ein Geschenk nicht sehen. Offen ist der umgekehrte Weg, ein Geschenk nur bestimmten Personen zu zeigen |
+| **Mailbox per OAuth/Microsoft Graph** (Wunsch aus [Issue #65](https://github.com/SoerenKaiser99/parcel_tracker/issues/65)) | Das Paket-Postfach über OAuth und Microsoft Graph lesen statt per IMAP mit Passwort |
+| **Zählsensoren ohne Geschenke** (Wunsch aus [Issue #64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)) | Zählvarianten, die Geschenke nicht mitzählen. Bis dahin lassen eigene Templates Geschenke über `gift` in den Listen weg |
+| **Einlieferungsbelege weiterer Paketdienste** | Gesucht werden echte, anonymisierte Belege von Hermes, DPD, GLS, UPS sowie der DHL Packstation und der DHL Filiale: [Beispielmails einreichen](hilfe.md#beispielmails-einreichen) |
 | **Absender aus der DHL-Abfrage** | Den Absender eines DHL-Pakets aus der offiziellen API übernehmen, statt ihn nur aus den Mails zu lesen |
 
 Was in Österreich und der Schweiz heute geht und was nicht, steht unter [Österreich und Schweiz](dienste.md#osterreich-und-schweiz).

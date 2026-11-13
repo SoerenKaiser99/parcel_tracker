@@ -86,7 +86,7 @@ Markierst du ein Paket von Hand als erhalten – mit dem Knopf [„Erhalten“](
 
 Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt.
 
-- Der allererste Status eines neuen Pakets feuert kein Event. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet (mit `old_status` gleich `unknown`) – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
+- Der allererste Status eines neuen Pakets feuert kein Event. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet (mit `old_status` gleich `unknown`) – aber nur, wenn die Mail höchstens 24 Stunden alt ist. Für neue Pakete gibt es das eigene Event [`parcel_tracker_parcel_added`](sensoren.md#event-beim-anlegen-parcel_tracker_parcel_added).
 - Wechsel während eines Neustarts gehen nicht verloren: Das Event folgt genau einmal, sobald Home Assistant fertig gestartet ist, spätestens zwei Minuten nachdem die Integration geladen wurde. Mehrere Wechsel in dieser Zeit werden zu einem Event vom alten zum neuesten Status.
 
 ### Felder des Events
@@ -107,6 +107,8 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | `assumed` | `true`, wenn eine Bestellung ohne Zustellmail abgeschlossen wurde. Der neue Status ist dann `delivered`, zugestellt ist aber nur angenommen | `false` |
 | `manual` | `true`, wenn das Paket von Hand als erhalten markiert wurde (ab v0.3.30). Der neue Status ist dann `delivered` | `false` |
 | `owner` | Person, der das Paket gehört (Entität wie `person.anna`), oder leer, wenn es allen gehört (ab v0.3.41). Das ist der geltende Besitzer, auch die Standard-Person aus **Unklare Pakete gehören** | `person.anna` |
+| `outgoing` | `true`, wenn du das Paket verschickt hast (ab v0.3.48, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)). `new_status` ist dann z. B. `delivered` oder `awaiting_pickup` beim Empfänger | `false` |
+| `gift` | `true`, wenn das Paket ein Geschenk ist (ab v0.3.45). `name` ist dann der Geschenk-Name. Für wen es ist, steht nicht im Event | `false` |
 
 Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` (über 17track).
 

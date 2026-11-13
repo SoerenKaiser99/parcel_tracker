@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 20. Oktober 2026, Version 0.3.41. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 6. November 2026, Version 0.3.49. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -30,6 +30,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 |---|---|---|
 | **AliExpress** | Erscheint die Bestellung mit Artikelname und Zustelltag? Wird nach der „Packstück“-Mail live beim Paketdienst abgefragt? Werden die Mails „Vom Kurier abgeholt“ und „Packstück … hat eine Aktualisierung“ erkannt? Landet eine Mail bei den nicht erkannten? |
 | **Eventim** | Erscheint eine Ticketbestellung mit Postversand als „Bestellt“ mit dem Namen der Veranstaltung? Setzt die Versandbenachrichtigung „Versendet“ und den Lieferzeitraum? Bleiben Bestellungen mit print@home, ticketdirect oder Mobile Ticket draußen? Neu seit v0.3.30. | im Forum |
+| **Erkannte Mails löschen** | Verschwinden alte Mails aus `Paket-Tracker-Verarbeitet` nach der eingestellten Zeit, und bleiben alle anderen Ordner unberührt? Welcher Mailanbieter? Neu seit v0.3.46, ohne echten Mailserver gebaut. | im Forum |
 | **Eigener Mailserver im Heimnetz (Port, ohne Zertifikatsprüfung)** | Klappt die Verbindung mit eigenem Port und „Verschlüsselt, Zertifikat nicht prüfen“ oder „Unverschlüsselt“? Welcher Server läuft bei dir (dovecot, ein NAS, …)? Neu seit v0.3.32, ohne echten Mailserver gebaut. | im Forum |
 | **Apple „E-Mail-Adresse verbergen“** | Werden so weitergereichte Mails von Amazon, DHL, DPD, GLS, Hermes, UPS oder eBay erkannt? Mit echten Mails geprüft ist bisher nur AliExpress. | im Forum |
 | **DHL: „liegt am gewünschten Ablageort“** | Springt das Paket mit dieser Mail auf „Zugestellt“? | [Issue #9](https://github.com/SoerenKaiser99/parcel_tracker/issues/9) |
@@ -47,6 +48,8 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **DPD Österreich: „Ihr DPD Paket kommt zwischen … Uhr“** | Steht das Paket mit dieser Mail auf „In Zustellung“, heute mit dem Zeitfenster aus dem Betreff? Neu seit v0.3.35. | [Issue #31](https://github.com/SoerenKaiser99/parcel_tracker/issues/31) |
 | **Amazon: „Paket zur Abholung bereit“** | Steht die Bestellung nach der Mail von `pickup-point@amazon.de` auf „Abholbereit“, mit Abholort und letztem Abholtag auf der Karte und in der Benachrichtigung? Ist „Abholung am …“ in deiner Mail wirklich der letzte Abholtag? Gilt das auch für Amazon Locker und Counter? Neu seit v0.3.36. | [Issue #33](https://github.com/SoerenKaiser99/parcel_tracker/issues/33) |
 | **DHL: Sendungsnummern aus anderen Ländern** | Entsteht aus einer DHL-Mail mit einer Nummer des Absenderlands (z. B. `LE…BE`, `LW…NL`) ein Paket, und zeigt es mit DHL-Key den Live-Status? Neu seit v0.3.37. | [Issue #34](https://github.com/SoerenKaiser99/parcel_tracker/issues/34) |
+| **DHL eCommerce (Niederlande)** | Legen Mails von `noreply@dhlecommerce.nl` ein DHL-Paket mit der 20-stelligen Nummer an und setzen „Unterwegs“? Zeigt es mit DHL-Key den Live-Status? Neu seit v0.3.42 ([Issue #62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62)). | [Issue #62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62) |
+| **Versendete Pakete (DHL-Einlieferungsbeleg)** | Steht ein Paket, das du in der Filiale, im Shop oder an der Packstation abgegeben hast, nach dem Einlieferungsbeleg mit dem Schild „Versendet“ in der Liste? Kommt genau eine Meldung, wenn es beim Empfänger ankommt? Geprüft ist bisher nur der Beleg der Zustellkraft. Neu seit v0.3.48. Belege anderer Paketdienste: [Beispielmails einreichen](hilfe.md#beispielmails-einreichen). | im Forum |
 | **DHL Express („DHL On Demand Delivery“)** | Setzen die Mails von `noreply.odd@dhl.com` „Unterwegs“, „In Zustellung“ für heute und „Zugestellt“ mit der Uhrzeit aus der Mail? Bekommt das Paket den Namen des Absenders (bei Amazon „Amazon-Sendung (DHL)“)? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **AliExpress: Mails der letzten Meile** | Setzt „Paket … wird zugestellt“ die Bestellung heute auf „In Zustellung“ und „Paket … wurde zugestellt“ auf „Zugestellt“? Steht nach „Lieferprobleme für Packstück …“ „Versendet“ mit dem Text „Lieferprobleme“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Amazon: „Sendung verfolgen“ führt zu Amazon** | Öffnet das Symbol bei einer Amazon-Bestellung ohne Nummer eines Paketdienstes Amazons Sendungsverfolgung mit der richtigen Sendung? Steht dort „Amazon-Sendung: …“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
@@ -57,6 +60,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 |---|---|---|
 | **Knopf „Erhalten“** | Steht er im aufgeklappten Paket, kommt die Rückfrage „Wirklich erhalten?“, und zählt das Paket danach als heute zugestellt? Bleibt es dabei, auch wenn später noch eine Mail oder eine Antwort des Paketdienstes kommt? Neu seit v0.3.30. | im Forum |
 | **„Namen ausblenden“** | Taucht irgendwo doch noch ein echter Name auf – Karte, Kalender, Benachrichtigung, Sprachassistent? | [Fehler melden](hilfe.md#fehler-melden) |
+| **Einfuhrabgaben (Zoll) bei DHL** | Zeigt die Karte bei einer DHL-Sendung aus dem Ausland den Betrag („Einfuhrabgaben: … € in bar bei Zustellung“), kommt er in die Benachrichtigung „In Zustellung“, und verschwindet er nach der Zustellung? Stimmt der Betrag mit der Mail überein, auch bei Beträgen ab 1.000 €? | [Fehler melden](hilfe.md#fehler-melden) |
 | **„Absendernamen aus DHL-Mails übernehmen“** | Heißt ein Paket nach dem Namen aus dem DHL-Betreff „Ihre <Name> Sendung …“, auch bei einem kleinen Shop oder einer Privatperson? Fehlt das „..“ am Ende? Blendet „Namen ausblenden“ den Namen weiterhin aus? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Benachrichtigung „Abholbereit“** | Kommt die Meldung, wenn ein Paket in Packstation, Filiale oder PaketShop liegt? | im Forum |
 | **Auslöser im Automations-Editor** | Findest du die fünf Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |

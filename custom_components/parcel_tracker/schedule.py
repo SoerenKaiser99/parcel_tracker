@@ -138,14 +138,37 @@ def today_group(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> str | None:
     if result.status is ParcelStatus.OUT_FOR_DELIVERY:
         end = last or first
         if end is None:
-            end = parcel.last_change_at.astimezone(tz).date()
-            return TODAY_SURE if end == today else None
+            return TODAY_SURE if _changed_on(parcel, tz) == today else None
         return TODAY_SURE if end >= today else None
     if first is None:
         return None
     if last is None or last <= first:  # one fixed day
         return TODAY_SURE if first == today else None
     return TODAY_POSSIBLE if first <= today <= last else None
+
+
+def _changed_on(parcel: Parcel, tz: tzinfo) -> date:
+    """The day of the parcel's last change, in ``tz``."""
+    return parcel.last_change_at.astimezone(tz).date()
+
+
+def parcel_days_until(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> int | None:
+    """Days from today to the delivery day of a parcel (0 = today), None: no day known.
+
+    A parcel in delivery without any date (Hermes names none) that ``today_group`` counts
+    today is due today: 0. A stale one (last change on an earlier day) stays None.
+    """
+    result = parcel.result
+    if result is None:
+        return None
+    if result.eta_date is not None:
+        return days_until(result.eta_date, today)
+    if (
+        result.status is ParcelStatus.OUT_FOR_DELIVERY
+        and today_group(parcel, today, tz) == TODAY_SURE
+    ):
+        return 0
+    return None
 
 
 def delivered_today(parcel: Parcel, today: date, tz: tzinfo = BERLIN) -> bool:
@@ -190,10 +213,14 @@ def summarize(parcels: Iterable[Parcel], today: date, tz: tzinfo = BERLIN) -> Pa
     Today's lists count boxes: several shop orders that come in one box (they carry the
     same carrier number) are one entry there, the first of them. On the way and ready
     for pickup is every order.
+
+    A parcel the user sent (``Parcel.outgoing``) comes to somebody else: it is in no list.
     """
     summary = ParcelSummary()
     seen: set[tuple[str, str | None, str]] = set()
     for parcel in parcels:
+        if parcel.outgoing:
+            continue
         if parcel.status not in CLOSED_STATUSES:
             summary.active.append(parcel)
         if parcel.status is ParcelStatus.AWAITING_PICKUP:

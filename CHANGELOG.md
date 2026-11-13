@@ -6,16 +6,16 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 - **DHL:** Live-Status über die offizielle API mit eigenem, kostenlosem Key. Ohne Key kommen DHL-Pakete aus den DHL-Mails.
 - **DPD, GLS, Hermes:** Live-Status über die öffentlichen Sendungsverfolgungen, ohne Zugangsdaten.
-- **UPS:** Status aus UPS-Mails, live über die offizielle UPS-Track-API mit eigenem Entwicklerzugang (mit Monatsbudget).
+- **UPS:** Status aus UPS-Mails, live über die offizielle UPS-Track-API mit eigenem Entwicklerzugang (braucht ein UPS-Konto mit Abrechnung; mit Monatsbudget).
 - **17track (optional):** ergänzt Ort, Zeitfenster und Verlauf und verfolgt Paketdienste ohne eigene Anbindung, nur auf ausdrücklichen Wunsch.
 - **Länder:** Deutschland, Österreich und Schweiz (Postleitzahl und GLS-Abfrage passend zum Land).
-- **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an.
-- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress und Eventim (nur Postversand).
+- **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an. Auf Wunsch löscht er erkannte Mails nach einer einstellbaren Zahl von Tagen.
+- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress und Eventim (nur Postversand).
 - **Weitergeleitete Mails:** von Hand weitergeleitete Mails, Apples „E-Mail-Adresse verbergen“ und Mails per HTTP-Aufruf (z. B. aus n8n oder Node-RED).
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
-- **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`).
-- **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist.
+- **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“, jeweils nur, wenn es etwas zu zählen gibt. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`), die Kopfzeile abschaltbar (`header`), Geschenke lassen sich ausblenden (`gifts`).
+- **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist. Mit `gift_for` bleibt ein Geschenk vor den Personen verborgen, für die es ist.
 - **Personen zuordnen (optional):** die Integration erkennt an den Kopfzeilen der Mail, wem ein Paket gehört (Plus-Adresse, Alias oder eigene Adresse). Die Karte filtert mit `person` und lässt den Besitzer wählen, Meldungen gehen nur an dessen Ziele.
 - **Namen ausblenden:** alle Pakete heißen nur nach dem Paketdienst und den letzten Stellen der Nummer.
 - **Benachrichtigungen (optional):** bei „in Zustellung“, „zugestellt“, „abholbereit“ und Problem, an Benachrichtigungs-Entitäten und klassische Dienste. Dazu ein Blueprint für eigene Texte.
@@ -23,15 +23,75 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Kalender:** `calendar.pakete` mit den erwarteten Zustellterminen.
 - **Schalter:** `switch.paket_tracker_geschenkmodus` für den Geschenkmodus.
 - **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` und `set_owner`.
-- **Event und Auslöser:** das Event `parcel_tracker_status_changed` und fünf Auslöser im Automations-Editor ohne YAML.
+- **Event und Auslöser:** das Event `parcel_tracker_status_changed`, das Event `parcel_tracker_parcel_added` für neue Pakete und fünf Auslöser im Automations-Editor ohne YAML.
+- **Einfuhrabgaben (Zoll):** Betrag und Barzahlung aus der DHL-Mail am Zustelltag auf der Karte und in der Benachrichtigung.
+- **Versendete Pakete:** ein DHL-Einlieferungsbeleg legt ein Paket als versendet an (Schild „Versendet“, `outgoing`), außerhalb aller Zähler, mit einer Meldung bei Zustellung.
 - **Abholbereit:** Packstation, Filiale und PaketShop mit Abholort und letztem Abholtag.
-- **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert.
+- **Zustell-Codes (optional):** Einmalpasswörter aus Amazon-Mails, verdeckt auf der Karte, nie gespeichert und in keinem Attribut (der Sensor zeigt nur `has_delivery_code`).
 - **Datensparsam:** kein Cloud-Konto, Zugangsdaten bleiben in Home Assistant, nur ein eigenes Paket-Postfach wird gelesen.
 - **Diagnose:** Download ohne Zugangsdaten, Namen und Mail-Inhalte; Sendungsnummern maskiert.
 - **Beispielmails einreichen:** ein Anonymisier-Skript ersetzt Namen, Adressen und Nummern, bevor eine Mail geteilt wird.
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.49 (2026-11-06)
+
+Aus dem simon42-Forum (Postfach zeitweise nicht erreichbar).
+
+- **Diagnose:** Unter `mail_import` steht jetzt auch `last_error_kind`, die Art des letzten Fehlers beim Mail-Abruf. Ist das Postfach nicht erreichbar, steht dort zum Beispiel `TimeoutError` oder `login failed`, dieselbe Angabe wie in der Warnung im Protokoll. Die Meldung des Servers, den Server und den Benutzer enthält das Feld nie. Nach einem Abruf, der klappt, ist es wieder leer.
+- **Doku:** Die Installation läuft jetzt über den Standardkatalog von HACS. Die Hilfe sagt, wo die Warnung zum Postfach im Protokoll steht.
+
+### v0.3.48 (2026-11-04)
+
+Wunsch aus dem simon42-Forum (Kartenlinie, Warnung bei unerreichbarem Postfach); Key entfernen zu [Issue #66](https://github.com/SoerenKaiser99/parcel_tracker/issues/66).
+
+- **Versendete Pakete:** Ein DHL-Einlieferungsbeleg („Einlieferungsbeleg“ im Betreff, Absender `dhl.de`, auch weitergeleitet; Filiale/Shop, Packstation, Zustellkraft, mit echter Mail geprüft nur die Zustellkraft) legt ein Paket als versendet an (Attribut `outgoing: true`) oder macht ein bekanntes dazu, nie zurück. Status „unterwegs“, Zeit ist der Abgabezeitpunkt. Es wird wie jedes Paket verfolgt, die Ankunft sieht die Integration aber nur mit DHL-API-Key oder nach „Details über 17track holen“ auf der Karte; sonst bleibt es auf „unterwegs“, bis es gelöscht wird oder nach 30 Tagen ohne Änderung aus der Liste fällt. Es zählt in keinem Zählsensor (heute, unterwegs, möglich, zugestellt heute, abholbereit) und keiner `parcels`-Liste und hat keinen Kalendereintrag. Die Karte zeigt es mit dem Schild „Versendet“, ohne Knopf „Erhalten“, Code, Geschenkbox, Abholort und Zoll.
+- **Eine Meldung für versendete Pakete:** Genau eine, wenn es beim Empfänger zugestellt ist oder zur Abholung bereitliegt, nur mit gewähltem „Zugestellt“: „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „… liegt beim Empfänger zur Abholung bereit“. Der Blueprint meldet versendete Pakete genauso (neu importieren). Die Events `parcel_tracker_status_changed` und `parcel_tracker_parcel_added` tragen `outgoing`. `set_gift` mit `gift` für ein versendetes Paket meldet `gift_outgoing` („Ein versendetes Paket kann kein Geschenk sein.“), für alle offenen Pakete überspringt es sie.
+- **API-Key entfernen:** In den Optionen löscht das Häkchen „DHL-API-Key entfernen“ bzw. „17track-API-Key entfernen“ den gespeicherten Key. Es erscheint nur, wenn ein Key gespeichert ist, und gewinnt gegen einen neu getippten Key. Ein leeres Feld behält den Key weiter ([Issue #66](https://github.com/SoerenKaiser99/parcel_tracker/issues/66)).
+- **Keine Linie mehr über der ersten Zeile:** Mit `header: false` und `add_form: never` steht über der ersten Zeile der Karte kein Strich mehr (Wunsch aus dem simon42-Forum).
+- **Warnung bei unerreichbarem Postfach:** Nach dem dritten Mal hintereinander steht im Log einmal je Störung „The mailbox could not be reached N times in a row …“. Nach einem Abruf, der klappt, beginnt die Zählung neu (Wunsch aus dem simon42-Forum).
+- **Belege gesucht:** Echte Einlieferungsbelege von Hermes, DPD, GLS, UPS, der DHL Packstation und der DHL Filiale helfen weiter, siehe [Beispielmails einreichen](https://soerenkaiser99.github.io/parcel_tracker/hilfe/#beispielmails-einreichen).
+
+### v0.3.47 (2026-11-01)
+
+Wunsch/Meldung aus dem simon42-Forum (In Zustellung ohne Termin); `person: auto` zu [Issue #39](https://github.com/SoerenKaiser99/parcel_tracker/issues/39).
+
+- **„In Zustellung“ ohne Termin zeigt „Heute“:** Ein Paket in Zustellung, für das der Paketdienst keinen Tag nennt (Hermes, manchmal auch DPD und GLS), steht auf der Karte als „Heute“ und ganz oben, wenn sich sein Status heute geändert hat. Das Attribut `days_until` ist dann 0, dieselbe Regel wie beim Zähler „heute“. Ein Paket, das schon gestern in Zustellung ging, bleibt bei „Noch kein Termin“.
+- **Kartenoption `person: auto`:** Die Karte zeigt die Pakete der Person des angemeldeten Benutzers, plus die Pakete von allen (`include_unassigned`, Standard `true`). Sie wählt bei einem Benutzerwechsel neu. Hat der Benutzer keine Person, bleiben nur die Pakete von allen. Das ist nur eine Anzeige, kein Schutz.
+
+### v0.3.46 (2026-10-29)
+
+Wunsch aus dem simon42-Forum.
+
+- **Kein „0 heute“ mehr:** Kommt heute nichts sicher, zeigt die Karte das Schild „heute“ nicht. „möglich“ und „zugestellt“ stehen wie bisher nur da, wenn es welche gibt. Ohne Schild bleibt die Kopfzeile ohne Lücke.
+- **Kopfzeile abschaltbar:** Mit der Kartenoption `header: false` entfallen Titel, Schilder, Geschenk-Schalter und Plus-Knopf. Pakete fügst du dann über den Knopf „Paket hinzufügen“ über der Liste hinzu (außer mit `add_form: never`), den Geschenkmodus schaltest du über `switch.paket_tracker_geschenkmodus`.
+- **Erkannte Mails löschen:** Neue Option „Erkannte Mails löschen nach (Tagen)“ im E-Mail-Import, Standard aus. Sie löscht Mails endgültig, nur im Ordner `Paket-Tracker-Verarbeitet` (auch mit Präfix wie `INBOX.`), nur solche, die älter sind als die eingestellten Tage, höchstens einmal am Tag. Die Diagnose zeigt nur, ob es eingeschaltet ist, und wie viele Mails zuletzt gelöscht wurden.
+
+### v0.3.45 (2026-10-27)
+
+- **Geschenk für bestimmte Personen:** Der Dienst `set_gift` nimmt ein optionales `gift_for` (Liste von Personen). Wer dort steht, sieht das Geschenk auf der Karte wie jemand, der Geschenke nicht sehen darf, auch wenn er sonst Geschenk-Seher ist: kein echter Name, mit `gifts: hide_for_others` gar keine Zeile. Meldungen zum Paket gehen nicht an die Ziele dieser Personen. Ändern oder aufheben kann das Geschenk nur, wer nicht in `gift_for` steht, und eine Automation. Für wen ein Geschenk ist, steht in keinem Attribut, keinem Event, nicht in der Diagnose und nicht im Log der Integration. Ohne `gift_for` bleibt alles wie bisher ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **`gift` im Status-Event:** `parcel_tracker_status_changed` sagt mit `gift`, ob das Paket ein Geschenk ist ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **Roadmap:** Paket-Postfach per OAuth/Microsoft Graph steht als Wunsch auf der Stand-Seite ([#65](https://github.com/SoerenKaiser99/parcel_tracker/issues/65)).
+
+### v0.3.44 (2026-10-23)
+
+- **Event beim Anlegen:** `parcel_tracker_parcel_added` feuert einmal, sobald ein Paket neu angelegt ist (Mail, weiterer Karton einer Bestellung, Dienst `add_parcel`, Karte), mit `entry_id`, `number`, `name`, `carrier`, `owner` und `gift`. Bei einem Geschenk steht dort nur der Geschenk-Name. Nicht beim Neustart und nicht beim Zusammenführen, auch nicht für eine Bestellung, die ein schon gemeldetes Paket übernimmt (ein Event pro Karton). Damit lässt sich per Push nachfragen, ob ein neues Paket ein Geschenk ist ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **Geschenke ausblenden:** Kartenoption `gifts`. Mit `hide_for_others` sieht nur, wer Geschenke sehen darf, die Geschenk-Zeilen; für alle anderen zählen sie auch nicht in den Schildern. `hide` zeigt nie Geschenke, z. B. auf einem gemeinsamen Wandtablet. Ohne Option bleibt die Karte wie bisher ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **`gift` in den Listen:** Jeder Eintrag in `parcels`, `possible`, `delivered_today` und `awaiting_pickup` sagt mit `gift`, ob er ein Geschenk ist ([#64](https://github.com/SoerenKaiser99/parcel_tracker/issues/64)).
+- **Doku UPS:** Eine App auf developer.ups.com braucht immer ein UPS-Konto mit Abrechnung (Versenderkonto). Ohne geht UPS über die Mails oder 17track ([#63](https://github.com/SoerenKaiser99/parcel_tracker/issues/63)).
+
+### v0.3.43 (2026-10-22)
+
+- **Einfuhrabgaben (Zoll) bei DHL:** Nennt die DHL-Mail am Zustelltag Einfuhrabgaben, zeigt die Karte den Betrag als Schild und als Zeile im Paket, auch ob bar zu zahlen ist. Die Benachrichtigung „in Zustellung“ nennt ihn ebenfalls. Neue Attribute `customs_amount`, `customs_currency` und `customs_cash`, nicht im Verlauf gespeichert und nach der Zustellung gelöscht. Bei Geschenken bleibt der Betrag sichtbar, weil er an der Tür bezahlt werden muss (Beitrag von Sven242, [#53](https://github.com/SoerenKaiser99/parcel_tracker/pull/53), [#36](https://github.com/SoerenKaiser99/parcel_tracker/issues/36)).
+
+### v0.3.42 (2026-10-22)
+
+- **Karte nicht mehr in `www`:** Die Integration kopiert die Karte nicht mehr nach `www/parcel_tracker/`, sondern liefert sie selbst unter `/parcel_tracker/parcel-tracker-card.js` aus. Eine alte Dashboard-Ressource mit `/local/…` stellt sie beim Start selbst um (Speicher-Modus). Erst danach löscht sie die alte Kopie. Verwaltest du die Ressourcen per YAML, nennt der Reparatur-Hinweis die neue Adresse. Du ersetzt den alten Eintrag, danach verschwindet die Kopie.
+- **Zustell-Code nur noch auf der Karte (Breaking Change):** Das Attribut `delivery_code` gibt es nicht mehr, der Sensor hat dafür `has_delivery_code` (`true` oder `false`). Die Karte holt den Code erst, wenn du ihn aufdeckst. Automationen und Templates, die `state_attr(…, 'delivery_code')` lesen, bekommen den Code nicht mehr. In Benachrichtigungen stand der Code nie und steht er weiterhin nicht.
+- **IMAP-Server ohne Vorgabe:** Bei aktivem Mail-Import musst du den IMAP-Server selbst eintragen, sonst meldet das Formular „Trag den IMAP-Server deines Mailanbieters ein.“ Bestehende Einrichtungen laufen weiter: Ein eingerichteter Import ohne gespeicherten Server bekommt einmalig `imap.mailbox.org` eingetragen. Umgekehrt wird ein gespeichertes `imap.mailbox.org` ohne eingerichteten Mail-Import (der frühere stille Standardwert) beim Update entfernt.
+- **DHL eCommerce (Niederlande):** Neuer Absender `noreply@dhlecommerce.nl`. Die 20-stelligen Nummern, die mit `00` beginnen (SSCC), liest der Import hinter „Sendungsnummer“, „Trackingnummer“, „DHL Trackingnummer“ oder „Shipment number“, wenn die Prüfziffer stimmt, nicht hinter „Rück-“ oder „Retoure“. Jede so gefundene Nummer gilt als DHL-Nummer. Die Sendungsnummer aus der Shop-Mail wird damit vermutlich erkannt ([#62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62)).
+- **Anonymisier-Skript:** Namen im Fuß der Mail hinter „Geschäftsführer“, „Inhaber“ oder „Vorstand“ werden ersetzt (Beitrag von benep, [#60](https://github.com/SoerenKaiser99/parcel_tracker/pull/60)). Eine SSCC behält ihre „00“ und bekommt eine gültige Prüfziffer.
 
 ### v0.3.41 (2026-10-20)
 

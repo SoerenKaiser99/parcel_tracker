@@ -117,7 +117,14 @@ def test_pickup_place_gets_an_invented_number_and_loses_its_street(tmp_path):
         "Ihr Versand an der Packstation 456:\nPackstation 456\nBirkensteig 7, Supermarkt\n"
         "80000 Anderswo\n"
     )
-    msg = _scrub(tmp_path, "DHL <abholung@dhl.de>", "Paket in Filiale 999 abholbereit", text)
+    # A fixed salt invents the same numbers in every run. Without it a number drawn at
+    # random can by chance contain "999" or "456", and the check below would fail now and then.
+    salt = tmp_path / "salt.txt"
+    salt.write_text("0123456789abcdef" * 4, encoding="utf-8")
+    _, [(_, msg)] = _run(
+        tmp_path, [_mail("DHL <abholung@dhl.de>", "Paket in Filiale 999 abholbereit", text)],
+        "--ohne-angaben", "--salt", salt,
+    )
     out = _text(msg)
     _absent(msg, "999", "456", "lindenallee", "birkensteig", "80000", "anderswo")
     # the same place keeps one invented number, in the subject too

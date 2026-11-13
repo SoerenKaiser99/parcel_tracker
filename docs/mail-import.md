@@ -24,12 +24,13 @@ Dein Hauptpostfach sieht die Integration so nie.
     | Feld | Bedeutung |
     |---|---|
     | **E-Mail-Import aktiv** | Schaltet den Import ein. |
-    | **IMAP-Server** | Standard `imap.mailbox.org`. |
+    | **IMAP-Server** | Pflicht, wenn der Import aktiv ist, ohne Vorgabe. Trag den Servernamen deines Paket-Postfachs ein (bei mailbox.org `imap.mailbox.org`). Ein früher still gespeichertes `imap.mailbox.org` ohne eingerichteten Mail-Import wird beim Update zu v0.3.42 entfernt. |
     | **Port** | Standard `993`. Üblich sind 993 (verschlüsselt) und 143 (unverschlüsselt). Bei einem Mailanbieter bleibt 993 stehen. |
     | **Verbindung** | Standard „Verschlüsselt (TLS, Standard)“ – das passt für jeden Mailanbieter. Die beiden anderen sind für einen eigenen Server im Heimnetz, siehe [Port und Verbindung](#port-und-verbindung). |
     | **Benutzername** und **Passwort** | Die des Paket-Postfachs. Leere Felder behalten die gespeicherten Werte. |
     | **Ordner** | Standard `INBOX` (der Posteingang). Der eine Ordner, den der Import liest. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Ein leeres Feld behält den gespeicherten Ordner. Siehe [Eigener Ordner](#eigener-ordner). |
     | **Verarbeitete Mails in Ordner verschieben** | Standard: an. |
+    | **Erkannte Mails löschen nach (Tagen)** | 0–365, Standard: 0 (aus). Löscht alte Mails im Ordner `Paket-Tracker-Verarbeitet`, siehe [Erkannte Mails löschen](#erkannte-mails-loschen). |
     | **Zustell-Codes (Einmalpasswörter) mitlesen** | Standard: aus. Siehe [Zustell-Code](datenschutz.md#zustell-codes). |
     | **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** | Standard: aus. Dann benennt der Betreff „Ihre <Name> Sendung …“ ein Paket auch nach einem kleinen Shop oder einer Privatperson. Siehe [Absendernamen aus DHL-Mails übernehmen](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen). |
     | **Postfach abfragen alle (Minuten)** | 1–1440 (bis zu einmal am Tag), Standard: 5. |
@@ -148,6 +149,7 @@ Nimm diese Absender in die Filterregel auf:
 | `sendungsupdate@dhl.de` | DHL (meldet einen verschobenen Zustelltag; der neue Tag wird übernommen) |
 | `abholung@dhl.de` | DHL (Paket liegt in der Filiale zur Abholung bereit) |
 | `noreply.odd@dhl.com` | DHL Express („On Demand Delivery“) |
+| `noreply@dhlecommerce.nl` | DHL eCommerce (Sendungen aus den Niederlanden) |
 | `noreply@service.dpd.de` | DPD |
 | `no_reply@dpd.at` | DPD Österreich (Ankündigung, „kommt zwischen … Uhr“ mit Zeitfenster, Zustellung) |
 | `pkginfo@ups.com` | UPS |
@@ -173,6 +175,7 @@ if address :is "from" [
   "pickup-point@amazon.de",
   "noreply@dhl.de", "paketankuendigung@dhl.de", "zustellung@dhl.de",
   "sendungsupdate@dhl.de", "abholung@dhl.de", "noreply.odd@dhl.com",
+  "noreply@dhlecommerce.nl",
   "noreply@service.dpd.de", "pkginfo@ups.com",
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",
@@ -204,7 +207,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@dhlecommerce.nl OR noreply@service.dpd.de OR pkginfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.
@@ -254,6 +257,22 @@ Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.
 - Werbung und Konto-Mails von Amazon (`promotion…@amazon.de`, `no-reply@amazon.de`, `account-update@amazon.de`, `rueckgabe@amazon.de`, `no-reply@primevideo.com`) markiert der Import nur als gelesen, ebenso die Angebote von AliExpress (`…@deals.aliexpress.com`) und alle Mails von Eventim, die keine Bestellung mit Postversand sind (Newsletter, Ticketalarm, Kundenservice, die Ticketshops der Vereine).
 - Jede erkannte Mail zählt nur einmal (erkannt an ihrer Message-ID). Eine Mail, die nicht erkannt wurde, liest der Import noch einmal, sobald sie wieder ungelesen in dem Ordner liegt, den er liest, z. B. nach einem Update. Das gilt für Mails, die ab v0.3.34 gelesen wurden: Bis v0.3.33 hat sich der Import jede Mail gemerkt, auch eine nicht erkannte.
 - Erkennt der Import fünf Amazon-Mails in Folge nicht, erscheint ein Reparatur-Hinweis. Meist hat Amazon dann das Mail-Format geändert.
+
+### Erkannte Mails löschen
+
+Mit **Erkannte Mails löschen nach (Tagen)** räumt der Import den Ordner `Paket-Tracker-Verarbeitet` selbst auf. Standard ist 0, also aus. Erlaubt sind 1 bis 365 Tage.
+
+!!! warning "Endgültig gelöscht"
+    Die Mails werden endgültig gelöscht, nicht verschoben. Ob dein Mailserver sie vorher noch in einen Papierkorb legt, hängt vom Mailserver ab, meist tut er es nicht. Brauchst du eine Mail später noch (Rechnung, Rückgabe), lass die Option aus oder kopier die Mail vorher weg.
+
+- Gelöscht wird **nur** im Ordner `Paket-Tracker-Verarbeitet`, so wie er auf dem Server heißt, auch mit Präfix wie `INBOX.Paket-Tracker-Verarbeitet`. Nie im gelesenen Ordner, nie in `Paket-Tracker-Nicht-erkannt`.
+- Nur Mails, deren Eingangsdatum auf dem Server älter ist als die eingestellten Tage. Mit 30 Tagen bleiben alle Mails der letzten 30 Tage liegen. Weil der Server nur nach Kalendertagen sucht, rechnet der Import einen Tag Sicherheit dazu: Eine Mail liegt eher einen Tag länger, nie kürzer.
+- Höchstens einmal am Tag, nach einem Abruf, der geklappt hat. Nach einem Neustart von Home Assistant kann das Aufräumen am selben Tag noch einmal laufen. Es löscht dabei nur Mails, die alt genug sind.
+- Nur mit eingeschaltetem „Verarbeitete Mails in Ordner verschieben“. Ist das aus, löscht der Import nichts.
+- Der Import merkt sich die Message-ID einer gelöschten Mail weiter. Taucht sie noch einmal auf, zählt sie nicht doppelt.
+- Kann der Server UIDPLUS, entfernt der Import genau die Mails, die er selbst als gelöscht markiert hat. Ohne UIDPLUS entfernt er im Ordner `Paket-Tracker-Verarbeitet` alle als gelöscht markierten Mails, auch solche, die ein Mailprogramm dort markiert hat.
+- Klappt das Löschen nicht, steht einmal eine Warnung im Protokoll, ohne Ordner- oder Benutzernamen. Der Import läuft weiter, der nächste Versuch kommt am nächsten Tag.
+- In der [Diagnose](sensoren.md#diagnose) steht unter `delete_processed` nur, ob es eingeschaltet ist, und wie viele Mails zuletzt gelöscht wurden.
 
 ## Was aus welcher Mail wird
 
@@ -325,11 +344,15 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Liegt das Paket zur Abholung bereit („… ist in der Filiale abholbereit“, „Ihr DHL Paket ist ab sofort abholbereit“, auch die Erinnerung „liegt seit 2 Tagen in der Filiale“), übernimmt der Import aus dem Block „Adresse“ bzw. „Adresse der Filiale“ die Filiale oder Packstation mit Straße als Abholort („Postfiliale 999, Beispielweg 12“), ohne Postleitzahl und Ort. Gebaut ist das nach Abholmails aus Filialen; für Packstation, Poststation und Paketshop gab es noch kein Beispiel, dort gilt dieselbe Form des Blocks als Annahme. Er steht auf der Karte, im Attribut `pickup_point` und in der Benachrichtigung. Beginnt der Block nicht mit einer Filiale, Packstation, Poststation oder einem Paketshop, bleibt der Abholort leer, so wird nie eine Empfängeradresse zum Abholort. Mit DHL-Key bleibt dieser Abholort, solange das Paket abholbereit ist: DHL selbst nennt nur den Ort. Einen letzten Abholtag übernimmt der Import nicht, weil die Mail nur „7 Werktage“ nennt.
     - Internationale Nummern liest er nicht nur mit „DE“ am Ende (`CQ…DE`), sondern auch Nummern aus anderen Ländern (z. B. `…BE`, `…NL`, seit v0.3.37), wie DHL sie bei Sendungen aus dem Ausland nennt (`LE…BE`, `LW…NL`). Das Paket wird ein DHL-Paket, und die Integration fragt es mit dem DHL-Key bei DHL ab. Solche Nummern zählen nur in Mails von DHL.
     - Neben den langen DHL-Nummern (`00340…`, `JJD…`, `CQ…DE`) liest er aus DHL-Mails auch Nummern mit 12 Ziffern – nur direkt nach „Ihre Sendungsnummer“ bzw. „Sendungsnummer“, weil 12 Ziffern allein auch eine eBay-Artikelnummer sein können. Mit DHL-Key fragt die Integration auch diese Nummern bei DHL ab.
+    - **DHL eCommerce (Niederlande, seit v0.3.42):** Mails von `noreply@dhlecommerce.nl` legen ein DHL-Paket an. Die Nummer hat 20 Ziffern und beginnt mit `00` (SSCC). „Shipment on its way“ und „We will deliver soon“ setzen „Unterwegs“; andere Mails von diesem Absender legen die Nummer ohne Status an. Der Shop (aus „from … to you“) wird der Name des Pakets, wenn er eine Rechtsform trägt.
+    - Solche 20-stelligen Nummern liest der Import auch aus Shop-Mails, aber nur direkt hinter einem Etikett („Sendungsnummer“, „Trackingnummer“, „DHL Trackingnummer“, „Shipment number“, „Tracking number“) und mit gültiger Prüfziffer. Steht direkt davor ein Wort, das mit „Rück“, „Retoure“ oder „Return“ beginnt (etwa „Rücksendung Sendungsnummer“, „Rückversand-Sendungsnummer“, „Retouren-Trackingnummer“ oder „Return label – Tracking number“), ist es ein Rücksendeetikett und die Nummer zählt nicht. In DHL-Mails genügt das Etikett „Sendungsnummer“. Jede so gefundene Nummer gilt als DHL-Nummer. Gehört sie einem anderen Paketdienst, meldet DHL „nicht gefunden“.
     - Steht im Textteil der Mail keine Nummer (er ist leer oder nennt sie nur in einem Link), liest der Import den HTML-Teil: dort auch die Nummer direkt unter „Sendungsstatus einsehen“ bzw. „Sendungsverlauf einsehen“, mit 12 Ziffern oder als Nummer aus dem Ausland (z. B. `LR…NL`, `JJATA…`).
+    - Bei einer Sendung aus dem Ausland nennt die DHL-Mail am Zustelltag („Ihre DHL Sendung kommt heute“) die Einfuhrabgaben: „Die Einfuhrabgaben i.H.v. 12,34€ (inkl. 7,50€ Auslagepauschale …) sind bei Zustellung, möglichst passend, in bar zu bezahlen.“ Der Import liest daraus den Betrag (den ersten, nicht die Gebühren in der Klammer), die Währung und ob „in bar“ dasteht. Sie stehen in den Attributen `customs_amount`, `customs_currency` und `customs_cash`, auf der Karte und in der Benachrichtigung „In Zustellung“ – bis das Paket zugestellt ist. Eine spätere Mail ohne den Satz ändert daran nichts.
     - DHL-Mails nennen im Betreff den Shop („Ihre Beispiel GmbH Sendung ist unterwegs“). Er wird der Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …) – nie der Name einer Privatperson. Der Name endet an der Rechtsform; was dahinter steht (ein Kürzel, eine Ansprechperson), wird nicht übernommen. Nur mit der Option **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** (Standard: aus) entfällt diese Prüfung, siehe [Datenschutz](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen).
     - Der Anzeigename eines Paketdienstes („DHL Paketankündigung“, „DHL Zustell-Update“) wird nie zum Namen: Ohne Shop heißt das Paket `DHL <Nummer>`. Nennt der Betreff eine Firma des Paketdienstes selbst („Ihre DHL Paket (Austria) GmbH c/o … Sendung“), gibt es ebenfalls keinen Namen.
     - Trägt ein Paket aus einer älteren Version noch so einen Namen, ersetzt ihn die nächste Mail, die einen Shop nennt – aber nur, wenn der Name aus einem Paketdienst (DHL, DPD, GLS, Hermes, UPS, Deutsche Post) und Wörtern einer Benachrichtigung besteht und sonst nichts enthält („DHL Paketankündigung“, „DHL Zustell-Update“, „DPD Versandinfo“, „DHL Paket“). Jeder andere Name bleibt, auch „Hermes“, „DHL Express“ oder „Paket“: Er kann selbst vergeben sein.
     - Eine „Amazon Sendung“ landet beim passenden Amazon-Paket, siehe [Zusammenführen](#zusammenfuhren-carrier-mail-und-bestellung).
+    - Einlieferungsbelege („Einlieferungsbeleg“ im Betreff) legen ein versendetes Paket an, siehe [Versendete Pakete](#versendete-pakete-einlieferungsbelege).
     - Abholcodes liest der Import nie.
 
 === "DPD"
@@ -365,6 +388,31 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Der Shop aus der Mail wird nur dann zum Namen, wenn es ein bekannter Shop ist (z. B. Amazon, eBay, Otto, Zalando) und das Paket noch keinen Namen hat – Namen privater Absender übernimmt die Integration nie.
     - Den Text des Wunsch-Ablageorts übernimmt die Integration nie – weder in Attribute noch ins Log.
     - Alte Amazon-Versandmails mit Hermes-Nummer hängen die Nummer an das Amazon-Paket; ab dann fragt es Hermes ab.
+
+## Versendete Pakete (Einlieferungsbelege)
+
+Verschickst du selbst ein Paket, schickt dir DHL einen Einlieferungsbeleg. Auch den kann der Import lesen. Das Paket steht dann als **versendet** in der Liste und wird wie jedes andere verfolgt, nur dass es nicht zu dem zählt, was bei dir ankommt.
+
+**Was erkannt wird**
+
+- Mails von `dhl.de`, in deren Betreff „Einlieferungsbeleg“ steht, auch weitergeleitet („WG:“, „Fwd:“).
+- Der Beleg der **Zustellkraft** (an der Haustür abgegeben) ist mit einer echten Mail geprüft. Belege aus der **Filiale oder dem Shop** und von der **Packstation** erkennt der Import am selben Muster, mit echten Mails geprüft ist das noch nicht.
+- Das Paket bekommt den Status „unterwegs“, als Zeit gilt der Abgabezeitpunkt aus dem Beleg.
+- Kennt die Integration die Nummer schon (etwa aus der Abfrage bei DHL), wird dieses Paket zu einem versendeten. Zurück zu „empfangen“ wird es nie.
+- Wie bei jeder Mail bestimmt die Zuordnung der Mail, wem das Paket gehört, siehe [Pakete Personen zuordnen](#pakete-personen-zuordnen).
+
+**Wie ein versendetes Paket sich verhält**
+
+- Es steht auf der Karte mit dem Schild „Versendet“ in der normalen Liste, ohne Knopf „Erhalten“, ohne Code, ohne Geschenkbox, ohne Abholort und Abholfrist und ohne Zoll.
+- Es zählt in keinem Zählsensor (heute, unterwegs, möglich, zugestellt heute, abholbereit) und steht in keiner `parcels`-Liste. Einen Kalendereintrag gibt es nicht.
+- Es ist nie ein Geschenk.
+- Eine Meldung bekommst du **einmal**: wenn das Paket beim Empfänger zugestellt ist oder dort zur Abholung bereitliegt. Voraussetzung ist, dass bei den [Benachrichtigungen](benachrichtigungen.md#ereignisse) „Zugestellt“ gewählt ist. Alle anderen Meldungen entfallen.
+- Dass es angekommen ist, erfährt die Integration nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen) oder wenn du auf der Karte „Details über 17track holen“ antippst. Ohne Key und ohne 17track bleibt das Paket auf „unterwegs“, bis du es löschst oder es nach 30 Tagen ohne Änderung aus der Liste fällt.
+
+**Filterregel:** Die Belege kommen von `noreply@dhl.de`. Steht diese Adresse oder die ganze Domain `dhl.de` in deiner [Filterregel](#filterregel-anlegen), kommen sie ohne Änderung an.
+
+!!! question "Belege anderer Paketdienste gesucht"
+    Gebaut ist bisher nur der DHL-Beleg. Mit einer echten Mail geprüft ist nur der Beleg der Zustellkraft. Für **Hermes, DPD, GLS und UPS** sowie für die **DHL Packstation** und die **DHL Filiale** fehlen noch echte Belege. Wenn du so einen hast, reich ihn anonymisiert ein: [Beispielmails einreichen](hilfe.md#beispielmails-einreichen).
 
 ## Bestellungen ohne Zustellmail
 
@@ -482,6 +530,7 @@ Der Import übernimmt nur:
 - einen auf 60 Zeichen gekürzten Artikeltitel,
 - den Namen eines Shops oder einer Firma (nur bis zur Rechtsform, nie den einer Privatperson und nie den Anzeigenamen eines Paketdienstes; das gilt auch für die Absenderzeile „Von:“ einer UPS-Mail und den Versender in der Ankündigung von DPD). Einzige Ausnahme: die Option [Absendernamen aus DHL-Mails übernehmen](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen),
 - Status, Liefertag und Zeitfenster,
+- bei einer DHL-Sendung aus dem Ausland den Betrag der Einfuhrabgaben, seine Währung und ob bar gezahlt werden soll (nicht den Satz selbst),
 - den Versanddienstleister,
 - nur mit eingeschalteter Option und nur im Arbeitsspeicher: den Zustell-Code.
 
@@ -605,6 +654,7 @@ Nützlich: die Logs mit `journalctl -u paket-mail.service -n 50`, sofort abholen
       'versandbestaetigung@amazon.de'
       'order-update@amazon.de'
       'dhl.de'
+      'dhlecommerce.nl'
       'myhermes.de'
       'hermesworld.com'
       'dpd.de'

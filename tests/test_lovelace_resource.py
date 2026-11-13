@@ -13,7 +13,7 @@ from custom_components.parcel_tracker.lovelace_resource import (
     plan_resource,
 )
 
-URL = f"{LOCAL_CARD_URL}?v={VERSION}-abcd1234"
+URL = f"{CARD_URL}?v={VERSION}-abcd1234"
 
 
 def test_plan_resource():
@@ -25,6 +25,8 @@ def test_plan_resource():
         "a",
         [],
     )
+    old_local = f"{LOCAL_CARD_URL}?v=0.3.41-abcd1234"
+    assert plan_resource([{"id": "a", "url": old_local}], URL) == ("update", "a", [])
     assert plan_resource([{"id": "a", "url": CARD_URL}], URL) == ("update", "a", [])
     dupes = [
         {"id": "a", "url": f"{CARD_URL}?v=0.1.4"},
@@ -55,7 +57,7 @@ async def test_integration_registers_resource_once(hass, lovelace):
     await hass.async_block_till_done()
     items = _card_items(hass)
     assert len(items) == 1
-    assert items[0]["url"].startswith(f"{CARD_URL}?v={VERSION}-")  # www did not exist
+    assert items[0]["url"].startswith(f"{CARD_URL}?v={VERSION}-")
     assert items[0]["type"] == "module"
 
     await async_ensure_resource(hass, items[0]["url"])
@@ -93,6 +95,14 @@ async def test_duplicates_collapsed(hass, lovelace):
 
 
 async def test_none_creates(hass, lovelace):
+    await async_ensure_resource(hass, URL)
+    assert [i["url"] for i in _card_items(hass)] == [URL]
+
+
+async def test_old_local_resource_is_switched_to_the_new_url(hass, lovelace):
+    res = hass.data[LOVELACE_DATA].resources
+    await res.async_get_info()
+    await res.async_create_item({"res_type": "module", "url": f"{LOCAL_CARD_URL}?v=0.3.41-x"})
     await async_ensure_resource(hass, URL)
     assert [i["url"] for i in _card_items(hass)] == [URL]
 
@@ -148,8 +158,19 @@ async def test_yaml_mode_raises_a_repair_with_the_url(hass, yaml_lovelace):
     assert issue.translation_placeholders == {"url": URL}
 
 
-async def test_yaml_mode_is_quiet_once_the_resource_is_listed(hass):
+async def test_yaml_mode_repairs_while_the_old_local_url_is_listed(hass):
     listed = {"url": f"{LOCAL_CARD_URL}?v=old", "type": "module"}
+    config = {"lovelace": {"resource_mode": "yaml", "resources": [listed]}}
+    assert await async_setup_component(hass, "lovelace", config)
+    await hass.async_block_till_done()
+    await async_ensure_resource(hass, URL)
+    issue = _issue(hass)
+    assert issue is not None
+    assert issue.translation_placeholders == {"url": URL}
+
+
+async def test_yaml_mode_is_quiet_once_the_resource_is_listed(hass):
+    listed = {"url": f"{CARD_URL}?v=old", "type": "module"}
     config = {"lovelace": {"resource_mode": "yaml", "resources": [listed]}}
     assert await async_setup_component(hass, "lovelace", config)
     await hass.async_block_till_done()

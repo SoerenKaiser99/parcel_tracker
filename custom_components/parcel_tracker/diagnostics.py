@@ -196,6 +196,8 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
         "track17_carrier": code if isinstance(code, int) else None,
         "track17_next_at": _iso(parcel.track17_next_at),
         "has_track17_result": parcel.track17_result is not None,
+        "outgoing": parcel.outgoing,
+        "arrival_told": parcel.arrival_told,
     }
 
 

@@ -9,7 +9,7 @@ from custom_components.parcel_tracker.const import CONF_HIDE_NAMES, CONF_POSTCOD
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
 
 FETCH = "custom_components.parcel_tracker.carriers.dhl.DhlCarrier.fetch"
-NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+NOW = datetime.now(UTC)  # a fixed date would be removed as stale after 30 days
 DHL = "00340999999999999901"
 ORDER = "AMZ99991565342587125"
 DHL_URL = f"https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={DHL}"

@@ -33,8 +33,11 @@ const Card = defined["parcel-tracker-card"];
 const card = new Card();
 card.setConfig({});
 card._hass = { states: {}, entities: {} };
-const a = { number: "AMZ1", delivery_code: "12<3>" };
+const a = { number: "AMZ1", has_delivery_code: true };
 const out = { none: card._codeHtml({ number: "AMZ1" }), hidden: card._codeHtml(a) };
+// An old attribute with the code is not shown any more (only what the WebSocket gave).
+out.oldAttr = card._codeHtml({ number: "AMZ1", delivery_code: "12<3>" });
+card._codes.set("AMZ1", "12<3>");
 card._code.set("AMZ1", "ask");
 out.ask = card._codeHtml(a);
 card._code.set("AMZ1", "show");
@@ -149,6 +152,7 @@ def test_icons_include_mail_carriers(card):
 
 def test_code_reveal_steps(card):
     assert card["none"] == ""
+    assert card["oldAttr"] == ""
     assert "Code anzeigen" in card["hidden"] and "12" not in card["hidden"]
     assert "Zustell-Code anzeigen?" in card["ask"] and "12&lt;3&gt;" not in card["ask"]
     assert "12&lt;3&gt;" in card["show"] and "<3>" not in card["show"]
@@ -273,23 +277,24 @@ def test_gls_has_a_blue_dot_with_g_and_its_label(card):
 
 
 def test_badges_count_sure_possible_and_delivered_parcels(card):
-    """"N heute" is the sensor's state (sure) and always there; "möglich" (ranges that
-    include today) and "zugestellt" (delivered today) only when there are any."""
+    """"N heute" is the sensor's state (sure), "möglich" (ranges that include today) and
+    "zugestellt" (delivered today); each only when there are any (no "0 heute" since
+    v0.3.46)."""
     assert card["badge"] == {
-        "missing": ["0 heute"],
-        "none": ["0 heute"],
+        "missing": [],
+        "none": [],
         "sure": ["2 heute"],
         "oldSensor": ["1 heute"],  # a sensor from before v0.3.10 / v0.3.7
         "oldSensorPossible": ["1 heute", "2 möglich"],
         "both": ["1 heute", "1 möglich"],
         "bothMany": ["2 heute", "3 möglich"],
-        "possible": ["0 heute", "1 möglich"],
-        "delivered": ["0 heute", "1 zugestellt"],
+        "possible": ["1 möglich"],
+        "delivered": ["1 zugestellt"],
         "all": ["1 heute", "2 möglich", "3 zugestellt"],
         "sureDelivered": ["2 heute", "1 zugestellt"],
         "oddCounts": ["1 heute", "2 möglich"],
         "fraction": ["1 heute", "1 möglich"],
-        "unavailable": ["0 heute"],
+        "unavailable": [],
         "noAttributes": ["3 heute"],
     }
 
@@ -331,10 +336,8 @@ def test_green_is_rendered_from_the_today_sensor_only():
 def test_badges_are_rendered_from_the_today_sensor_only():
     """The card does not count itself: it reads sensor.pakete_heute."""
     text = BUNDLED_CARD.read_text(encoding="utf-8")
-    assert (
-        'getElementById("today").innerHTML = badgesHtml(todayBadges(today, this._keep()));'
-        in text
-    )
+    assert "const badges = todayBadges(today, this._keep());" in text
+    assert "badgesEl.innerHTML = badgesHtml(badges);" in text
     assert "possible_count" in text and "delivered_today_count" in text
     assert "function todayBadge(" not in text  # the combined "1 heute · 1 möglich" text is gone
     assert " · ${possible} möglich" not in text

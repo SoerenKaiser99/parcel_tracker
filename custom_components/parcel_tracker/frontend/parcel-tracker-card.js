@@ -1,7 +1,7 @@
 const CARRIER_ICONS = {"dhl": {"path": "M4.22 10.303l-.767 1.043h4.18c.21 0 .208.078.105.218-.105.142-.28.39-.386.534-.054.073-.154.207.171.207h1.71l.505-.69c.314-.426.028-1.312-1.095-1.312H4.22zM11.424 10.303l-1.475 2.002h5.39l1.473-2.002H14.61l-.843 1.146h-.985l.846-1.146h-2.203zM17.529 10.303l-1.474 2.002h2.334l1.472-2.002H17.53zM4.684 11.603l-1.54 2.094h3.754c1.24 0 1.932-.844 2.145-1.136h-2.56c-.326 0-.226-.133-.172-.207.107-.143.283-.388.388-.53.104-.14.107-.22-.105-.22h-1.91zM9.762 12.562l-.836 1.136h2.203l.836-1.136H9.762zM12.947 12.562l-.836 1.136h2.203l.836-1.136h-2.203zM15.865 12.562s-.159.22-.238.326c-.276.374-.033.81.87.81h3.538l.834-1.136h-5.004z", "color": "#FFCC00", "mark": "#D40511"}, "dpd": {"path": "M16.01 10.71a.364.364 0 01-.343-.006l-.558-.331a.43.43 0 01-.182-.312l-.014-.65a.363.363 0 01.165-.3l6.7-3.902L12.377.085A.799.799 0 0012 0a.798.798 0 00-.377.085l-9.4 5.124 10.53 6.13c.098.054.172.181.172.295v8.944c0 .112-.08.241-.178.294l-.567.315c-.171.062-.256.043-.361 0l-.569-.315a.362.362 0 01-.175-.294v-7.973a.223.223 0 00-.095-.156L1.702 7.048v10.579c0 .236.167.528.371.648l9.556 5.636c.102.06.237.09.371.089a.745.745 0 00.371-.09l9.557-5.635a.835.835 0 00.37-.648V7.047Z", "color": "#DC0032"}, "amazon": {"path": "M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z", "color": "#FF9900"}, "ups": {"path": "M11.668 14.544l-.028-5.226c.138-.055.387-.111.608-.111.995 0 1.41.774 1.41 2.682 0 1.853-.47 2.765-1.438 2.765-.22 0-.441-.055-.552-.11zM3.124 7.438c4.203-3.843 9.29-4.866 14.018-4.866 1.3 0 2.544.083 3.76.194h-.028v11.253c0 2.184-.774 3.926-2.295 5.171-1.355 1.134-5.447 2.959-6.581 3.456-1.161-.525-5.253-2.378-6.581-3.456-1.493-1.244-2.295-3.014-2.295-5.171V7.438zm12.664 2.599c.028.912.276 1.576 1.687 2.406.747.442 1.051.747 1.051 1.272 0 .581-.387.94-1.023.94-.553 0-1.189-.304-1.631-.691v1.576c.553.304 1.217.525 1.88.525 1.687 0 2.433-1.189 2.461-2.267.028-.995-.249-1.742-1.659-2.571-.608-.387-1.134-.636-1.106-1.244 0-.581.525-.802.995-.802.581 0 1.161.332 1.521.691V8.378c-.304-.221-.94-.581-1.88-.553-1.135.028-2.296.829-2.296 2.212zm-5.834 9.484h1.714l-.028-3.594c.166.028.415.083.774.083 1.908 0 2.986-1.687 2.986-4.175 0-2.461-1.106-4.009-3.152-4.009-.94 0-1.687.221-2.295.608v11.087zm-5.945-6.166c0 1.797.829 2.71 2.516 2.71 1.051 0 1.908-.249 2.571-.691V7.991H7.41v6.387c-.194.138-.47.221-.802.221-.774 0-.885-.719-.885-1.189V7.991H4.009v5.364zM22.12 2.295v11.723c0 2.516-.94 4.645-2.765 6.111-1.549 1.3-6.332 3.429-7.355 3.871-1.023-.442-5.806-2.571-7.355-3.843-1.797-1.465-2.765-3.594-2.765-6.111V2.295C4.756.747 8.074 0 12 0s7.244.747 10.12 2.295zm-.304.221c-2.71-1.465-6-2.184-9.788-2.184s-7.079.746-9.788 2.184v11.502c0 2.433.912 4.452 2.627 5.862 1.576 1.3 6.581 3.484 7.161 3.76.581-.249 5.585-2.433 7.161-3.733 1.714-1.41 2.627-3.429 2.627-5.862V2.516zm-2.433 20.295c0 .47-.387.829-.829.829a.831.831 0 0 1-.829-.829c0-.47.387-.829.829-.829.441 0 .801.359.829.829zm-.166 0a.679.679 0 0 0-.664-.691c-.359 0-.664.332-.664.691 0 .359.304.664.664.664a.673.673 0 0 0 .664-.664zm-.553.055c.028.055.304.442.304.442h-.221s-.276-.387-.276-.415h-.028v.415h-.194v-.995l.304-.028c.249 0 .332.166.332.304s-.083.25-.221.277zm.027-.276c0-.055 0-.138-.166-.138h-.083v.304h.028c.194 0 .221-.083.221-.166z", "color": "var(--primary-text-color)"}, "ebay": {"path": "M6.056 12.132v-4.92h1.2v3.026c.59-.703 1.402-.906 2.202-.906 1.34 0 2.828.904 2.828 2.855 0 .233-.015.457-.06.668.24-.953 1.274-1.305 2.896-1.344.51-.018 1.095-.018 1.56-.018v-.135c0-.885-.556-1.244-1.53-1.244-.72 0-1.245.3-1.305.81h-1.275c.136-1.29 1.5-1.62 2.686-1.62 1.064 0 1.995.27 2.415 1.02l-.436-.84h1.41l2.055 4.125 2.055-4.126H24l-3.72 7.305h-1.346l1.07-2.04-2.33-4.38c.13.255.2.555.2.93v2.46c0 .346.01.69.04 1.005H16.8a6.543 6.543 0 01-.046-.765c-.603.734-1.32.96-2.32.96-1.48 0-2.272-.78-2.272-1.695 0-.15.015-.284.037-.405-.3 1.246-1.36 2.086-2.767 2.086-.87 0-1.694-.315-2.2-.93 0 .24-.015.494-.04.734h-1.18c.02-.39.04-.855.04-1.245v-1.05h-4.83c.065 1.095.818 1.74 1.853 1.74.718 0 1.355-.3 1.568-.93h1.24c-.24 1.29-1.61 1.725-2.79 1.725C.95 15.009 0 13.822 0 12.232c0-1.754.982-2.91 3.116-2.91 1.688 0 2.93.886 2.94 2.806v.005zm9.137.183c-1.095.034-1.77.233-1.77.95 0 .465.36.97 1.305.97 1.26 0 1.935-.69 1.935-1.814v-.13c-.45 0-.99.006-1.484.022h.012zm-6.06 1.875c1.11 0 1.876-.806 1.876-2.02s-.768-2.02-1.893-2.02c-1.11 0-1.89.806-1.89 2.02s.765 2.02 1.875 2.02h.03zm-4.35-2.514c-.044-1.125-.854-1.546-1.725-1.546-.944 0-1.694.474-1.815 1.546z", "color": "#E53238"}};
 // The version of the integration this file ships with. The browser keeps an old card after
 // an update until the page is reloaded: sensor.pakete_heute names the installed version.
-const CARD_VERSION = "0.3.41";
+const CARD_VERSION = "0.3.49";
 const CARRIER_LABEL = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", ups: "UPS", amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", eventim: "Eventim", other: "17track" };
 // Simple Icons' "hermes" is not used for the parcel service, it has no GLS logo, and
 // "other" has no logo: a coloured dot with letters instead. AliExpress and Eventim likewise.
@@ -156,9 +156,16 @@ const SERVICE_ERRORS = {
 const GIFT_ENTITY = "switch.paket_tracker_geschenkmodus";
 const GIFT_LABEL = "Geschenkmodus";
 const GIFT_VIEWER_TRIES = 5;
+// A gift viewer's card asks again this often (and when the tab is shown again): set_gift may
+// have changed whom a gift is for without anything on the sensors changing. The same for
+// every viewer, so it tells nothing about any gift.
+const GIFT_RECHECK_MS = 60000;
 const GIFT_SHOW = "Inhalt anzeigen";
 const GIFT_HINT = "Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant.";
 const GIFT_NO_VIEWER = "Wähle zuerst unter Konfigurieren aus, wer Geschenke sehen darf. Sonst lässt sich der Geschenkmodus nur per Automation wieder ausschalten.";
+// The delivery code is no attribute (a secret in the state machine): the integration gives it
+// on request (WebSocket parcel_tracker/delivery_code), asked only when it is revealed.
+const CODE_NONE = "Kein gültiger Zustell-Code mehr vorhanden.";
 // Errors of the WebSocket command parcel_tracker/gift_name (codes, not translation keys).
 const GIFT_WS_ERRORS = {
   not_allowed: "Nur wer Geschenke sehen darf, sieht, was drin ist.",
@@ -171,7 +178,14 @@ function giftMode(hass) {
   return st && (st.state === "on" || st.state === "off") ? st.state : null;
 }
 
-const isGift = (a) => a.gift === true;
+// A parcel the user sent (a DHL receipt of a handover): it comes to somebody else. The
+// sensors count it nowhere; the card lists it with the badge "Versendet".
+const isOutgoing = (a) => a.outgoing === true;
+// A sent parcel is never a gift (the integration refuses it).
+const isGift = (a) => a.gift === true && !isOutgoing(a);
+
+// The badge beside a sent parcel's status: the look of "möglich", read as text.
+const outgoingBadge = (a) => (isOutgoing(a) ? `<span class="badge possible sent">Versendet</span>` : "");
 
 // The question when the mode is switched on: open parcels are those the service would mark
 // (set_gift with open_parcels: everything neither delivered nor cancelled) and that are not a gift yet.
@@ -234,7 +248,8 @@ const carrierLabel = (key) => CARRIER_LABEL[key] || String(key).toUpperCase();
 // A place 17track filled in for a carrier says so ("Ort via 17track").
 function subText(label, a, s) {
   const hint = a.shipping_carrier_hint ? `via ${CARRIER_LABEL[a.shipping_carrier_hint] || a.shipping_carrier_hint}` : null;
-  const place = s === PICKUP ? a.pickup_point : a.location;
+  // A sent parcel's pickup point is the recipient's: not shown.
+  const place = s === PICKUP ? (isOutgoing(a) ? null : a.pickup_point) : a.location;
   const via17 = s !== PICKUP && place && a.location_source === "17track" && a.carrier !== "other"
     ? "Ort via 17track" : null;
   const carrier = a.carrier ? (a.carrier_name || carrierLabel(a.carrier)) : null;
@@ -272,8 +287,9 @@ function sureToday(today, number) {
 
 // The badges in the card's head, from sensor.pakete_heute: its state counts the parcels that
 // come today for sure, possible_count those whose delivery window only includes today,
-// delivered_today_count those delivered today. "heute" is always there, the other two only
-// with a count (a sensor from before v0.3.10 has no delivered_today_count).
+// delivered_today_count those delivered today. Each one only with a count: nothing comes
+// today, no "0 heute" (since v0.3.46; a sensor from before v0.3.10 has no
+// delivered_today_count).
 // With the card option `person` (`keep`: the numbers the card shows) the badges count only
 // the parcels of the sensor's lists that the card shows; a list the sensor lacks keeps its count.
 function todayBadges(st, keep = null) {
@@ -282,7 +298,9 @@ function todayBadges(st, keep = null) {
   const mine = (list, n) => (keep ? keptCount(list, keep, n) : n);
   const possible = count(mine(a.possible, a.possible_count));
   const delivered = count(mine(a.delivered_today, a.delivered_today_count));
-  const badges = [{ kind: "sure", text: `${st ? count(mine(a.parcels, st.state)) : 0} heute`, title: "Kommt heute sicher" }];
+  const sure = st ? count(mine(a.parcels, st.state)) : 0;
+  const badges = [];
+  if (sure) badges.push({ kind: "sure", text: `${sure} heute`, title: "Kommt heute sicher" });
   if (possible) badges.push({ kind: "possible", text: `${possible} möglich`, title: "Lieferzeitraum schließt heute ein" });
   if (delivered) badges.push({ kind: "delivered", text: `${delivered} zugestellt`, title: "Heute zugestellt" });
   return badges;
@@ -387,6 +405,37 @@ function numbersHtml(a) {
     : "";
 }
 
+// Import duty (Zoll) still to pay at delivery, as a DHL mail named it (attributes
+// customs_amount, customs_currency, customs_cash). null without an amount; the integration
+// leaves the attributes empty once the parcel is delivered.
+function customs(a) {
+  if (isOutgoing(a)) return null; // the recipient of a sent parcel pays it
+  const amount = a.customs_amount;
+  if (typeof amount !== "number" || !(amount > 0)) return null;
+  const currency = typeof a.customs_currency === "string" && a.customs_currency ? a.customs_currency : "EUR";
+  let money;
+  try {
+    money = new Intl.NumberFormat("de-DE", { style: "currency", currency }).format(amount);
+  } catch {
+    money = `${amount.toFixed(2).replace(".", ",")} ${currency}`; // a currency Intl does not know
+  }
+  return { money: money.replace(/\u00a0/g, " "), cash: a.customs_cash === true };
+}
+
+// One line in the details: "Einfuhrabgaben: 12,34 € in bar bei Zustellung".
+function customsDetail(a) {
+  const c = customs(a);
+  return c ? `<div class="detail duty">Einfuhrabgaben: ${esc(c.money)}${c.cash ? " in bar" : ""} bei Zustellung</div>` : "";
+}
+
+// A small badge in the collapsed row, so the duty is seen without opening the parcel.
+function customsBadge(a) {
+  const c = customs(a);
+  return c
+    ? `<span class="badge duty" role="img" title="Einfuhrabgaben bei Zustellung${c.cash ? " in bar" : ""}" aria-label="Einfuhrabgaben ${esc(c.money)}${c.cash ? " in bar" : ""} bei Zustellung">Zoll ${esc(c.money)}</span>`
+    : "";
+}
+
 // The carrier's tracking page of a parcel: the integration builds it (attribute
 // tracking_url), the card only links to it. null without one; anything but https is no link.
 function trackingUrl(a) {
@@ -401,7 +450,9 @@ const track17Question = (rest) => (rest == null
 // "Erhalten" marks a parcel as received by hand. Offered for every parcel that is not
 // delivered or cancelled, and for an order closed without a delivery mail (the tap
 // confirms it). A cancelled order comes no more: a tap would make it delivered today.
-const canMarkReceived = (a, s) => (s !== DONE && s !== CANCELLED) || a.assumed_delivered === true;
+// Never for a parcel the user sent: it is received somewhere else.
+const canMarkReceived = (a, s) => !isOutgoing(a)
+  && ((s !== DONE && s !== CANCELLED) || a.assumed_delivered === true);
 
 // Card option add_form: "button" (the form opens behind the plus), "always" (form always
 // shown, no plus), "never" (neither). Anything else is "button".
@@ -409,6 +460,14 @@ const ADD_FORM_MODES = ["button", "always", "never"];
 function addFormMode(config) {
   const value = config && typeof config.add_form === "string" ? config.add_form.trim().toLowerCase() : "";
   return ADD_FORM_MODES.includes(value) ? value : "button";
+}
+
+// Card option header: the head with title, badges, gift switch and plus. `false` (also the
+// text "false") leaves it out; then a line "Paket hinzufügen" stands for the plus
+// (add_form: button). Anything else shows the head.
+function headerShown(config) {
+  const value = config ? config.header : undefined;
+  return !(value === false || (typeof value === "string" && value.trim().toLowerCase() === "false"));
 }
 
 // Card option show: when the card is on the dashboard at all. "always" (default), "active"
@@ -419,6 +478,15 @@ const SHOW_MODES = ["always", "active", "today", "today_possible"];
 function showMode(config) {
   const value = config && typeof config.show === "string" ? config.show.trim().toLowerCase() : "";
   return SHOW_MODES.includes(value) ? value : "always";
+}
+
+// Card option gifts: "show" (default, as before), "hide_for_others" (only users who may see
+// gifts see them; the others, and a user the integration has not answered for yet, see no
+// gift at all), "hide" (never, for a shared display). Anything else is "show".
+const GIFTS_MODES = ["show", "hide_for_others", "hide"];
+function giftsMode(config) {
+  const value = config && typeof config.gifts === "string" ? config.gifts.trim().toLowerCase() : "";
+  return GIFTS_MODES.includes(value) ? value : "show";
 }
 
 // A count as a sensor names it; null when it cannot be read (no sensor, no attribute,
@@ -456,14 +524,27 @@ const hiddenNote = (mode) => `Ausgeblendet, solange nichts ansteht (show: ${mode
 
 // Card option person: only the parcels of this person (attribute `owner`, the effective
 // owner), with include_unassigned (default true) also everybody's (owner null). Anything but
-// a person entity id: no filter.
+// a person entity id (or `auto`): no filter. `auto` is resolved against the logged-in user
+// by resolveFilter, every time the card needs it (a user switch, person states arriving later).
 function ownerFilter(config) {
   const person = config && typeof config.person === "string" ? config.person.trim() : "";
-  if (!/^person\.[a-z0-9_]+$/.test(person)) return null;
+  if (person !== OWNER_AUTO && !/^person\.[a-z0-9_]+$/.test(person)) return null;
   return { person, unassigned: config.include_unassigned !== false };
 }
 
-const ownedBy = (filter, a) => !filter || a.owner === filter.person
+const OWNER_AUTO = "auto";
+
+// The filter in effect: `auto` becomes the person whose user_id is the logged-in user's (the
+// mapping of the add form), or null person when the user has none: then only everybody's
+// parcels (with include_unassigned) match. Display only, not a protection.
+function resolveFilter(filter, hass) {
+  if (!filter || filter.person !== OWNER_AUTO) return filter;
+  const user = hass && hass.user && hass.user.id != null ? hass.user.id : null;
+  const mine = user == null ? null : personsOf(hass).find((p) => p.user === user);
+  return { person: mine ? mine.id : null, unassigned: filter.unassigned, auto: true };
+}
+
+const ownedBy = (filter, a) => !filter || (filter.person != null && a.owner === filter.person)
   || (filter.unassigned && a.owner == null);
 
 // The persons of Home Assistant (person.* in hass.states), by name: [{id, name, user}].
@@ -532,13 +613,20 @@ function addOwnerOptions(persons, value, defaultOwner) {
 
 const ADD_LABEL = "Sendung hinzufügen";
 const CLOSE_LABEL = "Eingabe schließen";
+// The line that stands for the plus when the card has no head (option `header: false`).
+const ADD_LINE_LABEL = "Paket hinzufügen";
 
 const EMPTY_TEXT = {
   button: "Noch keine Pakete. Über das Plus oben fügst du eine Sendung hinzu.",
   always: "Noch keine Pakete. Trag oben eine Sendungsnummer ein.",
   never: "Noch keine Pakete.",
 };
-const emptyText = (mode) => EMPTY_TEXT[mode] || EMPTY_TEXT.button;
+const EMPTY_TEXT_NO_HEAD = "Noch keine Pakete. Über „Paket hinzufügen“ oben fügst du eine Sendung hinzu.";
+const emptyText = (mode, header = true) => (
+  !header && (EMPTY_TEXT[mode] ? mode : "button") === "button"
+    ? EMPTY_TEXT_NO_HEAD
+    : EMPTY_TEXT[mode] || EMPTY_TEXT.button
+);
 
 // True when the integration (attribute of sensor.pakete_heute) is another version than this
 // file: the browser still runs the card from before the update. No attribute, no hint.
@@ -551,8 +639,10 @@ class ParcelTrackerCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
     this._mode = addFormMode(this._config);
+    this._header = headerShown(this._config);
     this._show = showMode(this._config);
     this._filter = ownerFilter(this._config);
+    this._gifts = giftsMode(this._config);
     // Open or closed is kept per card and across renders, not stored anywhere.
     this._formOpen = this._mode === "button" && this._formOpen === true;
     this._open = new Set();
@@ -560,6 +650,8 @@ class ParcelTrackerCard extends HTMLElement {
     this._confirming = new Set(); // numbers awaiting delete confirmation
     this._receiving = new Set(); // numbers awaiting the "Erhalten" confirmation
     this._code = new Map(); // number -> "ask" | "show" (delivery code reveal)
+    // number -> the delivery code fetched on a reveal; only for the user logged in now.
+    this._codes = new Map();
     this._t17ask = new Set(); // numbers awaiting the 17track confirmation
     this._addAsk = false; // adding with "Andere (über 17track)" awaits confirmation
     this._addAskText = null; // the question currently shown in #addask
@@ -571,6 +663,11 @@ class ParcelTrackerCard extends HTMLElement {
     // shown on a tap (only in this card, gone on reload or with another user) and the
     // question while the mode is switched on.
     this._viewer = this._viewer === true;
+    // The gifts for the user's own person (answer `hidden`, see gift_for): shown as to a user
+    // who may not see gifts. And the gifts the last answer knew of: one new since is shown
+    // as such as well until the next answer.
+    this._hidden = this._hidden instanceof Set ? this._hidden : new Set();
+    this._viewerGifts = this._viewerGifts instanceof Set ? this._viewerGifts : null;
     this._revealed = new Map(); // number -> the answer of parcel_tracker/gift_name
     this._giftAsk = false;
     this._error = "";
@@ -612,9 +709,52 @@ class ParcelTrackerCard extends HTMLElement {
 
   getCardSize() { return 4; }
 
+  connectedCallback() {
+    this._connected = true;
+    if (typeof document !== "undefined" && document && typeof document.addEventListener === "function") {
+      if (!this._onVisible) {
+        this._onVisible = () => {
+          if (document.visibilityState === "visible") this._askGiftsAgain();
+        };
+      }
+      document.addEventListener("visibilitychange", this._onVisible);
+    }
+    this._syncGiftTimer();
+  }
+
+  disconnectedCallback() {
+    this._connected = false;
+    if (this._onVisible && typeof document !== "undefined" && document
+      && typeof document.removeEventListener === "function") {
+      document.removeEventListener("visibilitychange", this._onVisible);
+    }
+    this._syncGiftTimer();
+  }
+
+  // The timer of GIFT_RECHECK_MS: only while a gift viewer may be shown a gift (not with
+  // `gifts: hide`, and not without any gift).
+  _syncGiftTimer() {
+    const want = this._connected !== false && this._viewer === true && !!this._hass
+      && this._gifts !== "hide" && this._parcels().some((st) => isGift(st.attributes));
+    if (want && this._giftTimer == null && typeof setInterval === "function") {
+      this._giftTimer = setInterval(() => this._askGiftsAgain(), GIFT_RECHECK_MS);
+    } else if (!want && this._giftTimer != null) {
+      if (typeof clearInterval === "function") clearInterval(this._giftTimer);
+      this._giftTimer = null;
+    }
+  }
+
+  // Asks the integration again for a gift viewer (timer, tab shown again).
+  _askGiftsAgain() {
+    if (this._viewer !== true || !this._hass || this._connected === false) return;
+    this._viewerKey = null;
+    this._syncViewer();
+  }
+
   set hass(hass) {
     this._hass = hass;
     this._syncViewer();
+    this._syncGiftTimer();
     if (!this._root) {
       this._build();
       this._renderList();
@@ -630,7 +770,9 @@ class ParcelTrackerCard extends HTMLElement {
   }
 
   // Asks the integration once per user whether this user is a gift viewer (the card never
-  // decides that itself). Another user on the same card sees nothing the one before revealed.
+  // decides that itself), and again whenever a gift turns up, goes or changes its status
+  // (set_gift may have changed whom it is for; see also _syncGiftTimer). Another user on the same card sees nothing the one before
+  // revealed.
   _syncViewer() {
     const h = this._hass;
     const user = h && h.user && h.user.id != null ? String(h.user.id) : null;
@@ -639,28 +781,58 @@ class ParcelTrackerCard extends HTMLElement {
       this._viewerAsked = undefined;
       this._viewerTries = 0;
       this._viewer = false;
+      this._hidden = new Set();
+      this._viewerGifts = null;
       // The add form's „Gehört“ starts again with the new user's person.
       this._ownTouched = false;
       // Whatever the user before had open or typed (a revealed name in the rename field, too)
       // is not shown to the next one.
       for (const kept of [this._revealed, this._renaming, this._open, this._confirming,
-        this._receiving, this._code, this._t17ask]) {
+        this._receiving, this._code, this._codes, this._t17ask]) {
         if (kept) kept.clear();
       }
     }
-    if (giftMode(h) === null || this._viewerAsked === user || typeof h.callWS !== "function") return;
+    if (giftMode(h) === null || typeof h.callWS !== "function") return;
+    const gifts = this._parcels().filter((st) => isGift(st.attributes));
+    const key = gifts.map((st) => `${st.attributes.number}@${st.state}`).sort().join(",");
+    if (this._viewerAsked === user && this._viewerKey === key) return;
+    // The gifts changed since the last answer: a new question, not a retry.
+    if (this._viewerAsked === user) this._viewerTries = 0;
     // A refused question is asked again with the next update, a few times at most.
     if (this._viewerTries >= GIFT_VIEWER_TRIES) return;
     this._viewerAsked = user;
+    this._viewerKey = key;
     this._viewerTries += 1;
+    const seq = (this._viewerSeq = (this._viewerSeq || 0) + 1);
+    const known = new Set(gifts.map((st) => String(st.attributes.number)));
     h.callWS({ type: "parcel_tracker/gift_viewer" }).then((r) => {
-      if (this._viewerUser !== user) return;
+      // Another user, or a newer question on its way: not this answer.
+      if (this._viewerUser !== user || seq !== this._viewerSeq) return;
       this._viewer = !!r && r.viewer === true;
+      this._hidden = new Set(r && Array.isArray(r.hidden) ? r.hidden.map(String) : []);
+      this._viewerGifts = known;
+      // What was revealed or typed for a gift hidden now is not shown any more.
+      for (const num of this._hidden) {
+        this._revealed.delete(num);
+        this._renaming.delete(num);
+        this._confirming.delete(num);
+      }
       if (this._root) this._renderList();
+      // With the option `gifts` the answer can change what the option `show` counts.
+      this._syncVisibility();
+      this._syncGiftTimer();
     }, () => {
       // Not answered (connection, an integration without the command): not a viewer for now.
-      if (this._viewerUser === user) this._viewerAsked = undefined;
+      if (this._viewerUser === user && seq === this._viewerSeq) this._viewerAsked = undefined;
     });
+  }
+
+  // Whether this user sees what this gift is: a gift viewer, the gift known to the last
+  // answer and not for the user's own person (answer `hidden`).
+  _seesGift(a) {
+    const num = String(a.number);
+    return this._viewer === true && this._viewerGifts !== null && this._viewerGifts.has(num)
+      && !this._hidden.has(num);
   }
 
   // The integration said "not allowed" to a user the card took for a gift viewer (the
@@ -674,6 +846,8 @@ class ParcelTrackerCard extends HTMLElement {
       const st = this._parcels().find((x) => x.attributes.number === num);
       if (st && isGift(st.attributes)) this._renaming.delete(num);
     }
+    this._syncVisibility();
+    this._syncGiftTimer();
   }
 
   _signature() {
@@ -691,6 +865,8 @@ class ParcelTrackerCard extends HTMLElement {
       + "|quota:" + (h.states[QUOTA_ENTITY] ? `${h.states[QUOTA_ENTITY].state}@${h.states[QUOTA_ENTITY].last_updated}` : "")
       + "|gift:" + (h.states[GIFT_ENTITY] ? `${h.states[GIFT_ENTITY].state}@${h.states[GIFT_ENTITY].last_updated}` : "")
       + "|viewer:" + (this._viewer ? "1" : "0")
+      + "|hid:" + Array.from(this._hidden).sort().join(",")
+      + "|known:" + (this._viewerGifts ? Array.from(this._viewerGifts).sort().join(",") : "-")
       + "|rev:" + Array.from(this._revealed.keys()).sort().join(",")
       + "|persons:" + personsOf(h).map((p) => `${p.id}=${p.name}=${p.user}`).join(",")
       + "|user:" + (h.user && h.user.id != null ? h.user.id : "");
@@ -706,14 +882,31 @@ class ParcelTrackerCard extends HTMLElement {
         || (hasDate(x.attributes) ? x.attributes.days_until : 99) - (hasDate(y.attributes) ? y.attributes.days_until : 99));
   }
 
-  // The parcels the card shows: all, or with the option `person` that person's.
-  _shown() {
-    return this._parcels().filter((st) => ownedBy(this._filter, st.attributes));
+  // Whether gifts are left out for the user logged in now (option `gifts`). With
+  // "hide_for_others" only the integration's answer makes a gift viewer (_syncViewer):
+  // before it, and from the moment another user takes over the card, gifts are hidden.
+  // So are the gifts for the viewer's own person and one new since the answer.
+  _hidesGifts() {
+    if (this._gifts === "hide") return true;
+    if (this._gifts !== "hide_for_others") return false;
+    return this._viewer !== true
+      || this._parcels().some((st) => isGift(st.attributes) && !this._seesGift(st.attributes));
   }
 
-  // The numbers the card shows when it filters (option `person`), else null.
+  // The parcels the card shows: all, or with the option `person` that person's; without
+  // the gifts the option `gifts` hides.
+  _shown() {
+    const noGifts = this._hidesGifts();
+    const all = this._gifts === "hide";
+    const filter = resolveFilter(this._filter, this._hass);
+    return this._parcels().filter((st) => ownedBy(filter, st.attributes)
+      && !(noGifts && isGift(st.attributes) && (all || !this._seesGift(st.attributes))));
+  }
+
+  // The numbers the card shows when it filters (option `person`, hidden gifts), else null:
+  // the badges and the option `show` count only these.
   _keep() {
-    if (!this._filter || !this._hass) return null;
+    if ((!this._filter && !this._hidesGifts()) || !this._hass) return null;
     return new Set(this._shown().map((st) => st.attributes.number));
   }
 
@@ -730,6 +923,8 @@ class ParcelTrackerCard extends HTMLElement {
         .badge.sure { background:var(--primary-color); color:var(--text-primary-color); }
         .badge.possible { border-color:var(--divider-color); color:var(--secondary-text-color); }
         .badge.delivered { border-color:var(--success-color); color:var(--success-color); }
+        .badge.sent { margin-left:6px; }
+        .badge.duty { border-color:var(--warning-color, #ff9800); color:var(--warning-color, #ff9800); margin-left:6px; }
         @supports (color:color-mix(in srgb, red 50%, blue)) {
           .badge.delivered { border-color:transparent; background:color-mix(in srgb, var(--success-color) 18%, transparent); color:color-mix(in srgb, var(--success-color) 72%, var(--primary-text-color)); }
         }
@@ -745,6 +940,13 @@ class ParcelTrackerCard extends HTMLElement {
         .plus svg { transition:transform .15s ease; }
         .plus[aria-expanded="true"] svg { transform:rotate(45deg); }
         @media (prefers-reduced-motion: reduce) { .plus svg { transition:none; } }
+        .addline { margin:0 0 12px; }
+        .addline button { display:inline-flex; align-items:center; gap:6px; min-height:36px; padding:6px 12px 6px 8px; border-radius:18px; font-size:14px; }
+        .addline button:hover { border-color:var(--primary-color); color:var(--primary-color); }
+        .addline button:focus-visible { outline:2px solid var(--primary-color); outline-offset:2px; }
+        .addline svg { transition:transform .15s ease; }
+        .addline button[aria-expanded="true"] svg { transform:rotate(45deg); }
+        @media (prefers-reduced-motion: reduce) { .addline svg { transition:none; } }
         .hint { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:-4px 0 12px; font-size:12px; color:var(--secondary-text-color); }
         .hint button { flex:none; padding:4px 10px; font-size:12px; }
         .hint.muted { margin:0 0 12px; font-style:italic; }
@@ -754,6 +956,8 @@ class ParcelTrackerCard extends HTMLElement {
         .added button:hover { color:var(--primary-text-color); }
         .added button:focus-visible { outline:2px solid var(--primary-color); outline-offset:-2px; }
         .item { border-top:1px solid var(--divider-color); padding:12px 0; }
+        /* Nothing above the list (no head, no line, no form): no divider over the first parcel. */
+        .flush > .item:first-child { border-top:none; }
         .row-toggle { display:block; width:100%; border:none; background:none; padding:0; margin:0; text-align:left; font:inherit; color:inherit; cursor:pointer; }
         .top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
         .name { font-weight:500; display:flex; gap:8px; align-items:center; min-width:0; flex:1 1 auto; }
@@ -817,7 +1021,7 @@ class ParcelTrackerCard extends HTMLElement {
           <span>Neue Version installiert – Seite neu laden, um die Karte zu aktualisieren.</span>
           <button type="button" id="reload-btn">Neu laden</button>
         </div>
-        <div class="head">
+        <div class="head" id="head">
           <div class="lead">
             <div class="title"><ha-icon icon="mdi:package-variant"></ha-icon>Pakete<button type="button" class="gm" id="gm" role="switch" aria-checked="false" aria-label="${GIFT_LABEL}" title="${GIFT_LABEL}" hidden><ha-icon id="gm-icon" icon="mdi:gift-outline"></ha-icon><span id="gm-text" hidden>${GIFT_LABEL}</span></button><span class="gm" id="gm-on" role="img" tabindex="-1" aria-label="${GIFT_LABEL} an" title="${GIFT_LABEL} an – ausschalten kann nur, wer Geschenke sehen darf" hidden><ha-icon icon="mdi:gift"></ha-icon><span>${GIFT_LABEL}</span></span></div>
             <div class="badges" id="today"></div>
@@ -825,6 +1029,9 @@ class ParcelTrackerCard extends HTMLElement {
           <button type="button" class="plus" id="toggle" aria-label="${ADD_LABEL}" title="${ADD_LABEL}" aria-expanded="false" aria-controls="form">
             <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
           </button>
+        </div>
+        <div class="addline" id="addline" hidden>
+          <button type="button" id="toggle-line" aria-expanded="false" aria-controls="form"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span id="toggle-line-text">${ADD_LINE_LABEL}</span></button>
         </div>
         <div class="giftask" id="giftask" role="group" aria-label="${GIFT_LABEL} einschalten" hidden>
           <div id="giftask-text"></div>
@@ -864,16 +1071,18 @@ class ParcelTrackerCard extends HTMLElement {
     $("num").addEventListener("keydown", (e) => { if (e.key === "Enter") this._add(); });
     $("car").addEventListener("change", () => this._dismissAddAsk());
     $("own").addEventListener("change", () => { this._ownTouched = true; });
-    $("toggle").addEventListener("click", () => {
+    const toggleForm = () => {
       this._setFormOpen(!this._formOpen);
       if (this._formOpen) $("num").focus();
-    });
+    };
+    $("toggle").addEventListener("click", toggleForm);
+    $("toggle-line").addEventListener("click", toggleForm);
     // Escape closes the form again and hands the focus back to the plus.
     $("form").addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || !this._formOpen) return;
       e.preventDefault();
       this._setFormOpen(false);
-      $("toggle").focus();
+      this._toggleEl().focus();
     });
     $("reload-btn").addEventListener("click", () => location.reload());
     $("gm").addEventListener("click", () => this._toggleGiftMode());
@@ -889,7 +1098,7 @@ class ParcelTrackerCard extends HTMLElement {
     // The × is gone with its line: the focus goes to where the next parcel is entered.
     $("added-close").addEventListener("click", () => {
       this._setAdded(null);
-      $(this._mode === "always" ? "num" : "toggle").focus();
+      (this._mode === "always" ? $("num") : this._toggleEl()).focus();
     });
     this._syncForm();
   }
@@ -928,18 +1137,31 @@ class ParcelTrackerCard extends HTMLElement {
     this._syncVisibility();
   }
 
-  // Plus button, form and error line as the option and the open state say.
+  // What opens and closes the form: the plus in the head, or the line without a head.
+  _toggleEl() {
+    return this._root.getElementById(this._header ? "toggle" : "toggle-line");
+  }
+
+  // Head, plus button (or the line for it), form and error line as the options and the
+  // open state say.
   _syncForm() {
     if (!this._root) return;
     const $ = (id) => this._root.getElementById(id);
     const visible = this._mode === "always" || this._formOpen;
     const toggle = $("toggle");
     const label = this._formOpen ? CLOSE_LABEL : ADD_LABEL;
-    toggle.hidden = this._mode !== "button";
+    $("head").hidden = !this._header;
+    toggle.hidden = this._mode !== "button" || !this._header;
+    const line = $("toggle-line");
+    $("addline").hidden = this._mode !== "button" || this._header;
+    line.setAttribute("aria-expanded", this._formOpen ? "true" : "false");
+    $("toggle-line-text").textContent = this._formOpen ? CLOSE_LABEL : ADD_LINE_LABEL;
     toggle.setAttribute("aria-expanded", this._formOpen ? "true" : "false");
     toggle.setAttribute("aria-label", label);
     toggle.title = label;
     $("form").hidden = !visible;
+    // header: false with add_form: never leaves nothing above the list.
+    $("list").className = !this._header && this._mode === "never" ? "flush" : "";
     // The empty error line keeps its room under the form only: nothing moves when it fills.
     $("err").className = visible ? "err" : "err bare";
   }
@@ -974,7 +1196,7 @@ class ParcelTrackerCard extends HTMLElement {
       if (this._formOpen) {
         // Done: collapse again. The focused field is hidden now, so the plus takes the focus.
         this._setFormOpen(false);
-        $("toggle").focus();
+        this._toggleEl().focus();
       }
       // After the form closed: the note stands under the head (with add_form: always
       // under the form) until the form is closed again, the next add or its ×.
@@ -1033,15 +1255,17 @@ class ParcelTrackerCard extends HTMLElement {
     this._renderGiftHead();
     const $ = (id) => this._root.getElementById(id);
     // Asking: the focus on "Abbrechen", so Enter or a double tap never switches it on. Done:
-    // back on the switch.
-    if (asking) $("giftask-cancel").focus();
-    else $("gm").focus();
+    // back on the switch (without a head there is none to go back to).
+    if (this._giftAsk) $("giftask-cancel").focus();
+    else if (this._header) $("gm").focus();
   }
 
-  // Parcels the question is about: neither delivered nor cancelled, and not a gift yet.
+  // Parcels the question is about: neither delivered nor cancelled, not a gift yet, and not
+  // sent by the user (set_gift with open_parcels leaves those out).
   _openNotGift() {
     return this._parcels().filter(
-      (st) => st.state !== DONE && st.state !== CANCELLED && !isGift(st.attributes),
+      (st) => st.state !== DONE && st.state !== CANCELLED && !isGift(st.attributes)
+        && !isOutgoing(st.attributes),
     ).length;
   }
 
@@ -1049,7 +1273,8 @@ class ParcelTrackerCard extends HTMLElement {
   _renderGiftHead() {
     const $ = (id) => this._root.getElementById(id);
     const mode = giftMode(this._hass);
-    if (mode !== "off") this._giftAsk = false;
+    // Without a head there is no switch to ask from (switch.paket_tracker_geschenkmodus).
+    if (mode !== "off" || !this._header) this._giftAsk = false;
     const gm = $("gm");
     const on = mode === "on";
     const hadFocus = this._root.activeElement === gm;
@@ -1081,7 +1306,7 @@ class ParcelTrackerCard extends HTMLElement {
   // name in this row, for everybody else only the sign.
   _giftBoxHtml(a) {
     if (!isGift(a)) return "";
-    if (!this._viewer) {
+    if (!this._seesGift(a)) {
       return `<span class="giftbox" role="img" aria-label="Geschenk" title="Geschenk"><ha-icon icon="mdi:gift"></ha-icon></span>`;
     }
     const shown = this._revealed.has(a.number);
@@ -1090,7 +1315,7 @@ class ParcelTrackerCard extends HTMLElement {
 
   // The real name, mail title and pages of a gift, after a viewer's tap on its box.
   _giftInfoHtml(a) {
-    const info = isGift(a) && this._viewer ? this._revealed.get(a.number) : null;
+    const info = isGift(a) && this._seesGift(a) ? this._revealed.get(a.number) : null;
     if (!info) return "";
     const name = typeof info.name === "string" && info.name ? info.name : null;
     const title = typeof info.mail_title === "string" && info.mail_title && info.mail_title !== name ? info.mail_title : null;
@@ -1131,7 +1356,7 @@ class ParcelTrackerCard extends HTMLElement {
   // not for a gift the user may not see (the integration refuses the change anyway).
   _ownerHtml(a) {
     const persons = ownerPersons(this._hass);
-    if (!persons.length || (isGift(a) && !this._viewer)) return "";
+    if (!persons.length || (isGift(a) && !this._seesGift(a))) return "";
     // The default person (no owner of its own): „Standard (Name)“, the person listed apart,
     // so choosing the person stores it as the parcel's own.
     const standard = a.owner != null && a.owner_detected !== true;
@@ -1162,7 +1387,7 @@ class ParcelTrackerCard extends HTMLElement {
     const n = esc(a.number);
     // A gift for someone who may not see it: no rename field (it could hold the real name)
     // and no delete question.
-    if (isGift(a) && !this._viewer) {
+    if (isGift(a) && !this._seesGift(a)) {
       this._renaming.delete(a.number);
       this._confirming.delete(a.number);
     }
@@ -1190,17 +1415,17 @@ class ParcelTrackerCard extends HTMLElement {
     const received = canMarkReceived(a, s)
       ? `<button type="button" data-a="received" data-number="${n}">Erhalten</button>` : "";
     // A gift is renamed or deleted only by a gift viewer (the integration refuses it anyway).
-    if (isGift(a) && !this._viewer) return received ? `<div class="actions">${received}</div>` : "";
+    if (isGift(a) && !this._seesGift(a)) return received ? `<div class="actions">${received}</div>` : "";
     return `<div class="actions">${received}<button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
   }
 
   _codeHtml(a) {
-    if (!a.delivery_code) return "";
+    if (a.has_delivery_code !== true || isOutgoing(a)) return "";
     const n = esc(a.number);
     const mode = this._code.get(a.number);
-    if (mode === "show") {
+    if (mode === "show" && this._codes.has(a.number)) {
       return `<div class="actions code" role="group" aria-label="Zustell-Code">
-        <span>Zustell-Code <strong>${esc(a.delivery_code)}</strong></span>
+        <span>Zustell-Code <strong>${esc(this._codes.get(a.number))}</strong></span>
         <button type="button" data-a="code-hide" data-number="${n}">Verbergen</button></div>`;
     }
     if (mode === "ask") {
@@ -1300,7 +1525,30 @@ class ParcelTrackerCard extends HTMLElement {
     };
     on("code", () => code("ask", "code-confirm"));
     on("code-cancel", () => code(null, "code"));
-    on("code-confirm", () => code("show", "code-hide"));
+    on("code-confirm", async () => {
+      if (this._codes.has(num)) { code("show", "code-hide"); return; }
+      const user = this._viewerUser;
+      let answer;
+      try {
+        answer = await this._hass.callWS({ type: "parcel_tracker/delivery_code", number: num });
+      } catch (e) {
+        if (this._viewerUser !== user) return;
+        this._setError(errorText(e));
+        code(null, "code");
+        return;
+      }
+      // Another user took over the card meanwhile: the answer is not theirs.
+      if (this._viewerUser !== user) return;
+      const value = answer && answer.code;
+      if (typeof value !== "string" || value === "") {
+        this._setError(CODE_NONE);
+        code(null, "code");
+        return;
+      }
+      this._codes.set(num, value);
+      this._setError("");
+      code("show", "code-hide");
+    });
     on("code-hide", () => code(null, "code"));
     const ask17 = (asking, focus) => {
       asking ? this._t17ask.add(num) : this._t17ask.delete(num);
@@ -1378,6 +1626,7 @@ class ParcelTrackerCard extends HTMLElement {
         this._receiving.delete(num);
         this._open.delete(num);
         this._code.delete(num);
+        this._codes.delete(num);
         this._renderList();
       }
     });
@@ -1398,7 +1647,11 @@ class ParcelTrackerCard extends HTMLElement {
     this._syncOwnerSelect();
     const parcels = this._shown();
     const today = this._hass.states[TODAY_ENTITY];
-    this._root.getElementById("today").innerHTML = badgesHtml(todayBadges(today, this._keep()));
+    const badges = todayBadges(today, this._keep());
+    const badgesEl = this._root.getElementById("today");
+    badgesEl.innerHTML = badgesHtml(badges);
+    // No badge: no empty box in the head either.
+    badgesEl.hidden = !badges.length;
     this._root.getElementById("reload").hidden = !needsReload(today);
     this._renderGiftHead();
     list.innerHTML = "";
@@ -1424,14 +1677,16 @@ class ParcelTrackerCard extends HTMLElement {
       const events = (a.events || []).map((e) => `<div class="ev">${fmtDateTime(e.timestamp)} · ${esc(e.text)}${e.location ? " · " + esc(e.location) : ""}</div>`).join("");
       // Not a gift any more (made visible elsewhere): nothing left to reveal.
       if (!isGift(a)) this._revealed.delete(a.number);
+      // No code any more (used, expired, option off): the one fetched is forgotten.
+      if (a.has_delivery_code !== true) { this._codes.delete(a.number); this._code.delete(a.number); }
       const toggle = `<button type="button" class="row-toggle" aria-expanded="${open ? "true" : "false"}" data-number="${esc(a.number)}" data-a="toggle">
           <span class="top"><span class="name">${this._icon(a.carrier)}<span>${esc(a.name || a.number)}</span></span>${right}<span class="chev" aria-hidden="true"></span></span>
         </button>`;
       // The gift box stands beside the row's button, not in it (no button in a button).
       item.innerHTML = `
         ${isGift(a) ? `<div class="gline">${this._giftBoxHtml(a)}${toggle}</div>` : toggle}
-        <div class="sub">${sub}</div>${this._giftInfoHtml(a)}${bar}${stale}
-        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${numbersHtml(a)}${note}${this._ownerHtml(a)}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
+        <div class="sub">${sub}${outgoingBadge(a)}${customsBadge(a)}</div>${this._giftInfoHtml(a)}${bar}${stale}
+        ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${customsDetail(a)}${numbersHtml(a)}${note}${this._ownerHtml(a)}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
       item.querySelector(".row-toggle").addEventListener("click", () => {
         if (open) {
           this._open.delete(a.number);
@@ -1447,9 +1702,10 @@ class ParcelTrackerCard extends HTMLElement {
       list.appendChild(item);
     }
     if (!parcels.length) {
-      const empty = this._filter
-        ? `Keine Pakete für ${esc(personName(personsOf(this._hass), this._filter.person))}.`
-        : emptyText(this._mode);
+      const filter = resolveFilter(this._filter, this._hass);
+      const empty = filter && filter.person != null
+        ? `Keine Pakete für ${esc(personName(personsOf(this._hass), filter.person))}.`
+        : emptyText(this._mode, this._header);
       list.innerHTML = `<div class="sub">${empty}</div>`;
     }
     if (focusKey) {

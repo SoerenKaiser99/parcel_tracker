@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 import voluptuous as vol
@@ -41,7 +41,9 @@ from .const import (
     CONF_CONFIGURED_PERSON,
     CONF_COUNTRY,
     CONF_DEFAULT_OWNER,
+    CONF_DELETE_PROCESSED_DAYS,
     CONF_DHL_API_KEY,
+    CONF_DHL_API_KEY_REMOVE,
     CONF_GIFT_SECTION,
     CONF_GIFT_VIEWERS,
     CONF_HIDE_NAMES,
@@ -68,16 +70,17 @@ from .const import (
     CONF_REMOVE_PERSON,
     CONF_SHARED_ADDRESSES,
     CONF_TRACK17_API_KEY,
+    CONF_TRACK17_API_KEY_REMOVE,
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
     CONF_UPS_CLIENT_SECRET,
     CONF_UPS_ENABLED,
     CONF_UPS_SECTION,
     COUNTRIES,
+    DEFAULT_DELETE_PROCESSED_DAYS,
     DEFAULT_GIFT_VIEWERS,
     DEFAULT_HIDE_NAMES,
     DEFAULT_IMAP_FOLDER,
-    DEFAULT_IMAP_HOST,
     DEFAULT_IMAP_PORT,
     DEFAULT_IMAP_SECURITY,
     DEFAULT_KEEP_DELIVERED_DAYS,
@@ -93,10 +96,12 @@ from .const import (
     IMAP_SECURITIES,
     IMAP_SECURITY_NOVERIFY,
     IMAP_SECURITY_PLAIN,
+    MAX_DELETE_PROCESSED_DAYS,
     MAX_IMAP_PORT,
     MAX_KEEP_DELIVERED_DAYS,
     MAX_MAIL_INTERVAL,
     MAX_UPS_BUDGET,
+    MIN_DELETE_PROCESSED_DAYS,
     MIN_IMAP_PORT,
     MIN_KEEP_DELIVERED_DAYS,
     MIN_MAIL_INTERVAL,
@@ -137,6 +142,11 @@ _DAYS = NumberSelector(
 _MINUTES = NumberSelector(
     NumberSelectorConfig(
         min=MIN_MAIL_INTERVAL, max=MAX_MAIL_INTERVAL, mode=NumberSelectorMode.BOX
+    )
+)
+_PURGE_DAYS = NumberSelector(
+    NumberSelectorConfig(
+        min=0, max=MAX_DELETE_PROCESSED_DAYS, step=1, mode=NumberSelectorMode.BOX
     )
 )
 _PORT = NumberSelector(
@@ -420,6 +430,22 @@ def _shown_folder(value: object) -> str:
     return value.strip() if isinstance(value, str) and value.strip() else DEFAULT_IMAP_FOLDER
 
 
+def _purge_days(value: object) -> int:
+    """Days after which recognised mails are deleted, as stored or typed; 0 (off) else.
+
+    A whole number from 1 to 365; the number box hands in a float.
+    """
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    if (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and MIN_DELETE_PROCESSED_DAYS <= value <= MAX_DELETE_PROCESSED_DAYS
+    ):
+        return value
+    return DEFAULT_DELETE_PROCESSED_DAYS
+
+
 def _mail_section(current: Mapping[str, Any]) -> section:
     """Collapsible 'mail import' block of the options form.
 
@@ -437,7 +463,7 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                     CONF_MAIL_ENABLED, default=bool(current.get(CONF_MAIL_ENABLED, bool(user)))
                 ): bool,
                 vol.Optional(
-                    CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+                    CONF_IMAP_HOST, default=current.get(CONF_IMAP_HOST) or vol.UNDEFINED
                 ): str,
                 vol.Optional(
                     CONF_IMAP_PORT, default=clean_port(current.get(CONF_IMAP_PORT))
@@ -454,6 +480,10 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                     CONF_MOVE_PROCESSED,
                     default=current.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED),
                 ): bool,
+                vol.Optional(
+                    CONF_DELETE_PROCESSED_DAYS,
+                    default=_purge_days(current.get(CONF_DELETE_PROCESSED_DAYS)),
+                ): _PURGE_DAYS,
                 vol.Optional(
                     CONF_READ_OTP, default=current.get(CONF_READ_OTP, DEFAULT_READ_OTP)
                 ): bool,
@@ -482,12 +512,17 @@ def _schema(
     notify_available: Sequence[SelectOptionDict] = (),
     hide_names: bool = False,
     gift: Mapping[str, Any] | None = None,
+    removable: Collection[str] = (),
 ) -> vol.Schema:
     fields: dict = {}
     if with_key:
         fields[vol.Optional(CONF_DHL_API_KEY)] = _KEY
+        if CONF_DHL_API_KEY in removable:
+            fields[vol.Optional(CONF_DHL_API_KEY_REMOVE, default=False)] = bool
     if track17:
         fields[vol.Optional(CONF_TRACK17_API_KEY)] = _KEY
+        if CONF_TRACK17_API_KEY in removable:
+            fields[vol.Optional(CONF_TRACK17_API_KEY_REMOVE, default=False)] = bool
     fields[
         vol.Optional(CONF_COUNTRY, default=known_country(defaults.get(CONF_COUNTRY)))
     ] = _COUNTRY
@@ -925,7 +960,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
         if user_input is not None:
             options = self.config_entry.options
             mail = user_input.get(CONF_MAIL_SECTION) or {}
-            stored_host = options.get(CONF_IMAP_HOST) or DEFAULT_IMAP_HOST
+            stored_host = options.get(CONF_IMAP_HOST) or ""
             stored_user = options.get(CONF_IMAP_USER) or ""
             # Off only on an explicit "False" while an import is set up; a user
             # typed into a not yet configured form sets the import up either way.
@@ -993,6 +1028,13 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             postcode = _validate_postcode(user_input)
             key_value = (user_input.get(CONF_DHL_API_KEY) or "").strip()
             track17_key = (user_input.get(CONF_TRACK17_API_KEY) or "").strip()
+            # The tick box wins over a new key in the field: that one is not even checked.
+            drop_dhl = user_input.get(CONF_DHL_API_KEY_REMOVE) is True
+            drop_track17 = user_input.get(CONF_TRACK17_API_KEY_REMOVE) is True
+            if drop_dhl:
+                key_value = ""
+            if drop_track17:
+                track17_key = ""
             country = known_country(user_input.get(CONF_COUNTRY) or stored_country)
             stored_plain = options.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True
             plain_names = mail.get(CONF_PLAIN_NAMES, stored_plain) is True
@@ -1008,6 +1050,8 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 errors[CONF_TRACK17_API_KEY] = err
             elif folder_changed and is_reserved_folder(folder):
                 errors["base"] = "folder_reserved"
+            elif user and not host:
+                errors["base"] = "host_required"
             elif user and not password:
                 errors["base"] = "imap_password_missing"
             elif (
@@ -1068,6 +1112,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     new_options[CONF_GIFT_VIEWERS] = viewers
                 if CONF_PLAIN_NAMES in options or plain_names:
                     new_options[CONF_PLAIN_NAMES] = plain_names
+                # Only stored when on: 0 (the default, off) leaves no key behind.
+                if purge_days := _purge_days(
+                    mail.get(CONF_DELETE_PROCESSED_DAYS, options.get(CONF_DELETE_PROCESSED_DAYS))
+                ):
+                    new_options[CONF_DELETE_PROCESSED_DAYS] = purge_days
                 if CONF_IMAP_FOLDER in options or folder != DEFAULT_IMAP_FOLDER:
                     # An untouched form writes back exactly what is stored.
                     new_options[CONF_IMAP_FOLDER] = (
@@ -1088,6 +1137,10 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                     data[CONF_DHL_API_KEY] = key_value
                 if track17_key:
                     data[CONF_TRACK17_API_KEY] = track17_key
+                if drop_dhl:
+                    data.pop(CONF_DHL_API_KEY, None)
+                if drop_track17:
+                    data.pop(CONF_TRACK17_API_KEY, None)
                 if user and new_password:
                     data[CONF_IMAP_PASSWORD] = new_password
                 if mail_off:  # switched off explicitly: drop the secret
@@ -1124,6 +1177,11 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 notify_available=_available_targets(self.hass),
                 hide_names=True,
                 gift=gift_shown,
+                removable={
+                    key
+                    for key in (CONF_DHL_API_KEY, CONF_TRACK17_API_KEY)
+                    if self.config_entry.data.get(key)
+                },
             ),
             errors=errors,
         )

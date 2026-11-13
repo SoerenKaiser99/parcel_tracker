@@ -881,12 +881,87 @@ def test_dhl_express_sender_is_known():
 
 
 # ----- the receipt of a Packstation is about a parcel somebody sent -----
-def test_dhl_packstation_receipt_is_not_read():
+def test_dhl_packstation_receipt_is_outgoing():
     msg = _msg("Einlieferungsbeleg: Ihr Versand an der Packstation", "[{PARCEL}]\n",
                "DHL Paket <noreply@dhl.de>")
     msg.add_alternative(
         "<html><body><p>Sendungsnummer:</p><p>999999990901</p></body></html>", subtype="html")
+    [u] = parse_mail(msg).updates
+    assert (u.number, u.carrier, u.outgoing) == ("999999990901", "dhl", True)
+    assert u.status is ParcelStatus.IN_TRANSIT
+    assert u.title is None
+
+
+def test_dhl_receipt_fixture_is_outgoing_with_the_time_of_handover():
+    [u] = parse_mail(load_mail("198_dhl_einlieferungsbeleg_zustellkraft.eml")).updates
+    assert (u.number, u.carrier) == ("999999990902", "dhl")
+    assert u.status is ParcelStatus.IN_TRANSIT
+    assert u.outgoing is True
+    assert u.sent_at == datetime(2026, 11, 3, 14, 14, tzinfo=BERLIN)
+    assert (u.title, u.delivery_code, u.customs_amount, u.eta_date) == (None, None, None, None)
+
+
+def test_dhl_receipt_without_handover_time_takes_the_mail_time():
+    msg = _msg("Digitaler Einlieferungsbeleg für Ihre Sendung",
+               "Ihre Versandinformationen\nSendungsnummer\n999999990902\n", "noreply@dhl.de")
+    [u] = parse_mail(msg).updates
+    assert u.outgoing is True
+    assert u.sent_at == sent_at(msg)
+
+
+def test_dhl_receipt_without_number_is_nothing():
+    msg = _msg("Digitaler Einlieferungsbeleg für Ihre Sendung",
+               "Ihre Versandinformationen\nAbgabezeitpunkt\n03.11.2026 14:14 Uhr\n",
+               "noreply@dhl.de")
     assert parse_mail(msg).updates == []
+
+
+RECEIPT_SUBJECT = "Digitaler Einlieferungsbeleg für Ihre Sendung"
+RECEIPT_ODD_BODY = "Ihre Versandinformationen\nSendungs-Nr. 00340434161234567890\n"
+
+
+def test_dhl_receipt_the_dhl_parser_cannot_read_never_goes_to_the_generic_parser():
+    # (a number the generic parser would take, but under a label the receipt path ignores)
+    msg = _msg(RECEIPT_SUBJECT, RECEIPT_ODD_BODY, "noreply@dhl.de")
+    assert parse_mail(msg).updates == []
+
+
+def test_forwarded_dhl_receipt_the_dhl_parser_cannot_read_is_nothing_either():
+    msg = _msg(
+        "WG: " + RECEIPT_SUBJECT,
+        "---------- Weitergeleitete Nachricht ---------\n"
+        "Von: DHL Paket <noreply@dhl.de>\n"
+        "Date: Di., 3. Nov. 2026 um 14:20 Uhr\n"
+        f"Subject: {RECEIPT_SUBJECT}\n"
+        "To: <postfach@example.org>\n\n" + RECEIPT_ODD_BODY,
+        "Max Mustermann <max@example.org>",
+    )
+    assert parse_mail(msg).updates == []
+
+
+def test_outgoing_flag_is_set_for_new_and_known_parcels_and_never_reset():
+    receipt = parse_mail(load_mail("198_dhl_einlieferungsbeleg_zustellkraft.eml")).updates[0]
+    parcels: dict[str, Parcel] = {}
+    change = apply_update(parcels, receipt, NOW, gift=True)
+    assert change is not None and change.created
+    assert parcels["999999990902"].outgoing is True
+    assert parcels["999999990902"].gift is False
+    # a known incoming parcel becomes outgoing
+    parcels = {"999999990902": Parcel("999999990902", "dhl", "mail", None, NOW, NOW)}
+    assert parcels["999999990902"].outgoing is False
+    apply_update(parcels, receipt, NOW)
+    assert parcels["999999990902"].outgoing is True
+    # a later normal status mail keeps it, and takes no code and no duty
+    later = parse_mail(
+        _msg("Ihre Sendung kommt heute", "Sendungsnummer 999999990902\n", "noreply@dhl.de"))
+    update = later.updates[0]
+    assert update.outgoing is False
+    update.delivery_code = "1234"
+    update.customs_amount, update.customs_currency = 12.5, "EUR"
+    apply_update(parcels, update, NOW + timedelta(hours=1))
+    parcel = parcels["999999990902"]
+    assert parcel.outgoing is True
+    assert parcel.delivery_code is None and parcel.customs_amount is None
 
 
 def test_dhl_html_part_reads_only_the_forms_dhl_shows_below_the_button():

@@ -1,0 +1,129 @@
+X-Fixture: derived from a tester's anonymised mail; the parcel number is replaced
+ by an invented SSCC with a valid check digit
+From:
+ =?utf-8?q?=F0=9F=93=A6_DHL_Paketank=C3=BCndigung?= <paketankuendigung@dhl.de>
+To: adresse1@example.org, adresse1@example.org
+Subject: Ihre Harman Service Delivery Sendung ist unterwegs
+Date: Wed, 07 Oct 2026 16:12:31 +0000
+Message-ID: <fixture-195@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============3371821363505300063=="
+
+--===============3371821363505300063==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Zustelltag und Empfangsoptionen ansehen
+
+Onlineversion<https://custcomm.dhl.de/…> | Datenschutzhinweis zur Übersetzung<https://custcomm.dhl.de/…>
+
+[https://storage.content-editor.campaign.optimizely.com/…]
+[https://t.deutschepost.de/…]
+
+Deutsch  ▾<https://custcomm.dhl.de/…>
+ Deutsch  ▾▴
+Deutsch<https://custcomm.dhl.de/…>        English<https://custcomm.dhl.de/…>
+Türkçe<https://custcomm.dhl.de/…> العربية<https://custcomm.dhl.de/…>
+Polski<https://custcomm.dhl.de/…> Español<https://custcomm.dhl.de/…>
+Русский<https://custcomm.dhl.de/…>        Français<https://custcomm.dhl.de/…>
+Italiano<https://custcomm.dhl.de/…>       Українська<https://custcomm.dhl.de/…>
+עברית<https://custcomm.dhl.de/…>   Shqip<https://custcomm.dhl.de/…>
+Română<https://custcomm.dhl.de/…>
+
+Hallo,
+
+Ihre Harman Service Delivery Sendung ist unterwegs und wird Ihnen voraussichtlich
+
+—   am Donnerstag, den 08.10.   —
+
+zugestellt.
+
+Ihre Zustelloptionen
+<https://custcomm.dhl.de/…>
+[Ablageort<br>buchen] Ablageort
+Ablageort: Garage
+<https://custcomm.dhl.de/…>
+[Nebenan<br>abgeben] Nebenan
+abgeben
+<https://custcomm.dhl.de/…>
+[Liefertag<br>ändern] Liefertag
+ändern
+[Paketmitnahme buchen] <https://custcomm.dhl.de/…>               Paketmitnahme buchen <https://custcomm.dhl.de/…>
+
+
+Ihre Sendungsnummer
+00099999999999999992
+        [Sendung verfolgen]  <https://custcomm.dhl.de/…>                 Sendung verfolgen <https://custcomm.dhl.de/…>
+
+Viele Grüße
+
+[https://custcomm.dhl.de/…]
+ 
+ 
+
+Sie möchten keine oder nur noch bestimmte Informationen zu Ihrer Sendung erhalten?
+E-Mail-Einstellungen verwalten<https://custcomm.dhl.de/…>
+
+Datenschutzhinweise<https://custcomm.dhl.de/…>
+Impressum<https://custcomm.dhl.de/…>
+
+DHL Group
+
+2026 © DHL Paket GmbH. All rights reserved.
+
+
+
+--===============3371821363505300063==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Zustelltag und Empfangsoptionen ansehen</p>
+<p>Onlineversion</p>
+<p>|</p>
+<p>Datenschutzhinweis zur Übersetzung</p>
+<p>Deutsch ▾</p>
+<p>Deutsch ▾▴</p>
+<p>Deutsch</p>
+<p>English</p>
+<p>Türkçe</p>
+<p>العربية</p>
+<p>Polski</p>
+<p>Español</p>
+<p>Русский</p>
+<p>Français</p>
+<p>Italiano</p>
+<p>Українська</p>
+<p>עברית</p>
+<p>Shqip</p>
+<p>Română</p>
+<p>Hallo,</p>
+<p>Ihre Harman Service Delivery Sendung ist unterwegs und wird Ihnen voraussichtlich</p>
+<p>— am Donnerstag, den 08.10. —</p>
+<p>zugestellt.</p>
+<p>Ihre Zustelloptionen</p>
+<p>Ablageort</p>
+<p>Ablageort: Garage</p>
+<p>Nebenan</p>
+<p>abgeben</p>
+<p>Liefertag</p>
+<p>ändern</p>
+<p>Paketmitnahme</p>
+<p>buchen</p>
+<p>Ihre Sendungsnummer</p>
+<p>00099999999999999992</p>
+<p>Sendung</p>
+<p>verfolgen</p>
+<p>Viele Grüße</p>
+<p>Sie möchten keine oder nur noch bestimmte Informationen zu Ihrer Sendung erhalten?</p>
+<p>E-Mail-Einstellungen verwalten</p>
+<p>Datenschutzhinweise</p>
+<p>Impressum</p>
+<p>DHL Group</p>
+<p>2026 © DHL Paket GmbH. All</p>
+<p>rights reserved.</p>
+</body></html>
+
+--===============3371821363505300063==--

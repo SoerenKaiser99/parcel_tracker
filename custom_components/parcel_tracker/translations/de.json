@@ -45,7 +45,9 @@
         "title": "Paket Tracker – Optionen",
         "data": {
           "dhl_api_key": "DHL-API-Key (optional)",
+          "dhl_api_key_remove": "DHL-API-Key entfernen",
           "track17_api_key": "17track-API-Key (optional)",
+          "track17_api_key_remove": "17track-API-Key entfernen",
           "country": "Land",
           "postcode": "PLZ (optional)",
           "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)",
@@ -55,7 +57,9 @@
           "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
           "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010).",
           "dhl_api_key": "Ohne Key kommen DHL-Pakete aus den DHL-Mails über den Mail-Import, mit Key gibt es den Live-Status. Leer lassen behält den gespeicherten Key.",
+          "dhl_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten DHL-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist.",
           "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key.",
+          "track17_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten 17track-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist.",
           "hide_names": "Pakete heißen nur nach dem Paketdienst (z. B. „DHL-Paket“, „Amazon-Bestellung“) – auf der Karte, im Kalender, in den Sensoren und in den Benachrichtigungen. Für Geschenke auf einem gemeinsamen Dashboard. Ein selbst eingetippter Name bleibt sichtbar; die gespeicherten Namen werden nicht verändert."
         },
         "sections": {
@@ -71,6 +75,7 @@
               "imap_password": "Passwort",
               "imap_folder": "Ordner",
               "move_processed": "Verarbeitete Mails in Ordner verschieben",
+              "delete_processed_days": "Erkannte Mails löschen nach (Tagen)",
               "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen",
               "plain_names": "Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen",
               "mail_interval": "Postfach abfragen alle (Minuten)"
@@ -83,6 +88,7 @@
               "imap_password": "Leer lassen behält das gespeicherte Passwort.",
               "imap_folder": "Welcher Ordner des Postfachs gelesen wird – nur dieser eine. Lass „INBOX“ für das eigene Paket-Postfach stehen. Ein Ordner deines Hauptpostfachs geht auch, dann kennt Home Assistant aber das Passwort des ganzen Postfachs. Leer lassen behält den gespeicherten Ordner.",
               "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
+              "delete_processed_days": "Löscht Mails im Ordner Paket-Tracker-Verarbeitet endgültig, sobald sie so viele Tage alt sind (Eingangsdatum), höchstens einmal am Tag. Nur dieser Ordner, nie der gelesene und nie Paket-Tracker-Nicht-erkannt. Wirkt nur mit „Verarbeitete Mails in Ordner verschieben“. 0 = aus.",
               "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf.",
               "plain_names": "Der Betreff „Ihre … Sendung …“ von DHL benennt das Paket nach dem Namen darin, auch bei kleinen Shops und Privatpersonen. Dann können Namen von Privatpersonen auf Karte, Kalender, Sensoren und in Benachrichtigungen stehen. Standardmäßig aus. „Namen ausblenden“ hat Vorrang: Dann steht nur der Paketdienst-Name da."
             }
@@ -171,6 +177,7 @@
       "imap_login_disabled": "Der Mailserver nimmt ohne Verschlüsselung keine Anmeldung an. „Verschlüsselt, Zertifikat nicht prüfen“ wählen (meist Port 993) oder die Klartext-Anmeldung am Server erlauben.",
       "imap_password_missing": "Gib das Passwort des Postfachs ein.",
       "folder_not_found": "Diesen Ordner gibt es im Postfach nicht.",
+      "host_required": "Trag den IMAP-Server deines Mailanbieters ein.",
       "folder_reserved": "In diesen Ordner legt Paket Tracker die Mails ab. Wähl einen anderen Ordner zum Lesen.",
       "ups_auth": "UPS hat Client-ID oder Secret abgelehnt.",
       "ups_cannot_connect": "UPS ist gerade nicht erreichbar. Versuch es später noch einmal.",
@@ -225,7 +232,7 @@
     },
     "card_resource_yaml": {
       "title": "Paket-Tracker-Karte als Dashboard-Ressource eintragen",
-      "description": "Die Dashboard-Ressourcen werden per YAML verwaltet, deshalb kann Paket Tracker die Karte nicht selbst eintragen. Ergänze in der configuration.yaml unter `lovelace:` → `resources:` diesen Eintrag und starte Home Assistant neu:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nDer Hinweis verschwindet, sobald die Karte dort eingetragen ist."
+      "description": "Die Dashboard-Ressourcen werden per YAML verwaltet, deshalb kann Paket Tracker die Karte nicht selbst eintragen. Ergänze in der configuration.yaml unter `lovelace:` → `resources:` diesen Eintrag (ersetze dabei einen älteren Eintrag mit `/local/parcel_tracker/…`, falls vorhanden) und starte Home Assistant neu:\n\n```yaml\n- url: {url}\n  type: module\n```\n\nDer Hinweis verschwindet, sobald die Karte dort eingetragen ist."
     }
   },
   "exceptions": {
@@ -234,8 +241,11 @@
     "gift_remove_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk löschen."},
     "gift_rename_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk umbenennen."},
     "gift_owner_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört."},
+    "gift_outgoing": {"message": "Ein versendetes Paket kann kein Geschenk sein."},
     "owner_unknown": {"message": "Diese Person ist im Paket Tracker nicht eingerichtet."},
     "gift_target": {"message": "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete."},
+    "gift_for_unknown": {"message": "Wähle bei gift_for vorhandene Personen."},
+    "gift_for_no_gift": {"message": "gift_for geht nur mit eingeschaltetem gift."},
     "duplicate": {"message": "Dieses Paket ist schon in der Liste."},
     "amazon": {"message": "Amazon-Nummern (TBA…) lassen sich nicht direkt verfolgen. Leite die Amazon-Mails ins Paket-Postfach weiter."},
     "empty": {"message": "Gib eine Sendungsnummer ein."},
@@ -352,7 +362,8 @@
       "fields": {
         "number": {"name": "Sendungsnummer", "description": "Zu änderndes Paket. Leer lassen, wenn alle offenen Pakete gewählt sind."},
         "open_parcels": {"name": "Alle offenen Pakete", "description": "Statt eines Pakets alle noch nicht zugestellten Pakete ändern."},
-        "gift": {"name": "Geschenk", "description": "An markiert als Geschenk, aus macht es wieder sichtbar."}
+        "gift": {"name": "Geschenk", "description": "An markiert als Geschenk, aus macht es wieder sichtbar."},
+        "gift_for": {"name": "Geschenk für", "description": "Personen, für die das Geschenk ist. Diese sehen es nicht wie jemand, der Geschenke sehen darf, bekommen keine Meldung dazu und können es nicht ändern. Nur mit Geschenk an; eine leere Liste entfernt die Personen."}
       }
     },
     "set_owner": {

@@ -181,9 +181,15 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
 
     Nothing at all for a parcel the user marked as received: the hand mark wins.
     """
-    if parcel.manual_delivered:
-        return False
     changed = False
+    if update.outgoing and not parcel.outgoing:
+        parcel.outgoing = True
+        # (a parcel somebody sent is no gift for anybody)
+        parcel.gift = False
+        parcel.gift_for = []
+        changed = True
+    if parcel.manual_delivered:
+        return changed
     shown = parcel.result
     # Build on what the carrier and earlier mails said; what 17track filled in is put
     # back afterwards, so it stays 17track's (and a newer 17track answer can replace it).
@@ -313,10 +319,24 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         if parcel.delivery_code:
             parcel.delivery_code = parcel.delivery_code_day = None
             changed = True
-    elif update.delivery_code and update.delivery_code != parcel.delivery_code:
+    elif (
+        update.delivery_code
+        and not parcel.outgoing
+        and update.delivery_code != parcel.delivery_code
+    ):
         parcel.delivery_code = update.delivery_code
         parcel.delivery_code_day = update.eta_date or update.sent_at.date()
         changed = True
+    if parcel.status is ParcelStatus.DELIVERED:
+        # Due at delivery: once delivered there is nothing left to pay or to tell.
+        changed = parcel.clear_customs() or changed
+    elif update.customs_amount is not None and not parcel.outgoing:
+        taken = (update.customs_amount, update.customs_currency, update.customs_cash)
+        if taken != (parcel.customs_amount, parcel.customs_currency, parcel.customs_cash):
+            parcel.customs_amount = update.customs_amount
+            parcel.customs_currency = update.customs_currency
+            parcel.customs_cash = update.customs_cash
+            changed = True
     return changed
 
 
@@ -442,6 +462,7 @@ def _take_shop_facts(
             and own.carrier_mode == "mail"
             and own.tracking_ref is None
             and not own.manual_delivered
+            and not own.outgoing
         ):
             _fold(parcels, own, parcel, keep=True)
             changed = True
@@ -473,6 +494,12 @@ def _remember_shipment(parcel: Parcel, update: MailUpdate) -> None:
     """
     if update.shipment_id and update.shipment_id not in parcel.shipment_ids:
         parcel.shipment_ids.append(update.shipment_id)
+
+
+def _gift_for(*parcels: Parcel) -> list[str]:
+    """The persons the gifts among these entries are for, each once (a box of a gift order
+    is hidden from them as well)."""
+    return list(dict.fromkeys(person for p in parcels if p.gift for person in p.gift_for))
 
 
 def _further_parcel(
@@ -509,6 +536,7 @@ def _further_parcel(
         now,
         order_checked=True,
         gift=gift or order.gift,
+        gift_for=_gift_for(order),
         # The order's owner with its hand mark ("everybody" set by hand stays so).
         owner=order.owner,
         owner_manual=order.owner_manual,
@@ -698,6 +726,7 @@ def _apply_order(
             now,
             mail_title=update.title,
             gift=gift or any(p.gift for p in siblings),
+            gift_for=_gift_for(*siblings),
         )
         _inherit_owner(target, siblings, owner)
         parcels[number] = target
@@ -934,6 +963,7 @@ def fold_delivered(
         or parcel.tracking_ref is not None
         or parcel.status is not ParcelStatus.DELIVERED
         or parcel.manual_delivered
+        or parcel.outgoing
         or parcels.get(parcel.number) is not parcel
     ):
         return None
@@ -993,12 +1023,18 @@ def _fold(parcels: dict[str, Parcel], parcel: Parcel, order: Parcel, keep: bool 
     if parcel.name and parcel.name_manual:
         order.name, order.name_manual = parcel.name, True
     order.gift = order.gift or parcel.gift
+    order.gift_for = _gift_for(order, parcel)
     # The order's owner wins (also "everybody" set on it by hand), else the carrier
     # parcel's; the hand mark goes with the owner.
     if order.owner is None and not order.owner_manual:
         order.owner, order.owner_manual = parcel.owner, parcel.owner_manual
     order.tracking_ref = parcel.number
     order.tracking_carrier = parcel.carrier
+    if order.customs_amount is None and parcel.customs_amount is not None:
+        # (the duty a DHL mail named belongs to the order that takes the parcel in)
+        order.customs_amount = parcel.customs_amount
+        order.customs_currency = parcel.customs_currency
+        order.customs_cash = parcel.customs_cash
     if keep:
         order.result = _joined(order.result, parcel.result)
         order.last_change_at = max(order.last_change_at, parcel.last_change_at)
@@ -1054,6 +1090,7 @@ def close_unconfirmed(
     parcel.assumed_delivered = True
     parcel.last_change_at = now
     parcel.delivery_code = parcel.delivery_code_day = None
+    parcel.clear_customs()
 
 
 def mark_received(parcel: Parcel, now: datetime) -> None:
@@ -1093,6 +1130,7 @@ def mark_received(parcel: Parcel, now: datetime) -> None:
     if not closed:
         parcel.last_change_at = now
     parcel.delivery_code = parcel.delivery_code_day = None
+    parcel.clear_customs()
     parcel.last_error = None
     parcel.error_streak = 0
     parcel.first_error_at = None
@@ -1210,7 +1248,7 @@ def _apply_tracking(
             ),
             None,
         )
-    if target is None and update.status is not None:
+    if target is None and update.status is not None and not update.outgoing:
         # "Zugestellt" without a day of its own: the mail's day is the day of delivery,
         # and the order's days must fit it like for a parcel folded in afterwards.
         delivered = update.status is ParcelStatus.DELIVERED and not update.eta_date
@@ -1225,7 +1263,10 @@ def _apply_tracking(
             _forward(target, update, now)
             return Change(target, old, False)
     if target is None:
-        target = Parcel(number, update.carrier, "mail", name, now, now, gift=gift, owner=owner)
+        target = Parcel(
+            number, update.carrier, "mail", name, now, now,
+            gift=gift and not update.outgoing, owner=owner,
+        )
         parcels[number] = target
         _forward(target, update, now)
         # A first status is no news - but a delivery whose mail names a shop or a company
