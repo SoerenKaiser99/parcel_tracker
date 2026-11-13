@@ -481,11 +481,18 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     # lists the items of both. The order only the link names gets the same news with that
     # id, which finds its box (``apply._by_shipment``). No title: the subject names an item
     # of either order (the order of the text keeps it, as before: read before its own mails,
-    # its entry is found by it). Only for a mail about one box, else it is not told whose
-    # box it is.
+    # its entry is found by it). It came along (``MailUpdate.along``): one box, one push,
+    # told by the order of the text. Only for a mail about one box, else it is not told
+    # whose box it is.
     if len(orders) == 1:
         updates += [
-            replace(updates[0], number=order_number(order), title=None, shipment_id=shipment)
+            replace(
+                updates[0],
+                number=order_number(order),
+                title=None,
+                shipment_id=shipment,
+                along=True,
+            )
             for order, shipment in links.items()
             if order not in numbers
         ]
