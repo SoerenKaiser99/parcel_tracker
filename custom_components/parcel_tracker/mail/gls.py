@@ -23,6 +23,7 @@ from .base import (
     sent_at,
     shop_of,
     subject,
+    window_at,
 )
 
 GLS_SENDER = "no-reply@gls-pakete.de"
@@ -48,7 +49,8 @@ _PICKUP_TEXT = re.compile(r"paketshop\b[^\n]*zur abholung bereit")
 # counts when no home-delivery sentence stands next to it.
 _HOME_TEXT = re.compile(r"wunschort zugestellt|erfolgreich zugestellt")
 _ETA_LABEL = "voraussichtliche lieferung"
-_WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s+und\s+(\d{1,2}):(\d{2})\s*Uhr")
+# ("zwischen 10:45 - 14:45 Uhr" too, seen 2026-08 next to "12.August")
+_WINDOW = re.compile(r"zwischen\s+(\d{1,2}):(\d{2})\s*(?:und|[–-])\s*(\d{1,2}):(\d{2})\s*Uhr")
 _SENDER_LABELS = frozenset(
     {"versender", "absender", "dein paket von", "dein paket von dem absender"}
 )
@@ -125,10 +127,9 @@ def _eta(lines: list[str], ref: date) -> tuple[date, datetime | None, datetime |
             if resolved := resolve_dates(candidate.strip(" ,"), ref):
                 day = resolved[0]
                 window = _WINDOW.search("\n".join(lines[offset + 1 : offset + 3]))
-                if not window:
-                    return day, None, None
-                hours = [int(part) for part in window.groups()]
-                return day, at(day, hours[0], hours[1]), at(day, hours[2], hours[3])
+                if window and (times := window_at(day, window.groups())):
+                    return day, *times
+                return day, None, None
     return None
 
 
