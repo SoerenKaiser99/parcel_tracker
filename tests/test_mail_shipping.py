@@ -781,7 +781,7 @@ def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
 
 # ----- "kommt früher als geplant" (layouts up to 2024-08): in delivery today, with window -----
 def test_dhl_earlier_than_planned_is_in_delivery_today_with_its_window():
-    mail = load_mail("181_dhl_kommt_frueher_als_geplant.eml")
+    mail = load_mail("208_dhl_kommt_frueher_als_geplant.eml")
     [u] = parse_mail(mail).updates
     assert (u.number, u.carrier) == (DHL_NUMBER, "dhl")
     assert u.status is ParcelStatus.OUT_FOR_DELIVERY
