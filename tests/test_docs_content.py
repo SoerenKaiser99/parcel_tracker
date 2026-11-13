@@ -1293,7 +1293,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 6. November 2026, Version 0.3.49." in text
+    assert "*Stand: 13. November 2026, Version 0.3.50." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
@@ -1910,3 +1910,9 @@ def test_changelog_names_v0348():
     ])
     features = CHANGELOG.split("## Was die Integration kann\n")[1].split("\n## ")[0]
     _all_have(features, ["Versendete Pakete"])
+
+
+def test_card_page_explains_grouped_orders():
+    section = _section(CARD, "Mehrere Bestellungen in einem Paket")
+    _all_have(section, ["Bestellungen", "Sendungsnummer", "Erhalten", "Geschenke", "`person`"])
+    assert "karte.md#mehrere-bestellungen-in-einem-paket" in TEXTS[MAIL]

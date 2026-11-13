@@ -213,6 +213,15 @@ def _parse_mails(
     return [_parse_one(raw, read_otp, now, plain_names, persons, shared) for raw in raws]
 
 
+def _news(change: Change) -> bool:
+    """Does the change tell a status (``_mail_changed`` fires it)? A first status does not,
+    unless it is news all the same (``Change.announce``)."""
+    status = change.parcel.status
+    if change.old_status is None:
+        return change.announce and status is ParcelStatus.DELIVERED
+    return status is not None and status is not change.old_status
+
+
 class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     """Ticks every minute and polls parcels that are due."""
 
@@ -296,6 +305,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # status pushes it.
         # (carrier, number of the box, owner told) -> the status pushed for it.
         self._box_told: dict[tuple[str | None, str, tuple[str, ...]], ParcelStatus] = {}
+        # Shop orders without a carrier number whose change is told by their box already
+        # (``Change.told``: an Amazon order that came along in another order's box): the
+        # status not to push for it, until its change is announced. Memory only, like
+        # ``_box_told``.
+        self._told_along: dict[str, ParcelStatus] = {}
 
     # ----- settings -----
     @property
@@ -670,6 +684,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             cleared = True
             # Back at the status it had: nothing to tell.
             if parcel.result is None or parcel.status is old:
+                self._told_along.pop(parcel.number, None)
                 continue
             self._announce(parcel, old)
         if cleared:
@@ -701,6 +716,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         for number in removed:
             self.store.remove(number)
             self._announced.pop(number, None)
+            self._told_along.pop(number, None)
         if removed:
             self._forget_idle_carriers()
             parcels = self.store.parcels.values()
@@ -975,6 +991,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 self._count_amazon(recognized=True)
             if item.message_id:
                 self.store.remember_message(item.message_id)
+            # An order that came along in the box of another (``MailUpdate.along``) is
+            # told by that one: one box, one push - if that one's change told the same
+            # status to the same targets. If not (it was new, so its first status is no
+            # news; it is another person's), the order that came along tells it.
+            told: set[tuple[tuple[str, ...], ParcelStatus]] = set()
             # Only a detected owner is stored; an unclear mail leaves the owner open and
             # the default person applies while it is open (``effective_owner``).
             for update in result.updates:
@@ -982,7 +1003,14 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                     self.store.parcels, update, now, self.gift_mode, item.owner
                 )
                 if change:
+                    news = _news(change)
+                    told_to = (self._audience(change.parcel), change.parcel.status)
+                    # (only news: a change that tells nothing must leave no mark, or it
+                    # would swallow the next push of that status)
+                    change.told = change.told or (update.along and news and told_to in told)
                     self._mail_changed(change)
+                    if news:
+                        told.add(told_to)
         except Exception as err:  # noqa: BLE001 - one odd mail must not stop the import
             if self._unrecognized(item):
                 # Only the error type: mail contents never go into the log.
@@ -1086,6 +1114,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # pushed again, also not after a restart emptied the push memory.
             box = (parcel.tracking_carrier, parcel.tracking_ref, self._audience(parcel))
             self._box_told[box] = parcel.status
+        elif change.told and parcel.status is not None:
+            # (a box without a carrier number: Amazon's own delivery)
+            self._told_along[parcel.number] = parcel.status
         if (
             change.old_status is not None
             and parcel.status is not None
@@ -1595,8 +1626,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         elif parcel.unannounced_from is None:
             parcel.unannounced_from = old
         elif parcel.status is parcel.unannounced_from:
-            # Back at the status it had before the first change: nothing to tell.
+            # Back at the status it had before the first change: nothing to tell, and
+            # nothing told along in a box any more (a later step there is its own news).
             parcel.unannounced_from = None
+            self._told_along.pop(parcel.number, None)
         # Otherwise several changes in a row become one, from the oldest status to
         # the latest.
 
@@ -1688,7 +1721,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         # assumed closing or a hand mark of one order says nothing about the box.
         shared = parcel.tracking_ref is not None and parcel.carrier in SHOP_CARRIERS
         box = self._box_key(parcel)
-        if not (shared and self._box_told.get(box) is r.status):
+        if self._told_along.pop(parcel.number, None) is r.status:
+            pass  # told by the order whose box it came along in (``_mail_changed``)
+        elif not (shared and self._box_told.get(box) is r.status):
             if self._notify(parcel, old):
                 self._box_told[box] = r.status
             else:
