@@ -1056,8 +1056,11 @@ def test_docs_say_when_a_carrier_mail_joins_a_shop_order():
     section = _section(MAIL, MERGE)
     _all_have(section, (
         "Nennt die Carrier-Mail statt des Shops die Marke",
-        "genau eines offenen",
+        "genau ein offenes Amazon-Paket",
         "beginnt",
+        # the marketplace seller, never for an order or box of several sellers
+        "genau diesen Händler, als Firma mit Rechtsform",
+        "Artikeln mehrerer Händler",
         "Das Carrier-Paket gibt es schon als eigenes Paket",
         # second review: Amazon only, and under which conditions
         "nur zu einem offenen **Amazon-Paket**",

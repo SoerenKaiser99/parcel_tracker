@@ -38,6 +38,7 @@ from .base import (
     carrier_key,
     is_carrier_display,
     is_carrier_title,
+    is_seller,
     names_more_items,
     shop_of,
     title_key,
@@ -498,6 +499,18 @@ def _remember_shipment(parcel: Parcel, update: MailUpdate) -> None:
         parcel.shipment_ids.append(update.shipment_id)
 
 
+def _remember_sellers(parcel: Parcel, update: MailUpdate) -> None:
+    """Keep the marketplace seller a mail names with the entry it went to.
+
+    A carrier's mail that names it finds the order by it (``_brand_candidate``), as long as
+    the entry's mails named no other one. Keeping it is never told, like the shipment's id
+    (``_remember_shipment``). Two are kept at most: a second one is all it takes to know
+    the entry has no single seller.
+    """
+    if update.seller and update.seller not in parcel.sellers and len(parcel.sellers) < 2:
+        parcel.sellers.append(update.seller)
+
+
 def _gift_for(*parcels: Parcel) -> list[str]:
     """The persons the gifts among these entries are for, each once (a box of a gift order
     is hidden from them as well)."""
@@ -740,6 +753,7 @@ def _apply_order(
         parcels[number] = target
         _take_shop_facts(parcels, target, update, now, gift)
         _remember_shipment(target, update)
+        _remember_sellers(target, update)
         _forward(target, update, now)
         # A first status is no news - but a further box of an order that is delivered as
         # soon as it is known (the mails before were never read, or named no box of
@@ -765,6 +779,7 @@ def _apply_order(
     own = parcels.get(update.tracking_ref) if update.tracking_ref else None
     facts = _take_shop_facts(parcels, target, update, now, gift)
     _remember_shipment(target, update)
+    _remember_sellers(target, update)
     # A carrier's parcel of that number was folded into the order just now. If it was
     # delivered, its delivery was announced (``_delivery_told``) and nothing about it
     # waits to be announced, the box's delivery is told: known from what is stored, so
@@ -822,13 +837,19 @@ def _mail_day(update: MailUpdate):
 
 
 def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
-    """The one open Amazon order whose title begins with the brand the carrier mail names.
+    """The one open Amazon order of the brand the carrier mail names.
+
+    An order is of the brand if all words of the brand begin its title (whole words, any
+    case: the seller sells its own make), or if the brand is the name of the marketplace
+    seller its mails named (``is_seller``: the seller sells other makes and sends the box
+    with a carrier of its own, whose mail names the seller). Only while its mails named
+    that one seller: an entry that was told of two (an order's mail named one, a box's mail
+    another) has none it can be found by.
 
     Deliberately narrow: only Amazon orders (never eBay), none that names another carrier
-    than the mail's; all words of the brand must begin the title (whole words, any case) of
-    exactly one of them. The mail's day must lie in the order's day or window; if one of the
-    two has no day, the order must be shipped ("Versendet"). A mail about a delivery never
-    takes an order that is only "Bestellt".
+    than the mail's, and exactly one of them must be of the brand. The mail's day must lie
+    in the order's day or window; if one of the two has no day, the order must be shipped
+    ("Versendet"). A mail about a delivery never takes an order that is only "Bestellt".
     """
     brand = brand_of(update.title)
     if brand is None:
@@ -840,7 +861,10 @@ def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
         for p in orders
         if p.carrier == "amazon"
         and _hint_key(p) in (None, update.carrier)
-        and begins.match((p.mail_title or p.name or "").strip())
+        and (
+            begins.match((p.mail_title or p.name or "").strip())
+            or (len(p.sellers) == 1 and is_seller(brand, p.sellers[0]))
+        )
     ]
     if len(matches) != 1:
         return None
@@ -879,7 +903,8 @@ def _merge_candidate(
     The order qualifies when the carrier mail names its shop or the shop mail named
     this carrier; the day must match the order's day or window (without a day: the
     order must be in transit). A mail that names another company than the shop (the
-    brand that sells at Amazon) may still belong to an order: see ``_brand_candidate``.
+    brand or the marketplace seller that sells at Amazon) may still belong to an order: see
+    ``_brand_candidate``.
 
     A mail that names Amazon never goes to an Amazon order whose shipments are all sent by
     the seller (``_seller_shipped``): the seller's carrier names the seller, so a mail

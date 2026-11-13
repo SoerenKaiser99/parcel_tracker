@@ -12,11 +12,14 @@ from ..models import ParcelStatus
 from .base import (
     ATTEMPT_TEXT,
     DELAY_TEXT,
+    LEGAL_FORM,
     MONTHS,
     MailUpdate,
     at,
     body_text,
     carrier_for,
+    company_name,
+    html_body_text,
     names_more_items,
     part_links,
     relative_day,
@@ -163,6 +166,14 @@ _QUANTITY_LINE = re.compile(r"^Menge:\s*\d+\s*$", re.MULTILINE)
 _LINK_HOSTS = frozenset({"www.amazon.de", "amazon.de"})
 _REDIRECT_PATH = "/gp/r.html"
 _TRACKER_PATH = "/progress-tracker/package"
+# The seller of an item, on a line below it, in the current layout in the HTML part only
+# (its text part does not name it): "Verkauf durch Beispielhandel e.K., Händler & Versand aus
+# Deutschland". What follows a comma is Amazon's own note about the seller. "Verkauf durch
+# Amazon.de" and "Verkauf durch einen Drittanbieter und Versand durch Amazon." name no
+# seller of their own: Amazon sends the box.
+_SELLER = re.compile(r"^Verkauf durch[ \t]+(?P<name>\S[^\n]*)$", re.MULTILINE)
+_NOT_A_NAME = re.compile(r"^[\W_]+")  # (stars and the like in front of a seller's name)
+_AMAZON = re.compile(r"(?<![^\W_])amazon(?![^\W_])", re.IGNORECASE)  # (not "Amazonas")
 _ORDER_ID = re.compile(r"\d{3}-\d{7}-\d{7}")
 _SHIPMENT_ID = re.compile(r"[A-Za-z0-9]{5,20}")
 
@@ -292,6 +303,63 @@ def _shipments(msg: EmailMessage) -> dict[str, str]:
             if _ORDER_ID.fullmatch(order) and _SHIPMENT_ID.fullmatch(shipment):
                 found.setdefault(order, shipment)
     return found
+
+
+def _seller_name(line: str) -> str | None:
+    """The name a "Verkauf durch …" line gives, None for Amazon itself.
+
+    Without Amazon's note behind a comma and the stars some sellers put in front.
+    """
+    name = _NOT_A_NAME.sub("", line.split(",", 1)[0]).strip()
+    return None if not name or _AMAZON.search(name) else name
+
+
+def _mention_seller(text: str, start: int, end: int) -> tuple[int, str | None]:
+    """(items, seller) of one mention of an order: how many items are listed below its
+    number (one "Menge: …" each) and the one seller of every one of them.
+
+    The seller is None unless every item has a "Verkauf durch …" line and all of them name
+    the same seller: an order or a box with items of two sellers, of a seller and Amazon,
+    or with an item whose seller is not named, has none. Which of them sends which box is
+    not told, and a carrier's mail must never go to a box with another seller's item. It is
+    kept only as a company with its legal form (``company_name``): the name a seller gives
+    itself at Amazon may be a person's, or a shop we know.
+    """
+    items = len(_QUANTITY_LINE.findall(text, start, end))
+    lines = [m.group("name") for m in _SELLER.finditer(text, start, end)]
+    names = {_seller_name(line) for line in lines}
+    if not items or len(lines) != items or len(names) != 1:
+        return items, None
+    name = names.pop()
+    company = company_name(name) if name else None
+    return items, company if company and LEGAL_FORM.search(company) else None
+
+
+def _sellers(msg: EmailMessage, numbers: list[str], whole_order: bool) -> list[str | None]:
+    """The seller of each mention of an order in ``numbers`` (``_mention_seller`` of what
+    the HTML part, else the text part, lists below its number).
+
+    Each mention takes the seller of its own items if both parts name the same orders in
+    the same order. Otherwise, and in a mail about the whole order (``whole_order``: the
+    order's mail, which names an order once per day, all of it one entry), a mention takes a
+    seller only if every mention of its order that lists items names that same one.
+    """
+    text = html_body_text(msg) or body_text(msg)
+    mentions = list(_ORDER.finditer(text))
+    found: list[tuple[str, int, str | None]] = []
+    for index, match in enumerate(mentions):
+        end = mentions[index + 1].start() if index + 1 < len(mentions) else len(text)
+        found.append((match.group(2), *_mention_seller(text, match.end(), end)))
+    if not whole_order and [number for number, _, _ in found] == numbers:
+        return [seller for _, _, seller in found]
+    by_order: dict[str, set[str | None]] = {}
+    for number, items, seller in found:
+        if items:  # (a mention without items, as in the head of the plain layout, tells nothing)
+            by_order.setdefault(number, set()).add(seller)
+    return [
+        next(iter(sellers)) if len(sellers := by_order.get(number, {None})) == 1 else None
+        for number in numbers
+    ]
 
 
 def _place(text: str) -> str | None:
@@ -435,6 +503,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         from_subject = whole if whole and names_more_items(whole) else None
     links = _shipments(msg)
     shipments = {o: s for o, s in links.items() if numbers.count(o) == 1}
+    sellers = _sellers(msg, numbers, whole_order=status is ParcelStatus.PRE_TRANSIT)
     ends = [m.start() for m in orders[1:]] + [len(text)]
     # An order the body names is named like one the subject names: its first item and how
     # many more there are ("… und 2 weitere Artikel"), so that cancelling one item does not
@@ -473,6 +542,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 postponed=attempt or delay,
                 status_text=ATTEMPT_TEXT if attempt else DELAY_TEXT if delay else None,
                 shipment_id=shipments.get(match.group(2)),
+                seller=sellers[index],
                 **eta,
             )
         )

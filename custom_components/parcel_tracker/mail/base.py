@@ -88,6 +88,12 @@ class MailUpdate:
     # mail names, if that one's change is news; else by this one (the coordinator's
     # ``_handle_mail``).
     along: bool = False
+    # The marketplace seller an Amazon mail names for the items of this order or box
+    # ("Verkauf durch …"), only if it sells every one of them (never Amazon itself), and only
+    # as a company with its legal form (``company_name``: never a person's name). A seller
+    # that sends the box itself is the company its carrier's mail names (see
+    # ``apply._brand_candidate``).
+    seller: str | None = None
     # Import duty the recipient pays at delivery, as DHL's mail of the day names it ("Die
     # Einfuhrabgaben i.H.v. 12,34€ … sind bei Zustellung … in bar zu bezahlen"). Only the
     # amount, its currency and whether cash is asked for, never the rest of the sentence.
@@ -472,6 +478,12 @@ _NO_BRAND = frozenset(
 )
 
 
+def _name_words(name: str) -> list[str]:
+    """The words of a company's name in front of its legal form (all of them without one)."""
+    form = LEGAL_FORM.search(name)
+    return (name[: form.start()] if form else name).strip(" ,;:&+-").split()
+
+
 def brand_of(title: str | None) -> str | None:
     """The brand in a company name a carrier mail gives: the name without its legal form
     ("Beispielmarke GmbH" -> "Beispielmarke"), its words joined by single spaces.
@@ -484,8 +496,7 @@ def brand_of(title: str | None) -> str | None:
     name = company_name(title) if title else None
     if not name or name.endswith("…") or known_shop(name):
         return None
-    form = LEGAL_FORM.search(name)
-    words = (name[: form.start()] if form else name).strip(" ,;:&+-").split()
+    words = _name_words(name)
     brand = " ".join(words)
     if not brand or known_shop(brand):
         return None
@@ -494,6 +505,18 @@ def brand_of(title: str | None) -> str | None:
     if not own or (len(words) == 1 and len(letters[0]) < 5):
         return None
     return brand
+
+
+def is_seller(brand: str, seller: str) -> bool:
+    """Is ``brand`` (``brand_of`` a carrier mail's company) the name of this seller?
+
+    The seller's name as Amazon gives it, without its legal form (cut as ``brand_of`` cuts
+    it), must be the brand word for word, in any case: "Beispielhandel e.K." and
+    "BEISPIELHANDEL UG" are the seller of the brand "Beispielhandel", "Beispielhandel Nord
+    GmbH" is another one.
+    """
+    words = _name_words(seller)
+    return [w.casefold() for w in words] == [w.casefold() for w in brand.split()]
 
 
 def _raw_subject(msg: EmailMessage) -> str:
