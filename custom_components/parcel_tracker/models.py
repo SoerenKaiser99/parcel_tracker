@@ -255,6 +255,10 @@ class Parcel:
     # Amazon's ids of the shipments of an order its mails named (``MailUpdate.shipment_id``),
     # oldest first, each once. Persisted; an order stored by an older version has none.
     shipment_ids: list[str] = field(default_factory=list)
+    # The marketplace sellers an Amazon order's mails named (``MailUpdate.seller``), oldest
+    # first, each once: what a carrier's mail naming the seller is matched by, as long as
+    # it is one. Persisted; an order stored by an older version has none.
+    sellers: list[str] = field(default_factory=list)
     # Import duty a DHL mail named (``MailUpdate.customs_amount``): the amount, its currency
     # and whether the carrier asks for cash. Persisted; see ``customs_due`` for when it is
     # shown.
@@ -355,6 +359,7 @@ class Parcel:
             "delivery_announced": self.delivery_announced,
             "carrier_status": self.carrier_status.value if self.carrier_status else None,
             "shipment_ids": list(self.shipment_ids),
+            "sellers": list(self.sellers),
             "customs_amount": self.customs_amount,
             "customs_currency": self.customs_currency,
             "customs_cash": self.customs_cash,
@@ -409,6 +414,7 @@ class Parcel:
             ),
             carrier_status=_status(data.get("carrier_status")),
             shipment_ids=_texts(data.get("shipment_ids")),
+            sellers=_texts(data.get("sellers")),
             customs_amount=_amount(data.get("customs_amount")),
             customs_currency=(
                 cur if isinstance(cur := data.get("customs_currency"), str) and cur else None
