@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 13. November 2026, Version 0.3.50. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 14. November 2026, Version 0.3.51. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -53,6 +53,8 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **DHL Express („DHL On Demand Delivery“)** | Setzen die Mails von `noreply.odd@dhl.com` „Unterwegs“, „In Zustellung“ für heute und „Zugestellt“ mit der Uhrzeit aus der Mail? Bekommt das Paket den Namen des Absenders (bei Amazon „Amazon-Sendung (DHL)“)? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **AliExpress: Mails der letzten Meile** | Setzt „Paket … wird zugestellt“ die Bestellung heute auf „In Zustellung“ und „Paket … wurde zugestellt“ auf „Zugestellt“? Steht nach „Lieferprobleme für Packstück …“ „Versendet“ mit dem Text „Lieferprobleme“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Amazon: mehrere Bestellungen in einem Karton** | Nennt die Versandmail eine Bestellung im Text und eine andere nur im Link „Sendung verfolgen“, steht danach auch die zweite auf „Versendet“ und später „Zugestellt“? Kommt pro Karton und Person genau eine Meldung? Neu seit v0.3.50 (Beitrag von benep). | [Issue #55](https://github.com/SoerenKaiser99/parcel_tracker/issues/55) |
+| **DHL: Zeitfenster in anderen Schreibweisen** | Zeigt die Karte das Zeitfenster auch bei Mails mit „zwischen 14:45 bis 16:15“ oder „zwischen 14:55 und 16:25 Uhr“? Setzt „Ihr DHL Paket kommt früher als geplant“ das Paket für den Tag auf „In Zustellung“? Neu seit v0.3.51 (Beitrag von benep). | im Forum |
+| **DPD: Zeitfenster bleibt nach der Abfrage** | Bleibt das Zeitfenster aus „Zwischen … und … Uhr kommt Ihr DPD Paket“ auf der Karte stehen, auch nachdem die DPD-Abfrage „In Zustellung“ meldet? Neu seit v0.3.51 (Beitrag von benep). | im Forum |
 | **Amazon: „Sendung verfolgen“ führt zu Amazon** | Öffnet das Symbol bei einer Amazon-Bestellung ohne Nummer eines Paketdienstes Amazons Sendungsverfolgung mit der richtigen Sendung? Steht dort „Amazon-Sendung: …“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 
 ### Karte, Benachrichtigungen, Automationen
@@ -60,7 +62,6 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | Was | Was wir wissen wollen | Wohin |
 |---|---|---|
 | **Knopf „Erhalten“** | Steht er im aufgeklappten Paket, kommt die Rückfrage „Wirklich erhalten?“, und zählt das Paket danach als heute zugestellt? Bleibt es dabei, auch wenn später noch eine Mail oder eine Antwort des Paketdienstes kommt? Neu seit v0.3.30. | im Forum |
-| **Mehrere Bestellungen in einem Paket** | Stehen Bestellungen mit derselben Sendungsnummer als eine Zeile wie „AliExpress · 2 Bestellungen“ auf der Karte? Lassen sich die einzelnen Bestellungen aufgeklappt umbenennen und löschen, und markiert „Erhalten“ alle? Neu seit v0.3.50. | [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) |
 | **„Namen ausblenden“** | Taucht irgendwo doch noch ein echter Name auf – Karte, Kalender, Benachrichtigung, Sprachassistent? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Einfuhrabgaben (Zoll) bei DHL** | Zeigt die Karte bei einer DHL-Sendung aus dem Ausland den Betrag („Einfuhrabgaben: … € in bar bei Zustellung“), kommt er in die Benachrichtigung „In Zustellung“, und verschwindet er nach der Zustellung? Stimmt der Betrag mit der Mail überein, auch bei Beträgen ab 1.000 €? | [Fehler melden](hilfe.md#fehler-melden) |
 | **„Absendernamen aus DHL-Mails übernehmen“** | Heißt ein Paket nach dem Namen aus dem DHL-Betreff „Ihre <Name> Sendung …“, auch bei einem kleinen Shop oder einer Privatperson? Fehlt das „..“ am Ende? Blendet „Namen ausblenden“ den Namen weiterhin aus? | [Fehler melden](hilfe.md#fehler-melden) |
