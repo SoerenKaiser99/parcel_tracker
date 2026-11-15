@@ -27,6 +27,8 @@ MONTHS = {
 _INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­\u2066-\u2069]")
 _SPACES = re.compile("[ \t   ]+")
 _FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
+# A forward (WG:/Fwd:/FW:), not a reply (AW:/Re:): only the first prefix counts.
+_HAND_FORWARD = re.compile(r"^(?:wg|fwd?)\s*:", re.IGNORECASE)
 _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
 # Words a shop's mail about a postponed delivery brings (``MailUpdate.status_text``): nobody
 # was met, it takes longer, or it could not be delivered for a reason not told (AliExpress

@@ -36,6 +36,13 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.52 (2026-11-15)
+
+- **Mail-Import: Weiterleitung mit „Am … schrieb …:“.** Manche Mailprogramme (z. B. Web.de) setzen beim Weiterleiten statt des Blocks „Von: … / Gesendet: … / Betreff: …“ nur eine Zeile wie „Am 14.11.26, 15:50 schrieb DHL <…>:“. Auch diese Form (englisch „On … wrote:“) erkennt der Import jetzt, wenn der Betreff mit „WG:“, „Fwd:“ oder „FW:“ beginnt. DHL-Mails bekommen damit wieder Status, Liefertag und Zeitfenster, DPD-Mails werden erkannt. ([#71](https://github.com/SoerenKaiser99/parcel_tracker/issues/71), [#72](https://github.com/SoerenKaiser99/parcel_tracker/issues/72), [#73](https://github.com/SoerenKaiser99/parcel_tracker/issues/73))
+- **AliExpress: „Paket …: Importverzollung gestartet“ und „Paket …: im Versandzentrum“** werden erkannt und landen nicht mehr in „Nicht erkannt“. ([#74](https://github.com/SoerenKaiser99/parcel_tracker/issues/74))
+- **Anonymisierungsskript:** In weitergeleiteten Mails bleibt als Absender nur ein Shop oder Paketdienst stehen, den der Import kennt. Private Absender mit eigener Domain werden jetzt ersetzt, auch im Block „Von: …“.
+- **Bekannte Grenzen:** Ein US-Datum wie „11/10/26“ in der Zeile „On … wrote:“ wird nicht gelesen, „heute“ zählt dann ab der Weiterleitung. Ist die Zeile über mehr als zwei Zeilen umbrochen, erkennt der Import sie nicht.
+
 ### v0.3.51 (2026-11-14)
 
 Zwei Beiträge von benep: [PR #46](https://github.com/SoerenKaiser99/parcel_tracker/pull/46) und [PR #67](https://github.com/SoerenKaiser99/parcel_tracker/pull/67).

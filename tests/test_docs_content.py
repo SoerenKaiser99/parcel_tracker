@@ -336,7 +336,7 @@ def test_docs_say_what_the_script_does_with_a_forwarded_sample_mail():
     _all_have(section, (
         "übernimmt das Skript nur diesen Block und die Mail darunter",
         "Alles darüber (eigene Zeilen, die eigene Signatur) lässt es weg",
-        "den ursprünglichen Absender im Block lässt es stehen",
+        "den ursprünglichen Absender im Block lässt es nur stehen, wenn er ein Shop",
         "die Empfänger ersetzt es",
         "leite sie nicht weiter",
     ))
@@ -1030,6 +1030,17 @@ def test_docs_say_how_a_forward_by_hand_is_recognised():
     ))
 
 
+def test_docs_say_an_attribution_line_counts_in_a_forward():
+    """v0.3.52 (issue 71): "Am … schrieb …:" instead of a header block."""
+    section = _section(MAIL, "Von Hand weiterleiten")
+    _all_have(section, ("„Am … schrieb …:“", "„WG:“ oder „Fwd:“", "„AW:“ oder „Re:“"))
+    item = next(line for line in TEXTS[HELP].splitlines() if "**Von Hand weitergeleitet?**" in line)
+    assert "„Am … schrieb …:“" in item
+    anonymizer = TEXTS[HELP].split("Wenn du nur eine weitergeleitete Mail hast", 1)[1][:1200]
+    assert "„Am … schrieb …:“" in anonymizer
+    assert "den der Import kennt (sonst wird er zu max@example.org)" in anonymizer
+
+
 def test_docs_explain_the_mail_endpoint():
     section = _section(MAIL, "Ohne Postfach: Mail per HTTP übergeben")
     _all_have(section, (
@@ -1293,7 +1304,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 14. November 2026, Version 0.3.51." in text
+    assert "*Stand: 15. November 2026, Version 0.3.52." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",
