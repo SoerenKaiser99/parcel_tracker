@@ -133,6 +133,10 @@ Pull Requests sind willkommen; fünf Beiträge von außen sind schon eingeflosse
 - Beispielmails nur anonymisiert, erzeugt mit dem Skript des Projekts.
 - Kurz beschreiben, was du selbst ausprobiert hast und was nicht.
 
+## 6. Danke sagen
+
+Der Paket Tracker ist kostenlos und bleibt es. Wer Danke sagen möchte, kann mir [einen Kaffee spendieren](https://buymeacoffee.com/soerenkaiser99) ☕. Genauso viel helfen ein Stern auf GitHub, eine Bestätigung oder eine Beispielmail.
+
 ## Wo du dich meldest
 
 - **GitHub:** [Issues](https://github.com/SoerenKaiser99/parcel_tracker/issues) – für Fehler, Beispielmails und die oben verlinkten Themen.
