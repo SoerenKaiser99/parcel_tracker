@@ -1,0 +1,33 @@
+X-Fixture: derived from a mail anonymised with anonymize_mail.py (tester mode);
+ the item, the price, the order number and the days are invented
+From: "amazon.de" <order-update@amazon.de>
+To: max@example.org
+Subject: Aktualisierung der Lieferung: "Beispiel-Klebeband..."
+Date: Tue, 03 Nov 2026 09:32:17 +0000
+Message-ID: <fixture-211@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Meine Bestellungen
+https://www.amazon.de/gp/css/order-history?ref_=fed_yo_default
+Mein Konto
+https://www.amazon.de/your-account?ref_=fed_ya_default
+
+ Dein Paket verspätet sich
+
+Voraussichtliche Zustellung bis zum 5. November
+
+Max – Musterstadt
+
+Bestellnr.
+999-0000211-0000211
+
+Lieferung verfolgen
+https://www.amazon.de/progress-tracker/package?orderId=999-0000211-0000211
+
+* Beispiel-Klebeband 19 mm x 10 m, transparent
+ Menge: 1
+ 9.99 EUR
+
+Amazon.de ist ein Handelsname für Amazon EU Sarl.

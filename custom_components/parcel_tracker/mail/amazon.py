@@ -54,8 +54,11 @@ _ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
 # "Lieferungsaktualisierung: …": on its way, with a new day ("Jetzt erwartet bis zum 26.
 # April."). Only a mail that says so is a delay ("… verspätet sich aber. Bitte entschuldigen
 # Sie die Verzögerung."): the subject and a new day alone would also fit an earlier arrival.
-# ("… ist nicht verspätet" is none.)
+# ("… ist nicht verspätet" is none.) "Aktualisierung der Lieferung: …" is the same mail in the
+# wording of 2026 ("Dein Paket verspätet sich", "Voraussichtliche Zustellung bis zum 5. November").
 _DELAY = "lieferungsaktualisierung"
+_DELAY_2026 = "aktualisierung der lieferung"
+_DELAYS = (f"{_DELAY}:", f"{_DELAY_2026}:")
 _DELAYED = re.compile(r"(?<!nicht )\b(?:verspät|verzöger)\w*", re.IGNORECASE)
 _PICKUP = "paket zur abholung bereit"
 # Cancellations. "Ihre Bestellung wurde storniert.": the whole order. "Artikel erfolgreich
@@ -88,6 +91,7 @@ _PREFIXES = {
     _ATTEMPT: ParcelStatus.IN_TRANSIT,
     "zustellversuch": ParcelStatus.IN_TRANSIT,
     _DELAY: ParcelStatus.IN_TRANSIT,
+    _DELAY_2026: ParcelStatus.IN_TRANSIT,
     _CANCELLED: ParcelStatus.CANCELLED,
     "in zustellung": ParcelStatus.OUT_FOR_DELIVERY,
     "unterwegs zur zustellung": ParcelStatus.OUT_FOR_DELIVERY,
@@ -118,7 +122,9 @@ _ORDER = re.compile(
 _ON_THE_ROUTE = re.compile(
     r"^Ihr (?:Amazon )?Paket(?: mit \S.*)? wird zugestellt\.?$", re.MULTILINE
 )
-_LATER = re.compile(r"Jetzt erwartet bis zum (\d{1,2}\.\s*[A-Za-zä]+)")
+_LATER = re.compile(
+    r"(?:Jetzt erwartet|Voraussichtliche Zustellung) bis zum (\d{1,2}\.\s*[A-Za-zä]+)"
+)
 # The plain layout names an item with its quantity before it ("2 x …", "2-mal …"), below
 # the number and, without quotes, in the subject ("2 x Beispiel... und 2 weiteren
 # Artikeln"). The other mails of the order name it without the quantity.
@@ -427,7 +433,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         return []
 
     attempt = subj.strip().lower().startswith(_ATTEMPTS)
-    news = subj.strip().lower().startswith(f"{_DELAY}:")
+    news = subj.strip().lower().startswith(_DELAYS)
     delay = news and bool(_DELAYED.search(text))
     eta = _eta(text, sent)
     if not eta and status is ParcelStatus.OUT_FOR_DELIVERY and _ON_THE_ROUTE.search(text):
