@@ -69,6 +69,14 @@ _ITEMS_CANCELLED = "erfolgreiche stornierung von artikeln"
 _CANCELLED_ORDER = re.compile(
     r"^(?:Bestellnr\.|Bestellung #|Bestell-Nr\.)\s*(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE
 )
+# "Artikel für deine Amazon.de Bestellung #… wurde storniert" (from no-reply@, #77): an item
+# Amazon could not get; the body lists the items it cancels as "* <name>".
+AMAZON_NO_REPLY = "no-reply@amazon.de"
+_UNAVAILABLE_CANCELLED = re.compile(
+    r"Artikel für (?:deine|Ihre) Amazon\.de[- ]Bestellung #?\s*\d{3}-\d{7}-\d{7} wurde storniert",
+    re.IGNORECASE,
+)
+_LISTED_ITEM = re.compile(r"^\* *(?P<title>\S[^\n]*)", re.MULTILINE)
 _CANCELLED_ITEM = re.compile(
     r"^Aufgegeben am [^\n]+\n(?:[ \t]*\n)*[ \t]*(?P<title>\S[^\n]*)", re.MULTILINE
 )
@@ -197,9 +205,16 @@ def subject_status(subj: str) -> ParcelStatus | None:
     """Status from the subject prefix before ':', or from a subject that tells a cancellation."""
     if subj.strip().lower().startswith((_ORDER_CANCELLED, _ITEMS_CANCELLED)):
         return ParcelStatus.CANCELLED
+    if is_unavailable_cancellation(subj):
+        return ParcelStatus.CANCELLED
     if ":" not in subj:
         return None
     return _PREFIXES.get(subj.split(":", 1)[0].strip().lower())
+
+
+def is_unavailable_cancellation(subj: str) -> bool:
+    """Is this the mail about an item Amazon could not get and cancelled (#77)?"""
+    return _UNAVAILABLE_CANCELLED.match(subj.strip()) is not None
 
 
 def stage_status(text: str) -> ParcelStatus | None:
@@ -379,6 +394,9 @@ def _cancellation(subj: str, text: str, sent: datetime) -> list[MailUpdate]:
     title = None
     if not subj.strip().lower().startswith(_ORDER_CANCELLED):
         title = subject_title(subj)
+        if title is None and is_unavailable_cancellation(subj):
+            listed = [shorten(m.group("title")) for m in _LISTED_ITEM.finditer(text)]
+            title = _with_more(listed[0], len(listed) - 1) if listed else None
         if title is None and (item := _CANCELLED_ITEM.search(text)):
             title = shorten(item.group("title"))
         if title is None:

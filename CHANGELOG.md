@@ -36,6 +36,12 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.53 (2026-11-16)
+
+- **Amazon: „Artikel für deine Amazon.de Bestellung #… wurde storniert“.** Diese Mail (Amazon konnte einen Artikel nicht beschaffen) kommt von `no-reply@amazon.de`, dessen Mails der Import bisher nur als gelesen markierte. Jetzt setzt sie die Bestellung auf „Storniert“, nach denselben Regeln wie die anderen Stornomails: nur, wenn die Bestellung genau aus diesem Artikel besteht und noch nicht versendet ist. Alle anderen Mails dieses Absenders bleiben ignoriert. ([#77](https://github.com/SoerenKaiser99/parcel_tracker/issues/77))
+- **AliExpress auf Englisch:** „Order …: collected by the carrier“ setzt „Versendet“ (im Verlauf „Vom Kurier abgeholt“), „Package … is out for delivery“ setzt „In Zustellung“ für den Tag der Mail. Den Artikel liest der Import auch unter „Package details“. ([#76](https://github.com/SoerenKaiser99/parcel_tracker/issues/76))
+- **Bekannte Grenzen:** Weitere englische AliExpress-Mails (versandbereit, zugestellt) fehlen noch als Beispiel und landen bis dahin in „Nicht erkannt“.
+
 ### v0.3.52 (2026-11-15)
 
 - **Mail-Import: Weiterleitung mit „Am … schrieb …:“.** Manche Mailprogramme (z. B. Web.de) setzen beim Weiterleiten statt des Blocks „Von: … / Gesendet: … / Betreff: …“ nur eine Zeile wie „Am 14.11.26, 15:50 schrieb DHL <…>:“. Auch diese Form (englisch „On … wrote:“) erkennt der Import jetzt, wenn der Betreff mit „WG:“, „Fwd:“ oder „FW:“ beginnt. DHL-Mails bekommen damit wieder Status, Liefertag und Zeitfenster, DPD-Mails werden erkannt. ([#71](https://github.com/SoerenKaiser99/parcel_tracker/issues/71), [#72](https://github.com/SoerenKaiser99/parcel_tracker/issues/72), [#73](https://github.com/SoerenKaiser99/parcel_tracker/issues/73))

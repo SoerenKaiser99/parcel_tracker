@@ -11,4 +11,4 @@ def test_version_matches_manifest():
 
 
 def test_version():
-    assert const.VERSION == "0.3.52"
+    assert const.VERSION == "0.3.53"

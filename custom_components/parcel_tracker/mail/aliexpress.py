@@ -61,6 +61,8 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     # ("wird in Kürze ausgeliefert": soon, no day)
     "zur auslieferung bereit": (_ON_WAY, "Zur Auslieferung bereit"),
     "zugestellt": (ParcelStatus.DELIVERED, None),
+    # (an account in English: "Order <number>: collected by the carrier", #76)
+    "collected by the carrier": (_ON_WAY, "Vom Kurier abgeholt"),
 }
 # "Bestellung <number>: Wird zugestellt" comes hours after the shipping mail and its body
 # says "dem Versandunternehmen übergeben": handed to the carrier, not on the last mile. No
@@ -102,6 +104,8 @@ _PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "ist versandbereit": (_PRE, READY_TEXT),
     "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),
     "wurde zugestellt": (ParcelStatus.DELIVERED, None),
+    # (an account in English: "Package <number> is out for delivery", #76)
+    "is out for delivery": (ParcelStatus.OUT_FOR_DELIVERY, None),
 }
 # "Lieferprobleme für Packstück <number>": it could not be delivered ("konnte … nicht
 # zugestellt werden"); what follows is told by the next mail (see ``PROBLEM_TEXT``).
@@ -114,11 +118,13 @@ _NO_NEWS_SUBJECT = re.compile(
     re.IGNORECASE,
 )
 
-_ORDER_SUBJECT = re.compile(r"Bestellung (?P<order>\d{12,20})\s*:?\s*(?P<step>\S.*)")
+_ORDER_SUBJECT = re.compile(r"(?:Bestellung|Order) (?P<order>\d{12,20})\s*:?\s*(?P<step>\S.*)")
 _ORDERS_SUBJECT = re.compile(r"\d+ Bestellungen wurden bestätigt: (?P<order>\d{12,20})\b")
 _PARCEL_SUBJECT = re.compile(r"Packstück (?P<number>[0-9A-Z]{8,30})\s*:?\s*(?P<step>\S.*)")
 _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) wurde beendet")
-_PACKAGE_SUBJECT = re.compile(r"Paket (?P<number>[0-9A-Z]{8,30})(?:\s*:\s*|\s+)(?P<step>\S.*)")
+_PACKAGE_SUBJECT = re.compile(
+    r"(?:Paket|Package) (?P<number>[0-9A-Z]{8,30})(?:\s*:\s*|\s+)(?P<step>\S.*)"
+)
 _PROBLEM_SUBJECT = re.compile(r"Lieferprobleme für Packstück (?P<number>[0-9A-Z]{8,30})\b")
 # English, whatever the language of the account; its body tells no reason (cancelled,
 # refunded, closed after a dispute, or done), so nothing is taken from it.
@@ -160,6 +166,8 @@ _ABOVE_ITEMS = frozenset(
         "versandt",
         "im transit",
         "zugestellt",
+        # (an account in English)
+        "package details",
     }
 )
 # Lines that are no item's name wherever they stand: a greeting, a line with a phone
