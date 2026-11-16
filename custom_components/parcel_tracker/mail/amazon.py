@@ -169,9 +169,15 @@ _TRACKER_PATH = "/progress-tracker/package"
 # The seller of an item, on a line below it, in the current layout in the HTML part only
 # (its text part does not name it): "Verkauf durch Beispielhandel e.K., Händler & Versand aus
 # Deutschland". What follows a comma is Amazon's own note about the seller. "Verkauf durch
-# Amazon.de" and "Verkauf durch einen Drittanbieter und Versand durch Amazon." name no
-# seller of their own: Amazon sends the box.
+# Amazon.de" names no seller of its own. Who sends the box, the line does not tell: a
+# seller's box that Amazon sends ("Versand durch Amazon", FBA) has the very same line, and
+# "Versand durch Amazon" stands in the mail's legal footer only, never at an item (the
+# footer's "… mit Verkauf durch einen Drittanbieter und Versand durch Amazon." begins no
+# line). Only the shipment's id tells (``apply._seller_shipped``).
 _SELLER = re.compile(r"^Verkauf durch[ \t]+(?P<name>\S[^\n]*)$", re.MULTILINE)
+# A seller's name is short; a longer line is no seller's (and ``company_name`` is slow on
+# very long words).
+_SELLER_MAX = 100
 _NOT_A_NAME = re.compile(r"^[\W_]+")  # (stars and the like in front of a seller's name)
 _AMAZON = re.compile(r"(?<![^\W_])amazon(?![^\W_])", re.IGNORECASE)  # (not "Amazonas")
 _ORDER_ID = re.compile(r"\d{3}-\d{7}-\d{7}")
@@ -304,12 +310,13 @@ def _shipments(msg: EmailMessage) -> dict[str, str]:
 
 
 def _seller_name(line: str) -> str | None:
-    """The name a "Verkauf durch …" line gives, None for Amazon itself.
+    """The name a "Verkauf durch …" line gives, None for Amazon itself or a line too long
+    to be a seller's name (``_SELLER_MAX``).
 
     Without Amazon's note behind a comma and the stars some sellers put in front.
     """
     name = _NOT_A_NAME.sub("", line.split(",", 1)[0]).strip()
-    return None if not name or _AMAZON.search(name) else name
+    return None if not name or len(name) > _SELLER_MAX or _AMAZON.search(name) else name
 
 
 def _mention_seller(text: str, start: int, end: int) -> tuple[int, str | None]:
@@ -559,6 +566,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 number=order_number(order),
                 title=None,
                 shipment_id=shipment,
+                seller=None,  # (read from the items of the text's order, not from this one's)
                 along=True,
             )
             for order, shipment in links.items()

@@ -6,8 +6,9 @@ mails name the seller of each item in their HTML part only ("Verkauf durch …")
 that sells its own make is found by the title already; this is for one that sells others'.
 """
 
+import time
 from datetime import datetime, timedelta
-from email import policy
+from email import message_from_bytes, policy
 from email.message import EmailMessage
 
 import pytest
@@ -18,7 +19,7 @@ from custom_components.parcel_tracker.mail.apply import apply_update, fold_deliv
 from custom_components.parcel_tracker.mail.base import MailUpdate, is_seller
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
 
-from .conftest import load_mail
+from .conftest import FIXTURES, load_mail
 
 ORDER = "999-9156534-2587125"
 OTHER_ORDER = "999-1234567-7654321"
@@ -87,6 +88,7 @@ def test_the_seller_is_read_without_amazons_note():
     "line",
     [
         "Verkauf durch Amazon.de",
+        # (only a part of a sentence of the legal footer, should it ever begin a line)
         "Verkauf durch einen Drittanbieter und Versand durch Amazon.",
         "Verkauf durch Amazon EU S.à r.l.",
     ],
@@ -177,6 +179,37 @@ def test_a_mention_without_items_tells_nothing():
     assert _sellers(msg) == ["Beispielhandel e.K."]
 
 
+def test_an_order_that_came_along_in_the_box_takes_no_seller():
+    # Amazon's box with the items of two orders: the mail names the one under "Bestellnr."
+    # and links the other's tracking page. The seller is read from the items of the order the
+    # text names; the order of the link is never told one of its own.
+    page = (
+        "https://www.amazon.de/progress-tracker/package?_encoding=UTF8"
+        f"&amp;orderId={OTHER_ORDER}&amp;shipmentId=TAbCdE9fG&amp;packageIndex=0"
+    )
+    msg = _msg(html_head=f'<a href="{page}">Paket verfolgen</a>')
+    updates = parse_mail(msg).updates
+    assert [(u.number, u.along, u.seller) for u in updates] == [
+        (NUMBER, False, "Beispielhandel e.K."),
+        (OTHER_NUMBER, True, None),
+    ]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Verkauf durch Beispielhandel e.K." + " Beispielhandel" * 10,  # (a name of 170 letters)
+        "Verkauf durch Beispiel" + "x" * 20000,
+    ],
+    ids=["many-words", "one-long-word"],
+)
+def test_a_line_too_long_for_a_name_names_no_seller(line):
+    # (and is not handed to ``company_name``, which is slow on very long words)
+    started = time.perf_counter()
+    assert _sellers(_msg((ORDER, (line,)))) == [None]
+    assert time.perf_counter() - started < 3  # (some 4 s without the cap)
+
+
 def test_a_mail_without_html_part_reads_the_seller_from_its_text():
     assert _sellers(_msg(html=False)) == ["Beispielhandel e.K."]
     assert _sellers(_msg((ORDER, (None,)), html=False)) == [None]
@@ -210,13 +243,17 @@ def test_an_order_stored_by_an_older_version_has_no_seller():
 
 
 # ----- the carrier's mail -----
-def _order(number: str = NUMBER, sellers=("Beispielhandel e.K.",), day=TODAY) -> Parcel:
+def _order(
+    number: str = NUMBER, sellers=("Beispielhandel e.K.",), day=TODAY, shipments=("DSeller01",)
+) -> Parcel:
+    """An Amazon order of the seller, its box sent by the seller ("D") unless ``shipments``
+    says otherwise."""
     result = TrackingResult(
         ParcelStatus.IN_TRANSIT, "Versendet", day, None, None, None, None, None, None, []
     )
     return Parcel(
         number, "amazon", "mail", ITEM, NOW, NOW,
-        result=result, mail_title=ITEM, sellers=list(sellers),
+        result=result, mail_title=ITEM, sellers=list(sellers), shipment_ids=list(shipments),
     )
 
 
@@ -252,6 +289,56 @@ def test_the_seller_must_be_the_brand_word_for_word(seller, title, joined):
     change = apply_update(parcels, _dhl(title), NOW)
     assert change.created is not joined
     assert (parcels[NUMBER].tracking_ref == DHL) is joined
+
+
+@pytest.mark.parametrize(
+    ("shipments", "joined"),
+    [
+        ((), False),  # no box known yet: Amazon may send it (see the test below)
+        (("DSeller01",), True),  # "Versand durch Verkäufer"
+        (("DSeller01", "DSeller02"), True),
+        (("TAmazon01",), False),  # "Versand durch Amazon": Amazon sends the seller's box
+        (("UAmazon01",), False),  # (Amazon's ids until February 2026)
+        (("DSeller01", "TAmazon01"), False),
+    ],
+)
+def test_the_seller_is_never_found_for_a_box_amazon_sends(shipments, joined):
+    parcels = {NUMBER: _order(shipments=shipments)}
+    change = apply_update(parcels, _dhl(), NOW)
+    assert change.created is not joined
+    assert (parcels[NUMBER].tracking_ref == DHL) is joined
+
+
+def test_a_mail_of_the_sellers_own_shop_never_takes_amazons_box():
+    # The seller's item at Amazon, sent by Amazon; another order at the seller's own shop,
+    # sent by DHL ("Ihre Beispielhandel e.K. Sendung"). That mail is a parcel of its own, and
+    # Amazon's DHL mail ("Ihre Amazon Sendung") still finds the Amazon order.
+    parcels = {NUMBER: _order(shipments=("TAmazon01",))}
+    shop = apply_update(parcels, _dhl(), NOW)
+    assert shop.created and parcels[NUMBER].tracking_ref is None
+    amazons = MailUpdate("999999990902", "dhl", ParcelStatus.OUT_FOR_DELIVERY, NOW,
+                         title="Amazon", shop="amazon", eta_date=TODAY)
+    change = apply_update(parcels, amazons, NOW)
+    assert not change.created and parcels[NUMBER].tracking_ref == "999999990902"
+
+
+def test_a_carrier_mail_before_amazons_versendet_is_folded_in_at_delivery():
+    # The seller's carrier is quicker than Amazon's "Versendet": who sends the box is not
+    # known yet, so the mail is a parcel of its own. Once Amazon named the seller's box, the
+    # delivered parcel goes to the order.
+    parcels = {NUMBER: _order(shipments=())}
+    assert apply_update(parcels, _dhl(status=ParcelStatus.IN_TRANSIT), NOW).created
+    shipped = MailUpdate(NUMBER, "amazon", ParcelStatus.IN_TRANSIT, NOW, title=ITEM,
+                         eta_date=TODAY, shipment_id="DSeller01")
+    apply_update(parcels, shipped, NOW)
+    assert parcels[NUMBER].tracking_ref is None and DHL in parcels
+    later = NOW + timedelta(hours=3)
+    delivered = MailUpdate(DHL, "dhl", ParcelStatus.DELIVERED, later,
+                           title="Beispielhandel e.K.", delivered_at=later)
+    apply_update(parcels, delivered, later)
+    order = fold_delivered(parcels, parcels[DHL], later)
+    assert order is parcels[NUMBER] and DHL not in parcels
+    assert order.tracking_ref == DHL and order.status is ParcelStatus.DELIVERED
 
 
 def test_an_entry_told_of_two_sellers_is_found_by_neither():
@@ -345,9 +432,14 @@ def test_is_seller():
 def test_the_dhl_mail_of_a_seller_goes_to_the_amazon_order():
     # The DHL mail "Ihre Beispiel GmbH Sendung ist unterwegs" (no day) came after Amazon's
     # "Versendet" of an order sold by that seller, an item of another make.
+    page = (
+        "https://www.amazon.de/progress-tracker/package?_encoding=UTF8"
+        f"&amp;orderId={ORDER}&amp;shipmentId=DSeller01&amp;packageIndex=0"
+    )
     amazon = _msg(
         (ORDER, ("Verkauf durch Beispiel GmbH, Händler & Versand aus Deutschland",)),
         when="Fri, 21 Aug 2026 08:00:00 +0200",
+        html_head=f'<a href="{page}">Paket verfolgen</a>',  # (the box sent by the seller)
     )
     updates = [*parse_mail(amazon).updates, *parse_mail(load_mail(
         "118_dhl_international_unterwegs.eml")).updates]
@@ -357,3 +449,40 @@ def test_the_dhl_mail_of_a_seller_goes_to_the_amazon_order():
     [order] = parcels.values()
     assert order.number == NUMBER and order.name.startswith("Musterfirma")
     assert order.tracking_carrier == "dhl" and order.status is ParcelStatus.IN_TRANSIT
+
+
+# ----- a real Amazon mail -----
+REAL = "210_versandbestaetigung_verkauf_durch_haendler.eml"
+REAL_NUMBER = "AMZ99921047335818260"
+
+
+def _real(shipment: str = "DbEiSp9lH") -> EmailMessage:
+    raw = (FIXTURES / "mail" / REAL).read_bytes().replace(b"DbEiSp9lH", shipment.encode())
+    return message_from_bytes(raw, policy=policy.default)
+
+
+def test_a_real_mail_names_the_seller_in_its_html_part_only():
+    msg = load_mail(REAL)
+    assert "Verkauf durch" not in msg.get_body(("plain",)).get_content()
+    [update] = parse_mail(msg).updates
+    assert (update.number, update.status) == (REAL_NUMBER, ParcelStatus.IN_TRANSIT)
+    assert (update.seller, update.shipment_id) == ("Beispielhandel e.K.", "DbEiSp9lH")
+
+
+@pytest.mark.parametrize(
+    ("shipment", "joined"),
+    [
+        ("DbEiSp9lH", True),  # "Versand durch Verkäufer", as in the mail
+        ("TbEiSp9lH", False),  # the same mail, had Amazon sent the box
+    ],
+)
+def test_the_sellers_carrier_mail_finds_the_order_of_a_real_mail(shipment, joined):
+    parcels: dict = {}
+    [update] = parse_mail(_real(shipment)).updates
+    apply_update(parcels, update, update.sent_at)
+    day = datetime(2026, 11, 3, 9, 0, tzinfo=BERLIN)
+    dhl = MailUpdate(DHL, "dhl", ParcelStatus.OUT_FOR_DELIVERY, day,
+                     title="Beispielhandel e.K.", eta_date=day.date())
+    change = apply_update(parcels, dhl, day)
+    assert change.created is not joined
+    assert (parcels[REAL_NUMBER].tracking_ref == DHL) is joined

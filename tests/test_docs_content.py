@@ -1072,6 +1072,9 @@ def test_docs_say_when_a_carrier_mail_joins_a_shop_order():
         # the marketplace seller, never for an order or box of several sellers
         "genau diesen Händler, als Firma mit Rechtsform",
         "Artikeln mehrerer Händler",
+        # ... nor for a box Amazon sends ("Versand durch Amazon")
+        "alle Sendungs-IDs mit „D“ am Anfang",
+        "auch bei „Versand durch Amazon“",
         "Das Carrier-Paket gibt es schon als eigenes Paket",
         # second review: Amazon only, and under which conditions
         "nur zu einem offenen **Amazon-Paket**",
