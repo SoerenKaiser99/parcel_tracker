@@ -36,6 +36,14 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.54 (2026-11-16)
+
+Zwei Beiträge von benep: [PR #78](https://github.com/SoerenKaiser99/parcel_tracker/pull/78) und [PR #68](https://github.com/SoerenKaiser99/parcel_tracker/pull/68).
+
+- **Amazon: neue Verspätungsmail** (Beitrag von benep): Amazon nennt die Mail jetzt „Aktualisierung der Lieferung: „…““ statt „Lieferungsaktualisierung: …“ und den neuen Tag „Voraussichtliche Zustellung bis zum …“. Sie landet nicht mehr in „Nicht erkannt“, sondern lässt die Bestellung auf „Versendet“ mit dem neuen Tag und „Lieferung verspätet“.
+- **Amazon-Händler mit eigenem Versand** (Beitrag von benep): Verschickt ein Händler auf Amazon selbst (DHL, DPD, GLS …), findet die Mail des Paketdienstes die Bestellung jetzt auch über den Händlernamen aus „Verkauf durch …“. Das gilt nur, wenn Amazon die Sendungen der Bestellung schon genannt hat und alle vom Händler kommen; bei Versand durch Amazon ändert sich nichts.
+- **Bekannte Grenze:** Schickt derselbe Händler am selben Tag auch ein Paket aus seinem eigenen Webshop, kann dessen Mail der Amazon-Bestellung zugeordnet werden.
+
 ### v0.3.53 (2026-11-16)
 
 - **Amazon: „Artikel für deine Amazon.de Bestellung #… wurde storniert“.** Diese Mail (Amazon konnte einen Artikel nicht beschaffen) kommt von `no-reply@amazon.de`, dessen Mails der Import bisher nur als gelesen markierte. Jetzt setzt sie die Bestellung auf „Storniert“, nach denselben Regeln wie die anderen Stornomails: nur, wenn die Bestellung genau aus diesem Artikel besteht und noch nicht versendet ist. Alle anderen Mails dieses Absenders bleiben ignoriert. ([#77](https://github.com/SoerenKaiser99/parcel_tracker/issues/77))
