@@ -12,7 +12,7 @@ from html.parser import HTMLParser
 from typing import Literal
 
 from ..carriers.base import BERLIN
-from ..models import ParcelStatus
+from ..models import OrderItem, ParcelStatus
 
 TITLE_MAX = 60
 
@@ -96,6 +96,10 @@ class MailUpdate:
     # that sends the box itself is the company its carrier's mail names (see
     # ``apply._brand_candidate``).
     seller: str | None = None
+    # The items a shop's mail lists for this order or box, each with its article number and
+    # quantity (see ``models.OrderItem``); the order's mail names all of the order's. Empty
+    # if the mail lists none (so far only Amazon's mails are read).
+    items: tuple[OrderItem, ...] = ()
     # Import duty the recipient pays at delivery, as DHL's mail of the day names it ("Die
     # Einfuhrabgaben i.H.v. 12,34€ … sind bei Zustellung … in bar zu bezahlen"). Only the
     # amount, its currency and whether cash is asked for, never the rest of the sentence.
@@ -209,8 +213,11 @@ _BLOCK_TAGS = frozenset({"br", "p", "div", "tr", "li", "h1", "h2", "h3", "h4", "
 _SKIP_TAGS = frozenset({"style", "script", "head", "title"})
 
 
-class _HtmlText(HTMLParser):
-    """Collects visible text; block elements become line breaks."""
+class HtmlText(HTMLParser):
+    """Collects visible text; block elements become line breaks.
+
+    A parser may add lines of its own to ``parts`` (see ``amazon._ItemText``).
+    """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -234,9 +241,12 @@ class _HtmlText(HTMLParser):
             self.parts.append(data)
 
 
-def html_text(markup: str) -> str:
-    """Visible text of an HTML body: one line per block, cleaned, no empty lines."""
-    parser = _HtmlText()
+def html_text(markup: str, parser: HtmlText | None = None) -> str:
+    """Visible text of an HTML body: one line per block, cleaned, no empty lines.
+
+    ``parser``: a fresh ``HtmlText`` of one's own that adds lines (default: the plain one).
+    """
+    parser = parser or HtmlText()
     parser.feed(markup)
     parser.close()
     return "\n".join(line for line in clean("".join(parser.parts)).splitlines() if line)
@@ -286,10 +296,10 @@ def body_text(msg: EmailMessage) -> str:
     return html_body_text(msg)
 
 
-def html_body_text(msg: EmailMessage) -> str:
-    """The text of the HTML body ('' if there is none)."""
+def html_body_text(msg: EmailMessage, parser: HtmlText | None = None) -> str:
+    """The text of the HTML body ('' if there is none); ``parser`` as for ``html_text``."""
     part = msg.get_body(preferencelist=("html",))
-    return html_text(_content(part)) if part is not None else ""
+    return html_text(_content(part), parser) if part is not None else ""
 
 
 _CARRIER_WORDS = (

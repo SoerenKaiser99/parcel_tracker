@@ -137,6 +137,7 @@ LOCAL_CARD_URL = "/local/parcel_tracker/parcel-tracker-card.js"
 CARRIER_AUTO = "auto"
 MAX_EVENTS = 5
 GLS_MAX_EVENTS = 20  # GLS history entries kept per parcel
+MAX_ORDER_ITEMS = 50  # items of a shop's order kept per entry (see models.OrderItem)
 
 # Shops whose orders become parcels ("AMZ…", "EBAY…", "ALI…", "EVT…"); only mails or a
 # merged carrier number (tracking_ref) tell their status, the order itself is never polled.
