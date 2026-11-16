@@ -36,6 +36,12 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.55 (2026-11-16)
+
+Beitrag von benep: [PR #79](https://github.com/SoerenKaiser99/parcel_tracker/pull/79), Vorarbeit für [#55](https://github.com/SoerenKaiser99/parcel_tracker/issues/55).
+
+- **Amazon-Einträge merken sich ihre Artikel** (Beitrag von benep): Je Amazon-Bestellung bzw. -Karton speichert die Integration die Artikelnummern (ASIN) und Mengen der neuesten Mail, die Artikel auflistet, höchstens 50. Sie stehen nur im Speicher, in keinem Attribut und nicht auf der Karte. Noch nutzt sie nichts; am Verhalten ändert sich nichts. Sie sind die Grundlage, um Amazon-Bestellungen später nach Artikeln aufzuteilen.
+
 ### v0.3.54 (2026-11-16)
 
 Zwei Beiträge von benep: [PR #78](https://github.com/SoerenKaiser99/parcel_tracker/pull/78) und [PR #68](https://github.com/SoerenKaiser99/parcel_tracker/pull/68).
