@@ -785,6 +785,25 @@ _T_QUOTED_FROM = re.compile(
     r"(?im)^[>*_ \t]*(?:Von|From):[^\n]*\n(?:[^\n]*\n){0,3}?"
     r"[>*_ \t]*(?:Gesendet|Sent|Datum|Date|An|To|Betreff|Subject):"
 )
+# The attribution line some mail programs write above a quoted mail instead of a header block:
+# "Am 14.11.26, 15:50 schrieb Name <addr>:", "On <date> at <time>, Name <addr> wrote:".
+_T_ATTRIBUTION_DE = re.compile(
+    r"^(?P<head>[> \t]*Am[ \t]+.{1,120}?\d{1,2}:\d{2}.{0,40}?[ \t]schrieb[ \t]+)"
+    r"(?P<who>[^\n]{1,200}?)(?P<tail>[ \t]*:[ \t]*)$"
+)
+_T_ATTRIBUTION_EN = re.compile(
+    r"^(?P<head>[> \t]*On[ \t]+.{1,120}?\d{1,2}:\d{2}(?::\d{2})?"
+    r"(?:[ \t]*[AaPp]\.?[Mm]\b\.?)?(?:[ \t]*(?:GMT|UTC)?[ \t]*[+-]\d{2}:?\d{2})?[ \t,]*)"
+    r"(?P<who>[^\n]{1,200}?)(?P<tail>[ \t]+wrote[ \t]*:[ \t]*)$"
+)
+_T_ATTRIBUTION_START = re.compile(r"^[> \t]*(?:Am|On)[ \t]")
+# The domains of every sender the import knows (KNOWN_MAIL_DOMAINS of the integration, a test
+# keeps both the same): only such a sender stays in an attribution line.
+_T_KNOWN_DOMAINS = frozenset({
+    "aliexpress.com", "amazon.de", "dhl.com", "dhl.de", "dhlecommerce.nl", "dpd.at", "dpd.de",
+    "ebay.com", "eventim.de", "gls-group.eu", "gls-pakete.de", "gls-rtt.com",
+    "paketankuendigung.myhermes.de", "service.dpd.de", "ups.com",
+})
 # One line of the header block a mail program quotes above a forwarded mail: the label
 # (maybe bold or behind quote marks) and its value.
 _T_QUOTED_LINE = re.compile(
@@ -1701,19 +1720,104 @@ def _t_quoted_blocks(lines):
     return blocks
 
 
-def _t_original(text, private):
+def _t_attribution(line):
+    """The match of an attribution line that names an address, else None."""
+    for pattern in (_T_ATTRIBUTION_DE, _T_ATTRIBUTION_EN):
+        match = pattern.match(line)
+        if match and re.search(_T_ADDRESS, match.group("who")):
+            return match
+    return None
+
+
+def _t_known_domain(address):
+    """True for an address at a domain the import knows (or below it), also behind the relay."""
+    host = (relay_original(address) or address).rpartition("@")[2].lower()
+    while host:
+        if host in _T_KNOWN_DOMAINS:
+            return True
+        host = host.partition(".")[2]
+    return False
+
+
+def _t_attribution_address(match):
+    return re.findall(_T_ADDRESS, match.group("who"))[-1]
+
+
+def _t_attribution_sender(match, private):
+    """(address to keep or None, the attribution line with its sender cleaned).
+
+    Only a sender at a domain the import knows stays, everyone else becomes the placeholder
+    address; a name that looks like a person's becomes "Beispielversender"."""
+    head, who, tail = match.group("head"), match.group("who"), match.group("tail").rstrip()
+    quoted = _t_attribution_address(match)
+    if not (_t_known_domain(quoted) or is_eventim(quoted)):
+        return None, head + _T_MAIL + tail
+    name = re.split(r"[<\[]", who, maxsplit=1)[0].strip(" \t\"',")
+    if name and "@" not in name and _t_person(name):
+        who = who.replace(name, "Beispielversender", 1)
+    address, line = _t_quoted_sender(head, who, private)
+    return address, line + tail
+
+
+def _t_attributions(lines):
+    """(start, end, match) of the attribution lines in the lines of a text; a line may be
+    wrapped once (Gmail and Apple Mail break a long one in their text part)."""
+    found, index = [], 0
+    while index < len(lines):
+        line = lines[index].strip()
+        if _T_ATTRIBUTION_START.match(line):
+            match = _t_attribution(line)
+            if match:
+                found.append((index, index + 1, match))
+                index += 1
+                continue
+            following = lines[index + 1].strip() if index + 1 < len(lines) else ""
+            match = following and _t_attribution(f"{line} {following}")
+            if match:
+                found.append((index, index + 2, match))
+                index += 2
+                continue
+        index += 1
+    return found
+
+
+def _t_original(text, private, forward=False):
     """(the text from the innermost quoted header block on, the quoted sender's address).
 
     What stands above that block (the note and signature of the person that forwarded the
     mail, the blocks of earlier forwards) is dropped. In the block the recipients are replaced;
-    the sender stays (the importer tells the original mail by it) unless ``private`` says it
-    is a person. Without such a block the text comes back as it is, with no address.
+    the sender stays (the importer tells the original mail by it) only at a domain the
+    import knows and unless ``private`` says it is a person. Without such a block, in a ``forward`` (WG:, Fwd:, FW:), the innermost
+    attribution line ("Am … schrieb DHL <…>:") is taken the same way, as the importer does.
+    Without either the text comes back as it is, with no address.
     """
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     blocks = _t_quoted_blocks(lines)
     if not blocks:
-        return text, None
+        found = _t_attributions(lines) if forward else []
+        if not found:
+            return text, None
+        # The innermost line of a sender the import knows, as the import takes it.
+        known = [item for item in found if _t_known_domain(_t_attribution_address(item[2]))]
+        start = (known or found)[-1][0]
+        below = {first: (end, match) for first, end, match in found if first >= start}
+        kept, address, index = [], None, start
+        while index < len(lines):
+            if index in below:
+                end, match = below[index]
+                quoted, line = _t_attribution_sender(match, private)
+                address = quoted if index == start else address
+                kept.append(line)
+                index = end
+            else:
+                kept.append(lines[index])
+                index += 1
+        return "\n".join(kept), address
     start, end = blocks[-1]
+
+    def unknown(quoted):  # only a sender the import knows stays in the block
+        return private(quoted) or not (_t_known_domain(quoted) or is_eventim(quoted))
+
     kept, kind, pending, address = [], None, False, None
     for line in lines[start:end]:
         match = _T_QUOTED_LINE.match(line)
@@ -1726,7 +1830,7 @@ def _t_original(text, private):
             elif kind == "to":
                 kept.append(match.group("head") + _T_MAIL)
             elif kind == "from":
-                address, line = _t_quoted_sender(match.group("head"), value, private)
+                address, line = _t_quoted_sender(match.group("head"), value, unknown)
                 kept.append(line)
             else:
                 kept.append(line)
@@ -1735,7 +1839,7 @@ def _t_original(text, private):
                 kept.append(_T_MAIL)
             pending = False  # (a wrapped recipient list is dropped)
         elif kind == "from" and pending:
-            address, line = _t_quoted_sender("", line, private)
+            address, line = _t_quoted_sender("", line, unknown)
             kept.append(line)
             pending = False
         else:
@@ -1757,11 +1861,14 @@ def _t_quoted_sender(head, value, private):
 
 
 def _t_passed_on(msg):
-    """A mail that looks forwarded: subject prefix (WG:, Fwd:, Fw:) or a quoted header block."""
+    """A mail that looks forwarded: subject prefix (WG:, Fwd:, Fw:), a quoted header block or
+    an attribution line ("Am … schrieb DHL <…>:")."""
     plain, markup = _t_texts(msg)[:2]
+    text = (plain + "\n" + markup).replace("\r\n", "\n")
     return bool(
         _T_PASSED_ON.match(_t_header(msg, "Subject"))
-        or _T_QUOTED_FROM.search((plain + "\n" + markup).replace("\r\n", "\n"))
+        or _T_QUOTED_FROM.search(text)
+        or _t_attributions(text.split("\n"))
     )
 
 
@@ -1857,8 +1964,9 @@ def _t_build(msg, number, scrubber):
         )
 
     # A forwarded mail: only the quoted header block and the mail below it are taken.
-    plain, quoted_plain = _t_original(plain, person)
-    markup, quoted_markup = _t_original(markup, person)
+    forward = bool(_T_PASSED_ON.match(raw_subject))
+    plain, quoted_plain = _t_original(plain, person, forward)
+    markup, quoted_markup = _t_original(markup, person, forward)
     keep += tuple(quoted for quoted in (quoted_plain, quoted_markup) if quoted)
     # Eventim, also forwarded by hand or passed on by the relay: its own rules first.
     evt = next((sender for sender in keep if is_eventim(sender)), None)

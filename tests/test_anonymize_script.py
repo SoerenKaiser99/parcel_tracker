@@ -402,3 +402,15 @@ def test_fixture_mode_needs_the_explicit_flag(tmp_path):
     assert "--fixtures" in done.stderr
     assert "Probst" not in done.stderr and "54321" not in done.stderr
     assert not dst.exists() and not (src / "anonymisiert").exists()
+
+
+def test_known_domains_of_the_script_are_those_of_the_import():
+    """The attribution line keeps only a sender at a domain the import knows (v0.3.52)."""
+    import ast
+    import re
+
+    from custom_components.parcel_tracker.mail import KNOWN_MAIL_DOMAINS
+
+    source = (Path(__file__).parent.parent / "scripts" / "anonymize_mail.py").read_text("utf-8")
+    found = re.search(r"^_T_KNOWN_DOMAINS = frozenset\((\{.*?\})\)", source, re.S | re.M)
+    assert found and ast.literal_eval(found.group(1)) == set(KNOWN_MAIL_DOMAINS)

@@ -13,7 +13,6 @@ from email.message import EmailMessage
 from ..models import ParcelStatus
 from .base import (
     MailUpdate,
-    at,
     body_text,
     company_name,
     find_numbers,
@@ -23,6 +22,7 @@ from .base import (
     shop_of,
     subject,
     upcoming_date,
+    window_at,
 )
 
 HERMES_SENDER = "noreply@paketankuendigung.myhermes.de"
@@ -126,7 +126,6 @@ def parse_hermes_mail(msg: EmailMessage) -> list[MailUpdate]:
         day = _eta(text, sent.date())
     if day:
         update.eta_date = day
-        if window := _WINDOW.search(text):
-            update.eta_from = at(day, int(window.group(1)), int(window.group(2)))
-            update.eta_to = at(day, int(window.group(3)), int(window.group(4)))
+        if (window := _WINDOW.search(text)) and (times := window_at(day, window.groups())):
+            update.eta_from, update.eta_to = times
     return [update]

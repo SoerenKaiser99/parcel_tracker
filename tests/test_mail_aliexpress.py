@@ -913,3 +913,30 @@ def test_delivered_keeps_the_carriers_earlier_time(aliexpress_first):
     dhl_time = datetime(2026, 10, 7, 14, 45, tzinfo=BERLIN)
     assert order.result.delivered_at == dhl_time
     assert order.result.events[0].timestamp == dhl_time
+
+
+@pytest.mark.parametrize(
+    ("subject", "words"),
+    [
+        (f"Paket {DHL}: Importverzollung gestartet", "Importverzollung gestartet"),
+        (f"Paket {DHL}: im Versandzentrum", "Im Versandzentrum"),
+        (f"Packstück {DHL}: Importverzollung gestartet", "Importverzollung gestartet"),
+    ],
+)
+def test_parcel_mail_with_paket_and_colon_moves_its_order(subject, words):
+    # (#74) "Paket <number>: <step>" is a parcel mail like "Packstück <number>: <step>".
+    html = f'<html><body><a href="{LINK}9999999999990901">Paket verfolgen</a></body></html>'
+    [u] = parse_mail(_msg(subject, html=html)).updates
+    assert (u.number, u.carrier) == (ORDER, "aliexpress")
+    assert (u.status, u.status_text) == (ParcelStatus.IN_TRANSIT, words)
+    assert (u.tracking_ref, u.tracking_carrier) == (DHL, "dhl")
+
+
+def test_paket_with_colon_and_unknown_step_stays_unrecognised():
+    result = parse_mail(_msg(f"Paket {DHL}: irgendwas Neues"))
+    assert result.updates == [] and not result.ignored
+
+
+def test_paket_without_colon_still_tells_the_last_mile():
+    [u] = parse_mail(_msg(f"Paket {DHL} wird zugestellt")).updates
+    assert u.status is ParcelStatus.OUT_FOR_DELIVERY

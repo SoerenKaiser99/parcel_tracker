@@ -87,6 +87,9 @@ _PARCEL_STEPS: dict[str, str | None] = {
     "in ihrem land / ihrer region": "Im Zielland angekommen",
     "im zielland / in der zielregion": "Im Zielland angekommen",
     "mit lokalem kurier": "Dem lokalen Kurier übergeben",
+    # (#74: also under "Paket <number>: …")
+    "importverzollung gestartet": "Importverzollung gestartet",
+    "im versandzentrum": "Im Versandzentrum",
     # (the body only says that there is news from the country of departure)
     "hat eine aktualisierung": None,
 }
@@ -115,7 +118,7 @@ _ORDER_SUBJECT = re.compile(r"Bestellung (?P<order>\d{12,20})\s*:?\s*(?P<step>\S
 _ORDERS_SUBJECT = re.compile(r"\d+ Bestellungen wurden bestätigt: (?P<order>\d{12,20})\b")
 _PARCEL_SUBJECT = re.compile(r"Packstück (?P<number>[0-9A-Z]{8,30})\s*:?\s*(?P<step>\S.*)")
 _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) wurde beendet")
-_PACKAGE_SUBJECT = re.compile(r"Paket (?P<number>[0-9A-Z]{8,30})\s+(?P<step>\S.*)")
+_PACKAGE_SUBJECT = re.compile(r"Paket (?P<number>[0-9A-Z]{8,30})(?:\s*:\s*|\s+)(?P<step>\S.*)")
 _PROBLEM_SUBJECT = re.compile(r"Lieferprobleme für Packstück (?P<number>[0-9A-Z]{8,30})\b")
 # English, whatever the language of the account; its body tells no reason (cancelled,
 # refunded, closed after a dispute, or done), so nothing is taken from it.
@@ -474,10 +477,13 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     if found := _PROBLEM_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), PROBLEM_TEXT, postponed=True)
     if found := _PACKAGE_SUBJECT.match(subj):
-        step = _PACKAGE_STEPS.get(" ".join(found.group("step").lower().split()))
-        if step is None:
-            return MailResult()
-        return _parcel_mail(msg, found.group("number"), step[1], step[0])
+        key = " ".join(found.group("step").lower().split())
+        if step := _PACKAGE_STEPS.get(key):
+            return _parcel_mail(msg, found.group("number"), step[1], step[0])
+        # ("Paket <number>: Importverzollung gestartet": a step of the way, see #74)
+        if key in _PARCEL_STEPS:
+            return _parcel_mail(msg, found.group("number"), _PARCEL_STEPS[key])
+        return MailResult()
     if found := _PARCEL_SUBJECT.match(subj):
         step = " ".join(found.group("step").lower().split())
         if step not in _PARCEL_STEPS:

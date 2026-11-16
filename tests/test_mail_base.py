@@ -27,6 +27,7 @@ from custom_components.parcel_tracker.mail.base import (
     subject,
     title_key,
     upcoming_date,
+    window_at,
 )
 
 from .conftest import load_mail
@@ -73,6 +74,16 @@ def test_relative_day_and_at():
     assert relative_day("heute", ref) == date(2026, 7, 30)
     assert relative_day("morgen", ref) == date(2026, 7, 31)
     assert at(date(2026, 7, 31), 13, 10) == datetime(2026, 7, 31, 13, 10, tzinfo=BERLIN)
+
+
+def test_window_at_drops_impossible_and_reversed_times():
+    day = date(2026, 7, 31)
+    assert window_at(day, ("13", "10", "14", "40")) == (at(day, 13, 10), at(day, 14, 40))
+    assert window_at(day, ("0", "00", "23", "59")) == (at(day, 0, 0), at(day, 23, 59))
+    # a minute the pattern leaves out ("18h – 22h") is 0
+    assert window_at(day, ("18", None, "22", None)) == (at(day, 18, 0), at(day, 22, 0))
+    for parts in ["25 99 26 00", "13 10 24 00", "13 60 14 40", "18 00 08 00", "09 00 09 00"]:
+        assert window_at(day, parts.split()) is None
 
 
 @pytest.mark.parametrize(
