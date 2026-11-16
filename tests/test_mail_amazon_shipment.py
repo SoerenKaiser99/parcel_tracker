@@ -171,7 +171,7 @@ def test_an_order_named_as_two_shipments_of_one_mail_takes_no_id():
     for update in updates:
         apply_update(parcels, update, NOW)
     assert parcels[NUMBER].name == "Alphamarke Trinkflasche 750 ml"
-    assert parcels[f"{NUMBER}P2"].name == "Betamarke Kabel 2 m (2)"
+    assert parcels[f"{NUMBER}P2"].name == "Betamarke Kabel 2 m"
 
 
 # ----- one box with the items of several orders -----
@@ -336,7 +336,7 @@ def test_two_boxes_of_one_item_stay_apart_through_all_their_mails():
     )
     assert _boxes(parcels) == {
         NUMBER: (f"{ALPHA}…", SHIPPED, [FIRST]),
-        f"{NUMBER}P2": (f"{ALPHA}… (2)", DELIVERED, [SECOND]),
+        f"{NUMBER}P2": (f"{ALPHA}…", DELIVERED, [SECOND]),
     }
 
 
@@ -350,7 +350,7 @@ def test_the_first_box_takes_over_the_ordered_entry_and_its_name():
     )
     assert _boxes(parcels) == {
         NUMBER: ("Betamarke Kab… und 1 weiterer Artikel", DELIVERED, [FIRST]),
-        f"{NUMBER}P2": ("Alphamarke Tri… (2)", SHIPPED, [SECOND]),
+        f"{NUMBER}P2": ("Alphamarke Tri…", SHIPPED, [SECOND]),
     }
 
 
@@ -363,7 +363,7 @@ def test_the_ordered_entry_keeps_its_name_for_a_box_of_its_item(shipped):
 
 def test_a_further_box_whose_mail_names_no_item_is_named_after_the_shop():
     parcels = _run(_mail(SHIPPED, ALPHA, FIRST), _mail(DELIVERED, None, SECOND, 10))
-    assert parcels[f"{NUMBER}P2"].name == "Amazon-Sendung (2)"
+    assert parcels[f"{NUMBER}P2"].name == "Amazon-Sendung"
     assert parcels[NUMBER].status is SHIPPED
 
 
@@ -374,7 +374,7 @@ def test_the_shop_name_gives_way_once_a_mail_names_the_item():
         _mail(DELIVERED, None, SECOND, 10),
         _mail(SHIPPED, BETA, SECOND, 8),
     )
-    assert _boxes(parcels)[f"{NUMBER}P2"] == (f"{BETA} (2)", DELIVERED, [SECOND])
+    assert _boxes(parcels)[f"{NUMBER}P2"] == (f"{BETA}", DELIVERED, [SECOND])
 
 
 def test_a_name_typed_in_for_a_box_without_item_stays():
@@ -414,7 +414,7 @@ def test_an_attempted_delivery_of_a_new_box_is_an_entry_of_its_own():
     )
     assert _boxes(parcels) == {
         NUMBER: (ALPHA, OUT, [FIRST]),
-        f"{NUMBER}P2": (f"{BETA} (2)", SHIPPED, [SECOND]),
+        f"{NUMBER}P2": (f"{BETA}", SHIPPED, [SECOND]),
     }
     assert parcels[f"{NUMBER}P2"].result.status_text == ATTEMPT_TEXT
 
@@ -449,7 +449,7 @@ def test_a_new_id_without_a_title_takes_the_open_entry_no_box_was_told_for():
     )
     assert _boxes(parcels) == {
         NUMBER: (ALPHA, SHIPPED, [FIRST]),
-        f"{NUMBER}P2": (f"{BETA} (2)", DELIVERED, [SECOND]),
+        f"{NUMBER}P2": (f"{BETA}", DELIVERED, [SECOND]),
     }
 
 
@@ -458,7 +458,7 @@ def test_a_further_box_is_its_own_entry_whatever_its_status():
     parcels = _run(_mail(SHIPPED, ALPHA, FIRST), _mail(OUT, ALPHA, SECOND, 10))
     assert _boxes(parcels) == {
         NUMBER: (ALPHA, SHIPPED, [FIRST]),
-        f"{NUMBER}P2": (f"{ALPHA} (2)", OUT, [SECOND]),
+        f"{NUMBER}P2": (f"{ALPHA}", OUT, [SECOND]),
     }
 
 
@@ -470,7 +470,7 @@ def test_without_ids_the_first_box_takes_over_the_ordered_entry_as_well():
     )
     assert _boxes(parcels) == {
         NUMBER: ("Betamarke Kab…", SHIPPED, []),
-        f"{NUMBER}P2": ("Alphamarke Tri… (2)", SHIPPED, []),
+        f"{NUMBER}P2": ("Alphamarke Tri…", SHIPPED, []),
     }
 
 
@@ -500,7 +500,7 @@ def test_a_new_id_shipping_another_item_is_still_a_further_box():
     parcels = _run(_mail(SHIPPED, ALPHA), _mail(SHIPPED, BETA, FIRST, 10))
     assert _boxes(parcels) == {
         NUMBER: (ALPHA, SHIPPED, []),
-        f"{NUMBER}P2": (f"{BETA} (2)", SHIPPED, [FIRST]),
+        f"{NUMBER}P2": (f"{BETA}", SHIPPED, [FIRST]),
     }
 
 
@@ -514,7 +514,7 @@ def test_a_new_id_skips_an_entry_with_another_id():
     )
     assert _boxes(parcels) == {
         NUMBER: ("Betamarke Kab…", SHIPPED, [FIRST]),
-        f"{NUMBER}P2": ("Alphamarke… (2)", DELIVERED, [SECOND]),
+        f"{NUMBER}P2": ("Alphamarke…", DELIVERED, [SECOND]),
     }
 
 
@@ -531,8 +531,8 @@ def test_a_further_box_after_a_removed_entry_in_between_takes_a_free_number(ids)
     _run(_mail(SHIPPED, DELTA, fourth, 12), parcels=parcels)
     assert {n: p.name for n, p in parcels.items()} == {
         NUMBER: ALPHA,
-        f"{NUMBER}P3": f"{GAMMA} (3)",
-        f"{NUMBER}P4": f"{DELTA} (4)",
+        f"{NUMBER}P3": f"{GAMMA}",
+        f"{NUMBER}P4": f"{DELTA}",
     }
 
 
@@ -543,8 +543,8 @@ def test_a_further_box_after_the_removed_first_entry_takes_a_free_number(ids):
     del parcels[NUMBER]
     _run(_mail(SHIPPED, GAMMA, third, 11), parcels=parcels)
     assert {n: p.name for n, p in parcels.items()} == {
-        f"{NUMBER}P2": f"{BETA} (2)",
-        f"{NUMBER}P3": f"{GAMMA} (3)",
+        f"{NUMBER}P2": f"{BETA}",
+        f"{NUMBER}P3": f"{GAMMA}",
     }
 
 
@@ -599,7 +599,7 @@ def test_an_entry_shipped_before_it_was_closed_is_no_order_to_take_over():
     _run(_mail(SHIPPED, BETA, FIRST, 10), parcels=parcels)
     assert _boxes(parcels) == {
         NUMBER: (ALPHA, DELIVERED, []),
-        f"{NUMBER}P2": (f"{BETA} (2)", SHIPPED, [FIRST]),
+        f"{NUMBER}P2": (f"{BETA}", SHIPPED, [FIRST]),
     }
 
 
@@ -653,7 +653,7 @@ def test_three_boxes_of_one_day_stay_apart_though_two_have_the_same_title():
         (DELIVERED, ["TWsgUCqnI"]),
         (DELIVERED, ["TdHFU2zAu"]),
     ]
-    assert (second.name, third.name) == ("Gardena… (2)", "Gardena… und 1 weiterer Artikel (3)")
+    assert (second.name, third.name) == ("Gardena…", "Gardena… und 1 weiterer Artikel")
 
 
 def test_the_order_named_after_its_first_item_takes_the_name_of_the_first_box():
@@ -661,7 +661,7 @@ def test_the_order_named_after_its_first_item_takes_the_name_of_the_first_box():
     # holds another one, the second box the first item and one more.
     assert [(p.name, p.status, p.shipment_ids) for p in _replay(189, 191)] == [
         ("OVNSHVN…", SHIPPED, ["T6DlR8pGJ"]),
-        ("Fasgear 240W… und 1 weiterer Artikel (2)", SHIPPED, ["TXAnNg2hP"]),
+        ("Fasgear 240W… und 1 weiterer Artikel", SHIPPED, ["TXAnNg2hP"]),
     ]
 
 

@@ -134,6 +134,7 @@ from .models import (
     TrackingResult,
     carrier_name,
     display_name,
+    name_parts,
     person_configs,
     shared_addresses,
 )
@@ -2346,7 +2347,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel = self.store.parcels[normalize(number)]
         self._guard_gift(parcel, user_id, "gift_rename_not_allowed")
         given = (name or "").strip() or None
-        if given is not None and given in (parcel.name, self.display_name(parcel)):
+        # (the card offers the name without its further items, "(+2)": ``name_parts``)
+        if given is not None and given in (
+            parcel.name, self.display_name(parcel), name_parts(parcel)[0]
+        ):
             return
         parcel.name = given
         parcel.name_manual = given is not None

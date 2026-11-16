@@ -106,7 +106,7 @@ def test_further_shipment_of_same_order_gets_suffix():
     change = apply_update(parcels, second, NOW)
     assert change.created
     assert change.parcel.number == f"{PLAETTCHEN}P2"
-    assert change.parcel.name == "Magnethalter… (2)"
+    assert change.parcel.name == "Magnethalter…"
     out = replace(first, title="Magnethalter…", status=ParcelStatus.OUT_FOR_DELIVERY)
     assert apply_update(parcels, out, NOW).parcel.number == f"{PLAETTCHEN}P2"
     assert parcels[PLAETTCHEN].status is ParcelStatus.IN_TRANSIT

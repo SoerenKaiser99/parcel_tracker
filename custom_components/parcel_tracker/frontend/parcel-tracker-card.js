@@ -41,6 +41,20 @@ const fmtDateTime = (iso) => (isLocalMidnight(iso) ? fmtDate(iso) : `${fmtDate(i
 
 const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]));
+// A name with the further items of its box behind it ("… (+2)", the integration's
+// ``with_more``): the name is cut to the card's width, the further items always stay.
+const MORE_ITEMS = /^(.*\S) (\(\+\d+\))$/;
+const nameHtml = (text) => {
+  const found = MORE_ITEMS.exec(text);
+  return found
+    ? `<span>${esc(found[1])}</span><span class="more">${esc(found[2])}</span>`
+    : `<span>${esc(text)}</span>`;
+};
+// The name without its further items: what "Umbenennen" offers to change.
+const bareName = (text) => {
+  const found = MORE_ITEMS.exec(text);
+  return found ? found[1] : text;
+};
 
 const ERROR_TEXT = {
   auth: "DHL-API-Key abgelehnt – in den Integrations-Optionen prüfen",
@@ -1004,6 +1018,7 @@ class ParcelTrackerCard extends HTMLElement {
         .top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
         .name { font-weight:500; display:flex; gap:8px; align-items:center; min-width:0; flex:1 1 auto; }
         .name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .name .more { flex:none; overflow:visible; margin-left:-4px; font-weight:400; color:var(--secondary-text-color); }
         .eta { font-size:13px; white-space:nowrap; color:var(--secondary-text-color); }
         .eta.today { color:var(--success-color); font-weight:500; }
         .chev { flex:none; align-self:center; box-sizing:border-box; width:7px; height:7px; margin:0 2px 0 -1px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:var(--secondary-text-color); transform:rotate(-45deg); transition:transform .15s ease; }
@@ -1546,7 +1561,7 @@ class ParcelTrackerCard extends HTMLElement {
       if (el) el.addEventListener("click", fn);
     };
     const num = a.number;
-    on("rename", () => { this._confirming.delete(num); this._receiving.delete(num); this._renaming.set(num, isGift(a) ? (this._revealed.get(num) || {}).name || "" : a.name || ""); this._renderList(); });
+    on("rename", () => { this._confirming.delete(num); this._receiving.delete(num); this._renaming.set(num, isGift(a) ? bareName((this._revealed.get(num) || {}).name || "") : bareName(a.name || "")); this._renderList(); });
     on("rename-cancel", () => { this._renaming.delete(num); this._renderList(); });
     const save = async () => {
       const name = this._renaming.get(num);
@@ -1705,7 +1720,7 @@ class ParcelTrackerCard extends HTMLElement {
     // No code any more (used, expired, option off): the one fetched is forgotten.
     if (a.has_delivery_code !== true) { this._codes.delete(a.number); this._code.delete(a.number); }
     const toggle = `<button type="button" class="row-toggle" aria-expanded="${open ? "true" : "false"}" data-number="${esc(a.number)}" data-a="toggle">
-        <span class="top"><span class="name">${this._icon(a.carrier)}<span>${esc(a.name || a.number)}</span></span>${right}<span class="chev" aria-hidden="true"></span></span>
+        <span class="top"><span class="name">${this._icon(a.carrier)}${nameHtml(a.name || a.number)}</span>${right}<span class="chev" aria-hidden="true"></span></span>
       </button>`;
     // The gift box stands beside the row's button, not in it (no button in a button).
     item.innerHTML = `

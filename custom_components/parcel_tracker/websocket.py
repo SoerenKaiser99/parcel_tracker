@@ -10,6 +10,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .detect import normalize
 from .links import tracking_url
+from .models import name_parts, with_more
 
 
 def _coordinator(hass: HomeAssistant):
@@ -43,10 +44,12 @@ async def ws_gift_name(hass: HomeAssistant, connection, msg: dict) -> None:
     if parcel is None:
         connection.send_error(msg["id"], "not_found", "Parcel not found")
         return
+    # (shown as every name is: with its further items, "(+2)")
+    name, more = name_parts(parcel)
     connection.send_result(
         msg["id"],
         {
-            "name": parcel.name,
+            "name": with_more(name, more) if name else name,
             "mail_title": parcel.mail_title,
             "tracking_url": tracking_url(parcel),
         },

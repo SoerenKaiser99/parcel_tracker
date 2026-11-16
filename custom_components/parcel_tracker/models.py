@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -110,15 +111,18 @@ class OrderItem:
       only with the items of the same shop. Amazon: the ASIN from the link to the item's
       page. None if the mail names none (an Amazon mail without HTML part).
     - ``quantity``: how many of it ("Menge: 2"); a pack ("5 Stück …") is one.
+    - ``title``: its name in full, cut to TITLE_MAX like every title (the subject cuts it
+      much shorter); None if the mail names none.
 
     Only Amazon's mails are read for items so far.
     """
 
     article_id: str | None
     quantity: int
+    title: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {"article_id": self.article_id, "quantity": self.quantity}
+        return {"article_id": self.article_id, "quantity": self.quantity, "title": self.title}
 
     @classmethod
     def from_dict(cls, data: Any) -> OrderItem | None:
@@ -128,8 +132,11 @@ class OrderItem:
         quantity = data.get("quantity")
         if type(quantity) is not int or quantity < 1:
             return None
-        article_id = data.get("article_id")
-        return cls(article_id if isinstance(article_id, str) and article_id else None, quantity)
+        article_id, title = (
+            value if isinstance(value := data.get(key), str) and value else None
+            for key in ("article_id", "title")
+        )
+        return cls(article_id, quantity, title)
 
 
 def _items(value: Any) -> list[OrderItem]:
@@ -510,18 +517,54 @@ def gift_name(parcel: Parcel) -> str:
     return f"Geschenk · {neutral_name(parcel)}"
 
 
+# What a mail's title says about further items: "… und 2 weitere Artikel" (Amazon's subject).
+MORE_ITEMS = re.compile(r"\s*und\s+(\d+)\s+weitere[r]?\s+Artikel\s*$")
+# The number of a further entry of an order that older versions put behind its name: "… (2)"
+# for "…P2". A name tells the item, the number of the entry tells nothing a user needs.
+_ENTRY_NUMBER = re.compile(r"\s+\((\d+)\)$")
+
+
+def name_parts(parcel: Parcel) -> tuple[str | None, int]:
+    """(name, more): the name a mail gave the parcel, without the further items it holds,
+    and how many further items there are (shown as "(+2)", see ``with_more``).
+
+    A name from the items of its newest mail (the title of the first one) is taken as it
+    is, and they tell how many more (``Parcel.items``). Any other name from a mail is one
+    from a subject: it tells them in words ("… und 2 weitere Artikel"), and one stored by an
+    older version may end in the entry's own number ("… (2)" for "…P2"), which goes. A
+    name the user typed in is taken as it is.
+    """
+    name = parcel.name
+    if not name or parcel.name_manual:
+        return name, 0
+    if parcel.items and name == parcel.items[0].title:
+        return name, len(parcel.items) - 1
+    if (entry := _ENTRY_NUMBER.search(name)) and parcel.number.endswith(f"P{entry.group(1)}"):
+        name = name[: entry.start()]
+    if found := MORE_ITEMS.search(name):
+        return name[: found.start()], int(found.group(1))
+    return name, 0
+
+
+def with_more(name: str, more: int) -> str:
+    """A name with its further items: "Beispiel-Maßband 5 m (+2)"."""
+    return f"{name} (+{more})" if more else name
+
+
 def display_name(parcel: Parcel, hide_names: bool) -> str | None:
     """The name a parcel is shown by, None if it has none.
 
     With "Namen ausblenden" (``hide_names``) only a name the user typed in is shown;
     every other parcel gets its neutral name, whatever a mail called it. The stored
     name and mail title are never changed by this. A gift (``Parcel.gift``) is always shown
-    by its gift name, also against a name the user typed in.
+    by its gift name, also against a name the user typed in. Further items are told
+    behind the name ("(+2)", ``name_parts``).
     """
     if parcel.gift:
         return gift_name(parcel)
     if not hide_names:
-        return parcel.name
+        name, more = name_parts(parcel)
+        return with_more(name, more) if name else name
     if parcel.name and parcel.name_manual:
         return parcel.name
     return neutral_name(parcel)

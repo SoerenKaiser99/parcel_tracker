@@ -12,7 +12,7 @@ from html.parser import HTMLParser
 from typing import Literal
 
 from ..carriers.base import BERLIN
-from ..models import OrderItem, ParcelStatus
+from ..models import MORE_ITEMS, OrderItem, ParcelStatus
 
 TITLE_MAX = 60
 
@@ -29,7 +29,7 @@ _SPACES = re.compile("[ \t   ]+")
 _FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
 # A forward (WG:/Fwd:/FW:), not a reply (AW:/Re:): only the first prefix counts.
 _HAND_FORWARD = re.compile(r"^(?:wg|fwd?)\s*:", re.IGNORECASE)
-_MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
+_MORE = MORE_ITEMS  # ("… und 2 weitere Artikel", shown as "(+2)": ``models.name_parts``)
 # Words a shop's mail about a postponed delivery brings (``MailUpdate.status_text``): nobody
 # was met, it takes longer, or it could not be delivered for a reason not told (AliExpress
 # "Lieferprobleme für Packstück …"). They tell one moment, see ``apply._POSTPONED_TEXTS``.
