@@ -14,6 +14,7 @@ from .const import (
     CONF_PERSONS,
     CONF_SHARED_ADDRESSES,
     MAIL_CARRIERS,
+    MAX_ORDER_ITEMS,
     SHOP_CARRIERS,
     TRACK17_CARRIER_NAMES,
 )
@@ -99,6 +100,44 @@ def _texts(value: Any) -> list[str]:
 def _persons(value: Any) -> list[str]:
     """A stored list of person entity ids, each once; anything else is dropped."""
     return list(dict.fromkeys(p for p in _texts(value) if p.startswith("person.")))
+
+
+@dataclass(frozen=True)
+class OrderItem:
+    """One item of a shop's order or box, as the shop's mail lists it.
+
+    - ``article_id``: the shop's own number of the article, as the mail names it; compared
+      only with the items of the same shop. Amazon: the ASIN from the link to the item's
+      page. None if the mail names none (an Amazon mail without HTML part).
+    - ``quantity``: how many of it ("Menge: 2"); a pack ("5 Stück …") is one.
+
+    Only Amazon's mails are read for items so far.
+    """
+
+    article_id: str | None
+    quantity: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"article_id": self.article_id, "quantity": self.quantity}
+
+    @classmethod
+    def from_dict(cls, data: Any) -> OrderItem | None:
+        """A stored item; None for anything unreadable (it is dropped)."""
+        if not isinstance(data, dict):
+            return None
+        quantity = data.get("quantity")
+        if type(quantity) is not int or quantity < 1:
+            return None
+        article_id = data.get("article_id")
+        return cls(article_id if isinstance(article_id, str) and article_id else None, quantity)
+
+
+def _items(value: Any) -> list[OrderItem]:
+    """A stored list of items; anything unreadable in it (or no list at all) is dropped."""
+    if not isinstance(value, list):
+        return []
+    items = (OrderItem.from_dict(item) for item in value[:MAX_ORDER_ITEMS])
+    return [item for item in items if item is not None]
 
 
 @dataclass(frozen=True)
@@ -259,6 +298,12 @@ class Parcel:
     # first, each once: what a carrier's mail naming the seller is matched by, as long as
     # it is one. Persisted; an order stored by an older version has none.
     sellers: list[str] = field(default_factory=list)
+    # The items of a shop's order or box (``MailUpdate.items``): those of the newest mail
+    # that listed items for this entry, at most MAX_ORDER_ITEMS, and the time that mail was
+    # sent (``items_at``: a mail sent before it never replaces them). Persisted, never shown
+    # and in no attribute; an entry stored by an older version has none.
+    items: list[OrderItem] = field(default_factory=list)
+    items_at: datetime | None = None
     # Import duty a DHL mail named (``MailUpdate.customs_amount``): the amount, its currency
     # and whether the carrier asks for cash. Persisted; see ``customs_due`` for when it is
     # shown.
@@ -360,6 +405,8 @@ class Parcel:
             "carrier_status": self.carrier_status.value if self.carrier_status else None,
             "shipment_ids": list(self.shipment_ids),
             "sellers": list(self.sellers),
+            "items": [item.to_dict() for item in self.items],
+            "items_at": _iso(self.items_at),
             "customs_amount": self.customs_amount,
             "customs_currency": self.customs_currency,
             "customs_cash": self.customs_cash,
@@ -415,6 +462,8 @@ class Parcel:
             carrier_status=_status(data.get("carrier_status")),
             shipment_ids=_texts(data.get("shipment_ids")),
             sellers=_texts(data.get("sellers")),
+            items=_items(data.get("items")),
+            items_at=_dt(data.get("items_at")),
             customs_amount=_amount(data.get("customs_amount")),
             customs_currency=(
                 cur if isinstance(cur := data.get("customs_currency"), str) and cur else None

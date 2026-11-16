@@ -6,14 +6,16 @@ import re
 from dataclasses import replace
 from datetime import date, datetime
 from email.message import EmailMessage
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import SplitResult, parse_qsl, urlsplit
 
-from ..models import ParcelStatus
+from ..const import MAX_ORDER_ITEMS
+from ..models import OrderItem, ParcelStatus
 from .base import (
     ATTEMPT_TEXT,
     DELAY_TEXT,
     LEGAL_FORM,
     MONTHS,
+    HtmlText,
     MailUpdate,
     body_text,
     carrier_for,
@@ -173,7 +175,8 @@ _PLACE_END = re.compile(
     r"(?:\s+[A-Za-z]{2,6}#|\s*,\s*\d{4,5}\b|\s+\d{4,5}(?:\s+[^\W\d_]|\s*$)"
     rf"|\s+{_DAY_TEXT}\s*$).*$"
 )
-_QUANTITY_LINE = re.compile(r"^Menge:\s*\d+\s*$", re.MULTILINE)
+# An item's quantity, on a line below it ("Menge: 2"), in both parts.
+_QUANTITY_LINE = re.compile(r"^Menge:\s*(?P<n>\d+)\s*$", re.MULTILINE)
 # The link to a shipment's tracking page, in every mail from "Versendet" on (since autumn
 # 2025): https://www.amazon.de/progress-tracker/package?orderId=…&shipmentId=…, behind
 # Amazon's own redirect (https://www.amazon.de/gp/r.html?…&U=<the page>).
@@ -194,6 +197,16 @@ _SELLER = re.compile(r"^Verkauf durch[ \t]+(?P<name>\S[^\n]*)$", re.MULTILINE)
 _SELLER_MAX = 100
 _NOT_A_NAME = re.compile(r"^[\W_]+")  # (stars and the like in front of a seller's name)
 _AMAZON = re.compile(r"(?<![^\W_])amazon(?![^\W_])", re.IGNORECASE)  # (not "Amazonas")
+# The HTML part links each item to its page, behind Amazon's redirect: /dp/<article
+# number>, ten letters and digits; also behind up to three other parts of the path ("/<the
+# item's name>/dp/…", "/-/en/dp/…") and as "/gp/product/…", with anything after it.
+_PRODUCT_PATH = re.compile(
+    r"(?:/[^/]+){0,3}?/(?:dp|gp/product)/(?P<asin>[A-Z0-9]{10})(?:/.*)?"
+)
+# The start of a line ``_ItemText`` adds for a link to an item's page: a private-use
+# character, which no mail shows and ``clean`` keeps (it strips whitespace, "\x1f" as well).
+_MARK = ""
+_ASIN = re.compile(r"[A-Z0-9]{10}")  # (an item's article number, as ``_PRODUCT_PATH`` reads it)
 _ORDER_ID = re.compile(r"\d{3}-\d{7}-\d{7}")
 _SHIPMENT_ID = re.compile(r"[A-Za-z0-9]{5,20}")
 
@@ -290,24 +303,42 @@ def _plain_title(subj: str, below: str) -> str | None:
     return None
 
 
-def _tracker_params(link: str, redirect: bool = True) -> dict[str, str] | None:
-    """The parameters of a link to Amazon's tracking page, None for any other link.
-
-    Only https links to amazon.de count; Amazon's redirect counts for the page it names,
-    which must be the page itself (no redirect inside a redirect).
-    """
+def _amazon_url(link: str) -> SplitResult | None:
+    """A link as an https link to amazon.de, None for any other link."""
     try:
         url = urlsplit(link.strip())
     except ValueError:
         return None
     if url.scheme != "https" or (url.hostname or "").lower() not in _LINK_HOSTS:
         return None
+    return url
+
+
+def _amazon_page(link: str) -> tuple[str, dict[str, str]] | None:
+    """(path, parameters) of the page at amazon.de a link leads to, None for any other link.
+
+    Only https links to amazon.de count; Amazon's redirect counts for the page it names,
+    which must be such a link itself (no redirect inside a redirect).
+    """
+    url = _amazon_url(link)
+    if url is None:
+        return None
     params = dict(parse_qsl(url.query))
-    if url.path == _TRACKER_PATH or url.path.startswith(f"{_TRACKER_PATH}/"):
-        return params
-    if redirect and url.path == _REDIRECT_PATH and params.get("U"):
-        return _tracker_params(params["U"], redirect=False)
-    return None
+    if url.path == _REDIRECT_PATH:
+        url = _amazon_url(params.get("U", ""))
+        if url is None or url.path == _REDIRECT_PATH:
+            return None
+        params = dict(parse_qsl(url.query))
+    return url.path, params
+
+
+def _tracker_params(link: str) -> dict[str, str] | None:
+    """The parameters of a link to Amazon's tracking page, None for any other link."""
+    page = _amazon_page(link)
+    if page is None:
+        return None
+    path, params = page
+    return params if path == _TRACKER_PATH or path.startswith(f"{_TRACKER_PATH}/") else None
 
 
 def _shipments(msg: EmailMessage) -> dict[str, str]:
@@ -361,16 +392,15 @@ def _mention_seller(text: str, start: int, end: int) -> tuple[int, str | None]:
     return items, company if company and LEGAL_FORM.search(company) else None
 
 
-def _sellers(msg: EmailMessage, numbers: list[str], whole_order: bool) -> list[str | None]:
+def _sellers(text: str, numbers: list[str], whole_order: bool) -> list[str | None]:
     """The seller of each mention of an order in ``numbers`` (``_mention_seller`` of what
-    the HTML part, else the text part, lists below its number).
+    the HTML part, else the text part, lists below its number: ``text``, see ``_ItemText``).
 
     Each mention takes the seller of its own items if both parts name the same orders in
     the same order. Otherwise, and in a mail about the whole order (``whole_order``: the
     order's mail, which names an order once per day, all of it one entry), a mention takes a
     seller only if every mention of its order that lists items names that same one.
     """
-    text = html_body_text(msg) or body_text(msg)
     mentions = list(_ORDER.finditer(text))
     found: list[tuple[str, int, str | None]] = []
     for index, match in enumerate(mentions):
@@ -384,6 +414,75 @@ def _sellers(msg: EmailMessage, numbers: list[str], whole_order: bool) -> list[s
             by_order.setdefault(number, set()).add(seller)
     return [
         next(iter(sellers)) if len(sellers := by_order.get(number, {None})) == 1 else None
+        for number in numbers
+    ]
+
+
+def _product_asin(link: str) -> str | None:
+    """The article number a link to an item's page names, None for any other link
+    (``_amazon_page``)."""
+    page = _amazon_page(link)
+    found = _PRODUCT_PATH.fullmatch(page[0]) if page else None
+    return found.group("asin") if found else None
+
+
+class _ItemText(HtmlText):
+    """The visible text of Amazon's HTML part, with a line of its own for each link to an
+    item's page: ``_MARK`` and the item's article number. Read once per mail, for the
+    sellers and the items (no other line begins with "Verkauf durch", "Menge:" or an order's
+    number)."""
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        super().handle_starttag(tag, attrs)
+        if tag == "a" and (asin := _product_asin(dict(attrs).get("href") or "")):
+            self.parts.append(f"\n{_MARK}{asin}\n")
+
+
+def _listed(lines: list[str]) -> list[OrderItem]:
+    """The items listed on these lines (below an order's number), none of quantity 0.
+
+    An item ends at its quantity ("Menge: 2"); one of more than four digits is none (and
+    ``int`` refuses very long ones). Its article number is the one of the link to its page
+    above (its picture and its name both link there), only as an ASIN; in a mail without
+    HTML part it has none.
+    """
+    found: list[OrderItem] = []
+    asin = None
+    for line in lines:
+        if line.startswith(_MARK):
+            asin = line[len(_MARK) :] if _ASIN.fullmatch(line, len(_MARK)) else None
+        elif quantity := _QUANTITY_LINE.fullmatch(line):
+            if len(digits := quantity.group("n")) <= 4 and (count := int(digits)):
+                found.append(OrderItem(asin, count))
+            asin = None
+    return found
+
+
+def _items(text: str, numbers: list[str], whole_order: bool) -> list[tuple[OrderItem, ...]]:
+    """The items of each mention of an order in ``numbers`` (``_listed``): what the HTML
+    part, else the text part, lists below its number (``text``, see ``_ItemText``), at most
+    MAX_ORDER_ITEMS.
+
+    Each mention takes its own items if both parts name the same orders in the same order.
+    Otherwise, and in a mail about the whole order (``whole_order``: the order's mail, which
+    names an order once per day, all of it one entry), a mention takes the items of every
+    mention of its order. But never in a mail about boxes that names the order more than
+    once: which box is which is not told, so none of them takes items.
+    """
+    mentions = list(_ORDER.finditer(text))
+    found: list[tuple[str, list[OrderItem]]] = []
+    for index, match in enumerate(mentions):
+        end = mentions[index + 1].start() if index + 1 < len(mentions) else len(text)
+        found.append((match.group(2), _listed(text[match.end() : end].splitlines())))
+    if not whole_order and [number for number, _ in found] == numbers:
+        return [tuple(items[:MAX_ORDER_ITEMS]) for _, items in found]
+    by_order: dict[str, list[OrderItem]] = {}
+    for number, items in found:
+        by_order.setdefault(number, []).extend(items)
+    return [
+        tuple(by_order.get(number, [])[:MAX_ORDER_ITEMS])
+        if whole_order or numbers.count(number) == 1
+        else ()
         for number in numbers
     ]
 
@@ -532,7 +631,9 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         from_subject = whole if whole and names_more_items(whole) else None
     links = _shipments(msg)
     shipments = {o: s for o, s in links.items() if numbers.count(o) == 1}
-    sellers = _sellers(msg, numbers, whole_order=status is ParcelStatus.PRE_TRANSIT)
+    listing = html_body_text(msg, _ItemText()) or body_text(msg)
+    sellers = _sellers(listing, numbers, whole_order=status is ParcelStatus.PRE_TRANSIT)
+    contents = _items(listing, numbers, whole_order=status is ParcelStatus.PRE_TRANSIT)
     ends = [m.start() for m in orders[1:]] + [len(text)]
     # An order the body names is named like one the subject names: its first item and how
     # many more there are ("… und 2 weitere Artikel"), so that cancelling one item does not
@@ -572,6 +673,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 status_text=ATTEMPT_TEXT if attempt else DELAY_TEXT if delay else None,
                 shipment_id=shipments.get(match.group(2)),
                 seller=sellers[index],
+                items=contents[index],
                 **eta,
             )
         )
@@ -592,6 +694,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 shipment_id=shipment,
                 seller=None,  # (read from the items of the text's order, not from this one's)
                 along=True,
+                items=(),  # (the items listed are the box's, not this order's own)
             )
             for order, shipment in links.items()
             if order not in numbers

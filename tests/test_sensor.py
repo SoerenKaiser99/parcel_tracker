@@ -6,7 +6,12 @@ from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.parcel_tracker.const import CONF_POSTCODE, DOMAIN, VERSION
-from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
+from custom_components.parcel_tracker.models import (
+    OrderItem,
+    Parcel,
+    ParcelStatus,
+    TrackingResult,
+)
 from custom_components.parcel_tracker.sensor import ParcelSensor, TodaySensor
 from custom_components.parcel_tracker.store import ParcelStore
 
@@ -146,6 +151,7 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
             "AMZ99991565342587125", "amazon", "mail", None, now, now,
             delivery_code="999999", delivery_code_day=today - timedelta(days=1),
             shipment_ids=["TAbCdE9fG", "UhIjKl9mN"],
+            items=[OrderItem("B0BEISPIEL", 2)],
         )
     )
     coordinator.async_set_updated_data(dict(coordinator.store.parcels))
@@ -164,6 +170,8 @@ async def test_mail_parcel_sensor_shows_code_and_carrier_name(hass):
     assert expired.attributes["has_delivery_code"] is False
     # The newest of Amazon's shipments of the order.
     assert expired.attributes["amazon_shipment"] == "UhIjKl9mN"
+    # The items an order's mails listed are only kept: in no attribute.
+    assert "B0BEISPIEL" not in repr(dict(expired.attributes))
     assert {"name", "tracking_url", "amazon_shipment"} <= ParcelSensor._unrecorded_attributes
     # The customs amount is deleted on delivery: the history must not keep it.
     assert {

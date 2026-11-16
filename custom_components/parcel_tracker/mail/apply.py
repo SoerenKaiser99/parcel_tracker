@@ -511,6 +511,23 @@ def _remember_sellers(parcel: Parcel, update: MailUpdate) -> None:
         parcel.sellers.append(update.seller)
 
 
+def _remember_items(parcel: Parcel, update: MailUpdate) -> None:
+    """Keep the items the mail lists with the entry it went to.
+
+    The order's mail names all items of the order, a mail about a box those in the box, so
+    the list of the newest mail holds: which items, and how many of each. A mail sent
+    before the one the entry's items came from (``Parcel.items_at``) changes nothing: read
+    late, an order's mail must not give a box the items of the whole order. Nor does a mail
+    about the whole order ("Bestellt") once the entry is a box (it has a shipment's id).
+    Keeping them is never told, like the shipment's id (``_remember_shipment``).
+    """
+    if not update.items or (parcel.items_at is not None and update.sent_at < parcel.items_at):
+        return
+    if update.status is ParcelStatus.PRE_TRANSIT and parcel.shipment_ids:
+        return
+    parcel.items, parcel.items_at = list(update.items), update.sent_at
+
+
 def _gift_for(*parcels: Parcel) -> list[str]:
     """The persons the gifts among these entries are for, each once (a box of a gift order
     is hidden from them as well)."""
@@ -754,6 +771,7 @@ def _apply_order(
         _take_shop_facts(parcels, target, update, now, gift)
         _remember_shipment(target, update)
         _remember_sellers(target, update)
+        _remember_items(target, update)
         _forward(target, update, now)
         # A first status is no news - but a further box of an order that is delivered as
         # soon as it is known (the mails before were never read, or named no box of
@@ -780,6 +798,7 @@ def _apply_order(
     facts = _take_shop_facts(parcels, target, update, now, gift)
     _remember_shipment(target, update)
     _remember_sellers(target, update)
+    _remember_items(target, update)
     # A carrier's parcel of that number was folded into the order just now. If it was
     # delivered, its delivery was announced (``_delivery_told``) and nothing about it
     # waits to be announced, the box's delivery is told: known from what is stored, so
