@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 13. November 2026, Version 0.3.50. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 16. November 2026, Version 0.3.54. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -51,8 +51,16 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **DHL eCommerce (Niederlande)** | Legen Mails von `noreply@dhlecommerce.nl` ein DHL-Paket mit der 20-stelligen Nummer an und setzen „Unterwegs“? Zeigt es mit DHL-Key den Live-Status? Neu seit v0.3.42 ([Issue #62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62)). | [Issue #62](https://github.com/SoerenKaiser99/parcel_tracker/issues/62) |
 | **Versendete Pakete (DHL-Einlieferungsbeleg)** | Steht ein Paket, das du in der Filiale, im Shop oder an der Packstation abgegeben hast, nach dem Einlieferungsbeleg mit dem Schild „Versendet“ in der Liste? Kommt genau eine Meldung, wenn es beim Empfänger ankommt? Geprüft ist bisher nur der Beleg der Zustellkraft. Neu seit v0.3.48. Belege anderer Paketdienste: [Beispielmails einreichen](hilfe.md#beispielmails-einreichen). | im Forum |
 | **DHL Express („DHL On Demand Delivery“)** | Setzen die Mails von `noreply.odd@dhl.com` „Unterwegs“, „In Zustellung“ für heute und „Zugestellt“ mit der Uhrzeit aus der Mail? Bekommt das Paket den Namen des Absenders (bei Amazon „Amazon-Sendung (DHL)“)? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
+| **Weiterleitung mit „Am … schrieb …:“** | Leitest du Paketmails von Hand mit einem Programm weiter, das nur die Zeile „Am … schrieb …:“ über die Original-Mail setzt (z. B. Web.de)? Bekommen DHL-, DPD- und andere Mails damit Status und Liefertag wie direkt empfangene? Neu seit v0.3.52. | [Issue #71](https://github.com/SoerenKaiser99/parcel_tracker/issues/71) |
+| **Amazon: Verspätungsmail „Aktualisierung der Lieferung:“** | Bleibt die Bestellung nach der Mail auf „Versendet“, mit dem neuen Tag und „Lieferung verspätet“? Neu seit v0.3.54 (Beitrag von benep). | im Forum |
+| **Amazon-Händler mit eigenem Versand („Verkauf durch …“)** | Landet die DHL-, DPD- oder GLS-Mail eines Händlers, der selbst verschickt, in seiner Amazon-Bestellung statt als eigenes Paket? Neu seit v0.3.54 (Beitrag von benep). | im Forum |
+| **Amazon: „Artikel für deine Amazon.de Bestellung #… wurde storniert“** | Steht eine Bestellung aus genau diesem Artikel nach der Mail auf „Storniert“? Neu seit v0.3.53. | [Issue #77](https://github.com/SoerenKaiser99/parcel_tracker/issues/77) |
+| **AliExpress auf Englisch** | Setzen „Order …: collected by the carrier“ und „Package … is out for delivery“ die Bestellung auf „Versendet“ bzw. „In Zustellung“? Gesucht: die englischen Mails zu „versandbereit“ und „zugestellt“. Neu seit v0.3.53. | [Issue #76](https://github.com/SoerenKaiser99/parcel_tracker/issues/76) |
+| **AliExpress: „Paket …: Importverzollung gestartet“ / „im Versandzentrum“** | Landen diese Mails nicht mehr in „Nicht erkannt“, und rückt die Bestellung im Verlauf weiter? Neu seit v0.3.52. | [Issue #74](https://github.com/SoerenKaiser99/parcel_tracker/issues/74) |
 | **AliExpress: Mails der letzten Meile** | Setzt „Paket … wird zugestellt“ die Bestellung heute auf „In Zustellung“ und „Paket … wurde zugestellt“ auf „Zugestellt“? Steht nach „Lieferprobleme für Packstück …“ „Versendet“ mit dem Text „Lieferprobleme“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Amazon: mehrere Bestellungen in einem Karton** | Nennt die Versandmail eine Bestellung im Text und eine andere nur im Link „Sendung verfolgen“, steht danach auch die zweite auf „Versendet“ und später „Zugestellt“? Kommt pro Karton und Person genau eine Meldung? Neu seit v0.3.50 (Beitrag von benep). | [Issue #55](https://github.com/SoerenKaiser99/parcel_tracker/issues/55) |
+| **DHL: Zeitfenster in anderen Schreibweisen** | Zeigt die Karte das Zeitfenster auch bei Mails mit „zwischen 14:45 bis 16:15“ oder „zwischen 14:55 und 16:25 Uhr“? Setzt „Ihr DHL Paket kommt früher als geplant“ das Paket für den Tag auf „In Zustellung“? Neu seit v0.3.51 (Beitrag von benep). | im Forum |
+| **DPD: Zeitfenster bleibt nach der Abfrage** | Bleibt das Zeitfenster aus „Zwischen … und … Uhr kommt Ihr DPD Paket“ auf der Karte stehen, auch nachdem die DPD-Abfrage „In Zustellung“ meldet? Neu seit v0.3.51 (Beitrag von benep). | im Forum |
 | **Amazon: „Sendung verfolgen“ führt zu Amazon** | Öffnet das Symbol bei einer Amazon-Bestellung ohne Nummer eines Paketdienstes Amazons Sendungsverfolgung mit der richtigen Sendung? Steht dort „Amazon-Sendung: …“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 
 ### Karte, Benachrichtigungen, Automationen
@@ -60,7 +68,6 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | Was | Was wir wissen wollen | Wohin |
 |---|---|---|
 | **Knopf „Erhalten“** | Steht er im aufgeklappten Paket, kommt die Rückfrage „Wirklich erhalten?“, und zählt das Paket danach als heute zugestellt? Bleibt es dabei, auch wenn später noch eine Mail oder eine Antwort des Paketdienstes kommt? Neu seit v0.3.30. | im Forum |
-| **Mehrere Bestellungen in einem Paket** | Stehen Bestellungen mit derselben Sendungsnummer als eine Zeile wie „AliExpress · 2 Bestellungen“ auf der Karte? Lassen sich die einzelnen Bestellungen aufgeklappt umbenennen und löschen, und markiert „Erhalten“ alle? Neu seit v0.3.50. | [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) |
 | **„Namen ausblenden“** | Taucht irgendwo doch noch ein echter Name auf – Karte, Kalender, Benachrichtigung, Sprachassistent? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Einfuhrabgaben (Zoll) bei DHL** | Zeigt die Karte bei einer DHL-Sendung aus dem Ausland den Betrag („Einfuhrabgaben: … € in bar bei Zustellung“), kommt er in die Benachrichtigung „In Zustellung“, und verschwindet er nach der Zustellung? Stimmt der Betrag mit der Mail überein, auch bei Beträgen ab 1.000 €? | [Fehler melden](hilfe.md#fehler-melden) |
 | **„Absendernamen aus DHL-Mails übernehmen“** | Heißt ein Paket nach dem Namen aus dem DHL-Betreff „Ihre <Name> Sendung …“, auch bei einem kleinen Shop oder einer Privatperson? Fehlt das „..“ am Ende? Blendet „Namen ausblenden“ den Namen weiterhin aus? | [Fehler melden](hilfe.md#fehler-melden) |
@@ -129,6 +136,10 @@ Pull Requests sind willkommen; fünf Beiträge von außen sind schon eingeflosse
 - Eine Änderung pro Pull Request, mit Test.
 - Beispielmails nur anonymisiert, erzeugt mit dem Skript des Projekts.
 - Kurz beschreiben, was du selbst ausprobiert hast und was nicht.
+
+## 6. Danke sagen
+
+Der Paket Tracker ist kostenlos und bleibt es. Wer Danke sagen möchte, kann mir [einen Kaffee spendieren](https://buymeacoffee.com/soerenkaiser99) ☕. Genauso viel helfen ein Stern auf GitHub, eine Bestätigung oder eine Beispielmail.
 
 ## Wo du dich meldest
 

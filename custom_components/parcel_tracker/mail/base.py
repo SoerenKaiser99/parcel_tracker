@@ -27,6 +27,8 @@ MONTHS = {
 _INVISIBLE = re.compile("[͏​-‏‪-‮⁠﻿­\u2066-\u2069]")
 _SPACES = re.compile("[ \t   ]+")
 _FORWARD = re.compile(r"^(?:(?:wg|fwd?|aw|re)\s*:\s*)+", re.IGNORECASE)
+# A forward (WG:/Fwd:/FW:), not a reply (AW:/Re:): only the first prefix counts.
+_HAND_FORWARD = re.compile(r"^(?:wg|fwd?)\s*:", re.IGNORECASE)
 _MORE = re.compile(r"\s*und\s+\d+\s+weitere[r]?\s+Artikel\s*$")
 # Words a shop's mail about a postponed delivery brings (``MailUpdate.status_text``): nobody
 # was met, it takes longer, or it could not be delivered for a reason not told (AliExpress
@@ -645,6 +647,15 @@ def add_workdays(day: date, count: int) -> date:
 def at(day: date, hour: int, minute: int) -> datetime:
     """Local Europe/Berlin time on a day."""
     return datetime.combine(day, time(hour, minute), tzinfo=BERLIN)
+
+
+def window_at(day: date, parts: Iterable[str | None]) -> tuple[datetime, datetime] | None:
+    """A delivery window on a day from the hour, minute, hour and minute a pattern read (a
+    missing minute is 0), or None for an impossible time or a reversed window."""
+    h1, m1, h2, m2 = (int(part or 0) for part in parts)
+    if max(h1, h2) > 23 or max(m1, m2) > 59 or (h1, m1) >= (h2, m2):
+        return None
+    return at(day, h1, m1), at(day, h2, m2)
 
 
 def upcoming_date(day: int, month: int | None, ref: date) -> date | None:

@@ -1486,6 +1486,23 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 eta_to=known.eta_to,
             )
         elif (
+            key == "dpd"
+            and known is not None
+            and known.eta_from is not None
+            and known.eta_to is not None
+            and result.eta_date is not None
+            and result.eta_date == known.eta_date
+            and result.eta_date >= dt_util.as_local(now).date()
+            and result.eta_from is None
+            and result.eta_to is None
+            and result.status not in NO_ETA_STATUSES
+        ):
+            # DPD's lookup names the day once the parcel is out for delivery, but never a
+            # window, so a known one is the one its mail of that day gave: it stays with
+            # that day until the day is over. (GLS names windows itself: one it no longer
+            # names is gone.)
+            result = replace(result, eta_from=known.eta_from, eta_to=known.eta_to)
+        elif (
             key in KEEP_ETA_UNTIL_DAY_CARRIERS
             and known is not None
             and known.eta_date is not None

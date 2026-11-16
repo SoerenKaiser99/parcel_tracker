@@ -25,6 +25,8 @@ from custom_components.parcel_tracker.carriers.ups import (
 )
 from custom_components.parcel_tracker.const import DOMAIN
 from custom_components.parcel_tracker.coordinator import ParcelCoordinator
+from custom_components.parcel_tracker.mail.apply import apply_update
+from custom_components.parcel_tracker.mail.base import MailUpdate
 from custom_components.parcel_tracker.models import Parcel, ParcelStatus, TrackingResult
 from custom_components.parcel_tracker.store import ParcelStore
 
@@ -147,18 +149,21 @@ async def test_ups_credentials_entered_later_replace_the_missing_key_marker(hass
 
 
 class NoEtaCarrier(Carrier):
+    """Names no window, and a day only if one is set (DPD once out for delivery)."""
+
     name = "NoEta"
 
-    def __init__(self, key="hermes"):
+    def __init__(self, key="hermes", day=None):
         self.key = key
         self.status = ParcelStatus.IN_TRANSIT
+        self.day = day
 
     @staticmethod
     def matches(number):
         return Match.SURE
 
     async def fetch(self, number, postcode):
-        return TrackingResult(self.status, "x", None, None, None, None, None, None, None, [])
+        return TrackingResult(self.status, "x", self.day, None, None, None, None, None, None, [])
 
 
 def _known_day() -> TrackingResult:
@@ -222,6 +227,97 @@ async def test_dpd_answer_without_day_keeps_the_estimate_of_the_announcement(has
     freezer.tick(timedelta(minutes=31))
     await coord.async_refresh()
     assert (parcel.result.eta_date, parcel.result.eta_latest) == (None, None)
+
+
+DPD_NUMBER = "09999999999901"
+DAY = date(2026, 9, 29)  # the day of DAYTIME
+WINDOW = (datetime(2026, 9, 29, 13, 0, tzinfo=BERLIN), datetime(2026, 9, 29, 15, 0, tzinfo=BERLIN))
+
+
+def _window_mail(carrier, number, sent, day=DAY, window=WINDOW) -> MailUpdate:
+    """The mail of the day: "Zwischen … und … Uhr kommt Ihr DPD Paket"."""
+    return MailUpdate(
+        number, carrier, ParcelStatus.OUT_FOR_DELIVERY, sent,
+        eta_date=day, eta_from=window[0], eta_to=window[1],
+    )
+
+
+def _eta(parcel):
+    return (parcel.result.eta_date, parcel.result.eta_from, parcel.result.eta_to)
+
+
+@pytest.mark.parametrize("mail_first", [True, False])
+async def test_dpd_out_for_delivery_keeps_the_window_of_its_mail(hass, freezer, mail_first):
+    """DPD's mail of the day names the window, its lookup only the day: the window stays
+    while the lookup names that same day, whichever of the two comes first."""
+    freezer.move_to(DAYTIME)  # 29 September, 12:00 Berlin
+    dpd = NoEtaCarrier("dpd", DAY)
+    dpd.status = ParcelStatus.OUT_FOR_DELIVERY
+    coord = await _coordinator(hass, lambda store: {"dpd": dpd})
+    mail = _window_mail("dpd", DPD_NUMBER, datetime(2026, 9, 29, 8, 0, tzinfo=BERLIN))
+    if mail_first:
+        apply_update(coord.store.parcels, mail, dt_util.utcnow())
+        await coord.async_refresh()
+    else:
+        await coord.async_add(DPD_NUMBER, "dpd", None)
+        assert _eta(coord.store.get(DPD_NUMBER)) == (DAY, None, None)
+        apply_update(coord.store.parcels, mail, dt_util.utcnow())
+    parcel = coord.store.get(DPD_NUMBER)
+    assert parcel.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert _eta(parcel) == (DAY, *WINDOW)
+    freezer.tick(timedelta(minutes=31))
+    await coord.async_refresh()
+    assert _eta(parcel) == (DAY, *WINDOW)
+    # delivered: no window any more
+    dpd.status = ParcelStatus.DELIVERED
+    freezer.tick(timedelta(minutes=31))
+    await coord.async_refresh()
+    assert parcel.result.eta_from is parcel.result.eta_to is None
+
+
+async def test_dpd_drops_the_window_of_another_or_a_past_day(hass, freezer):
+    """The window belongs to the day of its mail: not to the day after (a mail read late),
+    and not once that day is over (the lookup still tells the day of a failed delivery)."""
+    freezer.move_to(DAYTIME)
+    dpd = NoEtaCarrier("dpd", DAY)
+    dpd.status = ParcelStatus.OUT_FOR_DELIVERY
+    coord = await _coordinator(hass, lambda store: {"dpd": dpd})
+    apply_update(
+        coord.store.parcels,
+        _window_mail("dpd", DPD_NUMBER, datetime(2026, 9, 29, 8, 0, tzinfo=BERLIN)),
+        dt_util.utcnow(),
+    )
+    parcel = coord.store.get(DPD_NUMBER)
+    freezer.move_to("2026-09-30 08:00:00+00:00")  # 10:00 Berlin, the next day
+    await coord.async_refresh()
+    assert _eta(parcel) == (DAY, None, None)
+    # a mail of the day before, read only now, after the lookup named the new day
+    dpd.day = date(2026, 9, 30)
+    freezer.tick(timedelta(minutes=31))
+    await coord.async_refresh()
+    apply_update(
+        coord.store.parcels,
+        _window_mail("dpd", DPD_NUMBER, datetime(2026, 9, 29, 9, 0, tzinfo=BERLIN)),
+        dt_util.utcnow(),
+    )
+    freezer.tick(timedelta(minutes=31))
+    await coord.async_refresh()
+    assert _eta(parcel) == (date(2026, 9, 30), None, None)
+
+
+async def test_gls_window_it_no_longer_names_is_dropped(hass, freezer):
+    """GLS names windows itself: a known one is not kept for DPD's reason."""
+    freezer.move_to(DAYTIME)
+    gls = NoEtaCarrier("gls", DAY)
+    gls.status = ParcelStatus.OUT_FOR_DELIVERY
+    coord = await _coordinator(hass, lambda store: {"gls": gls})
+    now = dt_util.utcnow()
+    known = TrackingResult(
+        ParcelStatus.OUT_FOR_DELIVERY, "x", DAY, *WINDOW, None, None, None, None, []
+    )
+    coord.store.add(Parcel("99999999990001", "gls", "auto", None, now, now, result=known))
+    await coord.async_refresh()
+    assert _eta(coord.store.get("99999999990001")) == (DAY, None, None)
 
 
 async def test_night_rule_uses_ups_intervals(hass, session, freezer):

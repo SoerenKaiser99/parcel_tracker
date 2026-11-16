@@ -36,6 +36,35 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.54 (2026-11-16)
+
+Zwei Beiträge von benep: [PR #78](https://github.com/SoerenKaiser99/parcel_tracker/pull/78) und [PR #68](https://github.com/SoerenKaiser99/parcel_tracker/pull/68).
+
+- **Amazon: neue Verspätungsmail** (Beitrag von benep): Amazon nennt die Mail jetzt „Aktualisierung der Lieferung: „…““ statt „Lieferungsaktualisierung: …“ und den neuen Tag „Voraussichtliche Zustellung bis zum …“. Sie landet nicht mehr in „Nicht erkannt“, sondern lässt die Bestellung auf „Versendet“ mit dem neuen Tag und „Lieferung verspätet“.
+- **Amazon-Händler mit eigenem Versand** (Beitrag von benep): Verschickt ein Händler auf Amazon selbst (DHL, DPD, GLS …), findet die Mail des Paketdienstes die Bestellung jetzt auch über den Händlernamen aus „Verkauf durch …“. Das gilt nur, wenn Amazon die Sendungen der Bestellung schon genannt hat und alle vom Händler kommen; bei Versand durch Amazon ändert sich nichts.
+- **Bekannte Grenze:** Schickt derselbe Händler am selben Tag auch ein Paket aus seinem eigenen Webshop, kann dessen Mail der Amazon-Bestellung zugeordnet werden.
+
+### v0.3.53 (2026-11-16)
+
+- **Amazon: „Artikel für deine Amazon.de Bestellung #… wurde storniert“.** Diese Mail (Amazon konnte einen Artikel nicht beschaffen) kommt von `no-reply@amazon.de`, dessen Mails der Import bisher nur als gelesen markierte. Jetzt setzt sie die Bestellung auf „Storniert“, nach denselben Regeln wie die anderen Stornomails: nur, wenn die Bestellung genau aus diesem Artikel besteht und noch nicht versendet ist. Alle anderen Mails dieses Absenders bleiben ignoriert. ([#77](https://github.com/SoerenKaiser99/parcel_tracker/issues/77))
+- **AliExpress auf Englisch:** „Order …: collected by the carrier“ setzt „Versendet“ (im Verlauf „Vom Kurier abgeholt“), „Package … is out for delivery“ setzt „In Zustellung“ für den Tag der Mail. Den Artikel liest der Import auch unter „Package details“. ([#76](https://github.com/SoerenKaiser99/parcel_tracker/issues/76))
+- **Bekannte Grenzen:** Weitere englische AliExpress-Mails (versandbereit, zugestellt) fehlen noch als Beispiel und landen bis dahin in „Nicht erkannt“.
+
+### v0.3.52 (2026-11-15)
+
+- **Mail-Import: Weiterleitung mit „Am … schrieb …:“.** Manche Mailprogramme (z. B. Web.de) setzen beim Weiterleiten statt des Blocks „Von: … / Gesendet: … / Betreff: …“ nur eine Zeile wie „Am 14.11.26, 15:50 schrieb DHL <…>:“. Auch diese Form (englisch „On … wrote:“) erkennt der Import jetzt, wenn der Betreff mit „WG:“, „Fwd:“ oder „FW:“ beginnt. DHL-Mails bekommen damit wieder Status, Liefertag und Zeitfenster, DPD-Mails werden erkannt. ([#71](https://github.com/SoerenKaiser99/parcel_tracker/issues/71), [#72](https://github.com/SoerenKaiser99/parcel_tracker/issues/72), [#73](https://github.com/SoerenKaiser99/parcel_tracker/issues/73))
+- **AliExpress: „Paket …: Importverzollung gestartet“ und „Paket …: im Versandzentrum“** werden erkannt und landen nicht mehr in „Nicht erkannt“. ([#74](https://github.com/SoerenKaiser99/parcel_tracker/issues/74))
+- **Anonymisierungsskript:** In weitergeleiteten Mails bleibt als Absender nur ein Shop oder Paketdienst stehen, den der Import kennt. Private Absender mit eigener Domain werden jetzt ersetzt, auch im Block „Von: …“.
+- **Bekannte Grenzen:** Ein US-Datum wie „11/10/26“ in der Zeile „On … wrote:“ wird nicht gelesen, „heute“ zählt dann ab der Weiterleitung. Ist die Zeile über mehr als zwei Zeilen umbrochen, erkennt der Import sie nicht.
+
+### v0.3.51 (2026-11-14)
+
+Zwei Beiträge von benep: [PR #46](https://github.com/SoerenKaiser99/parcel_tracker/pull/46) und [PR #67](https://github.com/SoerenKaiser99/parcel_tracker/pull/67).
+
+- **Mehr Zeitfenster aus DHL- und GLS-Mails** (Beitrag von benep): DHL schreibt das Zeitfenster nicht immer gleich. Der Import liest jetzt auch „zwischen 14:45 bis 16:15“, „zwischen 14:55 und 16:25 Uhr“ und Fenster mit einem Zeilenumbruch mittendrin. „Ihr DHL Paket kommt früher als geplant“ setzt „In Zustellung“ für den Tag der Mail. Bei GLS zählt auch „zwischen 10:45 - 14:45 Uhr“. Servicezeiten wie „Kundenservice Mo–Fr zwischen 08:00 und 18:00 Uhr“ werden nicht zum Zeitfenster. Uhrzeiten prüft der Import jetzt bei allen Diensten gleich (Stunde bis 23, Minute bis 59, Anfang vor Ende).
+- **DPD: Zeitfenster aus der Mail bleibt** (Beitrag von benep): Meldet die DPD-Abfrage „In Zustellung“, nennt sie den Tag, aber kein Zeitfenster. Bisher löschte die nächste Abfrage das Fenster aus der Mail „Zwischen … und … Uhr kommt Ihr DPD Paket“. Jetzt bleibt es, solange die Abfrage denselben Tag nennt und dieser Tag nicht vorbei ist.
+- **Nicht live geprüft:** beide Änderungen nur mit Beispielmails und Tests, noch nicht mit einem echten Paket.
+
 ### v0.3.50 (2026-11-13)
 
 Wunsch aus [Issue #15](https://github.com/SoerenKaiser99/parcel_tracker/issues/15) (Sammelzeile); Amazon-Sammelkarton aus [PR #61](https://github.com/SoerenKaiser99/parcel_tracker/pull/61) von benep, Refs [Issue #55](https://github.com/SoerenKaiser99/parcel_tracker/issues/55).

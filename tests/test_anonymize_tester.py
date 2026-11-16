@@ -691,3 +691,153 @@ def test_mail_without_a_quoted_block_keeps_its_text(tmp_path):
     text = _msg(data).get_body(("plain",)).get_content()
     assert text.startswith("Gruß") and "Ihre Sendungsnummer" in text
     assert "weitergeleitet aus" in done.stdout
+
+
+# ----- v0.3.52: a forward with only an attribution line above the original (issue 71) -----
+ATTRIBUTION = "Am 18.07.23, 08:00 schrieb DHL Zustell-Update <zustellung@dhl.de>:\n"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        ATTRIBUTION,
+        "Am Di., 18. Juli 2023 um 08:00 Uhr schrieb DHL Zustell-Update <\nzustellung@dhl.de>:\n",
+        "On Tue, Jul 18, 2023 at 8:00 AM DHL Zustell-Update <zustellung@dhl.de> wrote:\n",
+    ],
+)
+def test_attribution_line_keeps_the_carriers_address_and_drops_the_note(tmp_path, line):
+    done, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + line + "\n" + FORWARD_MAIL)
+    dump = _dump(data)
+    for secret in FORWARD_SECRETS:
+        assert secret not in dump, secret
+        assert secret not in done.stdout.lower(), secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    assert "zustellung@dhl.de" in text and "DHL Zustell-Update" in text
+    assert "Ihre Sendungsnummer" in text and "DHL Group" in text
+    assert "weitergeleitet aus" in done.stdout
+    [update] = parse_mail(_msg(data)).updates
+    assert (update.carrier, update.status) == ("dhl", ParcelStatus.OUT_FOR_DELIVERY)
+    assert (update.sent_at.year, update.sent_at.month, update.sent_at.day) == (2023, 7, 18)
+
+
+def test_attribution_line_in_an_html_part(tmp_path):
+    msg = EmailMessage()
+    msg["From"] = "Jörg Probst <jp1987@gmx.de>"
+    msg["To"] = "pakete@postfach.example"
+    msg["Subject"] = "Wg: Ihre Beispielmarke GmbH Sendung kommt heute"
+    msg["Date"] = "Tue, 18 Jul 2023 08:02:46 +0000"
+    msg.set_content(
+        "<html><body><p>Hier die Mail, Gruß Jörg</p><p>Probst Holzbau GmbH</p>"
+        "<p>Am 18.07.23, 08:00 schrieb &quot;DHL Zustell-Update&quot; "
+        "&lt;zustellung@dhl.de&gt;:</p><p>Ihre Beispielmarke GmbH Sendung wird Ihnen heute "
+        "zugestellt.</p><p>Ihre Sendungsnummer</p><p>123456789012</p></body></html>",
+        subtype="html",
+    )
+    mails = _write(tmp_path / "mails", [bytes(msg)])
+    done = _call(mails, "--ohne-angaben")
+    assert done.returncode == 0, done.stderr
+    [written] = (mails / "anonymisiert").glob("*.eml")
+    dump = _dump(written.read_bytes())
+    for secret in ("jörg", "probst", "jp1987", "holzbau", "hier die mail"):
+        assert secret not in dump, secret
+    assert "zustellung@dhl.de" in dump and "ihre sendungsnummer" in dump
+    assert "weitergeleitet aus" in done.stdout
+    [update] = parse_mail(_msg(written.read_bytes())).updates
+    assert (update.carrier, update.status) == ("dhl", ParcelStatus.OUT_FOR_DELIVERY)
+
+
+def test_private_sender_in_an_attribution_line_is_replaced(tmp_path):
+    line = "Am 18.07.23, 08:00 schrieb Erika Sonnenschein <erika.sonnenschein@web.de>:\n"
+    done, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + line + "Dein Paket ist da.\n")
+    dump = _dump(data)
+    for secret in (*FORWARD_SECRETS, "web.de"):
+        assert secret not in dump, secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    [quoted] = [line for line in text.splitlines() if line.startswith("Am ")]
+    assert "max@example.org" in quoted and quoted.endswith(":")
+    assert "Dein Paket ist da." in text
+
+
+def test_attribution_line_without_a_forward_prefix_is_flagged(tmp_path):
+    body = "Danke!\n\n" + ATTRIBUTION + "> Ihr Paket kommt.\n"
+    src = _write(tmp_path / "mails", [_known(), _forward_case("Ihr Paket kommt", body)])
+    done = _call(src, "--name", "Jörg Probst")
+    assert done.returncode == 0, done.stderr
+    [line] = [text for text in done.stdout.splitlines() if "weitergeleitet aus" in text]
+    assert line.startswith("ACHTUNG:")
+
+
+# ----- v0.3.52 review: only a sender the import knows stays in an attribution line -----
+NEIGHBOUR = "Am 18.07.23, 08:00 schrieb Tom Nachbarlich <tom@nachbarlich-familie.example>:\n"
+
+
+@pytest.mark.parametrize("args", [(), ("--name", "Jörg Probst")])
+def test_private_sender_with_an_own_domain_is_replaced_in_an_attribution_line(tmp_path, args):
+    done, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + NEIGHBOUR + "Dein Paket ist da.\n",
+                            *args)
+    dump = _dump(data)
+    for secret in (*FORWARD_SECRETS, "tom", "nachbarlich"):
+        assert secret not in dump, secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    [quoted] = [line for line in text.splitlines() if line.startswith("Am ")]
+    assert quoted == "Am 18.07.23, 08:00 schrieb max@example.org:"
+    assert "Dein Paket ist da." in text
+
+
+def test_a_person_named_at_a_known_domain_gets_the_placeholder_name(tmp_path):
+    line = "Am 18.07.23, 08:00 schrieb Tom Sonnenberg <zustellung@dhl.de>:\n"
+    _, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + line + FORWARD_MAIL)
+    text = _msg(data).get_body(("plain",)).get_content()
+    [quoted] = [line for line in text.splitlines() if line.startswith("Am ")]
+    assert quoted == "Am 18.07.23, 08:00 schrieb Beispielversender <zustellung@dhl.de>:"
+    assert "sonnenberg" not in _dump(data)
+
+
+def test_the_attribution_line_of_the_known_sender_is_taken_like_the_import_does(tmp_path):
+    """A forwarded answer of DHL's customer service quotes the customer's own question."""
+    body = (
+        FORWARD_NOTE
+        + "Am 19.07.23, 10:00 schrieb DHL Kundenservice <kundenservice@dhl.de>:\n\n"
+        + "Guten Tag,\nIhre Beispielmarke GmbH Sendung wird Ihnen heute zugestellt.\n"
+        + "Ihre Sendungsnummer\n123456789012\n\n"
+        + "Am 18.07.23, 08:00 schrieb Jörg Probst <jp1987@gmx.de>:\n"
+        + "> Wo bleibt mein Paket?\n"
+    )
+    done, data = _forwarded(tmp_path / "mails", body)
+    dump = _dump(data)
+    for secret in FORWARD_SECRETS:
+        assert secret not in dump, secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    assert text.startswith("Am 19.07.23, 10:00 schrieb DHL Kundenservice <kundenservice@dhl.de>:")
+    assert "Ihre Sendungsnummer" in text and "Wo bleibt mein Paket?" in text
+    assert "Am 18.07.23, 08:00 schrieb max@example.org:" in text
+
+
+@pytest.mark.parametrize("args", [(), ("--name", "Jörg Probst")])
+def test_private_sender_with_an_own_domain_is_replaced_in_a_header_block(tmp_path, args):
+    block = (
+        "Von: Tom Nachbarlich <tom@nachbarlich-familie.example>\n"
+        "Gesendet: Dienstag, 18. Juli 2023 08:00\n"
+        "Betreff: Paket\n\n"
+    )
+    done, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + block + "Dein Paket ist da.\n",
+                            *args)
+    dump = _dump(data)
+    for secret in (*FORWARD_SECRETS, "tom@", "nachbarlich"):
+        assert secret not in dump, secret
+    text = _msg(data).get_body(("plain",)).get_content()
+    [quoted] = [line for line in text.splitlines() if line.startswith("Von:")]
+    assert quoted == "Von: max@example.org"
+    assert "Dein Paket ist da." in text
+
+
+def test_eventim_sender_outside_the_imports_domains_stays_in_a_header_block(tmp_path):
+    """eventimpresents.com is no domain of the import, but Eventim's own rules need it."""
+    block = (
+        "Von: Funkelstern Festival <info@eventimpresents.com>\n"
+        "Gesendet: Dienstag, 18. Juli 2023 08:00\n"
+        "Betreff: Funkelstern: nicht verpassen!\n\n"
+    )
+    _, data = _forwarded(tmp_path / "mails", FORWARD_NOTE + block + "Tickets für Jörg.\n")
+    text = _msg(data).get_body(("plain",)).get_content()
+    assert "info@eventimpresents.com" in text and "Tickets für" not in text

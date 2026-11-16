@@ -11,9 +11,11 @@ from .aliexpress import (
     parse_aliexpress,
 )
 from .amazon import (
+    AMAZON_NO_REPLY,
     AMAZON_SENDERS,
     LEGACY_PREFIXES,
     SHIPPING_SENDER,
+    is_unavailable_cancellation,
     old_shipping_layout,
     parse_amazon,
     parse_amazon_legacy,
@@ -58,12 +60,14 @@ from .shipping import (
     parse_ups_mail,
 )
 
+# (behind Apple's relay the address may come back as "no_reply@amazon.de")
+_AMAZON_NO_REPLY = (AMAZON_NO_REPLY, AMAZON_NO_REPLY.replace("-", "_"))
 IGNORED_SENDERS = frozenset(
     {
         "no-reply@primevideo.com",
         "rueckgabe@amazon.de",
         "account-update@amazon.de",
-        "no-reply@amazon.de",
+        AMAZON_NO_REPLY,
     }
 )
 
@@ -161,6 +165,10 @@ def parse_mail(
 
 def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
     address, _ = sender(msg)
+    # no-reply@amazon.de is ignored, but for its mail about a cancelled item (#77): that
+    # one goes to the Amazon parser whatever its body says, never to the generic one.
+    if address in _AMAZON_NO_REPLY and is_unavailable_cancellation(subject(msg)):
+        return MailResult(updates=parse_amazon(msg, read_otp), amazon=True)
     if is_ignored(address):
         return MailResult(ignored=True)
     if address == EBAY_SENDER:

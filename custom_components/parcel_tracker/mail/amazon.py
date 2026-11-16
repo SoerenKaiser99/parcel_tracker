@@ -15,7 +15,6 @@ from .base import (
     LEGAL_FORM,
     MONTHS,
     MailUpdate,
-    at,
     body_text,
     carrier_for,
     company_name,
@@ -29,6 +28,7 @@ from .base import (
     subject,
     title_key,
     upcoming_date,
+    window_at,
 )
 
 SHIPPING_SENDER = "versandbestaetigung@amazon.de"
@@ -57,8 +57,11 @@ _ATTEMPTS = (f"{_ATTEMPT}:", "zustellversuch:")
 # "Lieferungsaktualisierung: …": on its way, with a new day ("Jetzt erwartet bis zum 26.
 # April."). Only a mail that says so is a delay ("… verspätet sich aber. Bitte entschuldigen
 # Sie die Verzögerung."): the subject and a new day alone would also fit an earlier arrival.
-# ("… ist nicht verspätet" is none.)
+# ("… ist nicht verspätet" is none.) "Aktualisierung der Lieferung: …" is the same mail in the
+# wording of 2026 ("Dein Paket verspätet sich", "Voraussichtliche Zustellung bis zum 5. November").
 _DELAY = "lieferungsaktualisierung"
+_DELAY_2026 = "aktualisierung der lieferung"
+_DELAYS = (f"{_DELAY}:", f"{_DELAY_2026}:")
 _DELAYED = re.compile(r"(?<!nicht )\b(?:verspät|verzöger)\w*", re.IGNORECASE)
 _PICKUP = "paket zur abholung bereit"
 # Cancellations. "Ihre Bestellung wurde storniert.": the whole order. "Artikel erfolgreich
@@ -72,6 +75,14 @@ _ITEMS_CANCELLED = "erfolgreiche stornierung von artikeln"
 _CANCELLED_ORDER = re.compile(
     r"^(?:Bestellnr\.|Bestellung #|Bestell-Nr\.)\s*(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE
 )
+# "Artikel für deine Amazon.de Bestellung #… wurde storniert" (from no-reply@, #77): an item
+# Amazon could not get; the body lists the items it cancels as "* <name>".
+AMAZON_NO_REPLY = "no-reply@amazon.de"
+_UNAVAILABLE_CANCELLED = re.compile(
+    r"Artikel für (?:deine|Ihre) Amazon\.de[- ]Bestellung #?\s*\d{3}-\d{7}-\d{7} wurde storniert",
+    re.IGNORECASE,
+)
+_LISTED_ITEM = re.compile(r"^\* *(?P<title>\S[^\n]*)", re.MULTILINE)
 _CANCELLED_ITEM = re.compile(
     r"^Aufgegeben am [^\n]+\n(?:[ \t]*\n)*[ \t]*(?P<title>\S[^\n]*)", re.MULTILINE
 )
@@ -83,6 +94,7 @@ _PREFIXES = {
     _ATTEMPT: ParcelStatus.IN_TRANSIT,
     "zustellversuch": ParcelStatus.IN_TRANSIT,
     _DELAY: ParcelStatus.IN_TRANSIT,
+    _DELAY_2026: ParcelStatus.IN_TRANSIT,
     _CANCELLED: ParcelStatus.CANCELLED,
     "in zustellung": ParcelStatus.OUT_FOR_DELIVERY,
     "unterwegs zur zustellung": ParcelStatus.OUT_FOR_DELIVERY,
@@ -113,7 +125,9 @@ _ORDER = re.compile(
 _ON_THE_ROUTE = re.compile(
     r"^Ihr (?:Amazon )?Paket(?: mit \S.*)? wird zugestellt\.?$", re.MULTILINE
 )
-_LATER = re.compile(r"Jetzt erwartet bis zum (\d{1,2}\.\s*[A-Za-zä]+)")
+_LATER = re.compile(
+    r"(?:Jetzt erwartet|Voraussichtliche Zustellung) bis zum (\d{1,2}\.\s*[A-Za-zä]+)"
+)
 # The plain layout names an item with its quantity before it ("2 x …", "2-mal …"), below
 # the number and, without quotes, in the subject ("2 x Beispiel... und 2 weiteren
 # Artikeln"). The other mails of the order name it without the quantity.
@@ -169,9 +183,15 @@ _TRACKER_PATH = "/progress-tracker/package"
 # The seller of an item, on a line below it, in the current layout in the HTML part only
 # (its text part does not name it): "Verkauf durch Beispielhandel e.K., Händler & Versand aus
 # Deutschland". What follows a comma is Amazon's own note about the seller. "Verkauf durch
-# Amazon.de" and "Verkauf durch einen Drittanbieter und Versand durch Amazon." name no
-# seller of their own: Amazon sends the box.
+# Amazon.de" names no seller of its own. Who sends the box, the line does not tell: a
+# seller's box that Amazon sends ("Versand durch Amazon", FBA) has the very same line, and
+# "Versand durch Amazon" stands in the mail's legal footer only, never at an item (the
+# footer's "… mit Verkauf durch einen Drittanbieter und Versand durch Amazon." begins no
+# line). Only the shipment's id tells (``apply._seller_shipped``).
 _SELLER = re.compile(r"^Verkauf durch[ \t]+(?P<name>\S[^\n]*)$", re.MULTILINE)
+# A seller's name is short; a longer line is no seller's (and ``company_name`` is slow on
+# very long words).
+_SELLER_MAX = 100
 _NOT_A_NAME = re.compile(r"^[\W_]+")  # (stars and the like in front of a seller's name)
 _AMAZON = re.compile(r"(?<![^\W_])amazon(?![^\W_])", re.IGNORECASE)  # (not "Amazonas")
 _ORDER_ID = re.compile(r"\d{3}-\d{7}-\d{7}")
@@ -208,9 +228,16 @@ def subject_status(subj: str) -> ParcelStatus | None:
     """Status from the subject prefix before ':', or from a subject that tells a cancellation."""
     if subj.strip().lower().startswith((_ORDER_CANCELLED, _ITEMS_CANCELLED)):
         return ParcelStatus.CANCELLED
+    if is_unavailable_cancellation(subj):
+        return ParcelStatus.CANCELLED
     if ":" not in subj:
         return None
     return _PREFIXES.get(subj.split(":", 1)[0].strip().lower())
+
+
+def is_unavailable_cancellation(subj: str) -> bool:
+    """Is this the mail about an item Amazon could not get and cancelled (#77)?"""
+    return _UNAVAILABLE_CANCELLED.match(subj.strip()) is not None
 
 
 def stage_status(text: str) -> ParcelStatus | None:
@@ -229,13 +256,11 @@ def _eta(text: str, sent: datetime) -> dict[str, date | datetime | None]:
     """The delivery day ``text`` names, as the eta fields of a MailUpdate ({} without one)."""
     if eta := _ETA.search(text):
         day = relative_day(eta.group("day"), sent)
-        if not eta.group("h1"):
+        if not eta.group("h1") or not (
+            times := window_at(day, eta.group("h1", "m1", "h2", "m2"))
+        ):
             return {"eta_date": day}
-        return {
-            "eta_date": day,
-            "eta_from": at(day, int(eta.group("h1")), int(eta.group("m1") or 0)),
-            "eta_to": at(day, int(eta.group("h2")), int(eta.group("m2") or 0)),
-        }
+        return {"eta_date": day, "eta_from": times[0], "eta_to": times[1]}
     for line in _ETA_DATES.finditer(text):
         if resolved := resolve_dates(line.group("rest"), sent.date()):
             return {"eta_date": resolved[0], "eta_latest": resolved[1]}
@@ -306,12 +331,13 @@ def _shipments(msg: EmailMessage) -> dict[str, str]:
 
 
 def _seller_name(line: str) -> str | None:
-    """The name a "Verkauf durch …" line gives, None for Amazon itself.
+    """The name a "Verkauf durch …" line gives, None for Amazon itself or a line too long
+    to be a seller's name (``_SELLER_MAX``).
 
     Without Amazon's note behind a comma and the stars some sellers put in front.
     """
     name = _NOT_A_NAME.sub("", line.split(",", 1)[0]).strip()
-    return None if not name or _AMAZON.search(name) else name
+    return None if not name or len(name) > _SELLER_MAX or _AMAZON.search(name) else name
 
 
 def _mention_seller(text: str, start: int, end: int) -> tuple[int, str | None]:
@@ -449,6 +475,9 @@ def _cancellation(subj: str, text: str, sent: datetime) -> list[MailUpdate]:
     title = None
     if not subj.strip().lower().startswith(_ORDER_CANCELLED):
         title = subject_title(subj)
+        if title is None and is_unavailable_cancellation(subj):
+            listed = [shorten(m.group("title")) for m in _LISTED_ITEM.finditer(text)]
+            title = _with_more(listed[0], len(listed) - 1) if listed else None
         if title is None and (item := _CANCELLED_ITEM.search(text)):
             title = shorten(item.group("title"))
         if title is None:
@@ -479,7 +508,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         return []
 
     attempt = subj.strip().lower().startswith(_ATTEMPTS)
-    news = subj.strip().lower().startswith(f"{_DELAY}:")
+    news = subj.strip().lower().startswith(_DELAYS)
     delay = news and bool(_DELAYED.search(text))
     eta = _eta(text, sent)
     if not eta and status is ParcelStatus.OUT_FOR_DELIVERY and _ON_THE_ROUTE.search(text):
@@ -561,6 +590,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 number=order_number(order),
                 title=None,
                 shipment_id=shipment,
+                seller=None,  # (read from the items of the text's order, not from this one's)
                 along=True,
             )
             for order, shipment in links.items()

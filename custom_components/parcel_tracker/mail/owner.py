@@ -12,7 +12,7 @@ from email.utils import getaddresses
 
 from ..models import PersonConfig
 from . import OTHER_DOMAIN, forwarded_original, is_ignored, known_sender_domain
-from .base import _raw_subject, sender
+from .base import _HAND_FORWARD, _raw_subject, sender
 
 # Every station a mail went through may leave one of these (a forwarded mail carries
 # several Delivered-To, the newest on top): every occurrence of each counts.
@@ -27,9 +27,6 @@ OWNER_HEADERS = (
     "Resent-To",
 )
 _SEPARATORS = re.compile(r"[\s,;]+")
-# A forward (WG:/Fwd:/FW:), not a reply (AW:/Re:): who answers a parcel mail is not
-# whom the parcel belongs to.
-_HAND_FORWARD = re.compile(r"^(?:wg|fwd?)\s*:", re.IGNORECASE)
 
 
 def _addresses(value: str) -> set[str]:
@@ -71,6 +68,8 @@ def _hand_forwarder(msg: EmailMessage) -> str:
     address = sender(msg)[0]
     if not address or known_sender_domain(address) != OTHER_DOMAIN or is_ignored(address):
         return ""
+    # A forward (WG:/Fwd:/FW:), not a reply (AW:/Re:): who answers a parcel mail is not
+    # whom the parcel belongs to.
     if _HAND_FORWARD.match(_raw_subject(msg)) or forwarded_original(msg) is not None:
         return address
     return ""

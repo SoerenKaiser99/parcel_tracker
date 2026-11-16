@@ -74,6 +74,8 @@ HACS lädt die Integration nur herunter; ohne Schritt 2 passiert nichts. Install
 
 Paket Tracker ist eine öffentliche Beta. Welche Funktionen noch eine Bestätigung aus dem Alltag brauchen und welche Beispielmails fehlen, steht unter [Wie ihr helfen könnt](https://soerenkaiser99.github.io/parcel_tracker/mithelfen/); häufige Fragen beantwortet die [Hilfe](https://soerenkaiser99.github.io/parcel_tracker/hilfe/).
 
+Der Paket Tracker ist kostenlos und bleibt es. Wer Danke sagen möchte, kann mir [einen Kaffee spendieren](https://buymeacoffee.com/soerenkaiser99) ☕ – genauso viel helfen ein Stern auf GitHub, eine Rückmeldung oder eine Beispielmail.
+
 ## Fehler melden
 
 Die Diagnose herunterladen (**Einstellungen → Geräte & Dienste → Paket Tracker → ⋮ → Diagnose herunterladen**) und an ein Issue mit der Vorlage [„Fehler melden“](https://github.com/SoerenKaiser99/parcel_tracker/issues/new?template=fehler.yml) hängen. Die Schritte und was die Diagnose enthält: [Fehler melden](https://soerenkaiser99.github.io/parcel_tracker/hilfe/#fehler-melden). Geht es um eine Mail, die der Import nicht erkennt: siehe [Beispielmails einreichen](#beispielmails-einreichen).

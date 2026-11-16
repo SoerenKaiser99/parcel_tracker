@@ -68,6 +68,13 @@ def test_day_and_window_are_read_exactly():
     no_day = body.replace("Freitag, 2. Oktober\n", "")
     [u] = parse_gls_mail(_msg("Dein Paket wird in wenigen Tagen zugestellt", no_day))
     assert (u.status, u.eta_date, u.eta_from) == (ParcelStatus.IN_TRANSIT, None, None)
+    dashed = body.replace("Freitag, 2. Oktober\nzwischen 10:15 und", "2.Oktober\nzwischen 10:15 -")
+    [u] = parse_gls_mail(_msg("📦 Dein Paket wird in wenigen Tagen zugestellt", dashed))
+    assert (u.eta_date, u.eta_from, u.eta_to) == (
+        date(2026, 10, 2),
+        datetime(2026, 10, 2, 10, 15, tzinfo=BERLIN),
+        datetime(2026, 10, 2, 11, 45, tzinfo=BERLIN),
+    )
 
 
 def test_comes_today_is_out_for_delivery_on_the_mail_day():

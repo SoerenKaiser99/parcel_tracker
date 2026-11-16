@@ -30,6 +30,7 @@ from .base import (
     sent_at,
     shop_of,
     subject,
+    window_at,
 )
 
 DPD_AT_SENDER = "no_reply@dpd.at"
@@ -79,13 +80,11 @@ def _status(sentence: str) -> ParcelStatus | None:
 
 def _today_window(update: MailUpdate, window: re.Match[str], sent: datetime) -> None:
     """In delivery on the day the mail was sent, in the subject's window (start hour and
-    minute, end hour and minute); an impossible time leaves the window out."""
-    hours = [int(group) for group in window.groups()]
+    minute, end hour and minute); an impossible time or a reversed window leaves it out."""
     update.status = ParcelStatus.OUT_FOR_DELIVERY
     update.eta_date, update.eta_latest = sent.date(), None
-    if hours[0] < 24 and hours[2] < 24 and hours[1] < 60 and hours[3] < 60:
-        update.eta_from = at(sent.date(), hours[0], hours[1])
-        update.eta_to = at(sent.date(), hours[2], hours[3])
+    if times := window_at(sent.date(), window.groups()):
+        update.eta_from, update.eta_to = times
 
 
 def parse_dpd_mail(msg: EmailMessage) -> list[MailUpdate]:

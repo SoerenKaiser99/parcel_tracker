@@ -76,7 +76,7 @@ Den Status liest der Import nur aus dem Betreff der DHL-Mail:
 |---|---|
 | „ist unterwegs“ | „Unterwegs“, samt Liefertag, wenn die Mail ihn nennt |
 | „kommt morgen“ | „Unterwegs“ mit dem Tag nach der Mail |
-| „kommt heute“, „wird heute zugestellt“ | „In Zustellung“ für den Tag der Mail |
+| „kommt heute“, „wird heute zugestellt“, „kommt früher als geplant“ | „In Zustellung“ für den Tag der Mail, mit dem Zeitfenster, wenn die Mail eines nennt |
 | „wird gleich zugestellt“ | „In Zustellung“ für den Tag der Mail, mit der eigenen Zeile „Wird gleich zugestellt“ im Verlauf |
 | „wurde zugestellt“, auch „wurde an den gewünschten Ablageort zugestellt“, „liegt im Briefkasten“, „liegt nebenan“ | „Zugestellt“ |
 | „Liegt zur Abholung bereit“, „liegt seit … Tagen in der Filiale“, „wurde an Packstation … / in die Filiale … zugestellt“ | „Abholbereit“, mit Filiale bzw. Packstation und Straße als Abholort, wenn die Mail sie nennt |
@@ -99,7 +99,7 @@ Ein DHL-Paket, zu dem es weder eine Mail noch 17track-Daten gibt, zeigt ohne Key
 - Abgefragt wird die öffentliche DPD-Sendungsverfolgung, nur mit der Sendungsnummer. Zugangsdaten brauchst du nicht.
 - DPD liefert den Status und die fünf Meilenstein-Termine, aber keinen Standort und kein Zeitfenster.
 - Die detailliertere DPD-Seite braucht eine Postleitzahl und ist durch ein Captcha geschützt. Deshalb nutzt die Integration sie nicht.
-- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung. Die Mails danach setzen den Status selbst: „Zwischen … und … Uhr kommt Ihr DPD Paket“ („In Zustellung“ mit Zeitfenster), „Ihr Paket ist da!“ („Zugestellt“) und „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ („Abholbereit“).
+- Mails von DPD sind optional: Eine DPD-Mail legt das Paket an, den Status liefert die Abfrage. Die Ankündigung „Bald ist Ihr DPD Paket da“ nennt dazu den Versender und eine Lieferschätzung. Die Mails danach setzen den Status selbst: „Zwischen … und … Uhr kommt Ihr DPD Paket“ („In Zustellung“ mit Zeitfenster; das Fenster bleibt bis zum Ende dieses Tages, solange die Abfrage denselben Tag nennt), „Ihr Paket ist da!“ („Zugestellt“) und „Im Pickup Paketshop wartet Ihr DPD Paket auf Sie“ („Abholbereit“).
 
 ## GLS
 

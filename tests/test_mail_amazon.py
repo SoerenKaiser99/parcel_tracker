@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -12,6 +13,8 @@ from custom_components.parcel_tracker.mail.amazon import (
     subject_status,
     subject_title,
 )
+from custom_components.parcel_tracker.mail.apply import apply_update
+from custom_components.parcel_tracker.mail.base import MailUpdate
 from custom_components.parcel_tracker.models import ParcelStatus
 
 from .conftest import load_mail
@@ -344,6 +347,7 @@ def test_legacy_ups_numbers_keep_their_own_parcel():
 # ----- the plain layout ("Bestellung #…"): in delivery, a delay -----
 ON_THE_ROUTE = "172_shipment_tracking_ihr_paket_wird_zugestellt.eml"
 DELAYED = "173_order_update_lieferungsaktualisierung.eml"
+DELAYED_2026 = "211_order_update_aktualisierung_der_lieferung.eml"
 SHIPPED_LATER_LAYOUT = "174_versandbestaetigung_deine_amazon_de_beste.eml"
 
 
@@ -379,6 +383,56 @@ def test_delay_keeps_the_order_on_its_way_with_the_new_day():
     assert u.title == "Beispiel-Schleifscheibe 125 mm, Körnung 320"
 
 
+def test_delay_in_the_wording_of_2026_keeps_the_order_on_its_way_with_the_new_day():
+    # The same news in the usual layout ("Bestellnr."): "Aktualisierung der Lieferung: …"
+    # with "Voraussichtliche Zustellung bis zum …"
+    [u] = parse_mail(load_mail(DELAYED_2026)).updates
+    assert (u.number, u.status) == ("AMZ99900002110000211", ParcelStatus.IN_TRANSIT)
+    assert (u.status_text, u.postponed) == ("Lieferung verspätet", True)
+    assert u.eta_date == date(2026, 11, 5)
+    # (named from the quoted subject, as the other mails of the usual layout)
+    assert u.title == "Beispiel-Klebeband…"
+
+
+def test_update_in_the_wording_of_2026_that_is_no_delay_is_no_delay():
+    msg = load_mail(DELAYED_2026)
+    msg.set_content(msg.get_content().replace("verspätet sich", "ist nicht verspätet"))
+    [u] = parse_mail(msg).updates
+    assert (u.status, u.status_text, u.postponed) == (ParcelStatus.IN_TRANSIT, None, False)
+    assert u.eta_date == date(2026, 11, 5)
+
+
+def _in_delivery(sent: datetime) -> MailUpdate:
+    return MailUpdate("AMZ99900002110000211", "amazon", ParcelStatus.OUT_FOR_DELIVERY, sent,
+                      title="Beispiel-Klebeband…", eta_date=sent.date())
+
+
+def test_delay_in_the_wording_of_2026_takes_the_order_back_from_an_earlier_delivery():
+    [delay] = parse_mail(load_mail(DELAYED_2026)).updates
+    parcels: dict = {}
+    apply_update(parcels, _in_delivery(delay.sent_at - timedelta(hours=2)), delay.sent_at)
+    change = apply_update(parcels, delay, delay.sent_at)
+    assert change is not None and change.old_status is ParcelStatus.OUT_FOR_DELIVERY
+    result = parcels[delay.number].result
+    assert (result.status, result.status_text) == (ParcelStatus.IN_TRANSIT, "Lieferung verspätet")
+    assert result.eta_date == date(2026, 11, 5)
+
+
+def test_delay_in_the_wording_of_2026_read_late_leaves_a_later_delivery_as_it_is():
+    [delay] = parse_mail(load_mail(DELAYED_2026)).updates
+    later = datetime(2026, 11, 5, 7, 0, tzinfo=UTC)
+    parcels: dict = {}
+    apply_update(parcels, _in_delivery(later), later)
+    assert apply_update(parcels, delay, later) is None
+    result = parcels[delay.number].result
+    assert (result.status, result.eta_date) == (ParcelStatus.OUT_FOR_DELIVERY, date(2026, 11, 5))
+    # ... and a delivered order stays delivered
+    done = replace(_in_delivery(later), status=ParcelStatus.DELIVERED, delivered_at=later)
+    apply_update(parcels, done, later)
+    assert apply_update(parcels, delay, later) is None
+    assert parcels[delay.number].status is ParcelStatus.DELIVERED
+
+
 @pytest.mark.parametrize(
     ("subj", "status"),
     [
@@ -386,6 +440,7 @@ def test_delay_keeps_the_order_on_its_way_with_the_new_day():
         ("Zur Auslieferung: „x“ und ⁦3⁩ weitere Artikel", ParcelStatus.OUT_FOR_DELIVERY),
         ("Zustellversuch: „x“ und ⁦4⁩ weitere Artikel", ParcelStatus.IN_TRANSIT),
         ("Lieferungsaktualisierung: Beispiel...", ParcelStatus.IN_TRANSIT),
+        ('Aktualisierung der Lieferung: "Beispiel..."', ParcelStatus.IN_TRANSIT),
     ],
 )
 def test_subject_status_of_the_newer_wordings(subj, status):

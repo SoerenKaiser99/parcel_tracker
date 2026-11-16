@@ -1,9 +1,11 @@
 """The original message inside a mail someone forwarded by hand (no Home Assistant imports).
 
-Two forms are read: the original as a ``message/rfc822`` attachment, and the header block
+Three forms are read: the original as a ``message/rfc822`` attachment, the header block
 mail programs quote above a forwarded text (Outlook, Apple Mail, Gmail, Thunderbird; German
-and English). What stands above that block (the forwarder's note, a signature) is never part
-of the original.
+and English) and, only in a forward (WG:/Fwd:/FW:), the single attribution line some mail
+programs write instead ("Am 14.11.26, 15:50 schrieb DHL <…@dhl.de>:", "On …, DHL <…> wrote:").
+What stands above that block or line (the forwarder's note, a signature) is never part of
+the original.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from email.message import EmailMessage
 from email.utils import parsedate_to_datetime
 
 from ..carriers.base import BERLIN
-from .base import _FORWARD, _content, clean, html_text, sent_at
+from .base import _FORWARD, _HAND_FORWARD, _content, _raw_subject, clean, html_text, sent_at
 
 MAX_DEPTH = 5  # forwards inside forwards that are still followed
 # The original cannot be younger than its forward; a little slack for clocks that differ.
@@ -41,6 +43,15 @@ _ADDR = r"[\w.+%=&~-]+@[\w-]+(?:\.[\w-]+)+"
 # "Name <addr>", "Name [mailto:addr]", "<mailto:addr>", else a bare address
 _BRACKETED = re.compile(rf"[<\[]\s*(?:mailto:)?\s*({_ADDR})\s*[>\]]", re.IGNORECASE)
 _BARE = re.compile(_ADDR)
+
+# The attribution line some mail programs write above a quoted mail instead of a header
+# block: "Am <date>[,| um] <time> schrieb <Name> <addr>:", "On <date>[,| at] <time>, <Name>
+# <addr> wrote:". Its date has to bring a time and its sender an address (checked below).
+_ATTRIBUTION_DE = re.compile(r"^Am\s+(?P<date>.+?)\s+schrieb\s+(?P<who>.+?)\s*:$")
+_ATTRIBUTION_EN = re.compile(r"^On\s+(?P<rest>.+?)\s+wrote\s*:$")
+_ATTRIBUTION_START = re.compile(r"^(?:Am|On)\s")
+_ATTRIBUTION_MAX = 300  # longer is a paragraph of a mail, no attribution line
+_ZONE_AFTER = re.compile(r"\s*(?:(?:GMT|UTC)\s*)?[+-]\d{2}:?\d{2}(?!\d)")
 
 _RFC_DATE = re.compile(
     r"(?:[A-Za-z]{3},\s*)?\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+\d{1,2}:\d{2}(?::\d{2})?"
@@ -144,6 +155,60 @@ def header_blocks(lines: list[str]) -> list[_Block]:
         if "from" in fields and ("subject" in fields or "date" in fields):
             blocks.append(_Block(start, index, fields))
     return blocks
+
+
+def _attribution(line: str) -> dict[str, str] | None:
+    """The fields ("from", "date") of an attribution line, None if ``line`` is none."""
+    if len(line) > _ATTRIBUTION_MAX:
+        return None
+    if match := _ATTRIBUTION_DE.match(line):
+        date, who = match.group("date"), match.group("who")
+        if not _TIME.search(date):
+            return None
+    elif match := _ATTRIBUTION_EN.match(line):
+        rest = match.group("rest")
+        clocks = list(_TIME.finditer(rest))
+        if not clocks:
+            return None
+        end = clocks[0].end()
+        if zone := _ZONE_AFTER.match(rest, end):
+            end = zone.end()
+        date, who = rest[:end], rest[end:]
+    else:
+        return None
+    who = who.strip(" \t,")
+    if not quoted_sender(who)[0]:
+        return None
+    return {"from": who, "date": date.strip(" \t,")}
+
+
+def attribution_lines(lines: list[str]) -> list[_Block]:
+    """The attribution lines in the (unquoted) lines of a text, first one first.
+
+    A line may be wrapped once (Gmail and Apple Mail break a long one in their text part);
+    the original text starts below it.
+    """
+    found: list[_Block] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if not _ATTRIBUTION_START.match(line):
+            index += 1
+            continue
+        if fields := _attribution(line):
+            found.append(_Block(index, index + 1, fields))
+            index += 1
+            continue
+        if (
+            index + 1 < len(lines)
+            and lines[index + 1]
+            and (fields := _attribution(f"{line} {lines[index + 1]}"))
+        ):
+            found.append(_Block(index, index + 2, fields))
+            index += 2
+            continue
+        index += 1
+    return found
 
 
 def quoted_sender(value: str) -> tuple[str, str]:
@@ -289,10 +354,25 @@ def _view(msg: EmailMessage, block: _Block, lines: list[str]) -> EmailMessage | 
 
 
 def _inline(msg: EmailMessage, known) -> EmailMessage | None:
-    for text in _texts(msg):
-        lines = [_unquote(line) for line in text.splitlines()]
+    """The original quoted in the text: a header block first, else an attribution line.
+
+    A header block anywhere wins over an attribution line: it names the subject and its
+    date is told on a line of its own. An attribution line counts only in a forward
+    (WG:/Fwd:/FW: in front of the subject): a reply quotes the same line, and above it
+    stands the answer.
+    """
+    texts = [[_unquote(line) for line in text.splitlines()] for text in _texts(msg)]
+    for lines in texts:
         # Innermost first: the last block is the oldest mail of a chain of forwards.
         for block in reversed(header_blocks(lines)):
+            if known(quoted_sender(block.fields["from"])[0]) and (
+                view := _view(msg, block, lines)
+            ):
+                return view
+    if not _HAND_FORWARD.match(_raw_subject(msg)):
+        return None
+    for lines in texts:
+        for block in reversed(attribution_lines(lines)):
             if known(quoted_sender(block.fields["from"])[0]) and (
                 view := _view(msg, block, lines)
             ):
@@ -325,8 +405,9 @@ def original_message(msg: EmailMessage, known, depth: int = 0) -> EmailMessage |
     """The innermost forwarded message whose sender ``known`` accepts, None if there is none.
 
     ``known`` is asked with the lower-case address. An attached message is taken as it is
-    (with the forward's Date if it has none); a quoted one is rebuilt from its header block:
-    sender, subject without forward prefixes, the quoted date if it is certain (else the
+    (with the forward's Date if it has none); a quoted one is rebuilt from its header block
+    or attribution line (see ``_inline``): sender, subject without forward prefixes (the
+    forward's own for an attribution line), the quoted date if it is certain (else the
     forward's) and the text below the block without quote marks.
     """
     if depth >= MAX_DEPTH:

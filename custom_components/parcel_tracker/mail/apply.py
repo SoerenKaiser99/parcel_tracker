@@ -844,7 +844,12 @@ def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
     seller its mails named (``is_seller``: the seller sells other makes and sends the box
     with a carrier of its own, whose mail names the seller). Only while its mails named
     that one seller: an entry that was told of two (an order's mail named one, a box's mail
-    another) has none it can be found by.
+    another) has none it can be found by. And only once Amazon named its shipments, all of
+    them sent by the seller (``_seller_shipped``): the text of Amazon's mails never tells
+    who sends the box, "Verkauf durch …" stands for a box Amazon sends ("Versand durch
+    Amazon") as well. Such a box never comes with the seller's own carrier, whose mail is
+    then about another order, one from the seller's own shop. A carrier's mail before
+    Amazon's "Versendet" is a parcel of its own until its delivery (``fold_delivered``).
 
     Deliberately narrow: only Amazon orders (never eBay), none that names another carrier
     than the mail's, and exactly one of them must be of the brand. The mail's day must lie
@@ -863,7 +868,11 @@ def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
         and _hint_key(p) in (None, update.carrier)
         and (
             begins.match((p.mail_title or p.name or "").strip())
-            or (len(p.sellers) == 1 and is_seller(brand, p.sellers[0]))
+            or (
+                len(p.sellers) == 1
+                and is_seller(brand, p.sellers[0])
+                and _seller_shipped(p)
+            )
         )
     ]
     if len(matches) != 1:
@@ -888,7 +897,8 @@ def _seller_shipped(order: Parcel) -> bool:
     Amazon sends itself began with "U" until February 2026 and with "T" since. The format
     is Amazon's own and nowhere documented, so only the "D" is checked: it held for every
     seller's shipment seen so far. Should Amazon ever give a "D" to boxes it sends itself,
-    such orders would wrongly be ruled out for mails naming Amazon.
+    such orders would wrongly be ruled out for mails naming Amazon, and a mail naming their
+    seller could find them (``_brand_candidate``).
     An order without an id is none either: nothing is known about it.
     """
     ids = order.shipment_ids

@@ -61,6 +61,8 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     # ("wird in Kürze ausgeliefert": soon, no day)
     "zur auslieferung bereit": (_ON_WAY, "Zur Auslieferung bereit"),
     "zugestellt": (ParcelStatus.DELIVERED, None),
+    # (an account in English: "Order <number>: collected by the carrier", #76)
+    "collected by the carrier": (_ON_WAY, "Vom Kurier abgeholt"),
 }
 # "Bestellung <number>: Wird zugestellt" comes hours after the shipping mail and its body
 # says "dem Versandunternehmen übergeben": handed to the carrier, not on the last mile. No
@@ -87,6 +89,9 @@ _PARCEL_STEPS: dict[str, str | None] = {
     "in ihrem land / ihrer region": "Im Zielland angekommen",
     "im zielland / in der zielregion": "Im Zielland angekommen",
     "mit lokalem kurier": "Dem lokalen Kurier übergeben",
+    # (#74: also under "Paket <number>: …")
+    "importverzollung gestartet": "Importverzollung gestartet",
+    "im versandzentrum": "Im Versandzentrum",
     # (the body only says that there is news from the country of departure)
     "hat eine aktualisierung": None,
 }
@@ -99,6 +104,8 @@ _PACKAGE_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "ist versandbereit": (_PRE, READY_TEXT),
     "wird zugestellt": (ParcelStatus.OUT_FOR_DELIVERY, None),
     "wurde zugestellt": (ParcelStatus.DELIVERED, None),
+    # (an account in English: "Package <number> is out for delivery", #76)
+    "is out for delivery": (ParcelStatus.OUT_FOR_DELIVERY, None),
 }
 # "Lieferprobleme für Packstück <number>": it could not be delivered ("konnte … nicht
 # zugestellt werden"); what follows is told by the next mail (see ``PROBLEM_TEXT``).
@@ -111,11 +118,13 @@ _NO_NEWS_SUBJECT = re.compile(
     re.IGNORECASE,
 )
 
-_ORDER_SUBJECT = re.compile(r"Bestellung (?P<order>\d{12,20})\s*:?\s*(?P<step>\S.*)")
+_ORDER_SUBJECT = re.compile(r"(?:Bestellung|Order) (?P<order>\d{12,20})\s*:?\s*(?P<step>\S.*)")
 _ORDERS_SUBJECT = re.compile(r"\d+ Bestellungen wurden bestätigt: (?P<order>\d{12,20})\b")
 _PARCEL_SUBJECT = re.compile(r"Packstück (?P<number>[0-9A-Z]{8,30})\s*:?\s*(?P<step>\S.*)")
 _CUSTOMS_SUBJECT = re.compile(r"Zollabfertigung für (?P<number>[0-9A-Z]{8,30}) wurde beendet")
-_PACKAGE_SUBJECT = re.compile(r"Paket (?P<number>[0-9A-Z]{8,30})\s+(?P<step>\S.*)")
+_PACKAGE_SUBJECT = re.compile(
+    r"(?:Paket|Package) (?P<number>[0-9A-Z]{8,30})(?:\s*:\s*|\s+)(?P<step>\S.*)"
+)
 _PROBLEM_SUBJECT = re.compile(r"Lieferprobleme für Packstück (?P<number>[0-9A-Z]{8,30})\b")
 # English, whatever the language of the account; its body tells no reason (cancelled,
 # refunded, closed after a dispute, or done), so nothing is taken from it.
@@ -157,6 +166,8 @@ _ABOVE_ITEMS = frozenset(
         "versandt",
         "im transit",
         "zugestellt",
+        # (an account in English)
+        "package details",
     }
 )
 # Lines that are no item's name wherever they stand: a greeting, a line with a phone
@@ -474,10 +485,13 @@ def parse_aliexpress(msg: EmailMessage) -> MailResult:
     if found := _PROBLEM_SUBJECT.match(subj):
         return _parcel_mail(msg, found.group("number"), PROBLEM_TEXT, postponed=True)
     if found := _PACKAGE_SUBJECT.match(subj):
-        step = _PACKAGE_STEPS.get(" ".join(found.group("step").lower().split()))
-        if step is None:
-            return MailResult()
-        return _parcel_mail(msg, found.group("number"), step[1], step[0])
+        key = " ".join(found.group("step").lower().split())
+        if step := _PACKAGE_STEPS.get(key):
+            return _parcel_mail(msg, found.group("number"), step[1], step[0])
+        # ("Paket <number>: Importverzollung gestartet": a step of the way, see #74)
+        if key in _PARCEL_STEPS:
+            return _parcel_mail(msg, found.group("number"), _PARCEL_STEPS[key])
+        return MailResult()
     if found := _PARCEL_SUBJECT.match(subj):
         step = " ".join(found.group("step").lower().split())
         if step not in _PARCEL_STEPS:
