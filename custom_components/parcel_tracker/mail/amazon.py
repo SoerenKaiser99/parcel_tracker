@@ -209,6 +209,24 @@ _MARK = ""
 _ASIN = re.compile(r"[A-Z0-9]{10}")  # (an item's article number, as ``_PRODUCT_PATH`` reads it)
 _TITLE_MARK = ""  # (the start of a line with an item's full name, like ``_MARK``)
 _LINK_MARK = ""  # (the start of a line with the text of the link to an item's page)
+# Texts of buttons that link an item's page as well: never an item's name (compared in any
+# case).
+_NOT_A_TITLE = frozenset(
+    text.casefold()
+    for text in (
+        "Erneut kaufen",
+        "Erneut bestellen",
+        "Artikel ansehen",
+        "Produkt ansehen",
+        "Details ansehen",
+        "Jetzt kaufen",
+        "In den Einkaufswagen",
+        "Artikel bewerten",
+        "Produkt bewerten",
+        "Bewerten",
+        "Rezension schreiben",
+    )
+)
 _ORDER_ID = re.compile(r"\d{3}-\d{7}-\d{7}")
 _SHIPMENT_ID = re.compile(r"[A-Za-z0-9]{5,20}")
 
@@ -469,10 +487,8 @@ def _listed(lines: list[str]) -> list[OrderItem]:
 
     An item ends at its quantity ("Menge: 2"); one of more than four digits is none (and
     ``int`` refuses very long ones). Its article number is the one of the link to its page
-    above (its picture and its name both link there), only as an ASIN. Its title is the alt
-    text of that picture, the name in full, whichever of the two links comes first; without
-    one the text of the link, which Amazon cuts short. In a mail without HTML part it has
-    neither.
+    above (its picture and its name both link there), only as an ASIN. Its title is
+    ``_title``'s; in a mail without HTML part it has neither.
     """
     found: list[OrderItem] = []
     asin = full = cut = None
@@ -484,13 +500,29 @@ def _listed(lines: list[str]) -> list[OrderItem]:
         elif line.startswith(_TITLE_MARK):
             full = full or line[len(_TITLE_MARK) :]
         elif line.startswith(_LINK_MARK):
-            cut = cut or line[len(_LINK_MARK) :]
+            if (text := line[len(_LINK_MARK) :]).casefold() not in _NOT_A_TITLE:
+                cut = cut or text
         elif quantity := _QUANTITY_LINE.fullmatch(line):
             if len(digits := quantity.group("n")) <= 4 and (count := int(digits)):
-                title = full or cut
-                found.append(OrderItem(asin, count, shorten(title) if title else None))
+                found.append(OrderItem(asin, count, _title(full, cut)))
             asin = full = cut = None
     return found
+
+
+def _title(full: str | None, cut: str | None) -> str | None:
+    """An item's title from the alt text of its picture (``full``) and the text of its
+    name's link (``cut``, which Amazon cuts short: "Beispiel-Maßband 5 m mi...").
+
+    The link's text names the item; the alt text is its name in full only if it begins the
+    same (``title_key``), as in every mail seen: an alt text of another kind ("Produktbild",
+    an offer, a logo) never names an item. Without the link's text there is none, whatever
+    the picture says. A button's text is no item's name (``_NOT_A_TITLE``).
+    """
+    if cut is None:
+        return None
+    if full is not None and (key := title_key(cut)) and title_key(full).startswith(key):
+        return shorten(full)
+    return shorten(cut)
 
 
 def _items(text: str, numbers: list[str], whole_order: bool) -> list[tuple[OrderItem, ...]]:

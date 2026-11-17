@@ -134,6 +134,7 @@ from .models import (
     TrackingResult,
     carrier_name,
     display_name,
+    display_parts,
     name_parts,
     person_configs,
     shared_addresses,
@@ -473,6 +474,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
     def display_name(self, parcel: Parcel) -> str | None:
         """The name a parcel is shown by (sensors, calendar, event, notification)."""
         return display_name(parcel, self.hide_names)
+
+    def display_parts(self, parcel: Parcel) -> tuple[str | None, int]:
+        """The name a parcel is shown by and how many further items it holds, apart (the
+        sensor's ``name`` and ``more_items``, see ``models.display_parts``)."""
+        return display_parts(parcel, self.hide_names)
 
     @property
     def _keep_days(self) -> int:

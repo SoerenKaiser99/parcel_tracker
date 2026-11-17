@@ -1,5 +1,5 @@
-"""Card: the further items of a box ("(+2)") stand beside its name and are never cut, the
-name is cut to the card's width (run in Node)."""
+"""Card: the further items of a box ("(+2)", the attribute ``more_items``) stand beside its
+name and are never cut, the name is cut to the card's width (run in Node)."""
 
 import json
 import re
@@ -52,10 +52,16 @@ const blank = { days_until: null, events: [], status_text: null, progress: 0, la
 const states = {};
 const entities = {};
 [
-  { number: "AMZ99990000000000001", name: "Beispiel-Maßband 5 m mit Gürtelclip (+2)" },
-  { number: "AMZ99990000000000002", name: "Beispiel-Kabel 2 m" },
-  { number: "AMZ99990000000000003", name: "Beispiel-Set (+zwei)" },
-  { number: "AMZ99990000000000004", name: "<b>Fett</b> (+1)" },
+  { number: "AMZ99990000000000001", name: "Beispiel-Maßband 5 m mit Gürtelclip", more_items: 2 },
+  { number: "AMZ99990000000000002", name: "Beispiel-Kabel 2 m", more_items: 0 },
+  // A name typed in that ends like further items: shown as it is.
+  { number: "AMZ99990000000000003", name: "Team-Geschenk (+1)", more_items: 0 },
+  { number: "AMZ99990000000000004", name: "<b>Fett</b>", more_items: 1 },
+  // Anything but a count is none.
+  { number: "AMZ99990000000000005", name: "Beispiel-Set", more_items: "2" },
+  { number: "AMZ99990000000000006", name: "Beispiel-Set", more_items: -1 },
+  // Without a name the number is shown, never with further items.
+  { number: "AMZ99990000000000007", name: null, more_items: 3 },
 ].forEach((attributes, i) => {
   const id = `sensor.paket_${i}`;
   states[id] = { entity_id: id, state: "in_transit", last_updated: "t",
@@ -73,10 +79,7 @@ card.setConfig({});
 card.hass = { states, entities };
 const rows = Object.fromEntries(els.list.children.map((item) => [
   /data-number="([^"]+)"/.exec(item.innerHTML)[1], item.innerHTML]));
-const bare = vm.runInContext(
-  `[bareName("Beispiel-Maßband (+2)"), bareName("Beispiel-Kabel"),
-    bareName("Set (+zwei)")]`, sandbox);
-console.log(JSON.stringify({ rows, template: root.innerHTML, bare }));
+console.log(JSON.stringify({ rows, template: root.innerHTML }));
 """
 
 
@@ -90,26 +93,29 @@ def card():
     return json.loads(done.stdout)
 
 
-def _name(html: str) -> str:
+def _name(card, number: str) -> str:
     """What the row's name holds after its symbol."""
-    [name] = re.findall(r'<span class="name">.*?(<span>.*?)</span></span>', html)
+    [name] = re.findall(r'<span class="name">.*?(<span>.*?)</span></span>', card["rows"][number])
     return name + "</span>"
 
 
 def test_the_further_items_stand_in_a_part_of_their_own(card):
-    assert _name(card["rows"]["AMZ99990000000000001"]) == (
+    assert _name(card, "AMZ99990000000000001") == (
         '<span>Beispiel-Maßband 5 m mit Gürtelclip</span><span class="more">(+2)</span>'
     )
 
 
-def test_a_name_without_further_items_is_one_part(card):
-    assert _name(card["rows"]["AMZ99990000000000002"]) == "<span>Beispiel-Kabel 2 m</span>"
-    # Only "(+" and digits are further items.
-    assert _name(card["rows"]["AMZ99990000000000003"]) == "<span>Beispiel-Set (+zwei)</span>"
+def test_only_the_attribute_tells_further_items(card):
+    assert _name(card, "AMZ99990000000000002") == "<span>Beispiel-Kabel 2 m</span>"
+    # A name is never read for them: one typed in stays whole.
+    assert _name(card, "AMZ99990000000000003") == "<span>Team-Geschenk (+1)</span>"
+    for number in ("AMZ99990000000000005", "AMZ99990000000000006"):
+        assert _name(card, number) == "<span>Beispiel-Set</span>"
+    assert _name(card, "AMZ99990000000000007") == "<span>AMZ99990000000000007</span>"
 
 
-def test_both_parts_stay_escaped(card):
-    assert _name(card["rows"]["AMZ99990000000000004"]) == (
+def test_the_name_stays_escaped(card):
+    assert _name(card, "AMZ99990000000000004") == (
         '<span>&lt;b&gt;Fett&lt;/b&gt;</span><span class="more">(+1)</span>'
     )
 
@@ -121,10 +127,8 @@ def test_the_name_is_cut_and_the_further_items_never_are(card):
     assert "flex:none" in more and "overflow:visible" in more
 
 
-def test_renaming_offers_the_name_without_the_further_items(card):
-    # Saved as it is, nothing changes (the coordinator knows the name without them too).
-    assert card["bare"] == ["Beispiel-Maßband", "Beispiel-Kabel", "Set (+zwei)"]
+def test_renaming_offers_the_name_as_it_is():
+    # The attribute holds the name alone: saved as it is, nothing changes.
     source = BUNDLED_CARD.read_text(encoding="utf-8")
     [prefill] = re.findall(r'on\("rename", \(\) => \{(.*?)\}\);', source)
-    assert "bareName((this._revealed.get(num) || {}).name" in prefill
-    assert "bareName(a.name" in prefill
+    assert '(this._revealed.get(num) || {}).name || "" : a.name || ""' in prefill

@@ -28,7 +28,7 @@ from custom_components.parcel_tracker.models import (
 )
 from custom_components.parcel_tracker.notification import build_notification
 
-from .conftest import DAYTIME
+from .conftest import DAYTIME, load_mail
 
 ORDER = "999-9156534-2587125"
 NUMBER = "AMZ99991565342587125"
@@ -193,6 +193,72 @@ def test_only_a_links_own_text_is_a_title():
     assert update.items == (OrderItem(TAPE.article_id, 1),)
 
 
+@pytest.mark.parametrize(
+    "alt", ["Produktbild", "Jetzt 20 % sparen – Beispiel-Angebot der Woche", "Amazon Logo"]
+)
+def test_an_alt_text_that_is_not_the_items_name_gives_way_to_the_links_text(alt):
+    msg = _html(f'<a href="{PAGE}"><img src="x.jpg" alt="{alt}"></a>',
+                f'<a href="{PAGE}">Beispiel-Maßband 5 m mi...</a>', "Menge: 1")
+    [update] = parse_mail(msg).updates
+    assert update.items == (OrderItem(TAPE.article_id, 1, "Beispiel-Maßband 5 m mi..."),)
+
+
+@pytest.mark.parametrize("button", ["Erneut kaufen", "ARTIKEL ANSEHEN"])
+def test_a_buttons_text_is_no_title(button):
+    # A picture without name, then a button to the item's page: no title, the subject names
+    # the entry as before.
+    msg = _html(f'<a href="{PAGE}"><img src="x.jpg" alt=""></a>',
+                f'<a href="{PAGE}">{button}</a>', "Menge: 1")
+    [update] = parse_mail(msg).updates
+    assert update.items == (OrderItem(TAPE.article_id, 1),)
+
+
+def test_a_link_left_open_takes_no_name_from_a_later_picture():
+    # The name's link is never closed; a logo further down is no item's name.
+    msg = _html(f'<a href="{PAGE}">Beispiel-Maßband 5 m mi...', "Menge: 1",
+                '<img src="logo.png" alt="Amazon Logo">')
+    [update] = parse_mail(msg).updates
+    assert update.items == (OrderItem(TAPE.article_id, 1),)
+
+
+def test_a_short_links_text_takes_the_alt_text_that_begins_with_it():
+    msg = _html(f'<a href="{PAGE}"><img src="x.jpg" alt="Beispiel-Kabel 2 m USB-C auf USB-A"></a>',
+                f'<a href="{PAGE}">Beispiel-Kabel...</a>', "Menge: 1")
+    [update] = parse_mail(msg).updates
+    assert update.items[0].title == "Beispiel-Kabel 2 m USB-C auf USB-A"
+
+
+# ----- two mails in Amazon's own HTML (fixtures 212 and 213) -----
+# The markup of the order's block is Amazon's as it is (MJML tables, the picture's link and
+# the name's link per item); every value in them is invented.
+ORDERED = "212_bestellbestaetigung_bestellt_artikelliste.eml"
+SHIPPED = "213_versandbestaetigung_versendet_artikelliste.eml"
+KIT = OrderItem("B0BEISPIEL", 1, "Beispiel-Werkzeugset 12-teilig mit Koffer und Bit-Halter")
+TIES = OrderItem("B0MUSTER01", 1, "Musterfirma Kabelbinder 200 Stück schwarz UV-beständig")
+REAL = "AMZ99921255579900212"
+
+
+def test_amazons_order_mail_names_each_item_in_full():
+    [update] = parse_mail(load_mail(ORDERED)).updates
+    assert (update.status, update.items) == (ParcelStatus.PRE_TRANSIT, (KIT, TIES))
+
+
+def test_amazons_box_mail_names_the_item_in_the_box():
+    [update] = parse_mail(load_mail(SHIPPED)).updates
+    assert (update.status, update.shipment_id) == (ParcelStatus.IN_TRANSIT, "TBeiSpiel1")
+    assert update.items == (TIES,)
+
+
+def test_the_box_is_named_after_what_it_holds_not_after_the_order():
+    parcels: dict = {}
+    for name in (ORDERED, SHIPPED):
+        for update in parse_mail(load_mail(name)).updates:
+            apply_update(parcels, update, update.sent_at)
+            if name == ORDERED:
+                assert display_name(parcels[REAL], False) == f"{KIT.title} (+1)"
+    assert display_name(parcels[REAL], False) == TIES.title
+
+
 # ----- with Home Assistant -----
 async def _setup(hass, hass_storage, freezer, *parcels: Parcel):
     freezer.move_to(DAYTIME)
@@ -208,10 +274,12 @@ async def _setup(hass, hass_storage, freezer, *parcels: Parcel):
     return entry
 
 
-async def test_the_sensor_shows_the_further_items(hass, hass_storage, freezer):
+async def test_the_sensor_has_the_name_and_the_further_items_apart(hass, hass_storage, freezer):
     await _setup(hass, hass_storage, freezer, _parcel(name=TAPE.title, items=[TAPE, CABLE]))
     state = hass.states.get(f"sensor.paket_{NUMBER.lower()}")
-    assert state.attributes["name"] == f"{TAPE.title} (+1)"
+    assert (state.attributes["name"], state.attributes["more_items"]) == (TAPE.title, 1)
+    # The entity's own name is one text, as in notifications and the calendar.
+    assert state.name == f"{TAPE.title} (+1)"
 
 
 @pytest.mark.parametrize("given", [TAPE.title, f"{TAPE.title} (+1)"])

@@ -41,19 +41,14 @@ const fmtDateTime = (iso) => (isLocalMidnight(iso) ? fmtDate(iso) : `${fmtDate(i
 
 const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]));
-// A name with the further items of its box behind it ("… (+2)", the integration's
-// ``with_more``): the name is cut to the card's width, the further items always stay.
-const MORE_ITEMS = /^(.*\S) (\(\+\d+\))$/;
-const nameHtml = (text) => {
-  const found = MORE_ITEMS.exec(text);
-  return found
-    ? `<span>${esc(found[1])}</span><span class="more">${esc(found[2])}</span>`
-    : `<span>${esc(text)}</span>`;
-};
-// The name without its further items: what "Umbenennen" offers to change.
-const bareName = (text) => {
-  const found = MORE_ITEMS.exec(text);
-  return found ? found[1] : text;
+// How many further items a box holds besides the one it is named after (the attribute
+// ``more_items``): shown as "(+2)", "" for none or anything that is no count.
+const moreText = (more) => (Number.isInteger(more) && more > 0 ? `(+${more})` : "");
+// A name with the further items behind it: the name is cut to the card's width, the
+// further items always stay.
+const nameHtml = (name, more) => {
+  const extra = moreText(more);
+  return `<span>${esc(name)}</span>${extra ? `<span class="more">${extra}</span>` : ""}`;
 };
 
 const ERROR_TEXT = {
@@ -1378,8 +1373,9 @@ class ParcelTrackerCard extends HTMLElement {
     if (!info) return "";
     const name = typeof info.name === "string" && info.name ? info.name : null;
     const title = typeof info.mail_title === "string" && info.mail_title && info.mail_title !== name ? info.mail_title : null;
+    const more = name ? moreText(info.more_items) : "";
     const words = name || title
-      ? `<span><strong>${esc(name || title)}</strong>${name && title ? ` <span class="muted">· ${esc(title)}</span>` : ""}</span>`
+      ? `<span><strong>${esc(name || title)}</strong>${more ? ` ${more}` : ""}${name && title ? ` <span class="muted">· ${esc(title)}</span>` : ""}</span>`
       : `<span class="muted">Kein Name bekannt</span>`;
     const links = [[trackingUrl(info), TRACK_LINK], [orderUrl(a.number), ORDER_LINK]].map(pageLink).join("");
     return `<div class="giftinfo" role="group" aria-label="Inhalt">${words}${links}<button type="button" data-a="gift-unhide" data-number="${esc(a.number)}">Nicht mehr verbergen</button></div>`;
@@ -1561,7 +1557,7 @@ class ParcelTrackerCard extends HTMLElement {
       if (el) el.addEventListener("click", fn);
     };
     const num = a.number;
-    on("rename", () => { this._confirming.delete(num); this._receiving.delete(num); this._renaming.set(num, isGift(a) ? bareName((this._revealed.get(num) || {}).name || "") : bareName(a.name || "")); this._renderList(); });
+    on("rename", () => { this._confirming.delete(num); this._receiving.delete(num); this._renaming.set(num, isGift(a) ? (this._revealed.get(num) || {}).name || "" : a.name || ""); this._renderList(); });
     on("rename-cancel", () => { this._renaming.delete(num); this._renderList(); });
     const save = async () => {
       const name = this._renaming.get(num);
@@ -1720,7 +1716,7 @@ class ParcelTrackerCard extends HTMLElement {
     // No code any more (used, expired, option off): the one fetched is forgotten.
     if (a.has_delivery_code !== true) { this._codes.delete(a.number); this._code.delete(a.number); }
     const toggle = `<button type="button" class="row-toggle" aria-expanded="${open ? "true" : "false"}" data-number="${esc(a.number)}" data-a="toggle">
-        <span class="top"><span class="name">${this._icon(a.carrier)}${nameHtml(a.name || a.number)}</span>${right}<span class="chev" aria-hidden="true"></span></span>
+        <span class="top"><span class="name">${this._icon(a.carrier)}${nameHtml(a.name || a.number, a.name ? a.more_items : 0)}</span>${right}<span class="chev" aria-hidden="true"></span></span>
       </button>`;
     // The gift box stands beside the row's button, not in it (no button in a button).
     item.innerHTML = `

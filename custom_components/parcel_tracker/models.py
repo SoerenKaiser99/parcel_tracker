@@ -551,23 +551,29 @@ def with_more(name: str, more: int) -> str:
     return f"{name} (+{more})" if more else name
 
 
-def display_name(parcel: Parcel, hide_names: bool) -> str | None:
-    """The name a parcel is shown by, None if it has none.
+def display_parts(parcel: Parcel, hide_names: bool) -> tuple[str | None, int]:
+    """(name, more): the name a parcel is shown by, None if it has none, and how many
+    further items it holds (``name_parts``; 0 for any name not from a mail).
 
     With "Namen ausblenden" (``hide_names``) only a name the user typed in is shown;
     every other parcel gets its neutral name, whatever a mail called it. The stored
     name and mail title are never changed by this. A gift (``Parcel.gift``) is always shown
-    by its gift name, also against a name the user typed in. Further items are told
-    behind the name ("(+2)", ``name_parts``).
+    by its gift name, also against a name the user typed in.
     """
     if parcel.gift:
-        return gift_name(parcel)
+        return gift_name(parcel), 0
     if not hide_names:
-        name, more = name_parts(parcel)
-        return with_more(name, more) if name else name
+        return name_parts(parcel)
     if parcel.name and parcel.name_manual:
-        return parcel.name
-    return neutral_name(parcel)
+        return parcel.name, 0
+    return neutral_name(parcel), 0
+
+
+def display_name(parcel: Parcel, hide_names: bool) -> str | None:
+    """The name a parcel is shown by as one text, with its further items behind it
+    ("… (+2)", see ``display_parts``); None if it has none."""
+    name, more = display_parts(parcel, hide_names)
+    return with_more(name, more) if name else name
 
 
 @dataclass(frozen=True)
