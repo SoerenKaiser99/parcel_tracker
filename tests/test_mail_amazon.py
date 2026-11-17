@@ -193,6 +193,41 @@ def test_otp_only_when_enabled():
     assert u.eta_date == date(2026, 8, 20)
 
 
+def _code_only_in_html(html: str):
+    """Mail 096 as Amazon sends it since 11/2026: the plain part lacks the code, the HTML
+    part has it in bold (issue #81)."""
+    msg = load_mail("096_shipment_tracking_zustellung_heute_f_r_d.eml")
+    plain = msg.get_body(preferencelist=("plain",)).get_content()
+    plain = plain.replace("Dein Einmalpasswort lautet 123456", "")
+    assert "123456" not in plain
+    del msg["Content-Transfer-Encoding"]
+    msg.set_content(plain)
+    msg.add_alternative(html, subtype="html")
+    return msg
+
+
+def test_otp_only_in_the_html_part():
+    html = (
+        '<table><tr><td style="font-weight:400;color:#000000;">Dein Einmalpasswort lautet '
+        "<b>654321</b></td></tr></table>"
+    )
+    msg = _code_only_in_html(html)
+    [u] = parse_amazon(msg, True)
+    assert u.delivery_code == "654321"
+    assert u.number == "AMZ99905626221455530"
+    assert u.status is ParcelStatus.OUT_FOR_DELIVERY
+    assert u.eta_date == date(2026, 8, 20)
+    # Only when enabled, as with the code in the plain text.
+    [u] = parse_amazon(_code_only_in_html(html), False)
+    assert u.delivery_code is None
+
+
+def test_no_code_in_either_part_stays_none():
+    msg = _code_only_in_html("<p>Dein Paket kommt heute.</p>")
+    [u] = parse_amazon(msg, True)
+    assert u.delivery_code is None
+
+
 def test_delivered_uses_mail_time():
     u = _one("023_order_update_geliefert.eml")
     assert u.status is ParcelStatus.DELIVERED

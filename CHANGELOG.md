@@ -36,6 +36,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.58 (2026-11-17)
+
+- **Amazon: Einmalpasswort wieder erkannt:** Amazon schreibt den Zustell-Code in manchen Mails nur noch in den HTML-Teil, nicht mehr in den Textteil. Die Integration sucht ihn jetzt auch dort (nur mit eingeschalteter Option für Zustell-Codes). ([#81](https://github.com/SoerenKaiser99/parcel_tracker/issues/81))
+
 ### v0.3.57 (2026-11-17)
 
 - **Amazon: Name aus dem Artikel:** Eine Amazon-Bestellung heißt jetzt nach dem vollen Titel des ersten Artikels aus der Mail statt nach dem gekürzten Betreff. Weitere Artikel stehen als „(+2)“ dahinter. Die Karte zeigt die Zahl getrennt und kürzt nur den Namen, nie die Zahl. Der Paket-Sensor führt den Namen ohne Zusatz und die Zahl im neuen Attribut `more_items`; Benachrichtigung, Kalender, Event, Entitätsname und die Listen in `sensor.pakete_heute` hängen „(+2)“ als Text an. Selbst vergebene Namen bleiben unverändert. ([PR #80](https://github.com/SoerenKaiser99/parcel_tracker/pull/80), danke an benep)

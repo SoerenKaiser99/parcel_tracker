@@ -683,8 +683,10 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
         if resolved := resolve_dates(later.group(1), sent.date()):
             eta = {"eta_date": resolved[0]}
     code = None
-    if read_otp and (otp := _OTP.search(text)):
-        code = otp.group(1)
+    if read_otp:
+        # Since 11/2026 some mails name the code only in the HTML part (issue #81).
+        otp = _OTP.search(text) or _OTP.search(html_body_text(msg))
+        code = otp.group(1) if otp else None
 
     from_subject = subject_title(subj) if len(orders) == 1 else None
     # An order the mail names as several shipments has several ids, and which link is
