@@ -51,6 +51,7 @@ from .shipping import (
     DHL_EXPRESS_SENDER,
     DHL_SENDER,
     KNOWN_SENDER_DOMAINS,
+    UPS_MC_SENDER,
     UPS_SENDER,
     is_dhl_receipt,
     parse_dhl_ecommerce_mail,
@@ -58,6 +59,7 @@ from .shipping import (
     parse_dhl_mail,
     parse_generic,
     parse_ups_mail,
+    parse_ups_mc_mail,
 )
 
 # (behind Apple's relay the address may come back as "no_reply@amazon.de")
@@ -86,6 +88,7 @@ _KNOWN_SENDERS = (
     DHL_EXPRESS_SENDER,
     DHL_ECOMMERCE_SENDER,
     UPS_SENDER,
+    UPS_MC_SENDER,
     ALIEXPRESS_SENDER,
     # (every sender at eventim.de is booked under that domain, a sub-domain as its parent)
     EVENTIM_SENDER,
@@ -216,6 +219,8 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
     ):
         return MailResult(updates=updates)
     if address == UPS_SENDER and (updates := parse_ups_mail(msg)):
+        return MailResult(updates=updates)
+    if address == UPS_MC_SENDER and (updates := parse_ups_mc_mail(msg)):
         return MailResult(updates=updates)
     if address == HERMES_SENDER and (updates := parse_hermes_mail(msg)):
         return MailResult(updates=updates)

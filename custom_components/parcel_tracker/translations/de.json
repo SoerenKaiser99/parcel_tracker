@@ -12,7 +12,8 @@
         },
         "data_description": {
           "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
-          "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010)."
+          "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010).",
+          "keep_delivered_days": "Zählt ab der Zustellung: 1 heißt, das Paket bleibt 24 Stunden in der Liste. 0 zeigt es nur am Tag der Zustellung, um Mitternacht verschwindet es."
         }
       },
       "reauth_confirm": {
@@ -56,6 +57,7 @@
         "data_description": {
           "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
           "postcode": "Deutschland: 5 Ziffern (z. B. 10115). Österreich und Schweiz: 4 Ziffern (z. B. 1010).",
+          "keep_delivered_days": "Zählt ab der Zustellung: 1 heißt, das Paket bleibt 24 Stunden in der Liste. 0 zeigt es nur am Tag der Zustellung, um Mitternacht verschwindet es.",
           "dhl_api_key": "Ohne Key kommen DHL-Pakete aus den DHL-Mails über den Mail-Import, mit Key gibt es den Live-Status. Leer lassen behält den gespeicherten Key.",
           "dhl_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten DHL-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist.",
           "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key.",

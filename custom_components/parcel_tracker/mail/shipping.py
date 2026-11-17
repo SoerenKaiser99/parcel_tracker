@@ -38,6 +38,7 @@ DHL_EXPRESS_SENDER = "noreply.odd@dhl.com"
 DHL_ECOMMERCE_DOMAIN = "dhlecommerce.nl"
 DHL_ECOMMERCE_SENDER = "noreply@dhlecommerce.nl"
 UPS_SENDER = "pkginfo@ups.com"
+UPS_MC_SENDER = "mcinfo@ups.com"  # UPS My Choice (#37)
 AMAZON_DHL_NAME = "Amazon-Sendung (DHL)"
 # Shops and carriers we know: only the display name of such a sender is looked at as a
 # parcel name, and only a shop's passes (``company_name``), never a carrier's.
@@ -168,6 +169,16 @@ _UPS_DELIVERED = re.compile(
 )
 _UPS_PLANNED = re.compile(r"Geplantes Zustelldatum:\s*(?:\w+,\s*)?(\d{2})/(\d{2})/(\d{4})")
 _UPS_SHIPPER = re.compile(r"^Von:\s*(.+)$", re.MULTILINE)
+# mcinfo@ups.com: "Von YUBICO AB" (no colon), "Geschätzte Zustellung / Mittwoch 18/11/2026 /
+# zwischen 09:45 - 13:45" (day first, like pkginfo).
+_UPS_MC_SHIPPER = re.compile(r"^Von:?[ \t]+(\S.*)$", re.MULTILINE)
+_UPS_MC_DAY = re.compile(
+    r"Geschätzte Zustellung\s*(?:[A-Za-zÄÖÜäöüß]+,?\s*)?(\d{2})/(\d{2})/(\d{4})"
+    r"(?:\s*zwischen\s*(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2}))?"
+)
+# The sentences we know: "Ihr Paket ist unterwegs!" (Versandbenachrichtigung) and "Ihr Paket
+# kommt morgen an." (Update: … morgen für die Zustellung terminiert).
+_UPS_MC_ON_ITS_WAY = re.compile(r"Ihr Paket (?:ist unterwegs|kommt morgen an)\b")
 
 
 def _dhl_status(subj: str) -> tuple[ParcelStatus | None, int | None]:
@@ -553,6 +564,40 @@ def parse_ups_mail(msg: EmailMessage) -> list[MailUpdate]:
             update.delivered_at = at(day, int(done.group(4)), int(done.group(5)))
     elif planned := _UPS_PLANNED.search(text):
         update.eta_date = date(int(planned.group(3)), int(planned.group(2)), int(planned.group(1)))
+    return [update]
+
+
+def parse_ups_mc_mail(msg: EmailMessage) -> list[MailUpdate]:
+    """UPS My Choice (mcinfo@ups.com): on its way, with the estimated day and window.
+
+    Only the sentences we know set a status; any other mail of this sender goes to the
+    generic parser (the number alone). The shipper line names the parcel only through the
+    naming gate, never a person.
+    """
+    text = body_text(msg)
+    if not _UPS_MC_ON_ITS_WAY.search(text):
+        return []
+    numbers = [
+        n for carrier, n in find_numbers(f"{subject(msg)}\n{text}") if carrier == "ups"
+    ]
+    if not numbers:
+        return []
+    shipper = _UPS_MC_SHIPPER.search(text)
+    update = MailUpdate(
+        number=numbers[0],
+        carrier="ups",
+        status=ParcelStatus.IN_TRANSIT,
+        sent_at=sent_at(msg),
+        title=company_name(shipper.group(1)) if shipper else None,
+        shop=shop_of(shipper.group(1)) if shipper else None,
+    )
+    if day := _UPS_MC_DAY.search(text):
+        try:
+            update.eta_date = date(int(day.group(3)), int(day.group(2)), int(day.group(1)))
+        except ValueError:
+            return [update]
+        if day.group(4) and (times := window_at(update.eta_date, day.groups()[3:])):
+            update.eta_from, update.eta_to = times
     return [update]
 
 

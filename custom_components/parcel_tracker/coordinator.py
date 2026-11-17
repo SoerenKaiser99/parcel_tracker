@@ -112,7 +112,7 @@ from .mail.apply import (
     mark_received,
     tells_newer,
 )
-from .mail.base import MailResult, is_forwarded, sender, sent_at
+from .mail.base import MailResult, MailUpdate, is_forwarded, sender, sent_at
 from .mail.imap import (
     ImapAuthError,
     ImapCertificateError,
@@ -710,11 +710,17 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         await super().async_shutdown()
 
     def _cleanup(self, now: datetime) -> bool:
+        # A parcel whose push still waits (``unannounced_from``, e.g. for the start of
+        # Home Assistant) stays until it was told, also past its time.
         removed = [
-            n for n, p in self.store.parcels.items() if should_remove(p, now, self._keep_days)
+            n
+            for n, p in self.store.parcels.items()
+            if p.unannounced_from is None
+            and should_remove(p, now, self._keep_days, dt_util.get_default_time_zone())
         ]
+        self.store.forget_removed(now)
         for number in removed:
-            self.store.remove(number)
+            self.store.mark_removed(self.store.remove(number), now)
             self._announced.pop(number, None)
             self._told_along.pop(number, None)
         if removed:
@@ -999,6 +1005,8 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             # Only a detected owner is stored; an unclear mail leaves the owner open and
             # the default person applies while it is open (``effective_owner``).
             for update in result.updates:
+                if self._removed_lately(update):
+                    continue
                 change = apply_update(
                     self.store.parcels, update, now, self.gift_mode, item.owner
                 )
@@ -1022,6 +1030,27 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             return FOLDER_UNRECOGNIZED
         self._mail_recognized += 1
         return FOLDER_PROCESSED
+
+    def _removed_lately(self, update: MailUpdate) -> bool:
+        """A late mail about a parcel the cleanup just removed (``REMOVED_KEEP``) changes
+        nothing: it would bring the parcel back and tell its status a second time. A parcel
+        that is there again under that number takes the mail as usual."""
+        # (an order number is never remembered: only the carrier's numbers count)
+        own = None if update.carrier in SHOP_CARRIERS else update.number
+        numbers = [n for n in (own, update.tracking_ref) if n]
+        if not any(self.store.was_removed(n) for n in numbers):
+            return False
+        # An order that is still there (or one of its boxes, "…P2") takes its mail.
+        if own is None and any(
+            p.number == update.number or p.number.startswith(f"{update.number}P")
+            for p in self.store.parcels.values()
+        ):
+            return False
+        return not any(
+            n in (p.number, p.tracking_ref)
+            for p in self.store.parcels.values()
+            for n in numbers
+        )
 
     async def async_import_raw_mail(self, raw: bytes) -> dict[str, Any] | None:
         """Apply one raw RFC 822 mail handed in over the endpoint (no mailbox needed).

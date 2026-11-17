@@ -55,11 +55,19 @@ def backoff(streak: int) -> timedelta:
     return timedelta(minutes=minutes)
 
 
-def should_remove(parcel: Parcel, now: datetime, keep_delivered_days: int) -> bool:
-    """Return True when a parcel should be dropped."""
+def should_remove(
+    parcel: Parcel, now: datetime, keep_delivered_days: int, tz: tzinfo = BERLIN
+) -> bool:
+    """Return True when a parcel should be dropped.
+
+    A closed parcel stays ``keep_delivered_days`` from its delivery (or its last change).
+    0 keeps it only on the day of delivery: it goes at the next midnight in ``tz``.
+    """
     result = parcel.result
     if result and result.status in CLOSED_STATUSES:
         delivered = result.delivered_at or parcel.last_change_at
+        if keep_delivered_days <= 0:
+            return delivered.astimezone(tz).date() < now.astimezone(tz).date()
         return now - delivered > timedelta(days=keep_delivered_days)
     return now - parcel.last_change_at > timedelta(days=STALE_REMOVE_DAYS)
 

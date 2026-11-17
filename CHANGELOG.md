@@ -36,6 +36,13 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.56 (2026-11-17)
+
+- **Zugestellte Pakete nur am Tag der Zustellung zeigen:** „Zugestellte Pakete ausblenden nach (Tagen)“ erlaubt jetzt auch **0**. Ein zugestelltes (oder storniertes) Paket bleibt dann bis Mitternacht in der Liste und verschwindet mit dem neuen Tag. Bei 1 und mehr Tagen zählt die Zeit wie bisher ab der Zustellung. Der Einstellungsdialog erklärt das jetzt. (Wunsch aus dem simon42-Forum)
+- **UPS My Choice:** Mails von `mcinfo@ups.com` werden gelesen. „Ihr Paket ist unterwegs!“ (Versandbenachrichtigung) und „Paket ist morgen für die Zustellung terminiert“ setzen „Versendet“ mit dem geschätzten Tag, dem Zeitfenster und dem Absender als Namen (nur Firmen). Andere Mails dieses Absenders liefern wie bisher nur die Sendungsnummer. Wer den Mail-Import mit einem Filter nach Absendern nutzt, nimmt `mcinfo@ups.com` dazu. ([#37](https://github.com/SoerenKaiser99/parcel_tracker/issues/37))
+- Der Name aus einer Absenderzeile endet jetzt auch an der schwedischen Rechtsform „AB“ (nur am Ende des Namens).
+- Ein Paket, das nach der eingestellten Zeit aus der Liste verschwunden ist, kommt durch eine verspätete Mail nicht mehr zurück (zwei Tage lang werden solche Mails übergangen), und es verschwindet erst, wenn seine Benachrichtigung raus ist (z. B. kurz nach einem Neustart).
+
 ### v0.3.55 (2026-11-16)
 
 Beitrag von benep: [PR #79](https://github.com/SoerenKaiser99/parcel_tracker/pull/79), Vorarbeit für [#55](https://github.com/SoerenKaiser99/parcel_tracker/issues/55).

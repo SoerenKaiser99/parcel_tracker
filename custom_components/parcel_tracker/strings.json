@@ -12,7 +12,8 @@
         },
         "data_description": {
           "country": "Decides how many digits the postcode has and which GLS lookup is asked.",
-          "postcode": "Germany: 5 digits (e.g. 10115). Austria and Switzerland: 4 digits (e.g. 1010)."
+          "postcode": "Germany: 5 digits (e.g. 10115). Austria and Switzerland: 4 digits (e.g. 1010).",
+          "keep_delivered_days": "Counts from the delivery: 1 keeps the parcel for 24 hours. 0 shows it only on the day of delivery; it goes at midnight."
         }
       },
       "reauth_confirm": {
@@ -56,6 +57,7 @@
         "data_description": {
           "country": "Decides how many digits the postcode has and which GLS lookup is asked.",
           "postcode": "Germany: 5 digits (e.g. 10115). Austria and Switzerland: 4 digits (e.g. 1010).",
+          "keep_delivered_days": "Counts from the delivery: 1 keeps the parcel for 24 hours. 0 shows it only on the day of delivery; it goes at midnight.",
           "dhl_api_key": "Without a key, DHL parcels come from the DHL mails via the mail import; with it you get the live status. Leave empty to keep the saved key.",
           "dhl_api_key_remove": "Tick and save to delete the saved DHL key. The tick wins, even if a new key is typed in the field above.",
           "track17_api_key": "Free key from api.17track.net (200 numbers once). Only used when you ask for it on the card. Leave empty to keep the saved key.",

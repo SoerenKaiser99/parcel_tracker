@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import logging
 from dataclasses import replace
+from datetime import datetime
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .carriers.base import has_markup, plain_text
 from .carriers.ups import ApiBudget
-from .const import MAIL_DEDUP_KEEP, STORAGE_KEY, STORAGE_VERSION
+from .const import (
+    MAIL_DEDUP_KEEP,
+    REMOVED_KEEP,
+    SHOP_CARRIERS,
+    STORAGE_KEY,
+    STORAGE_VERSION,
+)
 from .models import Parcel, TrackingEvent, TrackingResult
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +77,9 @@ class ParcelStore:
         self._store: Store[dict] = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self.parcels: dict[str, Parcel] = {}
         self.message_ids: list[str] = []
+        # Numbers (and their carrier numbers) the cleanup removed lately, with the time:
+        # a mail read after that must not bring the parcel back (``was_removed``).
+        self.removed: dict[str, datetime] = {}
         # Geschenkmodus: new parcels are gifts while it is on.
         self.gift_mode = False
         # Mutated in place by the UPS carrier, so keep the same object across loads.
@@ -102,6 +112,15 @@ class ParcelStore:
         ids = data.get("message_ids", [])
         self.message_ids = [i for i in ids if isinstance(i, str)] if isinstance(ids, list) else []
         self.gift_mode = data.get("gift_mode") is True
+        self.removed = {}
+        stored = data.get("removed")
+        for number, when in (stored.items() if isinstance(stored, dict) else ()):
+            try:
+                at = datetime.fromisoformat(when)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(number, str) and at.tzinfo is not None:
+                self.removed[number] = at
         loaded = ApiBudget.from_dict(data.get("ups_budget"))
         self.ups_budget.month, self.ups_budget.count = loaded.month, loaded.count
         if scrubbed:
@@ -117,6 +136,7 @@ class ParcelStore:
                 "message_ids": self.message_ids[-MAIL_DEDUP_KEEP:],
                 "ups_budget": self.ups_budget.to_dict(),
                 "gift_mode": self.gift_mode,
+                "removed": {n: at.isoformat() for n, at in self.removed.items()},
             }
         )
 
@@ -127,6 +147,21 @@ class ParcelStore:
 
     def remove(self, number: str) -> Parcel:
         return self.parcels.pop(number)
+
+    def mark_removed(self, parcel: Parcel, now: datetime) -> None:
+        """Remember a parcel the cleanup removed, by its carrier's number. A shop's order
+        number is never remembered: more parcels of that order may still come."""
+        own = None if parcel.carrier in SHOP_CARRIERS else parcel.number
+        for number in (own, parcel.tracking_ref):
+            if number:
+                self.removed[number] = now
+
+    def forget_removed(self, now: datetime) -> None:
+        """Drop what was removed longer than ``REMOVED_KEEP`` ago."""
+        self.removed = {n: at for n, at in self.removed.items() if now - at <= REMOVED_KEEP}
+
+    def was_removed(self, number: str | None) -> bool:
+        return bool(number) and number in self.removed
 
     def get(self, number: str) -> Parcel | None:
         return self.parcels.get(number)

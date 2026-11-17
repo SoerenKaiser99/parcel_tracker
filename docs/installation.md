@@ -42,7 +42,7 @@ Updates kommen auf diesem Weg nicht von selbst: Für eine neue Version lädst du
 | **DHL-API-Key** (optional) | Wird beim Speichern geprüft. Das Feld darf leer bleiben: DPD, GLS und Hermes brauchen keinen Key, DHL-Pakete kommen ohne Key aus den DHL-Mails. Mit Key gibt es für DHL den Live-Status (Ort, Verlauf, Zeitfenster). Der Key lässt sich später ergänzen. Siehe [DHL](dienste.md#dhl). |
 | **Land** | Deutschland, Österreich oder Schweiz. Vorbelegt mit dem Land aus den Home-Assistant-Einstellungen, sonst Deutschland. Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird. |
 | **PLZ** (optional) | Deutschland 5 Ziffern (z. B. 10115), Österreich und Schweiz 4 Ziffern (z. B. 1010). Mit PLZ liefert DHL zusätzliche Details und GLS den Verlauf. |
-| **Zugestellte Pakete ausblenden nach (Tagen)** | Standard 3, Bereich 1–30. Nach dieser Zeit verschwindet ein zugestelltes Paket aus der Übersicht. |
+| **Zugestellte Pakete ausblenden nach (Tagen)** | Standard 3, Bereich 0–30. Gezählt wird ab der Zustellung: Mit 1 bleibt ein Paket 24 Stunden in der Übersicht. Mit **0** steht es nur am Tag der Zustellung da und verschwindet um Mitternacht. |
 
 Alle vier Felder änderst du später über **Konfigurieren** an der Integration. Dort gibt es zusätzlich:
 

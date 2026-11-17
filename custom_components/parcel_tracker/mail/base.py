@@ -352,7 +352,7 @@ def known_shop(text: str) -> bool:
 
 # A company, never a private sender: only such a name may become the parcel's name.
 LEGAL_FORM = re.compile(
-    r"(?<![\w.])(?:GmbH|GMBH|AG|KG|UG|SE|OHG|GbR|Ltd\.?|e\.\s?K\.|B\.\s?V\.|SARL"
+    r"(?<![\w.])(?:GmbH|GMBH|AG|AB(?=\s*$)|KG|UG|SE|OHG|GbR|Ltd\.?|e\.\s?K\.|B\.\s?V\.|SARL"
     r"|S\.\s?[aà]\.?\s?r\.\s?[lL]\.)(?!\w)"
 )
 # "GmbH & Co KG", "AG & Co. KGaA": still the legal form.

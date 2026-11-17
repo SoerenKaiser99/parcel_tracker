@@ -5,7 +5,7 @@ from datetime import timedelta
 from typing import Any, Protocol
 
 DOMAIN = "parcel_tracker"
-VERSION = "0.3.55"
+VERSION = "0.3.56"
 
 CONF_DHL_API_KEY = "dhl_api_key"
 CONF_COUNTRY = "country"
@@ -69,7 +69,7 @@ DEFAULT_KEEP_DELIVERED_DAYS = 3
 DEFAULT_HIDE_NAMES = False
 # Person entities that may see what is in a gift (Geschenkmodus); nobody by default.
 DEFAULT_GIFT_VIEWERS: tuple = ()
-MIN_KEEP_DELIVERED_DAYS = 1
+MIN_KEEP_DELIVERED_DAYS = 0  # 0: only on the day of delivery, gone at midnight
 MAX_KEEP_DELIVERED_DAYS = 30
 STALE_REMOVE_DAYS = 30
 # Only for the one-time migration of entries from before v0.3.42, which had no host
@@ -102,6 +102,8 @@ MIN_UPS_BUDGET = 0
 MAX_UPS_BUDGET = 10000
 
 TICK = timedelta(minutes=1)
+# A late mail about a parcel the cleanup removed within this time does not bring it back.
+REMOVED_KEEP = timedelta(days=2)
 DHL_DAILY_SOFT_LIMIT = 200
 CARRIER_BROKEN_AFTER = timedelta(hours=24)
 
