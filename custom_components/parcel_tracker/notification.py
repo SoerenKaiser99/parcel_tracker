@@ -20,7 +20,15 @@ from .const import (
     NOTIFY_SERVICE_PREFIX,
     NOTIFY_SERVICES_HIDDEN,
 )
-from .models import Parcel, ParcelStatus, carrier_name, display_name, short_number
+from .models import (
+    Parcel,
+    ParcelStatus,
+    carrier_name,
+    display_name,
+    name_parts,
+    short_number,
+    with_more,
+)
 
 __all__ = [
     "DEFAULT_NOTIFY_EVENTS",
@@ -79,8 +87,10 @@ def _label(parcel: Parcel, hide_names: bool = False) -> str:
             return display_name(parcel, True)
         name = _short(parcel.name)
     else:
+        # (the name is cut, the further items always stay: "… (+2)")
+        title, more = name_parts(parcel)
         name = (
-            _short(parcel.name)
+            (with_more(_short(title), more) if title else "")
             or _short(parcel.mail_title)
             or f"Paket {short_number(parcel.number)}"
         )

@@ -63,7 +63,7 @@ Oben rechts stehen bis zu drei Schilder, gelesen aus `sensor.pakete_heute`:
 
 ## Was in einer Zeile steht
 
-Jede Zeile zeigt den Paketdienst, den Namen, den Status, einen Fortschrittsbalken und rechts den Termin:
+Jede Zeile zeigt den Paketdienst, den Namen, den Status, einen Fortschrittsbalken und rechts den Termin. Ist der Name zu lang für die Karte, endet er mit „…“. Enthält das Paket weitere Artikel, steht ihre Zahl dahinter, z. B. „(+2)“, und bleibt immer sichtbar.
 
 | Rechts steht | Bedeutung |
 |---|---|

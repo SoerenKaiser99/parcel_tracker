@@ -133,6 +133,7 @@ async def test_gift_name_for_a_viewer(hass, hass_ws_client):
     assert reply["success"] is True
     assert reply["result"] == {
         "name": "Lego",
+        "more_items": 0,
         "mail_title": f"Titel {OPEN1[-1]}",
         "tracking_url": tracking_url(parcel),
     }
@@ -140,6 +141,17 @@ async def test_gift_name_for_a_viewer(hass, hass_ws_client):
     missing = {"type": "parcel_tracker/gift_name", "number": "NOPE123456"}
     reply = await _ask(hass, hass_ws_client, anna, missing)
     assert reply["error"]["code"] == "not_found"
+
+
+async def test_gift_name_is_the_name_as_shown_with_its_further_items(hass, hass_ws_client):
+    entry = await _setup(hass)
+    anna = await _user(hass, "Anna", ANNA)
+    parcel = entry.runtime_data.store.parcels[OPEN1]
+    # (a name a mail gave: one typed in is shown as it is)
+    parcel.name, parcel.name_manual = "Lego Technik und 1 weiterer Artikel", False
+    await _set_gift(hass, {"number": OPEN1, "gift": True})
+    reply = await _ask(hass, hass_ws_client, anna, NAME_OPEN1)
+    assert (reply["result"]["name"], reply["result"]["more_items"]) == ("Lego Technik", 1)
 
 
 async def test_gift_name_denied_to_non_viewer_and_admin_without_list(hass, hass_ws_client):

@@ -45,7 +45,8 @@ Verschwindet ein Paket aus der Liste (gelöscht oder nach der eingestellten Zahl
 | `carrier` | Kürzel des Paketdienstes oder Shops: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` |
 | `carrier_name` | Anzeigename, z. B. `DHL` |
 | `number` | Nummer des Pakets |
-| `name` | Name, wie er angezeigt wird (mit „Namen ausblenden“ der neutrale Name, bei einem Geschenk `Geschenk · …`) |
+| `name` | Name, wie er angezeigt wird (mit „Namen ausblenden“ der neutrale Name, bei einem Geschenk `Geschenk · …`), ohne die weiteren Artikel |
+| `more_items` | Zahl der weiteren Artikel im Paket neben dem, nach dem es heißt (bei Amazon aus der Artikelliste der neuesten Mail), sonst 0. Die Karte zeigt sie als „(+2)“ hinter dem Namen, der Name der Entität, Benachrichtigungen und Kalender hängen sie als Text an |
 | `gift` | `true`, wenn das Paket ein Geschenk ist (siehe [Geschenkmodus](datenschutz.md#geschenkmodus)), sonst `false` |
 | `outgoing` | `true`, wenn du das Paket verschickt hast (Einlieferungsbeleg, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)), sonst `false`. Ein versendetes Paket ist nie ein Geschenk. Bei ihm sind `pickup_point`, `pickup_until`, `customs_amount` und `customs_currency` leer, `customs_cash` und `has_delivery_code` sind `false` |
 | `owner` | die Person, der das Paket gehört, als Entität (z. B. `person.anna`); leer, wenn es allen gehört. Das ist der geltende Besitzer, bei einem Paket ohne eigenen Besitzer also die Person aus **Unklare Pakete gehören**. Ein Besitzer, der nicht mehr unter Personen eingerichtet ist (entfernt oder umbenannt), zählt wie kein eigener Besitzer |
@@ -303,7 +304,7 @@ Feuert einmal, sobald ein Paket neu angelegt ist: aus einer Mail (auch ein weite
 |---|---|
 | `entry_id` | der Eintrag der Integration |
 | `number` | Sendungs- oder Bestellnummer |
-| `name` | der angezeigte Name; bei einem Geschenk der Geschenk-Name („Geschenk · DHL-Paket …2557“), nie der echte |
+| `name` | der angezeigte Name, mit den weiteren Artikeln als „(+2)“; bei einem Geschenk der Geschenk-Name („Geschenk · DHL-Paket …2557“), nie der echte |
 | `carrier` | Paketdienst oder Shop (`dhl`, `amazon` …), leer, solange er nicht erkannt ist |
 | `owner` | wem das Paket gehört (z. B. `person.anna`), leer für alle |
 | `outgoing` | `true`, wenn das Paket schon beim Anlegen ein versendetes ist (Einlieferungsbeleg), sonst `false` |

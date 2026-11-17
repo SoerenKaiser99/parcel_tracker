@@ -147,12 +147,15 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
         r = p.result
         now = dt_util.now()
         today = now.date()
+        name, more = self.coordinator.display_parts(p)
         return {
             "carrier": p.carrier,
             "carrier_name": _carrier_name(p),
             "number": p.number,
-            # The name the parcel is shown by: neutral with "Namen ausblenden".
-            "name": self.coordinator.display_name(p),
+            # The name the parcel is shown by: neutral with "Namen ausblenden". Further
+            # items stand apart, the card shows them as "(+2)" (never cut).
+            "name": name,
+            "more_items": more,
             "eta_date": _iso(r.eta_date) if r else None,
             "eta_latest": _iso(r.eta_latest) if r else None,
             "eta_from": _iso(r.eta_from) if r else None,

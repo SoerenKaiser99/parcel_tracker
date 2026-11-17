@@ -27,6 +27,7 @@ from ..models import (
     ParcelStatus,
     TrackingEvent,
     TrackingResult,
+    name_parts,
 )
 from .base import (
     ATTEMPT_TEXT,
@@ -393,14 +394,9 @@ def _order_index(order: str, number: str) -> int:
     return int(suffix) if suffix.isdigit() else 1
 
 
-def _numbered(title: str, index: int) -> str:
-    """An entry's name: its item, with the number of the entry from the second one on."""
-    return title if index == 1 else f"{title} ({index})"
-
-
-def _shop_box(carrier: str, index: int) -> str:
-    """The name of a further entry whose mails named no item yet ("Amazon-Sendung (2)")."""
-    return f"{CARRIER_NAMES[carrier]}-Sendung ({index})"
+def _shop_box(carrier: str) -> str:
+    """The name of a further entry whose mails named no item yet ("Amazon-Sendung")."""
+    return f"{CARRIER_NAMES[carrier]}-Sendung"
 
 
 def _new_number(parcels: dict[str, Parcel], siblings: list[Parcel], order: str) -> str:
@@ -520,12 +516,19 @@ def _remember_items(parcel: Parcel, update: MailUpdate) -> None:
     late, an order's mail must not give a box the items of the whole order. Nor does a mail
     about the whole order ("Bestellt") once the entry is a box (it has a shipment's id).
     Keeping them is never told, like the shipment's id (``_remember_shipment``).
+
+    The entry is named after its first item in full (the subject cuts it short, and it may
+    name an item that is not in this box); how many more it holds is shown behind it
+    (``models.name_parts``). Not a name the user typed in, and not without a title (a mail
+    without HTML part): then the subject names it, as before.
     """
     if not update.items or (parcel.items_at is not None and update.sent_at < parcel.items_at):
         return
     if update.status is ParcelStatus.PRE_TRANSIT and parcel.shipment_ids:
         return
     parcel.items, parcel.items_at = list(update.items), update.sent_at
+    if not parcel.name_manual and (title := parcel.items[0].title):
+        parcel.name = title
 
 
 def _gift_for(*parcels: Parcel) -> list[str]:
@@ -720,7 +723,7 @@ def _apply_order(
     goes by the item it names, else to the order's first open entry; it is a further
     shipment only as "Versendet" with an item no entry names, once every entry of the
     order is shipped. A further entry takes the number after the highest one the order
-    has (``_new_number``) and is named after its item with that number: "… (3)".
+    has (``_new_number``, "…P3") and is named after its item, without that number.
     """
     siblings = _order_parcels(parcels, update.carrier, update.number)
     key = title_key(update.title) if update.title else None
@@ -740,7 +743,7 @@ def _apply_order(
             target = (open_ or cancelled or siblings)[0]
     if target is None and update.along and siblings:
         # An order that came along in another order's box makes no further entry: no
-        # phantom "… (2)" delivered next to its entry, left behind when its own box has
+        # phantom "…P2" delivered next to its entry, left behind when its own box has
         # another id. (An order never seen makes its first one, as a mail read before the
         # order's own mails does; those find it by its id.)
         return None
@@ -748,12 +751,11 @@ def _apply_order(
         return None
     if target is None:
         number = _new_number(parcels, siblings, update.number)
-        index = _order_index(update.number, number)
         if update.title:
-            name = _numbered(update.title, index)
+            name = update.title
         else:
             # (a further box whose mail names no item, see ``_by_shipment``)
-            name = _shop_box(update.carrier, index) if index > 1 else None
+            name = _shop_box(update.carrier) if number != update.number else None
         # A further box of a gift order is a gift as well, also when the mode is off by now.
         target = Parcel(
             number,
@@ -789,10 +791,9 @@ def _apply_order(
     _take_over(target, update)
     if target.mail_title is None and update.title:
         target.mail_title = update.title
-        index = _order_index(update.number, target.number)
-        if not target.name_manual and target.name in (None, _shop_box(update.carrier, index)):
+        if not target.name_manual and name_parts(target)[0] in (None, _shop_box(update.carrier)):
             # (a box whose mails named no item so far: now one does)
-            target.name = _numbered(update.title, index)
+            target.name = update.title
     old = target.status
     own = parcels.get(update.tracking_ref) if update.tracking_ref else None
     facts = _take_shop_facts(parcels, target, update, now, gift)

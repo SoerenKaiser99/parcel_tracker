@@ -84,15 +84,26 @@ def _items(msg: EmailMessage) -> list[tuple[OrderItem, ...]]:
 
 
 # ----- reading the items -----
-def test_an_item_with_its_article_number_and_quantity():
-    assert _items(_msg()) == [(OrderItem(FIRST, 1),)]
+def test_an_item_with_its_article_number_quantity_and_full_title():
+    assert _items(_msg()) == [(OrderItem(FIRST, 1, TITLE),)]
 
 
-@pytest.mark.parametrize("picture", [True, False])
-def test_each_item_of_a_box_with_its_own_quantity(picture):
+def test_each_item_of_a_box_with_its_own_quantity_and_title():
     # (its picture and its name both link to its page: one item, not two)
-    msg = _msg((ORDER, (_item(FIRST, 2, picture=picture), _item(SECOND, 1, seller=None))))
-    assert _items(msg) == [(OrderItem(FIRST, 2), OrderItem(SECOND, 1))]
+    msg = _msg((ORDER, (_item(FIRST, 2), _item(SECOND, 1, "Beispiel-Kabel 2 m", None))))
+    assert _items(msg) == [(OrderItem(FIRST, 2, TITLE), OrderItem(SECOND, 1, "Beispiel-Kabel 2 m"))]
+
+
+def test_without_a_picture_the_title_is_the_links_text():
+    # (Amazon cuts it short: the name of the picture is the one in full)
+    [[item]] = _items(_msg((ORDER, (_item(FIRST, picture=False),))))
+    assert item.title == f"{TITLE[:24]}..."
+
+
+def test_a_long_title_is_cut_like_every_title():
+    long = "Beispiel-Werkzeugkoffer " + "mit Zubehör " * 10
+    [[item]] = _items(_msg((ORDER, (_item(FIRST, title=long),))))
+    assert len(item.title) == 60 and item.title.endswith("…")
 
 
 @pytest.mark.parametrize(
@@ -123,19 +134,20 @@ def test_only_a_link_to_an_items_page_at_amazon_names_its_article_number(href):
 
 
 def test_an_item_of_quantity_zero_is_none():
-    assert _items(_msg((ORDER, (_item(FIRST, 0), _item(SECOND))))) == [(OrderItem(SECOND, 1),)]
+    msg = _msg((ORDER, (_item(FIRST, 0), _item(SECOND))))
+    assert _items(msg) == [(OrderItem(SECOND, 1, TITLE),)]
 
 
 def test_a_quantity_of_more_than_four_digits_is_none_and_the_mail_still_counts():
     # (``int`` refuses more than 4300 digits: the mail must not fail on it)
     msg = _msg((ORDER, (_item(FIRST), _item(SECOND, "1" * 5000))))
     [update] = parse_mail(msg).updates
-    assert update.items == (OrderItem(FIRST, 1),)
+    assert update.items == (OrderItem(FIRST, 1, TITLE),)
 
 
 def test_only_an_asin_is_an_article_number():
     # A line that begins with the mark but is no ASIN (here in a mail without HTML part).
-    msg = _msg(html=False, text_items="Beispielweg 12\nMenge: 1\n")
+    msg = _msg(html=False, text_items="\ue000Beispielweg 12\nMenge: 1\n")
     assert _items(msg) == [(OrderItem(None, 1),)]
 
 
@@ -143,7 +155,7 @@ def test_a_mention_without_items_adds_none():
     # The HTML part names the order once more in its head, without items: the text part
     # names it once, so the mentions are taken by the order, and the head adds nothing.
     msg = _msg(html_head=f"<p>Bestellnr. {ORDER}</p>")
-    assert _items(msg) == [(OrderItem(FIRST, 1),)]
+    assert _items(msg) == [(OrderItem(FIRST, 1, TITLE),)]
 
 
 def test_each_order_of_a_mail_has_its_own_items():
@@ -244,7 +256,7 @@ def test_keeping_items_alone_is_no_change():
 
 def test_items_are_stored_and_read_back():
     parcel = Parcel(NUMBER, "amazon", "mail", None, NOW, NOW,
-                    items=[OrderItem(FIRST, 2), OrderItem(None, 1)])
+                    items=[OrderItem(FIRST, 2, TITLE), OrderItem(None, 1)])
     assert Parcel.from_dict(parcel.to_dict()).items == parcel.items
 
 
@@ -261,12 +273,12 @@ def test_unreadable_stored_items_are_dropped():
         {"article_id": FIRST, "quantity": 1},
         {"article_id": SECOND, "quantity": 0},
         {"article_id": SECOND, "quantity": "2"},
-        {"article_id": 7, "quantity": 1},
+        {"article_id": 7, "quantity": 1, "title": ["x"]},
         "B0BEISPIEL",
         *({"article_id": None, "quantity": 1} for _ in range(MAX_ORDER_ITEMS)),
     ]
     items = Parcel.from_dict(data).items
-    # (an unreadable article number is dropped from its item: the quantity of the fourth holds)
+    # (an unreadable value is dropped from its item: the quantity of the fourth holds)
     assert items[:2] == [OrderItem(FIRST, 1), OrderItem(None, 1)]
     # Of the first MAX_ORDER_ITEMS stored, three are unreadable.
     assert len(items) == MAX_ORDER_ITEMS - 3

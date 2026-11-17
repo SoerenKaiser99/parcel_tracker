@@ -205,8 +205,28 @@ _PRODUCT_PATH = re.compile(
 )
 # The start of a line ``_ItemText`` adds for a link to an item's page: a private-use
 # character, which no mail shows and ``clean`` keeps (it strips whitespace, "\x1f" as well).
-_MARK = ""
+_MARK = "\ue000"
 _ASIN = re.compile(r"[A-Z0-9]{10}")  # (an item's article number, as ``_PRODUCT_PATH`` reads it)
+_TITLE_MARK = "\ue001"  # (the start of a line with an item's full name, like ``_MARK``)
+_LINK_MARK = "\ue002"  # (the start of a line with the text of the link to an item's page)
+# Texts of buttons that link an item's page as well: never an item's name (compared in any
+# case).
+_NOT_A_TITLE = frozenset(
+    text.casefold()
+    for text in (
+        "Erneut kaufen",
+        "Erneut bestellen",
+        "Artikel ansehen",
+        "Produkt ansehen",
+        "Details ansehen",
+        "Jetzt kaufen",
+        "In den Einkaufswagen",
+        "Artikel bewerten",
+        "Produkt bewerten",
+        "Bewerten",
+        "Rezension schreiben",
+    )
+)
 _ORDER_ID = re.compile(r"\d{3}-\d{7}-\d{7}")
 _SHIPMENT_ID = re.compile(r"[A-Za-z0-9]{5,20}")
 
@@ -428,14 +448,38 @@ def _product_asin(link: str) -> str | None:
 
 class _ItemText(HtmlText):
     """The visible text of Amazon's HTML part, with a line of its own for each link to an
-    item's page: ``_MARK`` and the item's article number. Read once per mail, for the
-    sellers and the items (no other line begins with "Verkauf durch", "Menge:" or an order's
-    number)."""
+    item's page (``_MARK`` and the item's article number), for the alt text of the picture
+    in it (``_TITLE_MARK`` and the item's full name) and, behind it, for the link's own text
+    (``_LINK_MARK``: the name as Amazon cuts it). Read once per mail, for the sellers and
+    the items (no other line begins with "Verkauf durch", "Menge:" or an order's number)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._link: list[str] | None = None  # (the text of the item's link read so far)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         super().handle_starttag(tag, attrs)
-        if tag == "a" and (asin := _product_asin(dict(attrs).get("href") or "")):
-            self.parts.append(f"\n{_MARK}{asin}\n")
+        values = dict(attrs)
+        if tag == "a":
+            asin = _product_asin(values.get("href") or "")
+            self._link = [] if asin else None
+            if asin:
+                self.parts.append(f"\n{_MARK}{asin}\n")
+        elif tag == "img" and self._link is not None:
+            if alt := " ".join((values.get("alt") or "").split()):
+                self.parts.append(f"\n{_TITLE_MARK}{alt}\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        super().handle_endtag(tag)
+        if tag == "a" and self._link is not None:
+            if text := " ".join("".join(self._link).split()):
+                self.parts.append(f"\n{_LINK_MARK}{text}\n")
+            self._link = None
+
+    def handle_data(self, data: str) -> None:
+        super().handle_data(data)
+        if self._link is not None:
+            self._link.append(data)
 
 
 def _listed(lines: list[str]) -> list[OrderItem]:
@@ -443,19 +487,42 @@ def _listed(lines: list[str]) -> list[OrderItem]:
 
     An item ends at its quantity ("Menge: 2"); one of more than four digits is none (and
     ``int`` refuses very long ones). Its article number is the one of the link to its page
-    above (its picture and its name both link there), only as an ASIN; in a mail without
-    HTML part it has none.
+    above (its picture and its name both link there), only as an ASIN. Its title is
+    ``_title``'s; in a mail without HTML part it has neither.
     """
     found: list[OrderItem] = []
-    asin = None
+    asin = full = cut = None
     for line in lines:
         if line.startswith(_MARK):
-            asin = line[len(_MARK) :] if _ASIN.fullmatch(line, len(_MARK)) else None
+            linked = line[len(_MARK) :] if _ASIN.fullmatch(line, len(_MARK)) else None
+            if linked != asin:  # (not the same item's second link)
+                asin, full, cut = linked, None, None
+        elif line.startswith(_TITLE_MARK):
+            full = full or line[len(_TITLE_MARK) :]
+        elif line.startswith(_LINK_MARK):
+            if (text := line[len(_LINK_MARK) :]).casefold() not in _NOT_A_TITLE:
+                cut = cut or text
         elif quantity := _QUANTITY_LINE.fullmatch(line):
             if len(digits := quantity.group("n")) <= 4 and (count := int(digits)):
-                found.append(OrderItem(asin, count))
-            asin = None
+                found.append(OrderItem(asin, count, _title(full, cut)))
+            asin = full = cut = None
     return found
+
+
+def _title(full: str | None, cut: str | None) -> str | None:
+    """An item's title from the alt text of its picture (``full``) and the text of its
+    name's link (``cut``, which Amazon cuts short: "Beispiel-Maßband 5 m mi...").
+
+    The link's text names the item; the alt text is its name in full only if it begins the
+    same (``title_key``), as in every mail seen: an alt text of another kind ("Produktbild",
+    an offer, a logo) never names an item. Without the link's text there is none, whatever
+    the picture says. A button's text is no item's name (``_NOT_A_TITLE``).
+    """
+    if cut is None:
+        return None
+    if full is not None and (key := title_key(cut)) and title_key(full).startswith(key):
+        return shorten(full)
+    return shorten(cut)
 
 
 def _items(text: str, numbers: list[str], whole_order: bool) -> list[tuple[OrderItem, ...]]:

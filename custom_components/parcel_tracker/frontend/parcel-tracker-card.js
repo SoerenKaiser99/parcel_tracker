@@ -41,6 +41,15 @@ const fmtDateTime = (iso) => (isLocalMidnight(iso) ? fmtDate(iso) : `${fmtDate(i
 
 const ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]));
+// How many further items a box holds besides the one it is named after (the attribute
+// ``more_items``): shown as "(+2)", "" for none or anything that is no count.
+const moreText = (more) => (Number.isInteger(more) && more > 0 ? `(+${more})` : "");
+// A name with the further items behind it: the name is cut to the card's width, the
+// further items always stay.
+const nameHtml = (name, more) => {
+  const extra = moreText(more);
+  return `<span>${esc(name)}</span>${extra ? `<span class="more">${extra}</span>` : ""}`;
+};
 
 const ERROR_TEXT = {
   auth: "DHL-API-Key abgelehnt – in den Integrations-Optionen prüfen",
@@ -1004,6 +1013,7 @@ class ParcelTrackerCard extends HTMLElement {
         .top { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
         .name { font-weight:500; display:flex; gap:8px; align-items:center; min-width:0; flex:1 1 auto; }
         .name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .name .more { flex:none; overflow:visible; margin-left:-4px; font-weight:400; color:var(--secondary-text-color); }
         .eta { font-size:13px; white-space:nowrap; color:var(--secondary-text-color); }
         .eta.today { color:var(--success-color); font-weight:500; }
         .chev { flex:none; align-self:center; box-sizing:border-box; width:7px; height:7px; margin:0 2px 0 -1px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:var(--secondary-text-color); transform:rotate(-45deg); transition:transform .15s ease; }
@@ -1363,8 +1373,9 @@ class ParcelTrackerCard extends HTMLElement {
     if (!info) return "";
     const name = typeof info.name === "string" && info.name ? info.name : null;
     const title = typeof info.mail_title === "string" && info.mail_title && info.mail_title !== name ? info.mail_title : null;
+    const more = name ? moreText(info.more_items) : "";
     const words = name || title
-      ? `<span><strong>${esc(name || title)}</strong>${name && title ? ` <span class="muted">· ${esc(title)}</span>` : ""}</span>`
+      ? `<span><strong>${esc(name || title)}</strong>${more ? ` ${more}` : ""}${name && title ? ` <span class="muted">· ${esc(title)}</span>` : ""}</span>`
       : `<span class="muted">Kein Name bekannt</span>`;
     const links = [[trackingUrl(info), TRACK_LINK], [orderUrl(a.number), ORDER_LINK]].map(pageLink).join("");
     return `<div class="giftinfo" role="group" aria-label="Inhalt">${words}${links}<button type="button" data-a="gift-unhide" data-number="${esc(a.number)}">Nicht mehr verbergen</button></div>`;
@@ -1705,7 +1716,7 @@ class ParcelTrackerCard extends HTMLElement {
     // No code any more (used, expired, option off): the one fetched is forgotten.
     if (a.has_delivery_code !== true) { this._codes.delete(a.number); this._code.delete(a.number); }
     const toggle = `<button type="button" class="row-toggle" aria-expanded="${open ? "true" : "false"}" data-number="${esc(a.number)}" data-a="toggle">
-        <span class="top"><span class="name">${this._icon(a.carrier)}<span>${esc(a.name || a.number)}</span></span>${right}<span class="chev" aria-hidden="true"></span></span>
+        <span class="top"><span class="name">${this._icon(a.carrier)}${nameHtml(a.name || a.number, a.name ? a.more_items : 0)}</span>${right}<span class="chev" aria-hidden="true"></span></span>
       </button>`;
     // The gift box stands beside the row's button, not in it (no button in a button).
     item.innerHTML = `
