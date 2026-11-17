@@ -205,10 +205,10 @@ _PRODUCT_PATH = re.compile(
 )
 # The start of a line ``_ItemText`` adds for a link to an item's page: a private-use
 # character, which no mail shows and ``clean`` keeps (it strips whitespace, "\x1f" as well).
-_MARK = ""
+_MARK = "\ue000"
 _ASIN = re.compile(r"[A-Z0-9]{10}")  # (an item's article number, as ``_PRODUCT_PATH`` reads it)
-_TITLE_MARK = ""  # (the start of a line with an item's full name, like ``_MARK``)
-_LINK_MARK = ""  # (the start of a line with the text of the link to an item's page)
+_TITLE_MARK = "\ue001"  # (the start of a line with an item's full name, like ``_MARK``)
+_LINK_MARK = "\ue002"  # (the start of a line with the text of the link to an item's page)
 # Texts of buttons that link an item's page as well: never an item's name (compared in any
 # case).
 _NOT_A_TITLE = frozenset(

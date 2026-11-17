@@ -147,7 +147,7 @@ def test_a_quantity_of_more_than_four_digits_is_none_and_the_mail_still_counts()
 
 def test_only_an_asin_is_an_article_number():
     # A line that begins with the mark but is no ASIN (here in a mail without HTML part).
-    msg = _msg(html=False, text_items="Beispielweg 12\nMenge: 1\n")
+    msg = _msg(html=False, text_items="\ue000Beispielweg 12\nMenge: 1\n")
     assert _items(msg) == [(OrderItem(None, 1),)]
 
 
