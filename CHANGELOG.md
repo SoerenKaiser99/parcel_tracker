@@ -36,6 +36,11 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.57 (2026-11-17)
+
+- **Amazon: Name aus dem Artikel:** Eine Amazon-Bestellung heißt jetzt nach dem vollen Titel des ersten Artikels aus der Mail statt nach dem gekürzten Betreff. Weitere Artikel stehen als „(+2)“ dahinter. Die Karte zeigt die Zahl getrennt und kürzt nur den Namen, nie die Zahl. Der Paket-Sensor führt den Namen ohne Zusatz und die Zahl im neuen Attribut `more_items`; Benachrichtigung, Kalender, Event, Entitätsname und die Listen in `sensor.pakete_heute` hängen „(+2)“ als Text an. Selbst vergebene Namen bleiben unverändert. ([PR #80](https://github.com/SoerenKaiser99/parcel_tracker/pull/80), danke an benep)
+- **Karte:** In der Sammelzeile „Shop · N Bestellungen“ steht „(+N)“ jetzt auch bei jeder einzelnen Bestellung.
+
 ### v0.3.56 (2026-11-17)
 
 - **Zugestellte Pakete nur am Tag der Zustellung zeigen:** „Zugestellte Pakete ausblenden nach (Tagen)“ erlaubt jetzt auch **0**. Ein zugestelltes (oder storniertes) Paket bleibt dann bis Mitternacht in der Liste und verschwindet mit dem neuen Tag. Bei 1 und mehr Tagen zählt die Zeit wie bisher ab der Zustellung. Der Einstellungsdialog erklärt das jetzt. (Wunsch aus dem simon42-Forum)

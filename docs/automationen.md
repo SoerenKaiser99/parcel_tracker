@@ -94,7 +94,7 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | Feld | Inhalt | Beispiel |
 |---|---|---|
 | `number` | Nummer des Pakets, wie sie die Integration führt | |
-| `name` | Name des Pakets, wie er angezeigt wird (mit „Namen ausblenden“ der neutrale Name); kann leer sein | `Kopfhörer` |
+| `name` | Name des Pakets, wie er angezeigt wird, weitere Artikel als „(+2)“ dahinter (mit „Namen ausblenden“ der neutrale Name); kann leer sein | `Kopfhörer` |
 | `carrier` | Kürzel des Paketdienstes oder Shops | `dhl` |
 | `carrier_name` | Anzeigename wie am Sensor | `DHL` |
 | `old_status` | vorheriger Status | `in_transit` |

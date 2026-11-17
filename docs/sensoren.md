@@ -107,7 +107,7 @@ Zählt die Pakete, die **heute sicher** kommen: Status „In Zustellung“ oder 
 | `persons` | die unter [Personen](mail-import.md#pakete-personen-zuordnen) eingerichteten Personen als Entitäten (z. B. `person.anna`), ohne Adressen; leere Liste ohne Personen. Die Karte bietet „Gehört“ nur damit an (nicht im Verlauf gespeichert) |
 | `default_owner` | die Person bei **Unklare Pakete gehören** als Entität; leer, wenn unklare Pakete allen gehören (nicht im Verlauf gespeichert) |
 
-**Aufbau der Listen:** Jeder Eintrag hat `number`, `name`, `carrier`, `eta_from`, `eta_to` und `gift`. `gift` ist `true` bei einem Geschenk, `name` ist dann der Geschenk-Name. So lassen eigene Anzeigen Geschenke weg, z. B. `{{ state_attr('sensor.pakete_heute', 'parcels') | rejectattr('gift') | list | count }}`.
+**Aufbau der Listen:** Jeder Eintrag hat `number`, `name`, `carrier`, `eta_from`, `eta_to` und `gift`. `name` trägt dort weitere Artikel als Text („Maßband (+2)“), anders als das Attribut `name` am Paket-Sensor, das sie in `more_items` führt. `gift` ist `true` bei einem Geschenk, `name` ist dann der Geschenk-Name. So lassen eigene Anzeigen Geschenke weg, z. B. `{{ state_attr('sensor.pakete_heute', 'parcels') | rejectattr('gift') | list | count }}`.
 
 **„Heute zugestellt“ heißt:** Status „Zugestellt“, und der Zustellzeitpunkt `delivered_at` liegt heute – gerechnet in der Zeitzone von Home Assistant. Nennt der Paketdienst keinen Zeitpunkt, gilt der Tag des Statuswechsels. Eine Bestellung, die ohne Zustellmail abgeschlossen wurde, zählt nicht mit.
 

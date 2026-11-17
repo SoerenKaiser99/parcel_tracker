@@ -134,7 +134,7 @@ Sind Dashboard-Pfad und Ersetzen nicht gesetzt, schickt der Blueprint nur Titel 
 
 | Variable | Inhalt |
 |---|---|
-| `name` | Name des Pakets; ohne Namen „Paket …“ und die letzten vier Stellen der Nummer |
+| `name` | Name des Pakets, weitere Artikel als „(+2)“ dahinter; ohne Namen „Paket …“ und die letzten vier Stellen der Nummer |
 | `carrier` | Anzeigename des Paketdienstes, z. B. DHL |
 | `new_status` | neuer Status, z. B. `out_for_delivery` |
 | `old_status` | vorheriger Status |

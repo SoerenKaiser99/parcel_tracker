@@ -231,8 +231,8 @@ def test_a_short_links_text_takes_the_alt_text_that_begins_with_it():
 # ----- two mails in Amazon's own HTML (fixtures 212 and 213) -----
 # The markup of the order's block is Amazon's as it is (MJML tables, the picture's link and
 # the name's link per item); every value in them is invented.
-ORDERED = "212_bestellbestaetigung_bestellt_artikelliste.eml"
-SHIPPED = "213_versandbestaetigung_versendet_artikelliste.eml"
+ORDERED = "214_bestellbestaetigung_bestellt_artikelliste.eml"
+SHIPPED = "215_versandbestaetigung_versendet_artikelliste.eml"
 KIT = OrderItem("B0BEISPIEL", 1, "Beispiel-Werkzeugset 12-teilig mit Koffer und Bit-Halter")
 TIES = OrderItem("B0MUSTER01", 1, "Musterfirma Kabelbinder 200 Stück schwarz UV-beständig")
 REAL = "AMZ99921255579900212"

@@ -177,7 +177,8 @@ function mount(parcels, config) {
 
 (async () => {
   const out = {};
-  const box = [order(A1, "Kabel", "in_transit"), order(A2, "Lampe", "in_transit")];
+  const box = [order(A1, "Kabel", "in_transit", { more_items: 2 }),
+    order(A2, "Lampe", "in_transit")];
 
   let m = mount(box);
   out.closed = m.html();
@@ -252,6 +253,8 @@ def test_open_box_lists_each_order_once_and_events_once(rendered):
     assert row.count('data-a="rename"') == 2 and row.count('data-a="remove"') == 2
     assert row.count('data-a="received"') == 1
     assert "9999999999999901" in row and "9999999999999902" in row
+    # Further items of an order stand beside its name, as in a single row.
+    assert row.count("(+2)") == 1 and row.count("(+") == 1
 
 
 def test_box_received_marks_each_open_order(rendered):
