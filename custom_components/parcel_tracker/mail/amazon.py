@@ -630,30 +630,32 @@ def parse_amazon_pickup(msg: EmailMessage) -> list[MailUpdate]:
     return updates
 
 
-def _listed_cancelled(listing: str, number: str) -> tuple[OrderItem, ...]:
-    """The items a cancellation lists for an order (``_listed``): below the one mention of
-    its number that lists any. The mail names the order in its head as well, with no item
+def _listed_cancelled(listing: str) -> dict[str, tuple[OrderItem, ...]]:
+    """The items a cancellation lists, per order (``_listed``): below the one mention of its
+    number that lists any. The mail names the order in its head as well, with no item
     below it; if more than one mention lists items, the same ones may be listed twice, and
     the order would lose more than was cancelled: then none."""
     mentions = list(_ORDER.finditer(listing))
-    listed = []
+    listed: dict[str, list[list[OrderItem]]] = {}
     for index, match in enumerate(mentions):
-        if match.group(2) != number:
-            continue
         end = mentions[index + 1].start() if index + 1 < len(mentions) else len(listing)
         if items := _listed(listing[match.end() : end].splitlines()):
-            listed.append(items)
-    return tuple(listed[0][:MAX_ORDER_ITEMS]) if len(listed) == 1 else ()
+            listed.setdefault(match.group(2), []).append(items)
+    return {
+        number: tuple(lists[0][:MAX_ORDER_ITEMS])
+        for number, lists in listed.items()
+        if len(lists) == 1
+    }
 
 
-def _cancellation(subj: str, text: str, sent: datetime, listing: str) -> list[MailUpdate]:
+def _cancellation(msg: EmailMessage, subj: str, text: str, sent: datetime) -> list[MailUpdate]:
     """A cancellation: one update per order, however often the mail names it.
 
     The mail about the whole order names no item (``title`` None). The mails about items
     name the first one they cancel, so only an order of that one item is closed (see
     ``apply._cancel_order``); without an item they tell nothing. They list the items they
     cancel as well, with article number and quantity where the HTML part names them below
-    "Bestellnr." (``listing``, see ``_items``): an order loses just those. A mail that
+    "Bestellnr." (``_listed_cancelled``): an order loses just those. A mail that
     names the order otherwise ("Bestell-Nr.") gives none: then the title tells the item.
     """
     numbers = dict.fromkeys(_CANCELLED_ORDER.findall(text))
@@ -667,13 +669,18 @@ def _cancellation(subj: str, text: str, sent: datetime, listing: str) -> list[Ma
             title = shorten(item.group("title"))
         if title is None:
             return []
-    orders = list(numbers)
-    contents = [_listed_cancelled(listing, n) if title else () for n in orders]
+    # (only the mails about items need the HTML part)
+    cancelled = _listed_cancelled(html_body_text(msg, _ItemText()) or text) if title else {}
     return [
         MailUpdate(
-            order_number(n), "amazon", ParcelStatus.CANCELLED, sent, title=title, items=items
+            order_number(n),
+            "amazon",
+            ParcelStatus.CANCELLED,
+            sent,
+            title=title,
+            items=cancelled.get(n, ()),
         )
-        for n, items in zip(orders, contents, strict=True)
+        for n in numbers
     ]
 
 
@@ -686,7 +693,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     sent = sent_at(msg)
     status = subject_status(subj) or stage_status(text)
     if status is ParcelStatus.CANCELLED:
-        return _cancellation(subj, text, sent, html_body_text(msg, _ItemText()) or text)
+        return _cancellation(msg, subj, text, sent)
     # In the plain layout an order named again is the same one (in the head and again above
     # the items): its last mention counts. In the usual layout a number that comes again is
     # a further shipment with its own day and items.

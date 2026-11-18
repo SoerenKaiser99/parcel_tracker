@@ -171,16 +171,11 @@ def test_making_the_rest_is_no_change_of_its_own():
 
 
 # ----- the order of the mails -----
-def test_the_orders_mail_read_after_the_box_leaves_the_same_rest():
-    in_order: dict = {}
-    _read(in_order, _ordered((TAPE, 1), (CABLE, 2)), _box((TAPE, 1), shipment="TAbCdE9fG"))
-    late: dict = {}
-    _read(late, _box((TAPE, 1), shipment="TAbCdE9fG"), _ordered((TAPE, 1), (CABLE, 2)))
-    assert _state(late) == _state(in_order) == {
-        NUMBER: (SHIPPED, [(TAPE, 1)]),
-        P2: (ORDERED, [(CABLE, 2)]),
-    }
-    assert name_parts(late[P2]) == (TITLES[CABLE], 0)
+def test_the_orders_mail_read_after_the_box_makes_no_rest():
+    # Read late, nothing tells what was cancelled in between: no rest, as before.
+    parcels: dict = {}
+    _read(parcels, _box((TAPE, 1), shipment="TAbCdE9fG"), _ordered((TAPE, 1), (CABLE, 2)))
+    assert _state(parcels) == {NUMBER: (SHIPPED, [(TAPE, 1)])}
 
 
 def test_the_orders_mail_read_after_all_boxes_leaves_nothing():
@@ -481,14 +476,6 @@ def test_an_order_a_carriers_number_was_told_for_is_split_by_its_first_box():
     assert [e.text for e in rest.result.events] == ["Bestellt"]
 
 
-def test_the_orders_mail_read_late_in_gift_mode_leaves_a_gift():
-    parcels: dict = {}
-    _read(parcels, _box((TAPE, 1), shipment="TAbCdE9fG"))
-    for update in parse_mail(_ordered((TAPE, 1), (CABLE, 1))).updates:
-        apply_update(parcels, update, NOW, gift=True)
-    assert parcels[P2].gift
-
-
 def test_a_delivery_without_id_never_goes_to_the_rest():
     # Two boxes of one article and a rest of it: the delivery is one of the boxes', which
     # one is not told. What is not shipped yet is never delivered.
@@ -606,6 +593,46 @@ def test_an_item_cancelled_from_an_order_a_carriers_number_was_told_for_is_in_no
     apply_update(parcels, _carrier_mail(day, ParcelStatus.PRE_TRANSIT), NOW)
     _read(parcels, _cancelled((LAMP, 1), when=1), _box((TAPE, 1), shipment="TAbCdE9fG", when=2))
     assert _state(parcels)[P2] == (ORDERED, [(CABLE, 1)])
+
+
+def test_cancelling_all_items_of_an_order_a_carrier_has_a_label_for_cancels_nothing():
+    # (the carrier's number may be a box on its way: as for a cancellation by title)
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1),))
+    day = parcels[NUMBER].result.eta_date
+    apply_update(parcels, _carrier_mail(day, ParcelStatus.PRE_TRANSIT), NOW)
+    [update] = parse_mail(_cancelled((TAPE, 1), when=1)).updates
+    assert apply_update(parcels, update, NOW) is None
+    assert parcels[NUMBER].status is not ParcelStatus.CANCELLED
+
+
+def test_a_delivery_without_id_of_only_the_rests_articles_is_the_rests_box():
+    # Its "Versendet" was never read: the box holds what was left, not the first box's.
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"),
+          _box((CABLE, 1), shipment=None, when=3, subject="Zugestellt: „Anderes…“"))
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (ParcelStatus.DELIVERED, [(CABLE, 1)]),
+    }
+
+
+def test_news_about_the_only_box_without_id_makes_no_further_box():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1),), _box((TAPE, 1), shipment="TAbCdE9fG"),
+          _box((TAPE, 1), shipment=None, when=2, html=False,
+               subject="Lieferungsaktualisierung: „Anderes…“"))
+    assert list(parcels) == [NUMBER]
+
+
+def test_shipped_again_without_id_by_the_cut_title_of_a_box_stays_with_that_box():
+    # (the first box's "Versendet" once more, without HTML part: not the rest's box)
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"))
+    parcels[NUMBER].mail_title = TITLES[TAPE]
+    _read(parcels, _box((TAPE, 1), shipment=None, when=2, html=False,
+                        subject="Versendet: „Beispiel-Maß…“"))
+    assert parcels[P2].status is ORDERED
 
 
 # ----- stored and told -----

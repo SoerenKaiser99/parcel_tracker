@@ -110,6 +110,7 @@ from .mail.apply import (
     close_unconfirmed,
     fold_delivered,
     mark_received,
+    order_of,
     tells_newer,
 )
 from .mail.base import MailResult, MailUpdate, is_forwarded, sender, sent_at
@@ -1049,7 +1050,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             return False
         # An order that is still there (or one of its boxes, "…P2") takes its mail.
         if own is None and any(
-            p.number == update.number or p.number.startswith(f"{update.number}P")
+            order_of(p.number) == update.number
             for p in self.store.parcels.values()
         ):
             return False
