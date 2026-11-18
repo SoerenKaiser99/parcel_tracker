@@ -9,7 +9,7 @@ from email.message import EmailMessage
 from urllib.parse import SplitResult, parse_qsl, urlsplit
 
 from ..const import MAX_ORDER_ITEMS
-from ..models import OrderItem, ParcelStatus
+from ..models import MORE_ITEMS, OrderItem, ParcelStatus
 from .base import (
     ATTEMPT_TEXT,
     DELAY_TEXT,
@@ -630,11 +630,15 @@ def parse_amazon_pickup(msg: EmailMessage) -> list[MailUpdate]:
     return updates
 
 
-def _listed_cancelled(listing: str) -> dict[str, tuple[OrderItem, ...]]:
+def _listed_cancelled(listing: str, title: str) -> dict[str, tuple[OrderItem, ...]]:
     """The items a cancellation lists, per order (``_listed``): below the one mention of its
     number that lists any. The mail names the order in its head as well, with no item
     below it; if more than one mention lists items, the same ones may be listed twice, and
-    the order would lose more than was cancelled: then none."""
+    the order would lose more than was cancelled: then none. None either unless they are
+    as many as the title tells (its item, and "… und 2 weitere Artikel"): more would be
+    another list below them (what is still to come), which is not cancelled."""
+    more = MORE_ITEMS.search(title)
+    count = 1 + (int(more.group(1)) if more else 0)
     mentions = list(_ORDER.finditer(listing))
     listed: dict[str, list[list[OrderItem]]] = {}
     for index, match in enumerate(mentions):
@@ -644,7 +648,7 @@ def _listed_cancelled(listing: str) -> dict[str, tuple[OrderItem, ...]]:
     return {
         number: tuple(lists[0][:MAX_ORDER_ITEMS])
         for number, lists in listed.items()
-        if len(lists) == 1
+        if len(lists) == 1 and len(lists[0]) == count
     }
 
 
@@ -669,8 +673,9 @@ def _cancellation(msg: EmailMessage, subj: str, text: str, sent: datetime) -> li
             title = shorten(item.group("title"))
         if title is None:
             return []
-    # (only the mails about items need the HTML part)
-    cancelled = _listed_cancelled(html_body_text(msg, _ItemText()) or text) if title else {}
+    cancelled = {}
+    if title:  # (only the mails about items need the HTML part)
+        cancelled = _listed_cancelled(html_body_text(msg, _ItemText()) or text, title)
     return [
         MailUpdate(
             order_number(n),

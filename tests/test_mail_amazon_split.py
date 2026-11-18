@@ -295,11 +295,14 @@ def _cancel(title: str) -> MailUpdate:
 
 
 def _cancelled(*articles: tuple[str, int], when: int = 2, html_head: str = ""):
-    """Amazon's mail "Artikel erfolgreich storniert": the subject names the first item, the
-    HTML part lists each one with its article number and quantity."""
+    """Amazon's mail "Artikel erfolgreich storniert": the subject names the first item and
+    how many more there are, the HTML part lists each one with its article number and
+    quantity."""
     first, count = articles[0]
+    more = {1: "", 2: " und 1 weiterer Artikel"}.get(len(articles), f" und {len(articles) - 1}"
+                                                     " weitere Artikel")
     msg = _msg((ORDER, _items(*articles)), when=DAY[when], html_head=html_head,
-               subject=f"Artikel erfolgreich storniert: {count} „{TITLES[first][:20]}…“")
+               subject=f"Artikel erfolgreich storniert: {count} „{TITLES[first][:20]}…“{more}")
     msg.replace_header("From", "Amazon.de <order-update@amazon.de>")
     return msg
 
@@ -633,6 +636,44 @@ def test_shipped_again_without_id_by_the_cut_title_of_a_box_stays_with_that_box(
     _read(parcels, _box((TAPE, 1), shipment=None, when=2, html=False,
                         subject="Versendet: „Beispiel-Maß…“"))
     assert parcels[P2].status is ORDERED
+
+
+def test_a_delivery_with_an_id_of_a_box_shipped_without_one_goes_to_that_box():
+    # (its "Versendet" came without the link: the id is new, the box is not)
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment=None),
+          _box((TAPE, 1), shipment="TAbCdE9fG", when=2, subject="Zugestellt: „Anderes…“"))
+    assert _state(parcels) == {
+        NUMBER: (ParcelStatus.DELIVERED, [(TAPE, 1)]),
+        P2: (ORDERED, [(CABLE, 1)]),
+    }
+
+
+def test_a_copy_of_an_older_cancellation_takes_nothing_more():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 3), (CABLE, 1), (LAMP, 1)),
+          _box((LAMP, 1), shipment="TAbCdE9fG"), _cancelled((TAPE, 1), when=2),
+          _cancelled((CABLE, 1), when=3), _cancelled((TAPE, 1), when=2))
+    assert _state(parcels)[P2] == (ORDERED, [(TAPE, 2)])
+
+
+def test_a_newer_mail_about_the_whole_order_leaves_the_rest_as_it_is():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"),
+          _box((TAPE, 1), shipment="TAbCdE9fG", when=2, subject="Zugestellt: „Beispiel…“"))
+    # (its title names no entry: it goes to the first open one, the rest)
+    for update in parse_mail(_ordered((TAPE, 1), (CABLE, 1), when=3)).updates:
+        apply_update(parcels, replace(update, title="Anderes…"), NOW)
+    assert _state(parcels)[P2] == (ORDERED, [(CABLE, 1)])
+
+
+def test_a_cancellation_listing_more_items_than_its_subject_tells_lists_none():
+    # Below the cancelled item, the mail lists what is still to come: not cancelled.
+    msg = _msg((ORDER, _items((CABLE, 1), (LAMP, 1))), when=DAY[2],
+               subject=f"Artikel erfolgreich storniert: 1 „{TITLES[CABLE][:20]}…“")
+    msg.replace_header("From", "Amazon.de <order-update@amazon.de>")
+    [update] = parse_mail(msg).updates
+    assert update.items == () and update.title
 
 
 # ----- stored and told -----
