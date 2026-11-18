@@ -3,7 +3,8 @@
 The order's mail lists every item of the order, a box's mail the items in that box (see
 test_mail_amazon_items.py). The order's first box keeps the order's own entry ("AMZ…"),
 so a sensor never changes its number; what the box does not hold stays "Bestellt" in an
-entry of its own ("…P2"), which the next box takes over in turn. All values are invented.
+entry of its own ("…P2"), which the next box takes over in turn. All values are invented,
+those of the real sequence at the end by the anonymiser.
 """
 
 from dataclasses import replace
@@ -27,6 +28,7 @@ from custom_components.parcel_tracker.models import OrderItem, Parcel, ParcelSta
 
 from .test_coordinator_notify import _start
 from .test_mail_amazon_items import NUMBER, ORDER, _item, _msg, _redirect
+from .test_mail_amazon_shipment import _replay
 from .test_order_closing import _coordinator, _refresh
 
 CABLE, LAMP, TAPE = "B0KABEL001", "B0LAMPE001", "B0MASSBAND"
@@ -674,6 +676,38 @@ def test_a_cancellation_listing_more_items_than_its_subject_tells_lists_none():
     msg.replace_header("From", "Amazon.de <order-update@amazon.de>")
     [update] = parse_mail(msg).updates
     assert update.items == () and update.title
+
+
+# ----- a real sequence: two pieces of one article, shipped two days apart -----
+# Fixtures 217-223, anonymised: the order's mail lists the article twice, each box holds
+# one piece. The first one came in the box of another order, whose mails name that order
+# in the text and link this order's box (see test_mail_amazon_shipment.py).
+REAL_ORDER, REAL_OTHER = "AMZ06736756730780747", "AMZ38680595790617024"
+REAL_TAPE, REAL_BATTERY = "ZZ22360492", "ZZ40321145"
+
+
+def _replayed(last: int) -> list:
+    """Number, status, items and box ids of each entry after the fixtures 217 to ``last``."""
+    return [
+        (p.number, p.status, [(i.article_id, i.quantity) for i in p.items], p.shipment_ids)
+        for p in _replay(217, last)
+    ]
+
+
+def test_a_real_order_of_two_pieces_keeps_the_second_one_ordered():
+    assert _replayed(218) == [
+        (REAL_ORDER, SHIPPED, [(REAL_TAPE, 1)], ["TqYvFnv3C"]),
+        (f"{REAL_ORDER}P2", ORDERED, [(REAL_TAPE, 1)], []),
+    ]
+
+
+def test_a_real_order_of_two_pieces_ends_with_each_box_delivered():
+    # The second box takes the rest over (no "…P3").
+    assert _replayed(223) == [
+        (REAL_ORDER, ParcelStatus.DELIVERED, [(REAL_TAPE, 1)], ["TqYvFnv3C"]),
+        (REAL_OTHER, ParcelStatus.DELIVERED, [(REAL_TAPE, 1), (REAL_BATTERY, 1)], []),
+        (f"{REAL_ORDER}P2", ParcelStatus.DELIVERED, [(REAL_TAPE, 1)], ["TLexmOoAZ"]),
+    ]
 
 
 # ----- stored and told -----
