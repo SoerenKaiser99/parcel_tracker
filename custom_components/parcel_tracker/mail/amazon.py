@@ -630,7 +630,7 @@ def parse_amazon_pickup(msg: EmailMessage) -> list[MailUpdate]:
     return updates
 
 
-def _cancelled_items(listing: str, number: str) -> tuple[OrderItem, ...]:
+def _listed_cancelled(listing: str, number: str) -> tuple[OrderItem, ...]:
     """The items a cancellation lists for an order (``_listed``): below the one mention of
     its number that lists any. The mail names the order in its head as well, with no item
     below it; if more than one mention lists items, the same ones may be listed twice, and
@@ -668,7 +668,7 @@ def _cancellation(subj: str, text: str, sent: datetime, listing: str) -> list[Ma
         if title is None:
             return []
     orders = list(numbers)
-    contents = [_cancelled_items(listing, n) if title else () for n in orders]
+    contents = [_listed_cancelled(listing, n) if title else () for n in orders]
     return [
         MailUpdate(
             order_number(n), "amazon", ParcelStatus.CANCELLED, sent, title=title, items=items
@@ -762,6 +762,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 delivered_at=sent if status is ParcelStatus.DELIVERED else None,
                 delivery_code=code,
                 postponed=attempt or delay,
+                updates_box=news,
                 status_text=ATTEMPT_TEXT if attempt else DELAY_TEXT if delay else None,
                 shipment_id=shipments.get(match.group(2)),
                 seller=sellers[index],

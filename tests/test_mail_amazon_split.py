@@ -560,6 +560,54 @@ def test_the_rest_is_named_after_its_first_item_with_a_name():
     assert parcels[P2].name == "Amazon-Sendung"
 
 
+# ----- mails that are about a box on its way -----
+def test_news_about_a_box_without_id_never_goes_to_the_rest():
+    # "Lieferungsaktualisierung" stays "Versendet" with a new day: it is the box's news.
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"))
+    news = _box((TAPE, 1), shipment=None, when=2, html=False,
+                subject="Lieferungsaktualisierung: „Anderes…“")
+    [update] = parse_mail(news).updates
+    assert update.updates_box and update.status is SHIPPED
+    apply_update(parcels, update, NOW)
+    assert parcels[P2].status is ORDERED
+
+
+def test_a_delivery_without_id_items_or_title_goes_to_a_box_also_once_it_is_closed():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"),
+          _box((TAPE, 1), shipment="TAbCdE9fG", when=2, subject="Zugestellt: „Beispiel…“"))
+    assert parcels[NUMBER].status is ParcelStatus.DELIVERED
+    delivered = MailUpdate(NUMBER, "amazon", ParcelStatus.DELIVERED, NOW + timedelta(hours=1))
+    apply_update(parcels, delivered, NOW)
+    assert parcels[P2].status is ORDERED
+
+
+def test_a_delivery_without_id_goes_to_the_box_with_its_articles_once_all_are_shipped():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"),
+          _box((CABLE, 1), shipment="TBbCdE9fG", when=2),
+          _box((CABLE, 1), shipment=None, when=3, subject="Zugestellt: „Anderes…“"))
+    assert (parcels[NUMBER].status, parcels[P2].status) == (SHIPPED, ParcelStatus.DELIVERED)
+
+
+def test_a_copy_of_the_orders_mail_gives_the_rest_not_all_of_the_order_again():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"))
+    for update in parse_mail(_ordered((TAPE, 1), (CABLE, 1))).updates:
+        apply_update(parcels, replace(update, title=TITLES[CABLE]), NOW)  # (names the rest)
+    assert _state(parcels)[P2] == (ORDERED, [(CABLE, 1)])
+
+
+def test_an_item_cancelled_from_an_order_a_carriers_number_was_told_for_is_in_no_rest():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)))
+    day = parcels[NUMBER].result.eta_date
+    apply_update(parcels, _carrier_mail(day, ParcelStatus.PRE_TRANSIT), NOW)
+    _read(parcels, _cancelled((LAMP, 1), when=1), _box((TAPE, 1), shipment="TAbCdE9fG", when=2))
+    assert _state(parcels)[P2] == (ORDERED, [(CABLE, 1)])
+
+
 # ----- stored and told -----
 def test_the_rest_is_stored_and_read_back():
     parcels: dict = {}
