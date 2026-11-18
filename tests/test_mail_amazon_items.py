@@ -3,8 +3,8 @@
 Amazon's mails from "Bestellt" to "In Zustellung" list each item in their HTML part: a
 picture and the name, both linked to the item's page (behind Amazon's redirect,
 …/dp/<article number>), and its quantity ("Menge: 1"). The text part names no article
-number. An entry keeps the items of the newest mail that listed some; what it does with
-them comes later. All values here are invented.
+number. An entry keeps the items of the newest mail that listed some; how they split an
+order into its boxes is in test_mail_amazon_split.py. All values here are invented.
 """
 
 from datetime import datetime
