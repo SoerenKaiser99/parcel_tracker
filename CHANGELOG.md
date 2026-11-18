@@ -10,7 +10,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **17track (optional):** ergänzt Ort, Zeitfenster und Verlauf und verfolgt Paketdienste ohne eigene Anbindung, nur auf ausdrücklichen Wunsch.
 - **Länder:** Deutschland, Österreich und Schweiz (Postleitzahl und GLS-Abfrage passend zum Land).
 - **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an. Auf Wunsch löscht er erkannte Mails nach einer einstellbaren Zahl von Tagen.
-- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress und Eventim (nur Postversand).
+- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress, Eventim (nur Postversand) und Galaxus (Versandmail, als Paketname).
 - **Weitergeleitete Mails:** von Hand weitergeleitete Mails, Apples „E-Mail-Adresse verbergen“ und Mails per HTTP-Aufruf (z. B. aus n8n oder Node-RED).
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
@@ -35,6 +35,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.60 (2026-11-18)
+
+- **Galaxus: Versandmail benennt das Paket:** Die Mail „Dein Paket ist auf dem Weg zu dir“ von Galaxus legt das Paket wie bisher mit der Sendungsnummer an, jetzt aber mit Namen: nach dem verschickten Artikel, bei mehreren Artikeln „Galaxus“. Kommt die DHL-Mail zuerst, bleibt deren Name „digitec Galaxus Deutschland“. Bestellbestätigung und Verzögerungsmail liest der Import weiterhin nicht. ([#83](https://github.com/SoerenKaiser99/parcel_tracker/issues/83))
 
 ### v0.3.59 (2026-11-18)
 

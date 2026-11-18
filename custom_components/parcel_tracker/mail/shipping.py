@@ -601,12 +601,36 @@ def parse_ups_mc_mail(msg: EmailMessage) -> list[MailUpdate]:
     return [update]
 
 
+# Galaxus (issue #83) sends its own mail when a parcel leaves the warehouse, with the
+# carrier's number and "folgendes Produkt verschickt: 2× <Artikel>". Such a parcel is named
+# after its one item, one with several items after the shop. Only the shop's own domains
+# (and their sub-domains, "notifications.galaxus.de") count.
+GALAXUS_DOMAINS = ("galaxus.de", "galaxus.at", "galaxus.ch")
+GALAXUS_NAME = "Galaxus"
+_GALAXUS_ITEM = re.compile(r"folgendes\s+Produkt\s+verschickt:[\s\-–]*\d+\s*×[\s\-–]*([^\n]+)")
+
+
+def _is_galaxus(domain: str) -> bool:
+    return any(domain == d or domain.endswith(f".{d}") for d in GALAXUS_DOMAINS)
+
+
+# Longer than any item title: the text ran on past the item (a layout without line breaks).
+_GALAXUS_ITEM_MAX = 120
+
+
+def _galaxus_title(text: str) -> str:
+    item = _GALAXUS_ITEM.search(text)
+    title = item.group(1).strip() if item else ""
+    return title if title and len(title) <= _GALAXUS_ITEM_MAX else GALAXUS_NAME
+
+
 def parse_generic(msg: EmailMessage) -> list[MailUpdate]:
     """Any other mail: only numbers that are safe on their own.
 
     The sender's display name becomes the parcel name only for a known shop sender, cut
     like every company name. A carrier's display name ("DHL Paketankündigung") is never a
     name, nor is the one of a forwarded mail (it would be the forwarding person's name).
+    Galaxus' own mail names its parcel after the item (``_galaxus_title``).
     Unnamed parcels show as "<Carrier> <number>".
     """
     text = f"{subject(msg)}\n{body_text(msg)}"
@@ -619,8 +643,11 @@ def parse_generic(msg: EmailMessage) -> list[MailUpdate]:
         dpd = "labelled"
     else:
         dpd = None
-    named = domain in KNOWN_SENDER_DOMAINS and not is_forwarded(msg)
+    forwarded = is_forwarded(msg)
+    named = domain in KNOWN_SENDER_DOMAINS and not forwarded
     title = company_name(display) if named and display else None
+    if _is_galaxus(domain) and not forwarded:
+        title = _galaxus_title(text)
     return [
         MailUpdate(number=number, carrier=carrier, status=None, sent_at=sent, title=title)
         for carrier, number in find_numbers(text, dpd)

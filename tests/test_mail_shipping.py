@@ -1026,3 +1026,84 @@ def test_dhl_subject_with_digitec_galaxus_names_the_parcel():
     [u] = parse_mail(msg).updates
     assert u.title == "digitec Galaxus Deutschland"
     assert u.number == "00340999999999999901"
+
+
+# --- Galaxus (issue #83) ---------------------------------------------------------------
+
+GALAXUS_ITEM = "Third Reality THIRDREALITY Vibration Sensor"
+
+
+def _galaxus(subject: str, body: str, from_: str = '"Galaxus" <noreply@notifications.galaxus.de>'):
+    return _msg(subject, body, from_)
+
+
+def test_galaxus_shipping_mail_names_the_parcel_after_its_item():
+    [u] = parse_mail(load_mail("216_galaxus_paket_auf_dem_weg.eml")).updates
+    assert (u.carrier, u.number) == ("dhl", "00340999999999999901")
+    assert u.title == GALAXUS_ITEM
+    assert u.status is None
+
+
+def test_galaxus_item_on_the_same_line_as_its_quantity():
+    body = (
+        "Paketversand\n00340999999999999901\n"
+        "Aus deiner Bestellung 999999999 vom 13.11.2026 wurde folgendes Produkt verschickt:\n"
+        "1× Nedis Batterie CR1632\nBestellung ansehen"
+    )
+    [u] = parse_generic(_galaxus("Dein Paket ist auf dem Weg zu dir", body))
+    assert u.title == "Nedis Batterie CR1632"
+
+
+def test_galaxus_mail_with_several_products_is_named_after_the_shop():
+    body = (
+        "Paketversand\n00340999999999999901\n"
+        "Aus deiner Bestellung 999999999 vom 13.11.2026 wurden folgende Produkte verschickt:\n"
+        "1× Nedis Batterie CR1632\n2× Vibration Sensor"
+    )
+    [u] = parse_generic(_galaxus("Dein Paket ist auf dem Weg zu dir", body))
+    assert u.title == "Galaxus"
+
+
+def test_galaxus_text_running_on_past_the_item_falls_back_to_the_shop():
+    body = (
+        "Paketversand\n00340999999999999901\nwurde folgendes Produkt verschickt: 1× Kabel "
+        + "Bestellung ansehen Noch Fragen? Antworten zu den häufigsten Fragen " * 3
+    )
+    [u] = parse_generic(_galaxus("Dein Paket ist auf dem Weg zu dir", body))
+    assert u.title == "Galaxus"
+
+
+def test_galaxus_main_domain_counts_as_well():
+    body = "Paketversand\n00340999999999999901\n"
+    [u] = parse_generic(_galaxus("Dein Paket", body, '"Galaxus" <noreply@galaxus.de>'))
+    assert u.title == "Galaxus"
+
+
+def test_galaxus_forwarded_by_hand_gets_no_name():
+    body = "Paketversand\n00340999999999999901\nwurde folgendes Produkt verschickt:\n1× Kabel"
+    [u] = parse_generic(_galaxus("WG: Dein Paket ist auf dem Weg zu dir", body))
+    assert u.title is None
+
+
+def test_lookalike_domain_is_no_galaxus():
+    body = "Paketversand\n00340999999999999901\nwurde folgendes Produkt verschickt:\n1× Kabel"
+    [u] = parse_generic(_galaxus("Dein Paket", body, '"Galaxus" <info@notgalaxus.de>'))
+    assert u.title is None
+
+
+@pytest.mark.parametrize("first", ["galaxus", "dhl"])
+def test_galaxus_and_dhl_mail_make_one_named_parcel(first):
+    galaxus = parse_mail(load_mail("216_galaxus_paket_auf_dem_weg.eml")).updates
+    msg = load_mail(NEW_LAYOUT)
+    subj = str(msg["Subject"]).replace("Amazon", "digitec Galaxus Deutschland")
+    msg.replace_header("Subject", subj)
+    dhl = parse_mail(msg).updates
+    parcels: dict[str, Parcel] = {}
+    order = (galaxus, dhl) if first == "galaxus" else (dhl, galaxus)
+    for updates in order:
+        for u in updates:
+            apply_update(parcels, u, NOW)
+    [p] = parcels.values()
+    assert p.number == "00340999999999999901"
+    # The first mail that names the parcel wins; both names say what it is.
+    assert p.name == (GALAXUS_ITEM if first == "galaxus" else "digitec Galaxus Deutschland")

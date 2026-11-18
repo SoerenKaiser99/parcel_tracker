@@ -158,6 +158,7 @@ Nimm diese Absender in die Filterregel auf:
 | `ebay@ebay.com` | eBay |
 | `transaction@notice.aliexpress.com` | AliExpress |
 | `bestellstatus@eventim.de` | Eventim (Bestellbestätigung und Versandbenachrichtigung; nur Tickets mit Postversand) |
+| `noreply@notifications.galaxus.de` | Galaxus („Dein Paket ist auf dem Weg zu dir“: die Sendungsnummer des Paketdienstes, das Paket heißt nach dem Artikel, bei mehreren Artikeln „Galaxus“; Bestellbestätigung und Verzögerungsmail liest der Import nicht) |
 | `no-reply@gls-pakete.de` | GLS |
 | `noreply@gls-group.eu` und `noreply@gls-rtt.com` | GLS Österreich |
 
