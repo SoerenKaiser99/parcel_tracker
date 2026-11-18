@@ -252,7 +252,7 @@ Dazu gibt es `--phone` und `--email`. Ganz ohne Angaben arbeitet das Skript nur 
 ??? note "Was das Skript unabhängig von deinen Angaben ersetzt"
     - alle Mail-Adressen außer dem Absender des Shops oder Paketdienstes,
     - Telefonnummern,
-    - Links (nur der Servername bleibt),
+    - Links: Im Text bleibt nur der Servername. Im HTML-Teil bleiben Server, Pfad und die Namen der Parameter, die Werte werden erfunden (eine Nummer wie im Text),
     - Sendungs- und Bestellnummern (gleiche Form, erfundene Ziffern). Eine 20-stellige DHL-eCommerce-Nummer (SSCC) behält ihre „00“ am Anfang und bekommt wieder eine gültige Prüfziffer, damit die Mail erkennbar bleibt,
     - Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort,
     - Adressblöcke auch mit österreichischer oder Schweizer Postleitzahl (vier Ziffern) und Straßen in jeder Schreibweise („-straße“, „-strasse“, „-str.“, „-gasse“, „-weg“, „-platz“ …), dazu die Namenszeile über der Straße und Blöcke unter „an folgende Adresse zugestellt:“ (seit v0.3.35),
@@ -261,7 +261,7 @@ Dazu gibt es `--phone` und `--email`. Ganz ohne Angaben arbeitet das Skript nur 
 
     Technische Kopfzeilen und Anhänge entfallen. Die Kopfzeilen `To`, `Cc`, `Delivered-To`, `X-Original-To`, `X-Forwarded-To`, `X-Forwarded-For`, `Resent-From` und `Resent-To` bleiben, weil an ihnen die [Personen-Zuordnung](mail-import.md#pakete-personen-zuordnen) hängt. Jede Adresse darin wird erfunden: verschiedene echte Adressen werden `adresse1@example.org`, `adresse2@example.org` …, dieselbe echte Adresse bekommt im ganzen Lauf dieselbe erfundene, ein Plus-Teil bleibt als `+person1`, `+person2` …. Die Reihenfolge mehrerer `Delivered-To` bleibt, Namen davor entfallen. Bei weitergeleiteten oder beantworteten Mails (Betreff mit „WG:“, „Fwd:“, „AW:“, „Re:“) ersetzt es auch den Absender. Sieht eine Mail weitergeleitet aus (Betreff mit „WG:“, „Fwd:“ oder „Fw:“ oder ein zitierter Kopfzeilenblock „Von: … Gesendet: …“ oder eine Zeile „Am … schrieb …:“), nennt das Skript die Datei am Ende in einer „ACHTUNG“-Zeile – eine Signatur kann darin stehen geblieben sein.
 
-    Steht eine Sendungsnummer nur in einem Link oder im Text eines Bildes, bleibt sie als erfundene Nummer in einer eigenen Zeile „[Nummer nur im Link oder Bildtext: …]“ erhalten.
+    Steht eine Sendungsnummer nur in einem Link oder im Text eines Bildes, bleibt sie im Text als erfundene Nummer in einer eigenen Zeile „[Nummer nur im Link oder Bildtext: …]“ erhalten. Der HTML-Teil behält Links, Bilder und versteckten Text an ihrer Stelle. Gestaltung (Tabellen, Farben, Schriften) fällt weg. In Bildtexten und ähnlichen Angaben bleiben nur Wörter, die die Mail ohnehin zeigt, alles andere wird erfunden. Bei Amazon werden Artikelnummern zu `ZZ…`, Artikelnamen und Marketplace-Händler zu erfundenen Namen, für denselben Artikel und Händler in jeder Mail des Laufs gleich, auch in Storno-Mails und in Mails eines Paketdienstes, die den Händler als Absender nennen. Weitergeleitete Mails und Eventim-Mails behalten den schlichten HTML-Teil.
 
     Nummern ab 10 Ziffern, die in Gruppen geschrieben sind (getrennt durch Leerzeichen, Tabulator, Punkt oder Bindestrich), und internationale Nummern in Gruppen („CQ 123 456 785 DE“) behalten ihre Gruppen und bekommen erfundene Ziffern – gezählt werden nur Ziffern, die mit demselben Trennzeichen zu einer Nummer gehören. Datum, Uhrzeit („2026-09-28 11:51“), Preise sowie Reihen von Jahreszahlen oder zweistelligen Zahlen ohne Bezeichnung davor bleiben, Telefonnummern werden wie bisher ersetzt.
 
