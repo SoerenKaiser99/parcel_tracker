@@ -358,8 +358,8 @@ mode: single
 
 **Schritt 1 – Namen ausblenden:**
 
-1. **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren**.
-2. Den Schalter **Namen ausblenden** einschalten und speichern.
+1. **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren → Einstellungen**.
+2. Im Bereich **Datenschutz** den Schalter **Namen ausblenden** einschalten und speichern.
 
 Jedes Paket heißt jetzt nur noch nach dem Paketdienst und den letzten vier Stellen seiner Nummer, z. B. `DHL-Paket …2557` oder `Amazon-Bestellung …4321` – auf der Karte, in den Sensoren, im Kalender, im Event und in den Benachrichtigungen.
 

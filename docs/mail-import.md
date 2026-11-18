@@ -31,9 +31,9 @@ Dein Hauptpostfach sieht die Integration so nie.
     | **Ordner** | Standard `INBOX` (der Posteingang). Der eine Ordner, den der Import liest. Für das eigene Paket-Postfach bleibt `INBOX` stehen. Ein leeres Feld behält den gespeicherten Ordner. Siehe [Eigener Ordner](#eigener-ordner). |
     | **Verarbeitete Mails in Ordner verschieben** | Standard: an. |
     | **Erkannte Mails löschen nach (Tagen)** | 0–365, Standard: 0 (aus). Löscht alte Mails im Ordner `Paket-Tracker-Verarbeitet`, siehe [Erkannte Mails löschen](#erkannte-mails-loschen). |
-    | **Zustell-Codes (Einmalpasswörter) mitlesen** | Standard: aus. Siehe [Zustell-Code](datenschutz.md#zustell-codes). |
-    | **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** | Standard: aus. Dann benennt der Betreff „Ihre <Name> Sendung …“ ein Paket auch nach einem kleinen Shop oder einer Privatperson. Siehe [Absendernamen aus DHL-Mails übernehmen](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen). |
     | **Postfach abfragen alle (Minuten)** | 1–1440 (bis zu einmal am Tag), Standard: 5. |
+
+    Die Schalter für [Zustell-Codes](datenschutz.md#zustell-codes) und [Absendernamen aus DHL-Mails](datenschutz.md#absendernamen-aus-dhl-mails-ubernehmen) stehen im Bereich **Datenschutz**: Sie gelten für jede Mail, nicht nur für die aus dem Postfach.
 
 4. Speichern. Die Anmeldung wird sofort geprüft, ein geänderter Ordner dabei einmal geöffnet. Auch ein geänderter Port oder eine andere Verbindung wird erst gespeichert, wenn die Anmeldung damit klappt.
 

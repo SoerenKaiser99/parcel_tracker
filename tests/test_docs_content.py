@@ -700,7 +700,8 @@ def test_docs_list_the_country_among_the_setup_fields():
         "Österreich und Schweiz 4 Ziffern",
         "Alle vier Felder",
         "Bestehende Einrichtungen bleiben ohne Zutun auf Deutschland",
-        "den Schalter **Namen ausblenden** (siehe [Datenschutz](datenschutz.md#namen-ausblenden))",
+        "den Bereich **Datenschutz** mit **Namen ausblenden**, den Zustell-Codes und den "
+        "Absendernamen aus DHL-Mails (siehe [Datenschutz](datenschutz.md#namen-ausblenden))",
     ))
 
 

@@ -51,8 +51,7 @@
           "track17_api_key_remove": "Remove 17track API key",
           "country": "Country",
           "postcode": "Postcode (optional)",
-          "keep_delivered_days": "Hide delivered parcels after (days)",
-          "hide_names": "Hide names"
+          "keep_delivered_days": "Hide delivered parcels after (days)"
         },
         "data_description": {
           "country": "Decides how many digits the postcode has and which GLS lookup is asked.",
@@ -61,10 +60,23 @@
           "dhl_api_key": "Without a key, DHL parcels come from the DHL mails via the mail import; with it you get the live status. Leave empty to keep the saved key.",
           "dhl_api_key_remove": "Tick and save to delete the saved DHL key. The tick wins, even if a new key is typed in the field above.",
           "track17_api_key": "Free key from api.17track.net (200 numbers once). Only used when you ask for it on the card. Leave empty to keep the saved key.",
-          "track17_api_key_remove": "Tick and save to delete the saved 17track key. The tick wins, even if a new key is typed in the field above.",
-          "hide_names": "Parcels are only named after the carrier (e.g. “DHL-Paket”, “Amazon-Bestellung”) – on the card, in the calendar, in the sensors and in the notifications. For gifts on a shared dashboard. A name you typed in yourself stays visible; the stored names are not changed."
+          "track17_api_key_remove": "Tick and save to delete the saved 17track key. The tick wins, even if a new key is typed in the field above."
         },
         "sections": {
+          "privacy": {
+            "name": "Privacy",
+            "description": "What is read from the parcel mails and how a parcel is named. Applies to every mail, also without the IMAP mail import.",
+            "data": {
+              "hide_names": "Hide names",
+              "read_otp": "Read delivery codes (one-time passwords)",
+              "plain_names": "Take sender names from DHL mails without the check"
+            },
+            "data_description": {
+              "hide_names": "Parcels are only named after the carrier (e.g. “DHL-Paket”, “Amazon-Bestellung”) – on the card, in the calendar, in the sensors and in the notifications. For gifts on a shared dashboard. A name you typed in yourself stays visible; the stored names are not changed.",
+              "read_otp": "The card shows a code only after a tap and a confirmation. It never goes into the history.",
+              "plain_names": "A DHL subject “Ihre … Sendung …” names the parcel after the name in it, also for a small shop or a private person. Names of private people can then show up on the card, in the calendar, in the sensors and in the notifications. Off by default. “Hide names” still wins: it shows only the carrier name."
+            }
+          },
           "mail": {
             "name": "Mail import (optional)",
             "description": "Reads parcel mails from a dedicated mailbox via IMAP. Only enter a mailbox that receives nothing but parcel mails – never your main mailbox.",
@@ -78,8 +90,6 @@
               "imap_folder": "Folder",
               "move_processed": "Move processed mails to folders",
               "delete_processed_days": "Delete recognised mails after (days)",
-              "read_otp": "Read delivery codes (one-time passwords)",
-              "plain_names": "Take sender names from DHL mails without the check",
               "mail_interval": "Check mailbox every (minutes)"
             },
             "data_description": {
@@ -90,9 +100,7 @@
               "imap_password": "Leave empty to keep the saved password.",
               "imap_folder": "The folder of the mailbox that is read – only this one. Keep \"INBOX\" for a dedicated parcel mailbox. A folder of your main mailbox works too, but then Home Assistant knows the password of that whole mailbox. Leave empty to keep the stored folder.",
               "move_processed": "Folders Paket-Tracker-Verarbeitet and Paket-Tracker-Nicht-erkannt.",
-              "delete_processed_days": "Permanently deletes mails in the folder Paket-Tracker-Verarbeitet once they are this many days old (arrival date), at most once a day. Only this folder, never the folder read and never Paket-Tracker-Nicht-erkannt. Works only with “Move processed mails to folders”. 0 = off.",
-              "read_otp": "The card shows a code only after a tap and a confirmation. It never goes into the history.",
-              "plain_names": "A DHL subject “Ihre … Sendung …” names the parcel after the name in it, also for a small shop or a private person. Names of private people can then show up on the card, in the calendar, in the sensors and in the notifications. Off by default. “Hide names” still wins: it shows only the carrier name."
+              "delete_processed_days": "Permanently deletes mails in the folder Paket-Tracker-Verarbeitet once they are this many days old (arrival date), at most once a day. Only this folder, never the folder read and never Paket-Tracker-Nicht-erkannt. Works only with “Move processed mails to folders”. 0 = off."
             }
           },
           "ups": {

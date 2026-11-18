@@ -70,7 +70,7 @@ Eine Mail, die du [per HTTP übergibst](mail-import.md#ohne-postfach-mail-per-ht
 
 DHL nennt im Betreff den Absender: „Ihre <Name> Sendung kommt heute“. Von Haus aus wird dieser Name nur Name des Pakets, wenn er ein bekannter Shop ist oder eine Rechtsform trägt (GmbH, AG, OHG …). Ein kleiner Shop („Ihre Beispielshop .. Sendung …“) oder eine Privatperson bleibt ohne Namen: Das Paket heißt dann `DHL <Nummer>`.
 
-Im Bereich **E-Mail-Import** gibt es dafür den Schalter **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** (Standard: **aus**). Eingeschaltet wird der Name aus dem Betreff genommen, auch bei kleinen Shops und Privatpersonen. Ein „..“ oder „…“, mit dem DHL einen langen Namen abschneidet, entfällt.
+Im Bereich **Datenschutz** gibt es dafür den Schalter **Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen** (Standard: **aus**). Eingeschaltet wird der Name aus dem Betreff genommen, auch bei kleinen Shops und Privatpersonen. Ein „..“ oder „…“, mit dem DHL einen langen Namen abschneidet, entfällt.
 
 Was das für deine Daten heißt:
 
@@ -98,7 +98,7 @@ Das Kennzeichen zum Ersetzen einer früheren Meldung (`data.tag`) ist ein Hash d
 
 ## Namen ausblenden
 
-Für Geschenke auf einem gemeinsamen Dashboard: Unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** gibt es den Schalter **Namen ausblenden** (Standard: aus).
+Für Geschenke auf einem gemeinsamen Dashboard: Unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren → Einstellungen** gibt es im Bereich **Datenschutz** den Schalter **Namen ausblenden** (Standard: aus).
 
 Eingeschaltet heißt jedes Paket nur noch nach dem Paketdienst und den letzten vier Stellen seiner Nummer:
 
@@ -238,7 +238,7 @@ Die Personen-Zuordnung ist optional. Sie legt fest, wem ein Paket gehört, nicht
 
 ## Zustell-Codes
 
-Manche Amazon-Lieferungen gibt der Fahrer nur gegen einen Code heraus (Einmalpasswort). Die Option **Zustell-Codes (Einmalpasswörter) mitlesen** im Bereich E-Mail-Import ist von Haus aus **aus**.
+Manche Amazon-Lieferungen gibt der Fahrer nur gegen einen Code heraus (Einmalpasswort). Die Option **Zustell-Codes (Einmalpasswörter) mitlesen** im Bereich **Datenschutz** ist von Haus aus **aus**. Sie gilt für jede Mail, auch für Mails, die ohne IMAP-Postfach ankommen.
 
 Mit eingeschalteter Option:
 

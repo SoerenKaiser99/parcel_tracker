@@ -10,6 +10,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.parcel_tracker import _dhl_key
 from custom_components.parcel_tracker.const import (
     CONF_DHL_API_KEY,
+    CONF_HIDE_NAMES,
     CONF_IMAP_HOST,
     CONF_IMAP_PASSWORD,
     CONF_IMAP_USER,
@@ -20,6 +21,7 @@ from custom_components.parcel_tracker.const import (
     CONF_MOVE_PROCESSED,
     CONF_PLAIN_NAMES,
     CONF_POSTCODE,
+    CONF_PRIVACY_SECTION,
     CONF_READ_OTP,
     DOMAIN,
 )
@@ -363,8 +365,6 @@ async def test_options_mail_login_ok_stores_password_in_data(hass):
                 imap_user=" pakete@example.org ",
                 imap_password="geheim",
                 move_processed=False,
-                read_otp=True,
-                plain_names=True,
             ),
         )
         await hass.async_block_till_done()
@@ -374,8 +374,30 @@ async def test_options_mail_login_ok_stores_password_in_data(hass):
     assert CONF_IMAP_PASSWORD not in entry.options
     assert entry.options[CONF_IMAP_USER] == "pakete@example.org"
     assert entry.options[CONF_MOVE_PROCESSED] is False
-    assert entry.options[CONF_READ_OTP] is True
-    assert entry.options[CONF_PLAIN_NAMES] is True
+
+
+async def test_privacy_switches_are_set_without_the_mail_import(hass):
+    """Delivery codes and DHL sender names apply to every mail (also the import_mail
+    service), so their switches sit in "Datenschutz", not in the IMAP section."""
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_POSTCODE: "10115"})
+    entry.add_to_hass(hass)
+    result = await open_options(hass, entry)
+    mail = result["data_schema"].schema[CONF_MAIL_SECTION].schema.schema
+    assert not {CONF_READ_OTP, CONF_PLAIN_NAMES, CONF_HIDE_NAMES} & set(mail)
+    privacy = result["data_schema"].schema[CONF_PRIVACY_SECTION].schema.schema
+    assert set(privacy) == {CONF_HIDE_NAMES, CONF_READ_OTP, CONF_PLAIN_NAMES}
+    switches = {CONF_HIDE_NAMES: True, CONF_READ_OTP: True, CONF_PLAIN_NAMES: True}
+    with patch(CHECK_LOGIN) as login, patch(SETUP, return_value=True):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_POSTCODE: "10115", CONF_KEEP_DELIVERED_DAYS: 3, CONF_PRIVACY_SECTION: switches},
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    login.assert_not_called()
+    assert entry.options[CONF_IMAP_USER] == ""
+    for key in switches:
+        assert entry.options[key] is True
 
 
 async def test_options_mail_login_rejected_or_unreachable(hass):

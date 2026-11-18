@@ -36,6 +36,7 @@ from custom_components.parcel_tracker.const import (
     CONF_NOTIFY_TARGETS,
     CONF_PLAIN_NAMES,
     CONF_POSTCODE,
+    CONF_PRIVACY_SECTION,
     CONF_READ_OTP,
     CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
@@ -164,9 +165,12 @@ async def test_sections_without_user_and_client_id_keep_the_stored_logins(hass):
         CONF_MAIL_SECTION: {
             CONF_IMAP_HOST: "imap.example.org",
             CONF_MOVE_PROCESSED: False,
+            CONF_MAIL_INTERVAL: 15,
+        },
+        CONF_PRIVACY_SECTION: {
+            CONF_HIDE_NAMES: False,
             CONF_READ_OTP: True,
             CONF_PLAIN_NAMES: True,
-            CONF_MAIL_INTERVAL: 15,
         },
         CONF_UPS_SECTION: {CONF_UPS_BUDGET: 250},
         CONF_NOTIFY_SECTION: {CONF_NOTIFY_EVENTS: ["delivered", "exception"]},
@@ -211,6 +215,7 @@ async def test_untouched_form_changes_nothing(hass):
         lambda fields: {
             CONF_KEEP_DELIVERED_DAYS: 7,
             CONF_POSTCODE: "20095",
+            CONF_PRIVACY_SECTION: {},
             CONF_MAIL_SECTION: {},
             CONF_UPS_SECTION: {},
             CONF_NOTIFY_SECTION: {},
@@ -281,16 +286,20 @@ def test_frontend_prefills_the_sections(hass):
     current = {**DATA, **OPTIONS}
     fields = to_field_list(
         _schema(current, True, suggested_postcode="20095", mail=current, ups=current,
-                track17=True, notify=current, gift=current),
+                track17=True, notify=current, privacy=current, gift=current),
         custom_serializer=cv.custom_serializer,
     )
     sections = {f["name"]: f for f in fields if f.get("type") == "expandable"}
     assert set(sections) == {
-        CONF_MAIL_SECTION, CONF_UPS_SECTION, CONF_NOTIFY_SECTION, CONF_GIFT_SECTION,
+        CONF_PRIVACY_SECTION, CONF_MAIL_SECTION, CONF_UPS_SECTION, CONF_NOTIFY_SECTION,
+        CONF_GIFT_SECTION,
     }
     for field in sections.values():
         assert "default" not in field
     initial = _frontend_initial(fields)
+    assert initial[CONF_PRIVACY_SECTION] == {
+        CONF_HIDE_NAMES: False, CONF_READ_OTP: True, CONF_PLAIN_NAMES: True,
+    }
     assert initial[CONF_MAIL_SECTION][CONF_IMAP_USER] == "pakete@example.org"
     assert initial[CONF_UPS_SECTION][CONF_UPS_CLIENT_ID] == "ups-id"
     assert CONF_IMAP_PASSWORD not in initial[CONF_MAIL_SECTION]
@@ -386,9 +395,10 @@ async def test_untouched_form_of_an_entry_from_before_hide_names(hass):
     result = await open_options(hass, entry)
     fields = _fields(result)
     names = [field["name"] for field in fields]
-    # A plain switch right below the keep days, in front of the sections.
-    assert names.index(CONF_HIDE_NAMES) == names.index(CONF_KEEP_DELIVERED_DAYS) + 1
-    assert _frontend_initial(fields)[CONF_HIDE_NAMES] is False
+    # In the section "Datenschutz" right below the keep days, in front of the others.
+    assert names.index(CONF_PRIVACY_SECTION) == names.index(CONF_KEEP_DELIVERED_DAYS) + 1
+    assert CONF_HIDE_NAMES not in names
+    assert _frontend_initial(fields)[CONF_PRIVACY_SECTION][CONF_HIDE_NAMES] is False
     result, checks = await _save(hass, entry, _frontend_initial)
     assert result["type"] is FlowResultType.CREATE_ENTRY
     for check in checks:
@@ -414,7 +424,8 @@ async def test_untouched_form_keeps_hide_names(hass, stored, payload):
     entry = MockConfigEntry(domain=DOMAIN, data=dict(DATA), options=dict(options))
     entry.add_to_hass(hass)
     result = await open_options(hass, entry)
-    assert _frontend_initial(_fields(result))[CONF_HIDE_NAMES] is stored
+    shown = _frontend_initial(_fields(result))[CONF_PRIVACY_SECTION]
+    assert shown[CONF_HIDE_NAMES] is stored
     result, checks = await _save(hass, entry, payload)
     assert result["type"] is FlowResultType.CREATE_ENTRY
     for check in checks:
@@ -427,7 +438,12 @@ async def test_hide_names_is_switched_on_and_off_and_nothing_else_changes(hass):
     entry = _entry(hass)
 
     def switched(value):
-        return lambda fields: {**_frontend_initial(fields), CONF_HIDE_NAMES: value}
+        def payload(fields):
+            data = _frontend_initial(fields)
+            data[CONF_PRIVACY_SECTION] = {**data[CONF_PRIVACY_SECTION], CONF_HIDE_NAMES: value}
+            return data
+
+        return payload
 
     result, checks = await _save(hass, entry, switched(True))
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -442,7 +458,9 @@ async def test_hide_names_is_switched_on_and_off_and_nothing_else_changes(hass):
 
 async def test_setup_form_does_not_ask_for_hide_names(hass):
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
-    assert CONF_HIDE_NAMES not in [field["name"] for field in _fields(result)]
+    names = [field["name"] for field in _fields(result)]
+    assert CONF_HIDE_NAMES not in names
+    assert CONF_PRIVACY_SECTION not in names
 
 
 # ----- v0.3.29: the folder of the mailbox that is read -----
