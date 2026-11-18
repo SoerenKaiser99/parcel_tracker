@@ -1015,3 +1015,14 @@ def test_dhl_html_part_reads_only_the_forms_dhl_shows_below_the_button():
         assert parse_mail(_html_only_number(page)).updates == [], shown
         page = f"<p>Sendungsstatus einsehen</p><p>{shown}</p>"
         assert parse_mail(_html_only_number(page)).updates == [], shown
+
+
+def test_dhl_subject_with_digitec_galaxus_names_the_parcel():
+    """Issue #82: "Ihre digitec Galaxus Deutschland Sendung ist unterwegs" names the shop."""
+    msg = load_mail(NEW_LAYOUT)
+    subj = str(msg["Subject"])
+    assert "Amazon" in subj
+    msg.replace_header("Subject", subj.replace("Amazon", "digitec Galaxus Deutschland"))
+    [u] = parse_mail(msg).updates
+    assert u.title == "digitec Galaxus Deutschland"
+    assert u.number == "00340999999999999901"

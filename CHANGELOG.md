@@ -36,6 +36,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.59 (2026-11-18)
+
+- **DHL: Galaxus als Name:** DHL nennt den Shop im Betreff „Ihre digitec Galaxus Deutschland Sendung …“. Die Integration kannte nur „Galaxus“ allein und zeigte deshalb die Sendungsnummer. Jetzt heißt das Paket „digitec Galaxus Deutschland“. ([#82](https://github.com/SoerenKaiser99/parcel_tracker/issues/82))
+
 ### v0.3.58 (2026-11-17)
 
 - **Amazon: Einmalpasswort wieder erkannt:** Amazon schreibt den Zustell-Code in manchen Mails nur noch in den HTML-Teil, nicht mehr in den Textteil. Die Integration sucht ihn jetzt auch dort (nur mit eingeschalteter Option für Zustell-Codes). ([#81](https://github.com/SoerenKaiser99/parcel_tracker/issues/81))

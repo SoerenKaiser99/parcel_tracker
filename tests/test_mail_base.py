@@ -244,6 +244,10 @@ def test_known_shop(text, known):
         ("Zalando", "Zalando"),
         ("MediaMarkt Online", "MediaMarkt Online"),
         ("Zalando Versand Erika Musterfrau", "Zalando Versand"),
+        # Galaxus names itself "digitec Galaxus" in DHL mails (issue #82)
+        ("digitec Galaxus Deutschland", "digitec Galaxus Deutschland"),
+        ("Digitec Galaxus", "Digitec Galaxus"),
+        ("Digitec", None),
         ("Amazon Erika Musterfrau", "Amazon"),
         ("Erika Musterfrau über eBay", "eBay"),
         # a token with "ebay"/"amazon" is the shop, never a seller's handle

@@ -337,7 +337,7 @@ def shop_of(text: str) -> str | None:
 # form or domain): "Otto" alone is a shop, "Otto Beispiel" is a person.
 _KNOWN_SHOP = re.compile(
     r"(?:otto|zalando|about you|media ?markt|saturn|ikea|lidl|tchibo|bonprix|thomann"
-    r"|notebooksbilliger|alternate|cyberport|galaxus|decathlon|conrad|kaufland|shein|temu"
+    r"|notebooksbilliger|alternate|cyberport|(?:digitec\s+)?galaxus|decathlon|conrad|kaufland|shein|temu"
     r"|aliexpress)(?:\.(?:de|com))?(?:\s+(?:gmbh|ag|se|kg|sarl|&|co\b|versand|online|shop"
     r"|deutschland|germany|electronic)\b.*)?",
     re.IGNORECASE,
@@ -359,7 +359,7 @@ LEGAL_FORM = re.compile(
 _FORM_TAIL = re.compile(r"\s*(?:&|\+|und|u\.)\s*Co\.?(?:\s*(?:KGaA|KG|OHG))?(?!\w)")
 _KNOWN_SHOP_NAME = re.compile(
     r"(?:otto|zalando|about you|media ?markt|saturn|ikea|lidl|tchibo|bonprix|thomann"
-    r"|notebooksbilliger|alternate|cyberport|galaxus|decathlon|conrad|kaufland|shein|temu"
+    r"|notebooksbilliger|alternate|cyberport|(?:digitec\s+)?galaxus|decathlon|conrad|kaufland|shein|temu"
     r"|aliexpress)(?:\.(?:de|com))?(?:\s+(?:versand|online|shop|deutschland|germany"
     r"|electronic)\b)*",
     re.IGNORECASE,
