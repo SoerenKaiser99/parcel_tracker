@@ -416,7 +416,9 @@ _T_B0, _T_B1 = rf"(?:(?<![^\W\d_])|{_T_CASE_CHANGE})", rf"(?:(?![^\W\d_])|{_T_CA
 _T_UMLAUT = {"ä": "a", "ö": "o", "ü": "u"}
 _T_DIGRAPH = {"ae": "ä", "oe": "ö", "ue": "ü"}
 # "=" and "%" belong to the local part: bounce+user=gmx.de@shop.example is one address.
-_T_ADDRESS = r"[\w.+%=&~-]+@[\w-]+(?:\.[\w-]+)+"
+# It begins where its characters begin: tried from within a long run of digits, every try
+# would read to the run's end (time growing with the square of the run's length).
+_T_ADDRESS = r"(?<![\w.+%=&~-])[\w.+%=&~-]+@[\w-]+(?:\.[\w-]+)+"
 _T_LINKS = re.compile(rf"(?P<url>(?:https?://|(?<![\w@.])www\.)[^\s<>\"'()\[\]{{}}]+)|(?P<mail>{_T_ADDRESS})")
 _T_DATE = r"\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}(?!\d)"
 # One pass, the first alternative that fits wins: links and addresses stay as the first pass
@@ -497,8 +499,8 @@ _T_GENERIC = re.compile(
     + r"|(?P<dashed>(?<![\w-])\d{2,}(?:-\d{2,})+(?![\w-]))"
     + r"|(?P<digits>\d{6,})"
 )
-_T_PLACE = (
-    r"\w*(?:ablageort|abstellort|wunschort|ablageplatz|abstellplatz|abstellgenehmigung"
+_T_PLACE = (  # (from the word's start only, as _T_ADDRESS)
+    r"(?<!\w)\w*(?:ablageort|abstellort|wunschort|ablageplatz|abstellplatz|abstellgenehmigung"
     r"|abstell-okay|abstellerlaubnis)\w*"
 )
 _T_PLACED = r"(?:erkannt|hinterlegt|abgelegt|abgestellt|zugestellt|deponiert|gespeichert)"
