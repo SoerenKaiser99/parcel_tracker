@@ -153,7 +153,7 @@ Nimm diese Absender in die Filterregel auf:
 | `noreply@service.dpd.de` | DPD |
 | `no_reply@dpd.at` | DPD Österreich (Ankündigung, „kommt zwischen … Uhr“ mit Zeitfenster, Zustellung) |
 | `pkginfo@ups.com` | UPS |
-| `mcinfo@ups.com` | UPS My Choice („Ihr Paket ist unterwegs!“, „Paket ist morgen für die Zustellung terminiert“: Versendet, mit geschätztem Tag und Zeitfenster) |
+| `mcinfo@ups.com` | UPS My Choice („Ihr Paket ist unterwegs!“, „Paket ist morgen für die Zustellung terminiert“: Versendet, mit geschätztem Tag und Zeitfenster; „Paket ist heute für die Zustellung terminiert“: In Zustellung; „Ihr UPS Paket wurde zugestellt“: Zugestellt mit Uhrzeit) |
 | `noreply@paketankuendigung.myhermes.de` | Hermes |
 | `ebay@ebay.com` | eBay |
 | `transaction@notice.aliexpress.com` | AliExpress |
@@ -182,7 +182,7 @@ if address :is "from" [
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",
   "transaction@notice.aliexpress.com",
-  "bestellstatus@eventim.de",
+  "bestellstatus@eventim.de", "noreply@notifications.galaxus.de",
   "no-reply@gls-pakete.de"
 ] {
   redirect :copy "pakete@example.org";
@@ -209,7 +209,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@dhlecommerce.nl OR noreply@service.dpd.de OR pkginfo@ups.com OR mcinfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@dhlecommerce.nl OR noreply@service.dpd.de OR pkginfo@ups.com OR mcinfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR noreply@notifications.galaxus.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.

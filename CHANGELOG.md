@@ -36,6 +36,11 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.61 (2026-11-19)
+
+- **UPS My Choice: „heute“ und „zugestellt“:** Die Mail „Paket ist heute für die Zustellung terminiert“ von `mcinfo@ups.com` setzt jetzt „In Zustellung“ mit dem Tag, „Ihr UPS Paket wurde zugestellt“ setzt „Zugestellt“ mit Tag und Uhrzeit aus der Mail. Bisher kam aus beiden nur die Sendungsnummer. Danke an stormrider3106 für die Beispielmails. ([#37](https://github.com/SoerenKaiser99/parcel_tracker/issues/37))
+- **Doku:** Der Galaxus-Absender steht jetzt auch in den fertigen Filterlisten (imapfilter, Gmail). Unter „Was brauche ich für welchen Dienst?“ steht ein Hinweis auf eine eigene Integration für die Briefankündigung der Deutschen Post.
+
 ### v0.3.60 (2026-11-18)
 
 - **Galaxus: Versandmail benennt das Paket:** Die Mail „Dein Paket ist auf dem Weg zu dir“ von Galaxus legt das Paket wie bisher mit der Sendungsnummer an, jetzt aber mit Namen: nach dem verschickten Artikel, bei mehreren Artikeln „Galaxus“. Kommt die DHL-Mail zuerst, bleibt deren Name „digitec Galaxus Deutschland“. Bestellbestätigung und Verzögerungsmail liest der Import weiterhin nicht. ([#83](https://github.com/SoerenKaiser99/parcel_tracker/issues/83))

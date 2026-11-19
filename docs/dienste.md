@@ -17,6 +17,8 @@ Die kurze Antwort: DPD, GLS und Hermes funktionieren sofort. DHL und UPS brauche
 
 „Aus Mails“ setzt den [E-Mail-Import](mail-import.md) mit einem eigenen Paket-Postfach voraus.
 
+**Briefe?** Der Paket Tracker verfolgt nur Pakete. Für die Briefankündigung der Deutschen Post (über WEB.DE oder GMX) gibt es eine eigene Integration: [briefankuendigung](https://github.com/fumagallis4ever/briefankuendigung). Sie ist ein fremdes Projekt, das wir nicht prüfen; Hinweis aus dem Forum, danke an mondface.
+
 !!! warning "DHL oder UPS ohne Zugangsdaten und ohne Mail-Import"
     Ein von Hand eingetragenes DHL-Paket bleibt dann ohne Status. Die Karte zeigt „Kein Live-Status“ und sagt das gleich beim Hinzufügen. Für UPS ohne Zugangsdaten gilt dasselbe.
 
