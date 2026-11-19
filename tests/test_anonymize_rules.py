@@ -635,6 +635,27 @@ def test_drop_off_permission_lines(tmp_path):
     _absent(msg, "gartenhaus", "seiteneingang", "vordach")
 
 
+def test_a_long_run_of_digits_takes_no_time(tmp_path):
+    # The rules for drop-off places and mail addresses tried a match from every digit of a
+    # run, each try reading to its end: 20,000 digits took minutes instead of a second.
+    raw = _mail(
+        SHOP, "Ihr Paket kommt",
+        f"Nummer {'7' * 20_000}\nAbstellort: Hinter dem Gartenhaus\n"
+        "Fragen an erika.probe@privatpost.example\n",
+    )
+    (tmp_path / "long.eml").write_bytes(raw)
+    try:
+        done = _call(tmp_path, "--ohne-angaben", timeout=30)
+    except subprocess.TimeoutExpired:
+        pytest.fail("20,000 digits took longer than 30 s")
+    assert done.returncode == 0, done.stderr
+    [written] = (tmp_path / "anonymisiert").glob("*.eml")
+    msg = email.message_from_bytes(written.read_bytes(), policy=policy.default)
+    text = _text(msg)
+    assert "Ablageort: Garage\n" in text and "7" * 20 not in text
+    _absent(msg, "gartenhaus", "erika.probe")
+
+
 def test_sender_address_that_carries_the_recipient_is_replaced_as_a_whole(tmp_path):
     raw = _mail(
         "Holzwurm Shop <bounce+joerg.probst=gmx.de@holzwurm-shop.example>",
