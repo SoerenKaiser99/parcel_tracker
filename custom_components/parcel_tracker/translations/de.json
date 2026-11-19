@@ -51,8 +51,7 @@
           "track17_api_key_remove": "17track-API-Key entfernen",
           "country": "Land",
           "postcode": "PLZ (optional)",
-          "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)",
-          "hide_names": "Namen ausblenden"
+          "keep_delivered_days": "Zugestellte Pakete ausblenden nach (Tagen)"
         },
         "data_description": {
           "country": "Bestimmt, wie viele Ziffern die PLZ hat und welche GLS-Abfrage gefragt wird.",
@@ -61,10 +60,23 @@
           "dhl_api_key": "Ohne Key kommen DHL-Pakete aus den DHL-Mails über den Mail-Import, mit Key gibt es den Live-Status. Leer lassen behält den gespeicherten Key.",
           "dhl_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten DHL-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist.",
           "track17_api_key": "Kostenloser Key von api.17track.net (einmalig 200 Nummern). Wird nur genutzt, wenn du es auf der Karte auslöst. Leer lassen behält den gespeicherten Key.",
-          "track17_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten 17track-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist.",
-          "hide_names": "Pakete heißen nur nach dem Paketdienst (z. B. „DHL-Paket“, „Amazon-Bestellung“) – auf der Karte, im Kalender, in den Sensoren und in den Benachrichtigungen. Für Geschenke auf einem gemeinsamen Dashboard. Ein selbst eingetippter Name bleibt sichtbar; die gespeicherten Namen werden nicht verändert."
+          "track17_api_key_remove": "Häkchen setzen und speichern löscht den gespeicherten 17track-Key. Das Häkchen gewinnt, auch wenn oben ein neuer Key eingetragen ist."
         },
         "sections": {
+          "privacy": {
+            "name": "Datenschutz",
+            "description": "Was aus den Paketmails gelesen und wie ein Paket benannt wird. Gilt für jede Mail, auch ohne den E-Mail-Import per IMAP.",
+            "data": {
+              "hide_names": "Namen ausblenden",
+              "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen",
+              "plain_names": "Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen"
+            },
+            "data_description": {
+              "hide_names": "Pakete heißen nur nach dem Paketdienst (z. B. „DHL-Paket“, „Amazon-Bestellung“) – auf der Karte, im Kalender, in den Sensoren und in den Benachrichtigungen. Für Geschenke auf einem gemeinsamen Dashboard. Ein selbst eingetippter Name bleibt sichtbar; die gespeicherten Namen werden nicht verändert.",
+              "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf.",
+              "plain_names": "Der Betreff „Ihre … Sendung …“ von DHL benennt das Paket nach dem Namen darin, auch bei kleinen Shops und Privatpersonen. Dann können Namen von Privatpersonen auf Karte, Kalender, Sensoren und in Benachrichtigungen stehen. Standardmäßig aus. „Namen ausblenden“ hat Vorrang: Dann steht nur der Paketdienst-Name da."
+            }
+          },
           "mail": {
             "name": "E-Mail-Import (optional)",
             "description": "Liest Paketmails per IMAP aus einem eigenen Paket-Postfach. Trag nur ein Postfach ein, das ausschließlich Paketmails bekommt – nie dein Hauptpostfach.",
@@ -78,8 +90,6 @@
               "imap_folder": "Ordner",
               "move_processed": "Verarbeitete Mails in Ordner verschieben",
               "delete_processed_days": "Erkannte Mails löschen nach (Tagen)",
-              "read_otp": "Zustell-Codes (Einmalpasswörter) mitlesen",
-              "plain_names": "Absendernamen aus DHL-Mails ohne Firmenprüfung übernehmen",
               "mail_interval": "Postfach abfragen alle (Minuten)"
             },
             "data_description": {
@@ -90,9 +100,7 @@
               "imap_password": "Leer lassen behält das gespeicherte Passwort.",
               "imap_folder": "Welcher Ordner des Postfachs gelesen wird – nur dieser eine. Lass „INBOX“ für das eigene Paket-Postfach stehen. Ein Ordner deines Hauptpostfachs geht auch, dann kennt Home Assistant aber das Passwort des ganzen Postfachs. Leer lassen behält den gespeicherten Ordner.",
               "move_processed": "Ordner Paket-Tracker-Verarbeitet und Paket-Tracker-Nicht-erkannt.",
-              "delete_processed_days": "Löscht Mails im Ordner Paket-Tracker-Verarbeitet endgültig, sobald sie so viele Tage alt sind (Eingangsdatum), höchstens einmal am Tag. Nur dieser Ordner, nie der gelesene und nie Paket-Tracker-Nicht-erkannt. Wirkt nur mit „Verarbeitete Mails in Ordner verschieben“. 0 = aus.",
-              "read_otp": "Die Karte zeigt einen Code erst nach Tippen und Rückfrage. Er landet nie im Verlauf.",
-              "plain_names": "Der Betreff „Ihre … Sendung …“ von DHL benennt das Paket nach dem Namen darin, auch bei kleinen Shops und Privatpersonen. Dann können Namen von Privatpersonen auf Karte, Kalender, Sensoren und in Benachrichtigungen stehen. Standardmäßig aus. „Namen ausblenden“ hat Vorrang: Dann steht nur der Paketdienst-Name da."
+              "delete_processed_days": "Löscht Mails im Ordner Paket-Tracker-Verarbeitet endgültig, sobald sie so viele Tage alt sind (Eingangsdatum), höchstens einmal am Tag. Nur dieser Ordner, nie der gelesene und nie Paket-Tracker-Nicht-erkannt. Wirkt nur mit „Verarbeitete Mails in Ordner verschieben“. 0 = aus."
             }
           },
           "ups": {

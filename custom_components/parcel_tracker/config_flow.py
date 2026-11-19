@@ -66,6 +66,7 @@ from .const import (
     CONF_PERSONS,
     CONF_PLAIN_NAMES,
     CONF_POSTCODE,
+    CONF_PRIVACY_SECTION,
     CONF_READ_OTP,
     CONF_REMOVE_PERSON,
     CONF_SHARED_ADDRESSES,
@@ -485,19 +486,35 @@ def _mail_section(current: Mapping[str, Any]) -> section:
                     default=_purge_days(current.get(CONF_DELETE_PROCESSED_DAYS)),
                 ): _PURGE_DAYS,
                 vol.Optional(
-                    CONF_READ_OTP, default=current.get(CONF_READ_OTP, DEFAULT_READ_OTP)
-                ): bool,
-                vol.Optional(
-                    CONF_PLAIN_NAMES,
-                    default=current.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True,
-                ): bool,
-                vol.Optional(
                     CONF_MAIL_INTERVAL,
                     default=current.get(CONF_MAIL_INTERVAL, DEFAULT_MAIL_INTERVAL),
                 ): _MINUTES,
             }
         ),
         {"collapsed": not current.get(CONF_IMAP_USER)},
+    )
+
+
+def _privacy_section(current: Mapping[str, Any]) -> section:
+    """Collapsible 'privacy' block of the options form.
+
+    The three switches apply to every mail, however it arrives (IMAP, the
+    ``import_mail`` service), and to the display; they are stored flat in the
+    options as before. Prefilled through ``default``: an untouched form sends back
+    what is stored. Open while one of them is on.
+    """
+    hide = current.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True
+    read_otp = current.get(CONF_READ_OTP, DEFAULT_READ_OTP) is True
+    plain = current.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True
+    return section(
+        vol.Schema(
+            {
+                vol.Optional(CONF_HIDE_NAMES, default=hide): bool,
+                vol.Optional(CONF_READ_OTP, default=read_otp): bool,
+                vol.Optional(CONF_PLAIN_NAMES, default=plain): bool,
+            }
+        ),
+        {"collapsed": not (hide or read_otp or plain)},
     )
 
 
@@ -510,7 +527,7 @@ def _schema(
     track17: bool = False,
     notify: Mapping[str, Any] | None = None,
     notify_available: Sequence[SelectOptionDict] = (),
-    hide_names: bool = False,
+    privacy: Mapping[str, Any] | None = None,
     gift: Mapping[str, Any] | None = None,
     removable: Collection[str] = (),
 ) -> vol.Schema:
@@ -540,16 +557,10 @@ def _schema(
             default=defaults.get(CONF_KEEP_DELIVERED_DAYS, DEFAULT_KEEP_DELIVERED_DAYS),
         )
     ] = _DAYS
-    if hide_names:
-        # Prefilled through ``default``: an untouched form sends back what is stored.
-        fields[
-            vol.Optional(
-                CONF_HIDE_NAMES,
-                default=defaults.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True,
-            )
-        ] = bool
     # No ``default`` on the section markers: with one, the frontend starts from
     # that (empty) dict and never prefills the fields inside the section.
+    if privacy is not None:
+        fields[vol.Optional(CONF_PRIVACY_SECTION)] = _privacy_section(privacy)
     if mail is not None:
         fields[vol.Optional(CONF_MAIL_SECTION)] = _mail_section(mail)
     if ups is not None:
@@ -752,9 +763,12 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
     An entry without a stored country behaves as Germany and shows Germany; the
     country is only written to the options once it is stored there or was changed.
 
-    "Namen ausblenden" (``hide_names``) is a plain switch. Missing from the submitted
-    form, it keeps its stored value; like the country it is only written to the options
-    once it is stored there or was switched on.
+    "Namen ausblenden" (``hide_names``), the delivery codes (``read_otp``) and the
+    sender names from DHL mails (``plain_names``) sit in the section "Datenschutz"
+    (``privacy``): they apply to every mail, not only to the IMAP import. Each one
+    missing from the submitted form keeps its stored value; ``hide_names`` and
+    ``plain_names`` are, like the country, only written to the options once stored
+    there or switched on.
 
     Notifications are on while targets are stored. A submitted empty list of
     targets switches them off, as does ``notify_enabled`` submitted as False; a
@@ -1036,10 +1050,14 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
             if drop_track17:
                 track17_key = ""
             country = known_country(user_input.get(CONF_COUNTRY) or stored_country)
+            privacy = user_input.get(CONF_PRIVACY_SECTION) or {}
             stored_plain = options.get(CONF_PLAIN_NAMES, DEFAULT_PLAIN_NAMES) is True
-            plain_names = mail.get(CONF_PLAIN_NAMES, stored_plain) is True
+            plain_names = privacy.get(CONF_PLAIN_NAMES, stored_plain) is True
             stored_hide = options.get(CONF_HIDE_NAMES, DEFAULT_HIDE_NAMES) is True
-            hide = user_input.get(CONF_HIDE_NAMES, stored_hide) is True
+            hide = privacy.get(CONF_HIDE_NAMES, stored_hide) is True
+            read_otp = bool(
+                privacy.get(CONF_READ_OTP, options.get(CONF_READ_OTP, DEFAULT_READ_OTP))
+            )
             if postcode and (err := _postcode_error(postcode, country)):
                 errors[CONF_POSTCODE] = err
             elif notify_no_target:
@@ -1085,9 +1103,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                             options.get(CONF_MOVE_PROCESSED, DEFAULT_MOVE_PROCESSED),
                         )
                     ),
-                    CONF_READ_OTP: bool(
-                        mail.get(CONF_READ_OTP, options.get(CONF_READ_OTP, DEFAULT_READ_OTP))
-                    ),
+                    CONF_READ_OTP: read_otp,
                     CONF_MAIL_INTERVAL: int(
                         mail.get(
                             CONF_MAIL_INTERVAL,
@@ -1164,6 +1180,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
         ups_shown = {**current, **((user_input or {}).get(CONF_UPS_SECTION) or {})}
         notify_shown = {**current, **((user_input or {}).get(CONF_NOTIFY_SECTION) or {})}
         gift_shown = {**current, **((user_input or {}).get(CONF_GIFT_SECTION) or {})}
+        privacy_shown = {**current, **((user_input or {}).get(CONF_PRIVACY_SECTION) or {})}
         return self.async_show_form(
             step_id="settings",
             data_schema=_schema(
@@ -1175,7 +1192,7 @@ class ParcelTrackerOptionsFlow(OptionsFlow):
                 track17=True,
                 notify=notify_shown,
                 notify_available=_available_targets(self.hass),
-                hide_names=True,
+                privacy=privacy_shown,
                 gift=gift_shown,
                 removable={
                     key

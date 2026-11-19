@@ -46,8 +46,8 @@ Updates kommen auf diesem Weg nicht von selbst: Für eine neue Version lädst du
 
 Alle vier Felder änderst du später über **Konfigurieren** an der Integration. Dort gibt es zusätzlich:
 
-- den Schalter **Namen ausblenden** (siehe [Datenschutz](datenschutz.md#namen-ausblenden)),
 - das Feld **17track-API-Key** (siehe [17track](dienste.md#17track-optional)),
+- den Bereich **Datenschutz** mit **Namen ausblenden**, den Zustell-Codes und den Absendernamen aus DHL-Mails (siehe [Datenschutz](datenschutz.md#namen-ausblenden)),
 - die Bereiche **E-Mail-Import**, **UPS-Live-Status** und **Benachrichtigungen**.
 
 Gut zu wissen:

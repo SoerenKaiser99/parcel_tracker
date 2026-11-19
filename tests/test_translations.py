@@ -46,8 +46,7 @@ def test_mail_translations_present():
     section = strings["options"]["step"]["settings"]["sections"]["mail"]
     assert set(section["data"]) == {
         "mail_enabled", "imap_host", "imap_port", "imap_security", "imap_user",
-        "imap_password", "imap_folder", "move_processed", "delete_processed_days", "read_otp",
-        "plain_names",
+        "imap_password", "imap_folder", "move_processed", "delete_processed_days",
         "mail_interval",
     }
     assert {
@@ -263,16 +262,32 @@ def test_hide_names_translations_present():
     where it applies and that a typed-in name stays."""
     for name, label in (("strings.json", "Hide names"), ("translations/de.json",
                                                          "Namen ausblenden")):
-        init = _load(name)["options"]["step"]["settings"]
-        assert init["data"]["hide_names"] == label
-        assert init["data_description"]["hide_names"]
+        privacy = _load(name)["options"]["step"]["settings"]["sections"]["privacy"]
+        assert privacy["data"]["hide_names"] == label
+        assert privacy["data_description"]["hide_names"]
         assert "hide_names" not in _load(name)["config"]["step"]["user"]["data"]
-    text = _load("translations/de.json")["options"]["step"]["settings"]["data_description"][
-        "hide_names"
-    ]
+    text = _load("translations/de.json")["options"]["step"]["settings"]["sections"][
+        "privacy"
+    ]["data_description"]["hide_names"]
     for word in ("DHL-Paket", "Amazon-Bestellung", "Karte", "Kalender", "Sensoren",
                  "Benachrichtigungen", "eingetippter Name"):
         assert word in text
+
+
+def test_privacy_section_translations_present():
+    """"Datenschutz" holds the three switches that apply to every mail, IMAP or not."""
+    for name, title in (("strings.json", "Privacy"), ("translations/de.json", "Datenschutz")):
+        settings = _load(name)["options"]["step"]["settings"]
+        privacy = settings["sections"]["privacy"]
+        assert privacy["name"] == title
+        assert privacy["description"]
+        keys = {"hide_names", "read_otp", "plain_names"}
+        assert set(privacy["data"]) == keys == set(privacy["data_description"])
+        assert not keys & set(settings["data"])
+        assert not keys & set(settings["sections"]["mail"]["data"])
+    german = _load("translations/de.json")["options"]["step"]["settings"]["sections"]["privacy"]
+    assert german["data"]["read_otp"] == "Zustell-Codes (Einmalpasswörter) mitlesen"
+    assert "auch ohne den E-Mail-Import" in german["description"]
 
 
 def test_amazon_repair_text_is_true_without_a_mailbox_too():

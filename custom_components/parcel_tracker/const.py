@@ -12,6 +12,8 @@ CONF_COUNTRY = "country"
 CONF_POSTCODE = "postcode"
 CONF_KEEP_DELIVERED_DAYS = "keep_delivered_days"
 CONF_HIDE_NAMES = "hide_names"
+# Section of the options form for hide_names, read_otp and plain_names (stored flat).
+CONF_PRIVACY_SECTION = "privacy"
 CONF_MAIL_SECTION = "mail"
 CONF_MAIL_ENABLED = "mail_enabled"
 CONF_IMAP_HOST = "imap_host"
