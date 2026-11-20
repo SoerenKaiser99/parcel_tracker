@@ -12,7 +12,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an. Auf Wunsch löscht er erkannte Mails nach einer einstellbaren Zahl von Tagen.
 - **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress, Eventim (nur Postversand) und Galaxus (Versandmail, als Paketname).
 - **Weitergeleitete Mails:** von Hand weitergeleitete Mails, Apples „E-Mail-Adresse verbergen“ und Mails per HTTP-Aufruf (z. B. aus n8n oder Node-RED).
-- **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst.
+- **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst. Amazon-Bestellungen in mehreren Kartons werden nach Artikeln aufgeteilt, der noch offene Rest bleibt ein eigener Eintrag.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
 - **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“, jeweils nur, wenn es etwas zu zählen gibt. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`), die Kopfzeile abschaltbar (`header`), Geschenke lassen sich ausblenden (`gifts`).
 - **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist. Mit `gift_for` bleibt ein Geschenk vor den Personen verborgen, für die es ist.
@@ -35,6 +35,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.63 (2026-11-20)
+
+- **Amazon: Bestellungen in mehreren Kartons:** Kommt eine Bestellung in mehreren Kartons, bekommt jeder Karton einen eigenen Eintrag mit seinen Artikeln (nach Artikelnummer und Menge). Was noch nicht versendet ist, bleibt als eigener Eintrag „…P2“ auf „Bestellt“. Stornierte Artikel werden abgezogen; ein Teilstorno erscheint als eigener Eintrag „Storniert“, ohne Benachrichtigung. Kopien derselben Mail (z. B. von Hand weitergeleitet) ändern nichts. Danke an benep. ([PR #87](https://github.com/SoerenKaiser99/parcel_tracker/pull/87))
 
 ### v0.3.62 (2026-11-20)
 
