@@ -393,6 +393,17 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Den Text des Wunsch-Ablageorts übernimmt die Integration nie – weder in Attribute noch ins Log.
     - Alte Amazon-Versandmails mit Hermes-Nummer hängen die Nummer an das Amazon-Paket; ab dann fragt es Hermes ab.
 
+=== "Hermes Einrichtungs Service"
+
+    - Mails von `hes.de` legen ein Paket „Hermes Einrichtungs Service“ an; danach fragt die Integration die Sendungsverfolgung von myhes.de ab. Die Nummer (21 Ziffern) kommt aus dem Link zu myhes.de, aus „Sendungsnummer:“ oder aus dem Betreff; die Leerzeichen darin fallen weg.
+    - „Auftragseingang deiner Sendung …“ setzt „Angekündigt“.
+    - „Unterwegs“ setzen ein Betreff zu Liefertermin oder Zeitfenster, eine Ankündigung („wird/soll/kann am … zugestellt werden“, „wurde umgeplant“, „voraussichtlich“) und ein Schritt auf dem Weg („im Depot eingetroffen“), jeweils mit dem Liefertag aus dem Text und dem Zeitfenster dahinter („zwischen 10:00 und 14:00 Uhr“).
+    - „In Zustellung“ setzt „heute“ nur zusammen mit einem Wort für die Lieferung („kommt heute“, „heute in Zustellung“) oder „auf Tour“. Ohne Datum gilt dann nur ein Zeitfenster mit „zwischen … und …“.
+    - „Zugestellt“ setzt nur „wurde … zugestellt/geliefert“, ohne ein Wort einer Ankündigung im Betreff. Ein Betreff mit „nicht“ setzt keinen Status.
+    - Liefertag ist nie ein Datum, das die Mail als Tag der Bestellung nennt („Bestellt am“, „erteilt am“, „aufgegeben am“, „Bestelldatum“), und „am …“ nur in einem Satz über die Lieferung, nicht in „Wir melden uns am …“.
+    - „Deine Sendung von:“ wird zum Namen, solange das Paket noch keinen hat (bei einer Firma bis zur Rechtsform: „Beispiel Matratzen GmbH (Hammer)“ wird „Beispiel Matratzen GmbH“).
+    - „Sendung verfolgen“ führt zu myhes.de.
+
 ## Versendete Pakete (Einlieferungsbelege)
 
 Verschickst du selbst ein Paket, schickt dir DHL einen Einlieferungsbeleg. Auch den kann der Import lesen. Das Paket steht dann als **versendet** in der Liste und wird wie jedes andere verfolgt, nur dass es nicht zu dem zählt, was bei dir ankommt.

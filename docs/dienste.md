@@ -8,6 +8,7 @@ Die kurze Antwort: DPD, GLS und Hermes funktionieren sofort. DHL und UPS brauche
 | DPD | ja, ohne Key (nur Status, kein Ort) | optional: eine DPD-Mail legt das Paket an, den Status liefert die Abfrage | keine |
 | GLS | ja, ohne Key (mit PLZ auch der Verlauf) | ja, aus den GLS-Mails | keine; die PLZ für den Verlauf |
 | Hermes | ja, ohne Key | ja, aus den Hermes-Mails (sie nennen den Liefertag) | keine |
+| Hermes Einrichtungs Service | ja, ohne Key (Sendungsverfolgung von myhes.de) | ja, aus der Mail „Auftragseingang“ (sie legt das Paket an) | keine |
 | UPS | nur mit eigenem UPS-Entwicklerzugang | ja, aus den UPS-Mails | ohne Zugang nur aus den UPS-Mails; für den Live-Status [Client-ID und Secret](#ups) |
 | Amazon | nein (keine Anmeldung bei Amazon) | ja, nur aus Mails | [E-Mail-Import](mail-import.md) |
 | eBay | nein | ja, nur aus Mails | [E-Mail-Import](mail-import.md) |
@@ -127,6 +128,12 @@ GLS-Pakete fragt die Integration über die offene Sendungsverfolgung von gls-gro
 
 - Abgefragt wird die öffentliche Hermes-Sendungsverfolgung, nur mit der Sendungsnummer (`H…` mit 19 Ziffern oder 14 Ziffern). Zugangsdaten und PLZ brauchst du nicht.
 - Hermes liefert Status und Verlauf, aber keinen Liefertag. Den übernimmt die Integration aus den Hermes-Mails.
+
+## Hermes Einrichtungs Service
+
+- Möbel und Großgeräte liefert der Hermes Einrichtungs Service (HES). Seine Sendungsnummern haben 21 Ziffern (in den Mails mit Leerzeichen: „9999999999999 99999901“); „Automatisch“ erkennt sie, beim Hinzufügen lässt sich auch „Hermes Einrichtungs Service“ wählen (im Dienst `add_parcel`: `hes`).
+- Abgefragt wird die öffentliche Sendungsverfolgung von myhes.de, nur mit der Sendungsnummer. Zugangsdaten und PLZ brauchst du nicht. Sie liefert Status, Verlauf, Liefertag und Zeitfenster, sobald das Depot den Termin geplant hat, und die Zeit der Zustellung. Ist der Liefertag schon vorbei, gilt der Wunschtermin, sonst der Tag, den das Depot zuletzt genannt hat; ist auch der vorbei, steht kein Tag da. Zeigt die Seite einen Schritt, den die Integration noch nicht kennt, bleibt der bisherige Status stehen und im Log steht eine Warnung.
+- HES schickt kaum Mails: Die Mail „Auftragseingang“ legt das Paket an und gibt ihm den Namen aus „Deine Sendung von:“ (z. B. „Beispiel Matratzen GmbH“). Alles Weitere kommt aus der Abfrage.
 
 ## UPS
 

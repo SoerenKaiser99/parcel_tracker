@@ -182,7 +182,7 @@ async def test_fetch_network_error():
 async def test_build_carriers_includes_hermes():
     async with aiohttp.ClientSession() as session:
         carriers = build_carriers(session, None)
-    assert list(carriers) == ["dhl", "dpd", "hermes", "gls"]
+    assert list(carriers) == ["dhl", "dpd", "hermes", "hes", "gls"]
     assert carriers["hermes"].name == "Hermes"
 
 

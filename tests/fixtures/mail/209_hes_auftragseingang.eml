@@ -1,0 +1,237 @@
+From: "Hermes.Serviceteam@HES.de" <hermes.serviceteam@hes.de>
+To: adresse1@example.org
+Subject: Auftragseingang deiner Sendung 9999999999999 99999902
+Date: Mon, 19 Oct 2026 05:39:24 +0000
+Message-ID: <beispiel-001@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============3119541198014993271=="
+
+--===============3119541198014993271==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/…">
+<html lang="de" xml:lang="en" xmlns="http://www.w3.org/…">
+<head>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+  <meta content="telephone=no" name="format-detection">
+  <style type="text/css">
+      @font-face {
+          font-family: "FSAlbert";
+          font-weight: bold;
+          font-style: normal;
+          src: url("|${staticUrl}/fonts/FSAlbert-Bold.otf|");
+      }
+
+      @font-face {
+          font-family: "FSAlbert";
+          font-weight: 200;
+          font-style: normal;
+          src: url("|${staticUrl}/fonts/FSAlbert-Thin.otf|");
+      }
+
+      @font-face {
+          font-family: "FSAlbert";
+          font-style: normal;
+          font-weight: normal;
+          src: url("|${staticUrl}/fonts/FSAlbert.otf|");
+      }
+
+      * {
+          font-family: "FSAlbert", Arial, serif !important;
+          box-sizing: border-box;
+      }
+
+      body {
+          width: 100%;
+          background-color: #ffffff;
+          margin: 0;
+          padding: 0;
+          -webkit-font-smoothing: antialiased;
+      }
+
+      table {
+          border-collapse: collapse;
+      }
+
+      .center {
+          text-align: center !important;
+      }
+
+      .fullWidth {
+          width: 100% !important;
+      }
+
+      @media only screen and (max-device-width: 700px) {
+          *[class*=mobile-block] {
+              display: block !important;
+          }
+
+          *[class*=mobile-center] {
+              text-align: center !important;
+          }
+      }
+  </style>
+</head>
+
+<body leftmargin="0"
+      marginheight="0"
+      marginwidth="0"
+      style="color:#2E3336; font-family:FSAlbert,Arial,serif; line-height:1.3;"
+      topmargin="0">
+<table align="center" border="0" cellpadding="0" cellspacing="0" width="100%">
+  <tr>
+    <td align="center" bgcolor="#dcdfe2" valign="top">
+      <table border="0" cellpadding="0" cellspacing="0" style="margin-left:auto; margin-right:auto; max-width:700px;">
+        <tr style="background-color:#ffffff;">
+          <td>
+            <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+              <tr>
+                <td>
+                  <table align="left" border="0" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td class="center">
+                        <img alt="Auftragseingang"
+                             class="fullWidth"
+                             src="https://ncc-notifications-hes.s3.eu-central-1.amazonaws.com/…"/>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+            <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;" width="100%">
+              <tr>
+                <td style="font-weight:normal; font-size:14px; text-align:left; vertical-align:top; padding:25px 25px 0;">
+                  <p>Guten Tag Max Mustermann</p>
+                  <p>Dein Auftrag wurde vom Hermes Einrichtungs Service übernommen und wird schnellstmöglich für dich
+                     eingeplant. Manchmal dauert es bis zu 12 Stunden, bis deine Bestelldaten bei unserem Logistik-Depot
+                     angekommen und verarbeitet sind. Erst danach können wir deine Lieferung optimal planen und den
+                     Versandweg für deine Sendung vorbereiten. Du fragst dich bestimmt, wann es weitergeht: Sobald wir
+                     alle Informationen haben und ein konkreter Liefertermin feststeht, melden wir uns umgehend aktiv
+                     bei dir. Wir teilen dir dann das genaue Lieferdatum und ein voraussichtliches Zeitfenster mit. Wir
+                     verstehen, dass du schon gespannt auf deine Sendung wartest!
+                  </p>
+                  <p>Bitte beachte: Gerade bei einer Standardversand-Sendung kann es bis zu zwei Tage (Montag bis
+                     Samstag) dauern, bis sich unser Depot bei dir meldet, um den Liefertermin mitzuteilen bzw. bis du
+                     hierzu eine E-Mail oder SMS/RCS erhältst.
+                  </p>
+                  <p>Vielen Dank für dein Verständnis
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-size:14px; font-weight:bold; padding-left:25px; padding-top:20px; color:#351501;">
+                  Deine Sendung von:
+                </td>
+              </tr>
+              <tr>
+                <td style="font-size:14px; padding-left:25px;">
+                  
+                  <span>Emma Matratzen GmbH (Hammer)</span>
+                </td>
+              </tr>
+              <tr>
+                <td style="font-size:14px; font-weight:bold; padding-top:20px; padding-left:25px; color:#351501;">
+                  Sendungsnummer:
+                </td>
+              </tr>
+              <tr>
+                <td style="font-size:14px; padding-left:25px; color:#0091CD; text-decoration:underline;">
+                  <a style="color:#0091CD; text-decoration:underline;"
+                     href="https://myhes.de/…">9999999999999 99999902</a>
+                </td>
+              </tr>
+              
+              
+              
+              
+              
+              
+              
+              
+            </table>
+            
+            
+            <table align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+              <tr>
+                <td>
+                  <table align="center" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                    <tr>
+                      <td bgcolor="#ffffff" width="100%">
+                        <table align="left" border="0" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td class="center">
+                              <img alt="Hermes Einrichtungs Service - Wir liefern Begeisterung."
+                                   border="0"
+                                   class="fullWidth"
+                                   style="display:block"
+                                   src="https://ncc-notifications-hes.s3.eu-central-1.amazonaws.com/…"/>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <table align="center" bgcolor="#dcdfe2" cellpadding="0" cellspacing="0" width="100%">
+              <tr>
+                <td style="padding:20px 25px;">
+                  <table align="left" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="font-size:10px; padding-right:20px">
+                        <a href="https://www.hes.de/…" style="color:#0091CD;">
+                          Impressum - Hermes Einrichtungs Service - HES
+                        </a>
+                      </td>
+                      <td style="font-size:10px;">
+                        <a href="https://www.hes.de/…" style="color:#0091CD;">Datenschutzerklärung</a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body></html>
+
+--===============3119541198014993271==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Guten Tag Max Mustermann</p>
+<p>Dein Auftrag wurde vom Hermes Einrichtungs Service übernommen und wird schnellstmöglich für dich</p>
+<p>eingeplant. Manchmal dauert es bis zu 12 Stunden, bis deine Bestelldaten bei unserem Logistik-Depot</p>
+<p>angekommen und verarbeitet sind. Erst danach können wir deine Lieferung optimal planen und den</p>
+<p>Versandweg für deine Sendung vorbereiten. Du fragst dich bestimmt, wann es weitergeht: Sobald wir</p>
+<p>alle Informationen haben und ein konkreter Liefertermin feststeht, melden wir uns umgehend aktiv</p>
+<p>bei dir. Wir teilen dir dann das genaue Lieferdatum und ein voraussichtliches Zeitfenster mit. Wir</p>
+<p>verstehen, dass du schon gespannt auf deine Sendung wartest!</p>
+<p>Bitte beachte: Gerade bei einer Standardversand-Sendung kann es bis zu zwei Tage (Montag bis</p>
+<p>Samstag) dauern, bis sich unser Depot bei dir meldet, um den Liefertermin mitzuteilen bzw. bis du</p>
+<p>hierzu eine E-Mail oder SMS/RCS erhältst.</p>
+<p>Vielen Dank für dein Verständnis</p>
+<p>Deine Sendung von:</p>
+<p>Emma Matratzen GmbH (Hammer)</p>
+<p>Sendungsnummer:</p>
+<p>9999999999999 99999902</p>
+<p>Impressum - Hermes Einrichtungs Service - HES</p>
+<p>Datenschutzerklärung</p>
+</body></html>
+
+--===============3119541198014993271==--

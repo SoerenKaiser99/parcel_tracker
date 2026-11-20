@@ -48,7 +48,8 @@ class MailUpdate:
     # "AMZ"/"EBAY"/"ALI"/"EVT" + order digits for shop orders, else the tracking number; ""
     # for a shop's status mail that names no order (see ``apply._apply_orderless``)
     number: str
-    # "amazon" | "ebay" | "aliexpress" | "eventim" | "dhl" | "dpd" | "gls" | "hermes" | "ups"
+    # "amazon" | "ebay" | "aliexpress" | "eventim" | "dhl" | "dpd" | "gls" | "hermes" | "hes"
+    # | "ups"
     carrier: str
     status: ParcelStatus | None
     sent_at: datetime  # Date header in Europe/Berlin
