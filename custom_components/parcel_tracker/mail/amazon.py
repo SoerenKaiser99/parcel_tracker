@@ -15,6 +15,7 @@ from .base import (
     DELAY_TEXT,
     LEGAL_FORM,
     MONTHS,
+    RETURNED_TEXT,
     HtmlText,
     MailUpdate,
     body_text,
@@ -88,6 +89,19 @@ _LISTED_ITEM = re.compile(r"^\* *(?P<title>\S[^\n]*)", re.MULTILINE)
 _CANCELLED_ITEM = re.compile(
     r"^Aufgegeben am [^\n]+\n(?:[ \t]*\n)*[ \t]*(?P<title>\S[^\n]*)", re.MULTILINE
 )
+# "Erstattung veranlasst für …" from rueckgabe@ (ignored otherwise: the mails about the
+# user's own returns come from there): the carrier brings a box back to Amazon, which
+# refunds its items ("… dass dein Paket vom Transportdienstleister an uns zurückgesandt
+# wird und nicht zugestellt werden konnte"). The box will not come, also once it was
+# shipped. The order stands as "Bestellnummer …", each item ends at "Anzahl: …".
+RETURNS_SENDER = "rueckgabe@amazon.de"
+_RETURNED = re.compile(
+    r"\bPaket\s+vom\s+Transportdienstleister\s+an\s+uns\s+zurückgesandt\s+wird\s+und\s+nicht"
+    r"\s+zugestellt\s+werden\s+konnte\b"
+)
+_RETURN_ORDER = re.compile(r"^Bestellnummer\s+(\d{3}-\d{7}-\d{7})\s*$", re.MULTILINE)
+_RETURN_QUANTITY = re.compile(r"^Anzahl:\s*(?P<n>\d+)\s*$", re.MULTILINE)
+_RETURN_SUBJECT = re.compile(r"^\s*Erstattung veranlasst für\s+(?P<title>\S.*)$", re.IGNORECASE)
 
 _PREFIXES = {
     "bestellt": ParcelStatus.PRE_TRANSIT,
@@ -482,10 +496,11 @@ class _ItemText(HtmlText):
             self._link.append(data)
 
 
-def _listed(lines: list[str]) -> list[OrderItem]:
+def _listed(lines: list[str], quantity_line: re.Pattern[str] = _QUANTITY_LINE) -> list[OrderItem]:
     """The items listed on these lines (below an order's number), none of quantity 0.
 
-    An item ends at its quantity ("Menge: 2"); one of more than four digits is none (and
+    An item ends at its quantity (``quantity_line``: "Menge: 2", in a refund "Anzahl: 2");
+    one of more than four digits is none (and
     ``int`` refuses very long ones). Its article number is the one of the link to its page
     above (its picture and its name both link there), only as an ASIN. Its title is
     ``_title``'s; in a mail without HTML part it has neither.
@@ -502,7 +517,7 @@ def _listed(lines: list[str]) -> list[OrderItem]:
         elif line.startswith(_LINK_MARK):
             if (text := line[len(_LINK_MARK) :]).casefold() not in _NOT_A_TITLE:
                 cut = cut or text
-        elif quantity := _QUANTITY_LINE.fullmatch(line):
+        elif quantity := quantity_line.fullmatch(line):
             if len(digits := quantity.group("n")) <= 4 and (count := int(digits)):
                 found.append(OrderItem(asin, count, _title(full, cut)))
             asin = full = cut = None
@@ -687,6 +702,64 @@ def _cancellation(msg: EmailMessage, subj: str, text: str, sent: datetime) -> li
         )
         for n in numbers
     ]
+
+
+def is_carrier_return(msg: EmailMessage) -> bool:
+    """Does this mail (of ``RETURNS_SENDER``) tell that a carrier brings a box back to
+    Amazon: the refund's subject and its sentence that the box could not be delivered.
+    Any other mail of that sender (a return the user sent) is none."""
+    return _RETURN_SUBJECT.match(subject(msg)) is not None and any(
+        _RETURNED.search(text) for text in (body_text(msg), html_body_text(msg) or "")
+    )
+
+
+def parse_amazon_return(msg: EmailMessage) -> list[MailUpdate]:
+    """"Erstattung veranlasst für …": the carrier brings a box back, Amazon refunds it. One
+    update per order, a cancellation of what was refunded (``MailUpdate.returned``: the box
+    that was shipped will not come, see ``apply._bring_back``).
+
+    The items (article number and quantity, ``_listed``) are those below the one mention of
+    the order that lists any, in the HTML part, else in the text part; the title is the
+    first one's name, else the subject's (cut short as the subject cuts it: "…"). Nothing
+    for an order that has neither a title nor an article number: what was refunded is not
+    known, and the whole order must not go.
+    """
+    sent = sent_at(msg)
+    for listing in (html_body_text(msg, _ItemText()), body_text(msg)):
+        if mentions := list(_RETURN_ORDER.finditer(listing or "")):
+            break
+    else:
+        return []
+    listed: dict[str, list[list[OrderItem]]] = {}
+    for index, match in enumerate(mentions):
+        end = mentions[index + 1].start() if index + 1 < len(mentions) else len(listing)
+        items = _listed(listing[match.end() : end].splitlines(), _RETURN_QUANTITY)
+        listed.setdefault(match.group(1), []).append(items)
+    named = _RETURN_SUBJECT.match(subject(msg))
+    updates = []
+    for number, lists in listed.items():
+        found = [items for items in lists if items]
+        items = tuple(found[0][:MAX_ORDER_ITEMS]) if len(found) == 1 else ()
+        title = next((item.title for item in items if item.title), None)
+        if title is None and named:
+            raw = named.group("title").strip()
+            cut = raw.endswith(("...", "…"))
+            title = shorten(raw.rstrip(".… ") + ("…" if cut else ""))
+        if title is None and not any(item.article_id for item in items):
+            continue
+        updates.append(
+            MailUpdate(
+                order_number(number),
+                "amazon",
+                ParcelStatus.CANCELLED,
+                sent,
+                title=title,
+                status_text=RETURNED_TEXT,
+                items=items,
+                returned=True,
+            )
+        )
+    return updates
 
 
 def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:

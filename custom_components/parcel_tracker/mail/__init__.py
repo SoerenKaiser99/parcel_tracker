@@ -14,11 +14,14 @@ from .amazon import (
     AMAZON_NO_REPLY,
     AMAZON_SENDERS,
     LEGACY_PREFIXES,
+    RETURNS_SENDER,
     SHIPPING_SENDER,
+    is_carrier_return,
     is_unavailable_cancellation,
     old_shipping_layout,
     parse_amazon,
     parse_amazon_legacy,
+    parse_amazon_return,
     subject_status,
 )
 from .base import (
@@ -67,7 +70,7 @@ _AMAZON_NO_REPLY = (AMAZON_NO_REPLY, AMAZON_NO_REPLY.replace("-", "_"))
 IGNORED_SENDERS = frozenset(
     {
         "no-reply@primevideo.com",
-        "rueckgabe@amazon.de",
+        RETURNS_SENDER,
         "account-update@amazon.de",
         AMAZON_NO_REPLY,
     }
@@ -172,6 +175,13 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
     # one goes to the Amazon parser whatever its body says, never to the generic one.
     if address in _AMAZON_NO_REPLY and is_unavailable_cancellation(subject(msg)):
         return MailResult(updates=parse_amazon(msg, read_otp), amazon=True)
+    # rueckgabe@amazon.de is ignored as well (the user's own returns), but for its refund
+    # of a box the carrier brings back: that box will not come.
+    if address == RETURNS_SENDER and is_carrier_return(msg):
+        # (one it finds no order in stays ignored, as before: it is no shipping mail)
+        if updates := parse_amazon_return(msg):
+            return MailResult(updates=updates, amazon=True)
+        return MailResult(ignored=True)
     if is_ignored(address):
         return MailResult(ignored=True)
     if address == EBAY_SENDER:
