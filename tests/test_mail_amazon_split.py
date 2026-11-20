@@ -76,6 +76,7 @@ def _state(parcels: dict) -> dict:
 
 
 ORDERED, SHIPPED = ParcelStatus.PRE_TRANSIT, ParcelStatus.IN_TRANSIT
+CANCELLED = ParcelStatus.CANCELLED
 
 
 # ----- what a box leaves stays ordered -----
@@ -352,8 +353,12 @@ def test_an_item_cancelled_before_the_first_box_is_in_no_rest():
     assert name_parts(parcels[NUMBER]) == (TITLES[TAPE], 1)
     _read(parcels, _box((TAPE, 1), shipment="TAbCdE9fG"),
           _box((LAMP, 1), shipment="TBbCdE9fG", when=3))
-    # (no "…P3" waiting for the cable that never comes)
-    assert _state(parcels) == {NUMBER: (SHIPPED, [(TAPE, 1)]), P2: (SHIPPED, [(LAMP, 1)])}
+    # (the cable is "…P2", cancelled: no entry waits for it, the lamp's box is "…P3")
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (CANCELLED, [(CABLE, 1)]),
+        P3: (SHIPPED, [(LAMP, 1)]),
+    }
 
 
 def test_a_cancelled_quantity_is_taken_away_piece_by_piece():
@@ -443,7 +448,11 @@ def test_a_box_sent_before_a_cancellation_read_after_it_holds_its_own_items():
     parcels: dict = {}
     _read(parcels, _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)), _cancelled((CABLE, 1), when=2),
           _box((TAPE, 1), shipment="TAbCdE9fG", when=1))
-    assert _state(parcels) == {NUMBER: (SHIPPED, [(TAPE, 1)]), P2: (ORDERED, [(LAMP, 1)])}
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (CANCELLED, [(CABLE, 1)]),
+        P3: (ORDERED, [(LAMP, 1)]),
+    }
 
 
 def test_a_copy_of_the_orders_mail_read_late_brings_back_nothing_cancelled():
@@ -456,7 +465,11 @@ def test_a_copy_of_the_orders_mail_read_late_brings_back_nothing_cancelled():
         _box((LAMP, 1), shipment="TBbCdE9fG", when=3),
         _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)),
     )
-    assert _state(parcels) == {NUMBER: (SHIPPED, [(TAPE, 1)]), P2: (SHIPPED, [(LAMP, 1)])}
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (CANCELLED, [(CABLE, 1)]),
+        P3: (SHIPPED, [(LAMP, 1)]),
+    }
 
 
 def test_a_cancellation_naming_the_order_twice_lists_no_items():
@@ -614,7 +627,8 @@ def test_an_item_cancelled_from_an_order_a_carriers_number_was_told_for_is_in_no
     day = parcels[NUMBER].result.eta_date
     apply_update(parcels, _carrier_mail(day, ParcelStatus.PRE_TRANSIT), NOW)
     _read(parcels, _cancelled((LAMP, 1), when=1), _box((TAPE, 1), shipment="TAbCdE9fG", when=2))
-    assert _state(parcels)[P2] == (ORDERED, [(CABLE, 1)])
+    assert _state(parcels)[P2] == (CANCELLED, [(LAMP, 1)])
+    assert _state(parcels)[P3] == (ORDERED, [(CABLE, 1)])
 
 
 def test_cancelling_all_items_of_an_order_a_carrier_has_a_label_for_cancels_nothing():
@@ -684,6 +698,75 @@ def test_a_newer_mail_about_the_whole_order_leaves_the_rest_as_it_is():
     for update in parse_mail(_ordered((TAPE, 1), (CABLE, 1), when=3)).updates:
         apply_update(parcels, replace(update, title="Anderes…"), NOW)
     assert _state(parcels)[P2] == (ORDERED, [(CABLE, 1)])
+
+
+def test_two_cancellations_read_in_the_other_order_each_take_their_items():
+    # The newer one read first: the older one still takes its own item, so nothing waits
+    # for an item that never comes (it would close on its own as if delivered).
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)),
+          _box((TAPE, 1), shipment="TAbCdE9fG"), _cancelled((LAMP, 1), when=3),
+          _cancelled((CABLE, 1), when=2))
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (CANCELLED, [(CABLE, 1)]),
+        P3: (CANCELLED, [(LAMP, 1)]),
+    }
+    assert not parcels[P2].assumed_delivered
+
+
+def test_what_is_cancelled_of_the_rest_is_an_entry_of_its_own():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)))
+    order = parcels[NUMBER]
+    order.owner, order.gift, order.gift_for = "person.anna", True, ["person.ben"]
+    _read(parcels, _box((TAPE, 1), shipment="TAbCdE9fG"), _cancelled((CABLE, 1)))
+    cancelled = parcels[P3]
+    assert _state(parcels)[P3] == (CANCELLED, [(CABLE, 1)])
+    assert name_parts(cancelled) == (TITLES[CABLE], 0)
+    assert [e.text for e in cancelled.result.events] == ["Storniert", "Bestellt"]
+    assert (cancelled.owner, cancelled.gift, cancelled.gift_for) == (
+        "person.anna", True, ["person.ben"]
+    )
+
+
+def test_a_mail_no_box_takes_never_opens_a_cancelled_item_again():
+    # (a cancelled order's own entry opens again with a later mail; an item cancelled
+    # from it is history and takes no mail)
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _cancelled((CABLE, 1), when=1),
+          _box((TAPE, 1), shipment="TAbCdE9fG", when=2),
+          _box((TAPE, 1), shipment="TAbCdE9fG", when=3, subject="Zugestellt: „Beispiel…“"))
+    later = NOW + timedelta(days=2)
+    apply_update(parcels, MailUpdate(NUMBER, "amazon", ParcelStatus.DELIVERED, later), later)
+    assert _state(parcels) == {
+        NUMBER: (ParcelStatus.DELIVERED, [(TAPE, 1)]),
+        P2: (CANCELLED, [(CABLE, 1)]),
+    }
+
+
+def test_a_copy_of_a_box_without_id_splits_nothing_more():
+    # The same "Versendet" forwarded by hand (another message id, the time without its
+    # seconds): it is the box, not the second piece's.
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 2), (CABLE, 1)))
+    [update] = parse_mail(_box((TAPE, 1), shipment=None)).updates
+    apply_update(parcels, replace(update, sent_at=update.sent_at + timedelta(seconds=37)), NOW)
+    before = _state(parcels)
+    assert before == {NUMBER: (SHIPPED, [(TAPE, 1)]), P2: (ORDERED, [(TAPE, 1), (CABLE, 1)])}
+    assert apply_update(parcels, update, NOW) is None
+    assert _state(parcels) == before
+
+
+def test_the_second_piece_shipped_later_without_id_takes_the_rest():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 2), (CABLE, 1)), _box((TAPE, 1), shipment=None),
+          _box((TAPE, 1), shipment=None, when=2))
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (SHIPPED, [(TAPE, 1)]),
+        P3: (ORDERED, [(CABLE, 1)]),
+    }
 
 
 def test_a_cancellation_listing_more_items_than_its_subject_tells_lists_none():
@@ -760,3 +843,21 @@ async def test_the_rest_is_added_without_a_push(hass, hass_storage, freezer):
     ]
     assert len(calls) == 1
     assert [e.data["number"] for e in added] == [NUMBER, P2]
+
+
+async def test_a_cancelled_item_is_added_without_a_push(hass, hass_storage, freezer):
+    freezer.move_to(datetime(2026, 10, 12, 9, 0, tzinfo=BERLIN))
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    calls = async_mock_service(hass, "notify", "send_message")
+    changed = async_capture_events(hass, EVENT_STATUS_CHANGED)
+    added = async_capture_events(hass, EVENT_PARCEL_ADDED)
+    coord = await _coordinator(hass, hass_storage, [])
+    await _refresh(hass, coord)
+    await _start(hass)
+    for n, msg in enumerate((_ordered((TAPE, 1), (CABLE, 1)), _cancelled((CABLE, 1), when=1))):
+        msg["Message-ID"] = f"<cancel{n}@example.org>"
+        assert (await coord.async_import_raw_mail(msg.as_bytes()))["result"] == "recognized"
+    await hass.async_block_till_done()
+    await coord.async_shutdown()
+    assert [e.data["number"] for e in added] == [NUMBER, P2]
+    assert changed == [] and calls == []
