@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 19. November 2026, Version 0.3.61. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 20. November 2026, Version 0.3.62. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -59,7 +59,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **Amazon: Verspätungsmail „Aktualisierung der Lieferung:“** | Bleibt die Bestellung nach der Mail auf „Versendet“, mit dem neuen Tag und „Lieferung verspätet“? Neu seit v0.3.54 (Beitrag von benep). | im Forum |
 | **Amazon-Händler mit eigenem Versand („Verkauf durch …“)** | Landet die DHL-, DPD- oder GLS-Mail eines Händlers, der selbst verschickt, in seiner Amazon-Bestellung statt als eigenes Paket? Neu seit v0.3.54 (Beitrag von benep). | im Forum |
 | **Amazon: „Artikel für deine Amazon.de Bestellung #… wurde storniert“** | Steht eine Bestellung aus genau diesem Artikel nach der Mail auf „Storniert“? Neu seit v0.3.53. | [Issue #77](https://github.com/SoerenKaiser99/parcel_tracker/issues/77) |
-| **AliExpress auf Englisch** | Setzen „Order …: collected by the carrier“ und „Package … is out for delivery“ die Bestellung auf „Versendet“ bzw. „In Zustellung“? Gesucht: die englischen Mails zu „versandbereit“ und „zugestellt“. Neu seit v0.3.53. | [Issue #76](https://github.com/SoerenKaiser99/parcel_tracker/issues/76) |
+| **AliExpress auf Englisch** | Legt „Order …: order confirmed“ die Bestellung mit Artikelname an, und setzen „order shipped“ und „collected by the carrier“ sie auf „Versendet“, „Package … is out for delivery“ auf „In Zustellung“? Gesucht: die englischen Mails zu „versandbereit“ und „zugestellt“. Neu seit v0.3.53, „order confirmed“ und „order shipped“ seit v0.3.62. | [Issue #76](https://github.com/SoerenKaiser99/parcel_tracker/issues/76), [Issue #89](https://github.com/SoerenKaiser99/parcel_tracker/issues/89) |
 | **AliExpress: „Paket …: Importverzollung gestartet“ / „im Versandzentrum“** | Landen diese Mails nicht mehr in „Nicht erkannt“, und rückt die Bestellung im Verlauf weiter? Neu seit v0.3.52. | [Issue #74](https://github.com/SoerenKaiser99/parcel_tracker/issues/74) |
 | **AliExpress: Mails der letzten Meile** | Setzt „Paket … wird zugestellt“ die Bestellung heute auf „In Zustellung“ und „Paket … wurde zugestellt“ auf „Zugestellt“? Steht nach „Lieferprobleme für Packstück …“ „Versendet“ mit dem Text „Lieferprobleme“? Neu seit v0.3.38 (Beitrag von benep). | im Forum |
 | **Amazon: mehrere Bestellungen in einem Karton** | Nennt die Versandmail eine Bestellung im Text und eine andere nur im Link „Sendung verfolgen“, steht danach auch die zweite auf „Versendet“ und später „Zugestellt“? Kommt pro Karton und Person genau eine Meldung? Neu seit v0.3.50 (Beitrag von benep). | [Issue #55](https://github.com/SoerenKaiser99/parcel_tracker/issues/55) |

@@ -940,3 +940,34 @@ def test_paket_with_colon_and_unknown_step_stays_unrecognised():
 def test_paket_without_colon_still_tells_the_last_mile():
     [u] = parse_mail(_msg(f"Paket {DHL} wird zugestellt")).updates
     assert u.status is ParcelStatus.OUT_FOR_DELIVERY
+
+
+# ----- an account in English, forwarded by hand (#89) -----
+
+EN_CONFIRMED = "232_aliexpress_en_order_confirmed.eml"
+EN_SHIPPED = "233_aliexpress_en_order_shipped.eml"
+
+
+def test_english_order_confirmed_is_an_order_named_after_its_item():
+    u = _one(EN_CONFIRMED)
+    assert (u.number, u.carrier) == ("ALI8000000000000089", "aliexpress")
+    assert (u.status, u.status_text) == (ParcelStatus.PRE_TRANSIT, None)
+    assert u.title == "MISOL 1 Ersatzteil-Set (Außen…"
+
+
+def test_english_order_shipped_is_on_its_way_and_never_names_the_recipient():
+    u = _one(EN_SHIPPED)
+    assert (u.number, u.status, u.status_text) == (
+        "ALI8000000000000089",
+        ParcelStatus.IN_TRANSIT,
+        None,
+    )
+    assert u.title == "MISOL 1 Ersatzteil-Set (Außen…"
+
+
+def test_english_confirmed_then_shipped_is_one_order_on_its_way():
+    parcels: dict = {}
+    _apply(parcels, EN_CONFIRMED)
+    _apply(parcels, EN_SHIPPED)
+    assert list(parcels) == ["ALI8000000000000089"]
+    assert parcels["ALI8000000000000089"].status == ParcelStatus.IN_TRANSIT
