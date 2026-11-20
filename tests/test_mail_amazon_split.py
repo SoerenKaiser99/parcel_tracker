@@ -143,6 +143,23 @@ def test_without_article_numbers_nothing_is_split():
     assert list(parcels) == [NUMBER]
 
 
+def test_a_box_whose_mail_lists_fewer_items_than_its_title_tells_leaves_nothing():
+    # What the list leaves out would stay ordered in a rest that never comes.
+    parcels: dict = {}
+    subject = "Versendet: „Beispiel…“ und 1 weiterer Artikel"
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)),
+          _box((TAPE, 1), shipment="TAbCdE9fG", subject=subject))
+    assert _state(parcels) == {NUMBER: (SHIPPED, [(TAPE, 1)])}
+
+
+def test_a_box_whose_mail_lists_as_many_items_as_its_title_tells_leaves_the_rest():
+    parcels: dict = {}
+    subject = "Versendet: „Beispiel…“ und 1 weiterer Artikel"
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)),
+          _box((TAPE, 1), (CABLE, 1), shipment="TAbCdE9fG", subject=subject))
+    assert _state(parcels)[P2] == (ORDERED, [(LAMP, 1)])
+
+
 def test_a_box_that_holds_none_of_the_orders_articles_leaves_nothing():
     # (it is not this order's box: Amazon put another order's items under this number)
     parcels: dict = {}

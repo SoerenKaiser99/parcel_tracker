@@ -22,6 +22,7 @@ from ..const import (
 )
 from ..models import (
     CLOSED_STATUSES,
+    MORE_ITEMS,
     NO_ETA_STATUSES,
     PROGRESS_STEP,
     OrderItem,
@@ -609,7 +610,7 @@ def _items_title(items: list[OrderItem]) -> str | None:
 
 
 def _split(
-    parcels: dict[str, Parcel], ordered: Parcel, box: Parcel, order: str, now: datetime
+    parcels: dict[str, Parcel], ordered: Parcel, box: Parcel, update: MailUpdate, now: datetime
 ) -> None:
     """A box took over an entry that was only ordered (``ordered``: that entry as it was
     before the box's mail): what of its items the box does not hold (``_less``) stays
@@ -624,16 +625,23 @@ def _split(
 
     Nothing if the box holds an article the entry does not list: then the two lists do not
     tell the same articles alike (another order's items in the box, an article under
-    another number), and what is left is not known for sure.
+    another number), and what is left is not known for sure. Nor if the mail lists fewer
+    items than its title tells (its item, and "… und 2 weitere Artikel"): what it leaves
+    out would stay ordered in a rest that never comes, as the cancellations check
+    (``amazon._listed_cancelled``).
     """
     ordered_articles = {item.article_id for item in ordered.items}
     if any(item.article_id not in ordered_articles for item in box.items):
+        return
+    more = MORE_ITEMS.search(update.title) if update.title else None
+    if more and len(box.items) < 1 + int(more.group(1)):
         return
     rest = _less(ordered.items, box.items)
     if not rest:
         return
     # (the next free number, "…P3"; named after the first of the items left, how many more
     # there are is shown behind it, see ``models.name_parts``)
+    order = update.number
     number = _new_number(parcels, _order_parcels(parcels, box.carrier, order), order)
     title = _items_title(rest)
     entry = Parcel(
@@ -1031,7 +1039,7 @@ def _apply_order(
     # (the box's mail gave the entry the box's items, ``_remember_items``: also one read too
     # late to change its status, the entry is that box all the same)
     if ordered is not None:
-        _split(parcels, ordered, target, update.number, now)
+        _split(parcels, ordered, target, update, now)
     return Change(target, old, False, told) if facts or forwarded else None
 
 
