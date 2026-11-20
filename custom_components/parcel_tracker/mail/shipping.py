@@ -179,6 +179,15 @@ _UPS_MC_DAY = re.compile(
 # The sentences we know: "Ihr Paket ist unterwegs!" (Versandbenachrichtigung) and "Ihr Paket
 # kommt morgen an." (Update: … morgen für die Zustellung terminiert).
 _UPS_MC_ON_ITS_WAY = re.compile(r"Ihr Paket (?:ist unterwegs|kommt morgen an)\b")
+# "Ihr Paket kommt heute an." (Update: … heute für die Zustellung terminiert): the day, but
+# "Geschäftsschluss" instead of a window (#37). "Ihr Paket wurde zugestellt." with
+# "Zugestellt / Mittwoch 18/11/2026 / 14:14".
+_UPS_MC_TODAY = re.compile(r"Ihr Paket kommt heute an\b")
+_UPS_MC_DONE = re.compile(r"Ihr Paket wurde zugestellt\b")
+_UPS_MC_DELIVERED_AT = re.compile(
+    r"^Zugestellt\s*(?:[A-Za-zÄÖÜäöüß]+,?\s*)?(\d{2})/(\d{2})/(\d{4})(?:\s*(\d{1,2}):(\d{2}))?",
+    re.MULTILINE,
+)
 
 
 def _dhl_status(subj: str) -> tuple[ParcelStatus | None, int | None]:
@@ -568,14 +577,21 @@ def parse_ups_mail(msg: EmailMessage) -> list[MailUpdate]:
 
 
 def parse_ups_mc_mail(msg: EmailMessage) -> list[MailUpdate]:
-    """UPS My Choice (mcinfo@ups.com): on its way, with the estimated day and window.
+    """UPS My Choice (mcinfo@ups.com): on its way or for today, with the estimated day and
+    window, or delivered with day and time.
 
     Only the sentences we know set a status; any other mail of this sender goes to the
     generic parser (the number alone). The shipper line names the parcel only through the
     naming gate, never a person.
     """
     text = body_text(msg)
-    if not _UPS_MC_ON_ITS_WAY.search(text):
+    if _UPS_MC_DONE.search(text):
+        status = ParcelStatus.DELIVERED
+    elif _UPS_MC_TODAY.search(text):
+        status = ParcelStatus.OUT_FOR_DELIVERY
+    elif _UPS_MC_ON_ITS_WAY.search(text):
+        status = ParcelStatus.IN_TRANSIT
+    else:
         return []
     numbers = [
         n for carrier, n in find_numbers(f"{subject(msg)}\n{text}") if carrier == "ups"
@@ -586,11 +602,21 @@ def parse_ups_mc_mail(msg: EmailMessage) -> list[MailUpdate]:
     update = MailUpdate(
         number=numbers[0],
         carrier="ups",
-        status=ParcelStatus.IN_TRANSIT,
+        status=status,
         sent_at=sent_at(msg),
         title=company_name(shipper.group(1)) if shipper else None,
         shop=shop_of(shipper.group(1)) if shipper else None,
     )
+    if status is ParcelStatus.DELIVERED:
+        update.delivered_at = update.sent_at
+        done = _UPS_MC_DELIVERED_AT.search(text)
+        if done and done.group(4):
+            try:
+                day_ = date(int(done.group(3)), int(done.group(2)), int(done.group(1)))
+                update.delivered_at = at(day_, int(done.group(4)), int(done.group(5)))
+            except ValueError:
+                pass  # (an impossible day or time: when the mail was sent)
+        return [update]
     if day := _UPS_MC_DAY.search(text):
         try:
             update.eta_date = date(int(day.group(3)), int(day.group(2)), int(day.group(1)))

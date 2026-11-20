@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 18. November 2026, Version 0.3.60. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 19. November 2026, Version 0.3.61. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -30,7 +30,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | Was | Was wir wissen wollen | Wohin |
 |---|---|---|
 | **AliExpress** | Erscheint die Bestellung mit Artikelname und Zustelltag? Wird nach der „Packstück“-Mail live beim Paketdienst abgefragt? Werden die Mails „Vom Kurier abgeholt“ und „Packstück … hat eine Aktualisierung“ erkannt? Landet eine Mail bei den nicht erkannten? |
-| **UPS My Choice (`mcinfo@ups.com`)** | Steht das Paket nach „Ihr Paket ist unterwegs!“ und „Paket ist morgen für die Zustellung terminiert“ auf „Versendet“, mit Tag, Zeitfenster und Absender? Gebaut nach zwei Beispielmails, neu seit v0.3.56. Die Mails „heute in Zustellung“ und „zugestellt“ von diesem Absender fehlen noch. | [Issue #37](https://github.com/SoerenKaiser99/parcel_tracker/issues/37) |
+| **UPS My Choice (`mcinfo@ups.com`)** | Steht das Paket nach „Ihr Paket ist unterwegs!“ und „Paket ist morgen für die Zustellung terminiert“ auf „Versendet“, mit Tag, Zeitfenster und Absender? Springt es mit „heute für die Zustellung terminiert“ auf „In Zustellung“ und mit „wurde zugestellt“ auf „Zugestellt“ mit Uhrzeit (neu seit v0.3.61)? Gebaut nach vier Beispielmails. Eine Mail zu einem neuen Zustelldatum fehlt noch. | [Issue #37](https://github.com/SoerenKaiser99/parcel_tracker/issues/37) |
 | **Amazon: Artikelname als Paketname** | Heißt eine Amazon-Bestellung nach dem vollen Titel des ersten Artikels, mit „(+N)“ für weitere Artikel? Stimmt der Name auch bei Teillieferungen? Neu seit v0.3.57. | [PR #80](https://github.com/SoerenKaiser99/parcel_tracker/pull/80) |
 | **Galaxus** | Heißt das Paket nach der Mail „Dein Paket ist auf dem Weg zu dir“ wie der Artikel? Wie sieht die Mail aus, wenn mehrere Artikel in einem Paket sind? Kommen Mails aus Österreich oder der Schweiz genauso? Gebaut nach einer Beispielmail aus Deutschland, neu seit v0.3.60. | [Issue #83](https://github.com/SoerenKaiser99/parcel_tracker/issues/83) |
 | **Eventim** | Erscheint eine Ticketbestellung mit Postversand als „Bestellt“ mit dem Namen der Veranstaltung? Setzt die Versandbenachrichtigung „Versendet“ und den Lieferzeitraum? Bleiben Bestellungen mit print@home, ticketdirect oder Mobile Ticket draußen? Neu seit v0.3.30. | im Forum |

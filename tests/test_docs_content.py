@@ -700,7 +700,8 @@ def test_docs_list_the_country_among_the_setup_fields():
         "Österreich und Schweiz 4 Ziffern",
         "Alle vier Felder",
         "Bestehende Einrichtungen bleiben ohne Zutun auf Deutschland",
-        "den Schalter **Namen ausblenden** (siehe [Datenschutz](datenschutz.md#namen-ausblenden))",
+        "den Bereich **Datenschutz** mit **Namen ausblenden**, den Zustell-Codes und den "
+        "Absendernamen aus DHL-Mails (siehe [Datenschutz](datenschutz.md#namen-ausblenden))",
     ))
 
 
@@ -1310,7 +1311,7 @@ def test_community_setup_names_the_harmless_message_before_the_first_filed_mail(
 
 def test_helping_page_is_at_this_version():
     text = TEXTS[HELPING]
-    assert "*Stand: 18. November 2026, Version 0.3.60." in text
+    assert "*Stand: 19. November 2026, Version 0.3.61." in text
     _all_have(text, [
         # v0.3.38 (contributions by benep)
         "**DHL Express („DHL On Demand Delivery“)**",

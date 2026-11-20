@@ -74,3 +74,53 @@ def test_an_unknown_mcinfo_mail_only_names_the_number():
     body = f"Etwas Neues zu Ihrem Paket.\n{NUMBER}\n"
     [u] = parse_mail(_mc("UPS Update: Neuigkeiten", body)).updates
     assert (u.number, u.carrier, u.status, u.eta_date) == (NUMBER, "ups", None, None)
+
+
+# --- v0.3.61: "heute" and "zugestellt" (#37) -----------------------------------------------
+
+TODAY = "UPS Update: Paket ist heute für die Zustellung terminiert"
+DELIVERED = "Ihr UPS Paket wurde zugestellt"
+
+
+def test_the_mail_for_today_is_out_for_delivery_on_that_day():
+    [u] = parse_mail(load_mail("230_mcinfo_ups_heute_terminiert.eml")).updates
+    assert (u.number, u.carrier, u.status) == (NUMBER, "ups", ParcelStatus.OUT_FOR_DELIVERY)
+    assert u.eta_date == date(2026, 11, 18)
+    # "Geschäftsschluss" is no window the mail gives
+    assert (u.eta_from, u.eta_to) == (None, None)
+    assert u.title == "YUBICO AB"
+
+
+def test_the_delivery_mail_is_delivered_with_day_and_time():
+    [u] = parse_mail(load_mail("231_mcinfo_ups_zugestellt.eml")).updates
+    assert (u.number, u.carrier, u.status) == (NUMBER, "ups", ParcelStatus.DELIVERED)
+    assert u.delivered_at == datetime(2026, 11, 18, 14, 14, tzinfo=BERLIN)
+    assert u.title == "YUBICO AB"
+
+
+def test_a_delivery_mail_without_a_time_is_delivered_when_sent():
+    body = (
+        f"Ihr Paket wurde zugestellt.\nVon YUBICO AB\nZugestellt\nMittwoch 18/11/2026\n{NUMBER}\n"
+    )
+    [u] = parse_mail(_mc(DELIVERED, body)).updates
+    assert u.status is ParcelStatus.DELIVERED
+    assert u.delivered_at == datetime(2026, 11, 17, 11, 25, 22, tzinfo=BERLIN)
+
+
+def test_an_impossible_delivery_day_falls_back_to_the_mail_time():
+    body = f"Ihr Paket wurde zugestellt.\nZugestellt\nMittwoch 31/02/2026\n14:14\n{NUMBER}\n"
+    [u] = parse_mail(_mc(DELIVERED, body)).updates
+    assert u.status is ParcelStatus.DELIVERED
+    assert u.delivered_at == datetime(2026, 11, 17, 11, 25, 22, tzinfo=BERLIN)
+
+
+def test_a_failed_delivery_is_not_delivered():
+    body = f"Ihr Paket wurde nicht zugestellt.\nZustellversuch\n{NUMBER}\n"
+    [u] = parse_mail(_mc("UPS Update: Zustellversuch", body)).updates
+    assert u.status is None
+
+
+def test_an_impossible_delivery_time_falls_back_to_the_mail_time():
+    body = f"Ihr Paket wurde zugestellt.\nZugestellt\nMittwoch 18/11/2026\n25:70\n{NUMBER}\n"
+    [u] = parse_mail(_mc(DELIVERED, body)).updates
+    assert u.delivered_at == datetime(2026, 11, 17, 11, 25, 22, tzinfo=BERLIN)
