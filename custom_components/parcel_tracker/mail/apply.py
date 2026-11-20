@@ -580,13 +580,34 @@ def _articles(items) -> set[str | None]:
     return {item.article_id for item in items}
 
 
-def _cancelled_part(parcel: Parcel) -> bool:
+def cancelled_part(parcel: Parcel) -> bool:
     """A further entry of an order ("…P3") that is cancelled: items cancelled from what was
     only ordered (``_cancel_part``), or a rest cancelled as a whole. It tells what will not
     come, and nothing more: no mail goes to it (``_apply_order``), nor does it make an order
-    look split (``_merge_candidate``). The order's own entry is never one: cancelled as a
-    whole, a later mail opens it again, as before."""
+    look split (``_merge_candidate``) or keep a removed one there (the coordinator's
+    ``_removed_lately``), nor is it announced as a new parcel (``_added_since``). The
+    order's own entry is never one: cancelled as a whole, a later mail opens it again, as
+    before."""
     return parcel.status is ParcelStatus.CANCELLED and parcel.number != order_of(parcel.number)
+
+
+def _box_gone(siblings: list[Parcel], update: MailUpdate) -> bool:
+    """Is a mail about a box of a split order of which only what is not shipped yet is
+    left (its boxes cleaned up or deleted) about a box that is gone?
+
+    So if it lists none of the articles left: it changes nothing. Else it would take what
+    is left over, shipped or delivered with the box's items, and those would be lost. An
+    article Amazon lists under another number than the order did looks the same; it is
+    left out as well.
+    """
+    if not siblings or _step(update.status) < _step(ParcelStatus.IN_TRANSIT):
+        return False
+    # (the order's own entry is its first box: while it is there, no box is gone)
+    if any(p.number == order_of(p.number) or not _only_ordered(p) for p in siblings):
+        return False
+    articles = _articles(update.items)
+    held = set().union(*(_articles(p.items) for p in siblings))
+    return bool(articles and held) and None not in articles | held and not articles & held
 
 
 def _copy_of_box(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
@@ -875,9 +896,11 @@ def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
     named no id (read before the ids were kept, or without the link): only those count,
     one with another id is another box. Of those it takes
 
-    - the one that names its item, else the order itself while no box was told for it
-      (``_only_ordered``: the first box takes it over); of a split order a new box takes
-      what is not shipped yet, any other mail a box (``_rest_or_box``);
+    - the one that names its item, else the one its articles tell (``_by_items``: a box
+      whose "Versendet" came without the link takes no other box's mail), else the order
+      itself while no box was told for it (``_only_ordered``: the first box takes it
+      over); of a split order a new box takes what is not shipped yet, any other mail a
+      box (``_rest_or_box``);
     - else what a mail without id would take: none for a further shipment
       (``_further_shipment``), else the first open one, else the first.
 
@@ -892,6 +915,8 @@ def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
         return None
     if key is not None and (named := next((p for p in free if _names_item(p, key)), None)):
         return named
+    if (by_items := _by_items(free, update)) is not None:
+        return by_items
     free = _rest_or_box(free, update, key)
     if ordered := next((p for p in free if _only_ordered(p)), None):
         return ordered
@@ -970,11 +995,14 @@ def _apply_order(
     ordered, in an entry of its own (``_split``). An order's mail read only after its boxes'
     makes none: then nothing tells what was cancelled in between. A copy of a box's mail
     without id (forwarded by hand) goes to that box, never to what is left
-    (``_copy_of_box``). What was cancelled of the order takes no mail (``_cancelled_part``).
+    (``_copy_of_box``). What was cancelled of the order takes no mail (``cancelled_part``),
+    nor does what is left of it a mail about a box that is gone (``_box_gone``).
     """
     entries = _order_parcels(parcels, update.carrier, update.number)
-    # (what was cancelled of it takes no mail: ``_cancelled_part``)
-    siblings = [p for p in entries if not _cancelled_part(p)]
+    # (what was cancelled of it takes no mail: ``cancelled_part``)
+    siblings = [p for p in entries if not cancelled_part(p)]
+    if _box_gone(siblings, update):
+        return None
     key = title_key(update.title) if update.title else None
     if update.shipment_id and siblings:
         target = _by_shipment(siblings, update)
@@ -1238,7 +1266,7 @@ def _merge_candidate(
     entries = Counter(
         (p.carrier, order_of(p.number))
         for p in parcels.values()
-        if p.carrier in SHOP_CARRIERS and not _cancelled_part(p)
+        if p.carrier in SHOP_CARRIERS and not cancelled_part(p)
     )
     orders = [
         p
@@ -1631,7 +1659,7 @@ def _cancelled_entry(
     kept as long as any cancelled order. Owner, gift and seller are the entry's.
 
     Made quietly, like the rest of a split order (``_split``): a cancellation is no news.
-    It takes no mail afterwards (``_cancelled_part``); its line "Storniert" with the time
+    It takes no mail afterwards (``cancelled_part``); its line "Storniert" with the time
     of the mail tells a copy of the cancellation (``_cancelled_by``).
     """
     order = order_of(entry.number)

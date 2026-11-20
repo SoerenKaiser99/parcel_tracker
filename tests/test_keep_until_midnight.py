@@ -198,6 +198,20 @@ async def test_the_carrier_number_of_a_removed_order_is_held_back(hass):
     assert coord._removed_lately(late_shop)
 
 
+async def test_an_item_cancelled_from_a_removed_order_keeps_no_late_mail_coming(hass):
+    # (it takes no mail: the late one would make a phantom "…P3" delivered)
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    coord = await _order_removed(hass)
+    cancelled = _parcel(ParcelStatus.CANCELLED, None, _local(17, 9))
+    cancelled.number, cancelled.carrier = f"{ORDER}P2", "amazon"
+    coord.store.add(cancelled)
+    late_shop = MailUpdate(
+        ORDER, "amazon", ParcelStatus.DELIVERED, dt_util.now(), tracking_ref=DHL_1,
+        tracking_carrier="dhl",
+    )
+    assert coord._removed_lately(late_shop)
+
+
 async def test_the_next_parcel_of_a_removed_order_comes_in(hass, freezer):
     await hass.config.async_set_time_zone("Europe/Berlin")
     freezer.move_to(JUST_AFTER_MIDNIGHT)

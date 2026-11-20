@@ -528,6 +528,8 @@ def test_a_box_is_named_after_its_first_item_with_a_name():
     apply_update(parcels, MailUpdate(NUMBER, "amazon", SHIPPED, NOW, title="Beispiel…",
                                      items=items), NOW)
     assert parcels[NUMBER].name == "Kabel"
+    # (the item without a name is one more all the same)
+    assert name_parts(parcels[NUMBER]) == ("Kabel", 1)
 
 
 # ----- a postponed delivery, a closed rest, an item without a name -----
@@ -680,6 +682,34 @@ def test_a_delivery_with_an_id_of_a_box_shipped_without_one_goes_to_that_box():
         NUMBER: (ParcelStatus.DELIVERED, [(TAPE, 1)]),
         P2: (ORDERED, [(CABLE, 1)]),
     }
+
+
+def test_news_with_a_new_id_goes_by_its_articles_not_to_a_box_shipped_without_one():
+    # The first box's "Versendet" came without the link, the second box's was never read:
+    # its delivery names an id no entry has and a title no entry has.
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment=None),
+          _box((CABLE, 1), shipment="TBbCdE9fG", when=2, subject="Zugestellt: „Anderes…“"))
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (ParcelStatus.DELIVERED, [(CABLE, 1)]),
+    }
+
+
+def test_a_late_mail_about_a_box_cleaned_up_leaves_the_rest_as_it_is():
+    # The delivered box is gone (cleaned up), what is left of the order is still there: a
+    # copy of the box's delivery read late, with or without its id, is not about the rest.
+    for shipment in (None, "TAbCdE9fG"):
+        parcels: dict = {}
+        _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"))
+        del parcels[NUMBER]
+        late = _box((TAPE, 1), shipment=shipment, when=2, subject="Zugestellt: „Anderes…“")
+        [update] = parse_mail(late).updates
+        assert apply_update(parcels, update, NOW) is None
+        assert _state(parcels) == {P2: (ORDERED, [(CABLE, 1)])}
+        # (its own box takes it over as before)
+        _read(parcels, _box((CABLE, 1), shipment="TBbCdE9fG", when=3))
+        assert _state(parcels) == {P2: (SHIPPED, [(CABLE, 1)])}
 
 
 def test_a_copy_of_an_older_cancellation_takes_nothing_more():
@@ -845,7 +875,7 @@ async def test_the_rest_is_added_without_a_push(hass, hass_storage, freezer):
     assert [e.data["number"] for e in added] == [NUMBER, P2]
 
 
-async def test_a_cancelled_item_is_added_without_a_push(hass, hass_storage, freezer):
+async def test_a_cancelled_item_is_neither_pushed_nor_announced(hass, hass_storage, freezer):
     freezer.move_to(datetime(2026, 10, 12, 9, 0, tzinfo=BERLIN))
     await hass.config.async_set_time_zone("Europe/Berlin")
     calls = async_mock_service(hass, "notify", "send_message")
@@ -859,5 +889,7 @@ async def test_a_cancelled_item_is_added_without_a_push(hass, hass_storage, free
         assert (await coord.async_import_raw_mail(msg.as_bytes()))["result"] == "recognized"
     await hass.async_block_till_done()
     await coord.async_shutdown()
-    assert [e.data["number"] for e in added] == [NUMBER, P2]
+    # (an automation on a new parcel, like the gift question, would ask about it)
+    assert P2 in coord.store.parcels
+    assert [e.data["number"] for e in added] == [NUMBER]
     assert changed == [] and calls == []
