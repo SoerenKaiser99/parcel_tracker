@@ -39,6 +39,9 @@ PROBLEM_TEXT = "Lieferprobleme"
 # AliExpress's word for an order the seller is about to ship: still "Bestellt", nothing has
 # left yet (see ``apply._never_shipped``).
 READY_TEXT = "Versandbereit"
+# Amazon's word for a box the carrier brings back (``MailUpdate.returned``): "Storniert"
+# for good, no mail changes it any more (see ``apply._brought_back``).
+RETURNED_TEXT = "Zurück an Amazon"
 
 
 @dataclass
@@ -112,6 +115,10 @@ class MailUpdate:
     # The mail is the receipt of a handover: the parcel was sent by the user, it does not
     # come to them. One-way: no update takes the flag back (see ``apply._forward``).
     outgoing: bool = False
+    # The carrier brings the box back to the shop, which refunds it (Amazon "Erstattung
+    # veranlasst für …"): with ``status`` CANCELLED, the box that was shipped will not come
+    # (``apply._bring_back``). Any other cancellation closes only what has not left yet.
+    returned: bool = False
 
 
 @dataclass

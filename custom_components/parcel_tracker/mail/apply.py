@@ -37,6 +37,7 @@ from .base import (
     DELAY_TEXT,
     PROBLEM_TEXT,
     READY_TEXT,
+    RETURNED_TEXT,
     MailUpdate,
     brand_of,
     carrier_key,
@@ -591,8 +592,13 @@ def cancelled_part(parcel: Parcel) -> bool:
     look split (``_merge_candidate``) or keep a removed one there (the coordinator's
     ``_removed_lately``), nor is it announced as a new parcel (``_added_since``). The
     order's own entry is never one: cancelled as a whole, a later mail opens it again, as
-    before."""
-    return parcel.status is ParcelStatus.CANCELLED and parcel.number != order_of(parcel.number)
+    before. Nor is a box the carrier brought back (``_brought_back``): it is a box of the
+    order, whose mails find it to change nothing."""
+    return (
+        parcel.status is ParcelStatus.CANCELLED
+        and parcel.number != order_of(parcel.number)
+        and not _brought_back(parcel)
+    )
 
 
 def _rest(parcel: Parcel) -> bool:
@@ -1021,7 +1027,8 @@ def _apply_order(
     makes none: then nothing tells what was cancelled in between. A copy of a box's mail
     without id (forwarded by hand) goes to that box, never to what is left
     (``_copy_of_box``). What was cancelled of the order takes no mail (``cancelled_part``),
-    nor does what is left of it a mail about a box that is gone (``_box_gone``).
+    nor does what is left of it a mail about a box that is gone (``_box_gone``). A box the
+    carrier brought back takes its mails, to change nothing (``_brought_back``).
     """
     entries = _order_parcels(parcels, update.carrier, update.number)
     # (what was cancelled of it takes no mail: ``cancelled_part``)
@@ -1060,7 +1067,7 @@ def _apply_order(
         # another id. (An order never seen makes its first one, as a mail read before the
         # order's own mails does; those find it by its id.)
         return None
-    if target is not None and _cancelled_before(target, update):
+    if target is not None and (_brought_back(target) or _cancelled_before(target, update)):
         return None
     if target is None:
         number = _new_number(parcels, entries, update.number)
@@ -1632,7 +1639,7 @@ def _cancelled_by(parcel: Parcel, update: MailUpdate) -> bool:
     take their own items, and only a copy finds its entry.
     """
     if parcel.status is not ParcelStatus.CANCELLED or not _told_then(
-        parcel, update, CANCELLED_TEXT
+        parcel, update, update.status_text or CANCELLED_TEXT
     ):
         return False
     articles = _articles(update.items)
@@ -1741,6 +1748,9 @@ def _cancel_order(
     named goes: nothing comes. A mail the shop sends after that opens the order again
     (``_apply_order``).
 
+    A box the carrier brings back to the shop (``MailUpdate.returned``: Amazon refunds it)
+    is the exception: shipped, it will not come (``_bring_back``).
+
     An entry that knows its items loses the ones a mail cancels (``_cancelled_items``):
     what is left is still ordered, and no box or rest of the order holds them later
     (``_split``); what was cancelled is an entry of its own (``_cancel_part``). Once
@@ -1756,6 +1766,8 @@ def _cancel_order(
     entries = _order_parcels(parcels, update.carrier, update.number)
     if update.title is not None and any(_cancelled_by(p, update) for p in entries):
         return None
+    if update.returned:
+        return _bring_back(entries, update, now)
     if part := _cancelled_items(entries, update):
         entry, left = part
         if left:
@@ -1767,13 +1779,19 @@ def _cancel_order(
         waiting = [p for p in entries if _never_shipped(p) and _cancels_all(p, update)]
     if len(waiting) != 1:
         return None
-    target = waiting[0]
+    return _close_cancelled(waiting[0], update, now)
+
+
+def _close_cancelled(target: Parcel, update: MailUpdate, now: datetime) -> Change:
+    """Close an entry as cancelled, in the mail's words ("Storniert", "Zurück an Amazon"):
+    no day, no code, never asked again (``schedule.poll_interval``, 17track as well)."""
     old = target.result
+    text = update.status_text or CANCELLED_TEXT
     # (the line in the history carries the time of the mail, the change is now)
-    events = [TrackingEvent(update.sent_at, CANCELLED_TEXT, None), *old.events]
+    events = [TrackingEvent(update.sent_at, text, None), *old.events]
     target.result = TrackingResult(
         status=ParcelStatus.CANCELLED,
-        status_text=CANCELLED_TEXT,
+        status_text=text,
         eta_date=None,
         eta_from=None,
         eta_to=None,
@@ -1781,12 +1799,111 @@ def _cancel_order(
         pickup_point=None,
         pickup_until=None,
         delivered_at=None,
-        events=events[:MAX_EVENTS],
+        # (a carrier's long history, GLS or 17track, stays as long as it was, as when a
+        # parcel is marked as received: nothing asks for it again)
+        events=events[: max(MAX_EVENTS, len(events) - 1)],
     )
     target.assumed_delivered = False
     target.last_change_at = now
     target.delivery_code = target.delivery_code_day = None
+    target.track17_next_at = None
+    # (nothing is due nor failing for a box that will not come: a box often goes back for
+    # duty nobody paid)
+    target.clear_customs()
+    target.last_error = target.first_error_at = None
+    target.error_streak = 0
     return Change(target, old.status, False)
+
+
+def _bring_back(entries: list[Parcel], update: MailUpdate, now: datetime) -> Change | None:
+    """A box the carrier brings back to the shop (``MailUpdate.returned``): closed as
+    "Storniert" in the mail's words, "Zurück an Amazon", for good (``_brought_back``).
+
+    The refund comes only for a box that was shipped, so it closes only a box the order
+    knows: the one entry that holds what is refunded (``_holding_refund``), shipped
+    (``_shipped``) and holding nothing else (``_only_refunded``: a box goes back whole, one
+    that holds more is not the one told). Nothing in any other case: no entry or more
+    than one holds it ("Menge: 2" in two boxes, which one went back is not told), or the
+    box's mails were not read yet. A refund is never a cancellation of what is still to
+    come.
+    """
+    holding = _holding_refund(entries, update)
+    if len(holding) != 1:
+        return None
+    box = holding[0]
+    if not _shipped(box) or box.status is ParcelStatus.CANCELLED:
+        return None
+    return _close_cancelled(box, update, now) if _only_refunded(box, update) else None
+
+
+def _brought_back(parcel: Parcel) -> bool:
+    """A box the carrier brought back to the shop (``_bring_back``). For good: no mail
+    changes it any more, neither the shop's nor the carrier's (a delivery then is the one
+    to the shop), see ``_apply_order`` and ``_apply_tracking``."""
+    return parcel.status is ParcelStatus.CANCELLED and parcel.result.status_text == RETURNED_TEXT
+
+
+def _shipped(parcel: Parcel) -> bool:
+    """Has a box of this entry left: Amazon named it (``_only_ordered``), or a carrier's
+    number was told for it, also while it is still "Bestellt"."""
+    return not _only_ordered(parcel) or parcel.tracking_ref is not None
+
+
+def _holding_refund(entries: list[Parcel], update: MailUpdate) -> list[Parcel]:
+    """The entries of an order that hold an item a refund names (``MailUpdate.returned``):
+    by article number where both know it, else by the item's name, the names of the items
+    the entry holds, or its title if it knows none (a subject may name a box cut short,
+    "Beispiel…"). Shipped or not: an entry that is only ordered holding the same item
+    ("Menge: 2" in two boxes) makes it unknown which one went back.
+
+    What is cancelled of the order (``cancelled_part``) holds nothing, nor does a box
+    brought back already (``_brought_back``: a copy of the mail is told by
+    ``_cancelled_by``) or one delivered for real: what arrived and was sent back is the
+    user's own return.
+    """
+    articles = _articles(update.items)
+    by_article = bool(update.items) and None not in articles
+    key = title_key(update.title) if update.title else ""
+
+    def holds(parcel: Parcel) -> bool:
+        known = _articles(parcel.items)
+        if by_article and parcel.items and None not in known:
+            return bool(articles & known)
+        if titles := [title_key(i.title) for i in parcel.items if i.title]:
+            return any(_same_start(key, title) for title in titles)
+        return _names_item(parcel, key)
+
+    return [
+        p
+        for p in entries
+        if not cancelled_part(p)
+        and not _brought_back(p)
+        and not (p.status is ParcelStatus.DELIVERED and not p.assumed_delivered)
+        and holds(p)
+    ]
+
+
+def _only_refunded(box: Parcel, update: MailUpdate) -> bool:
+    """Does the box hold nothing but what a refund names: by article number and quantity
+    where both know them (``_less``). Else only one item on both sides, of the same
+    quantity, the box's named as the refunded one; a box that knows no items, by its
+    title, which must not tell further ones ("… und 2 weitere Artikel"). Not if that is
+    not known: a box of several items whose mails named no article numbers stays."""
+    if (left := _less(box.items, list(update.items))) is not None:
+        return not left
+    key = title_key(update.title) if update.title else ""
+    if len(update.items) > 1:
+        return False
+    count = update.items[0].quantity if update.items else 1
+    if box.items:
+        [item, *more] = box.items
+        return (
+            not more
+            and item.quantity == count
+            and item.title is not None
+            and _same_start(key, title_key(item.title))
+        )
+    return count == 1 and not MORE_ITEMS.search(box.mail_title or "") and _names_item(box, key)
 
 
 def _mail_name(update: MailUpdate) -> str | None:
@@ -1849,6 +1966,9 @@ def _apply_tracking(
             and now - update.sent_at <= NEW_DELIVERY_MAX_AGE
         )
         return Change(target, None, True, announce=news)
+    if _brought_back(target):
+        # (on its way back to the shop: a delivery then is the one to the shop)
+        return None
     _claim(target, owner)
     old = target.status
     named = False
