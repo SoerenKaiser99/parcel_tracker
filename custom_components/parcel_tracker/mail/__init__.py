@@ -43,6 +43,7 @@ from .eventim import (
 from .forward import original_message
 from .gls import GLS_GROUP_SENDERS, GLS_SENDER, parse_gls_group_mail, parse_gls_mail
 from .hermes import HERMES_SENDER, parse_hermes_mail
+from .hes import HES_DOMAINS, HES_SENDER, parse_hes_mail
 from .shipping import (
     DHL_COM_DOMAIN,
     DHL_DOMAIN,
@@ -84,6 +85,7 @@ _KNOWN_SENDERS = (
     *GLS_GROUP_SENDERS,
     DPD_AT_SENDER,
     HERMES_SENDER,
+    HES_SENDER,
     DHL_SENDER,
     DHL_EXPRESS_SENDER,
     DHL_ECOMMERCE_SENDER,
@@ -99,6 +101,8 @@ KNOWN_MAIL_DOMAINS = frozenset(
         *DPD_DOMAINS,
         # (every sender at aliexpress.com is booked under that one domain)
         ALIEXPRESS_DOMAIN,
+        # (HES writes from hes.de; its tracking page is at myhes.de)
+        *HES_DOMAINS,
         *(domain_of(address) for address in _KNOWN_SENDERS if address != ALIEXPRESS_SENDER),
     }
 )
@@ -223,6 +227,10 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
     if address == UPS_MC_SENDER and (updates := parse_ups_mc_mail(msg)):
         return MailResult(updates=updates)
     if address == HERMES_SENDER and (updates := parse_hermes_mail(msg)):
+        return MailResult(updates=updates)
+    if (domain in HES_DOMAINS or domain.endswith(tuple(f".{d}" for d in HES_DOMAINS))) and (
+        updates := parse_hes_mail(msg)
+    ):
         return MailResult(updates=updates)
     if address in GLS_GROUP_SENDERS and (updates := parse_gls_group_mail(msg)):
         return MailResult(updates=updates)

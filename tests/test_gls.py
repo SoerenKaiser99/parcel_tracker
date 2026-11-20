@@ -58,7 +58,7 @@ def test_matches_only_eleven_digits():
 async def test_detection_with_the_real_carriers():
     async with aiohttp.ClientSession() as session:
         carriers = build_carriers(session, None)
-    assert list(carriers) == ["dhl", "dpd", "hermes", "gls"]
+    assert list(carriers) == ["dhl", "dpd", "hermes", "hes", "gls"]
     assert carriers["gls"].name == "GLS"
     assert candidates("99999999901", carriers) == ["gls"]
     assert candidates("999999999012", carriers) == ["dhl"]  # as before: never GLS
