@@ -698,18 +698,84 @@ def test_news_with_a_new_id_goes_by_its_articles_not_to_a_box_shipped_without_on
 
 def test_a_late_mail_about_a_box_cleaned_up_leaves_the_rest_as_it_is():
     # The delivered box is gone (cleaned up), what is left of the order is still there: a
-    # copy of the box's delivery read late, with or without its id, is not about the rest.
-    for shipment in (None, "TAbCdE9fG"):
+    # copy of the box's delivery read late, with or without its id, also one without HTML
+    # part (no article numbers), is not about the rest.
+    for shipment, html in ((None, True), ("TAbCdE9fG", True), (None, False)):
         parcels: dict = {}
         _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment="TAbCdE9fG"))
         del parcels[NUMBER]
-        late = _box((TAPE, 1), shipment=shipment, when=2, subject="Zugestellt: „Anderes…“")
+        late = _box((TAPE, 1), shipment=shipment, when=2, html=html,
+                    subject="Zugestellt: „Anderes…“")
         [update] = parse_mail(late).updates
         assert apply_update(parcels, update, NOW) is None
         assert _state(parcels) == {P2: (ORDERED, [(CABLE, 1)])}
         # (its own box takes it over as before)
         _read(parcels, _box((CABLE, 1), shipment="TBbCdE9fG", when=3))
         assert _state(parcels) == {P2: (SHIPPED, [(CABLE, 1)])}
+
+
+def test_once_its_boxes_are_cleaned_up_the_rest_is_still_no_order_of_its_own():
+    # Not by the entries left: a carrier's mail for its day is no box of it, and the
+    # order's mail read once more (the same time) gives it no items of the whole order.
+    parcels: dict = {}
+    _split_order(parcels)
+    day = parcels[P2].result.eta_date
+    del parcels[NUMBER]
+    apply_update(parcels, _carrier_mail(day), NOW)
+    assert parcels[P2].tracking_ref is None and "00340434161234567890" in parcels
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)))
+    assert _state(parcels)[P2] == (ORDERED, [(CABLE, 1)])
+
+
+def test_a_box_with_an_id_goes_by_its_articles_before_a_title_cut_short():
+    # The first box's "Versendet" came without the link; the second box's names an id no
+    # entry has, and its title "Beispiel…" fits both entries.
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1)), _box((TAPE, 1), shipment=None),
+          _box((CABLE, 1), shipment="TBbCdE9fG", when=2))
+    assert _state(parcels) == {
+        NUMBER: (SHIPPED, [(TAPE, 1)]),
+        P2: (SHIPPED, [(CABLE, 1)]),
+    }
+    assert parcels[P2].shipment_ids == ["TBbCdE9fG"] and parcels[NUMBER].shipment_ids == []
+
+
+def _at(msg, seconds: int) -> MailUpdate:
+    """The mail's update, sent ``seconds`` after its full minute."""
+    [update] = parse_mail(msg).updates
+    return replace(update, sent_at=update.sent_at + timedelta(seconds=seconds))
+
+
+def test_the_second_box_shipped_in_the_minute_the_first_was_delivered_is_no_copy():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 2)), _box((TAPE, 1), shipment="TAbCdE9fG"))
+    delivered = _box((TAPE, 1), shipment="TAbCdE9fG", when=2, subject="Zugestellt: „Beispiel…“")
+    for update in (_at(delivered, 5), _at(_box((TAPE, 1), shipment=None, when=2), 40)):
+        apply_update(parcels, update, NOW)
+    assert _state(parcels) == {
+        NUMBER: (ParcelStatus.DELIVERED, [(TAPE, 1)]),
+        P2: (SHIPPED, [(TAPE, 1)]),
+    }
+
+
+def test_two_cancellations_of_the_same_minute_with_seconds_of_their_own_are_two():
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 3), (CABLE, 1)), _box((CABLE, 1), shipment="TAbCdE9fG"))
+    for seconds in (12, 48):
+        apply_update(parcels, _at(_cancelled((TAPE, 1)), seconds), NOW)
+    assert _state(parcels)[P2] == (ORDERED, [(TAPE, 1)])
+    assert _state(parcels)[f"{NUMBER}P4"] == (CANCELLED, [(TAPE, 1)])
+
+
+def test_with_the_gift_mode_on_the_rest_and_what_is_cancelled_are_gifts():
+    # (like a further box of the same mail: every entry made then is a gift)
+    parcels: dict = {}
+    _read(parcels, _ordered((TAPE, 1), (CABLE, 1), (LAMP, 1)))
+    for msg in (_box((TAPE, 1), shipment="TAbCdE9fG"), _cancelled((CABLE, 1))):
+        for update in parse_mail(msg).updates:
+            apply_update(parcels, update, NOW, gift=True)
+    assert _state(parcels)[P3] == (CANCELLED, [(CABLE, 1)])
+    assert parcels[P2].gift and parcels[P3].gift
 
 
 def test_a_copy_of_an_older_cancellation_takes_nothing_more():
