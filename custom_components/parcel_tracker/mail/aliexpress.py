@@ -63,6 +63,9 @@ _ORDER_STEPS: dict[str, tuple[ParcelStatus, str | None]] = {
     "zugestellt": (ParcelStatus.DELIVERED, None),
     # (an account in English: "Order <number>: collected by the carrier", #76)
     "collected by the carrier": (_ON_WAY, "Vom Kurier abgeholt"),
+    # ("Order <number>: order confirmed" / "…: order shipped", #89)
+    "order confirmed": (_PRE, None),
+    "order shipped": (_ON_WAY, None),
 }
 # "Bestellung <number>: Wird zugestellt" comes hours after the shipping mail and its body
 # says "dem Versandunternehmen übergeben": handed to the carrier, not on the last mile. No
@@ -168,6 +171,7 @@ _ABOVE_ITEMS = frozenset(
         "zugestellt",
         # (an account in English)
         "package details",
+        "track order",
     }
 )
 # Lines that are no item's name wherever they stand: a greeting, a line with a phone

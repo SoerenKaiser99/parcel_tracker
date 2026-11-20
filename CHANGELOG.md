@@ -36,6 +36,11 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.62 (2026-11-20)
+
+- **AliExpress auf Englisch: Bestellung und Versand:** Die Mails „Order …: order confirmed“ und „Order …: order shipped“ landeten bisher unter „Nicht erkannt“. Jetzt legt die Bestätigung die Bestellung mit Artikelname an, die Versandmail setzt sie auf „Versendet“, auch wenn die Mails von Hand weitergeleitet wurden. Danke an Max-1968 für die Beispielmails. ([#89](https://github.com/SoerenKaiser99/parcel_tracker/issues/89), [#76](https://github.com/SoerenKaiser99/parcel_tracker/issues/76))
+- **Optionen: neuer Abschnitt „Datenschutz“:** „Namen ausblenden“, „Zustell-Codes lesen“ und die DHL-Absendernamen stehen jetzt zusammen in einem eigenen Abschnitt direkt unter den Grundeinstellungen, statt verteilt unter dem E-Mail-Import. Die Einstellungen bleiben erhalten. Danke an benep. ([PR #84](https://github.com/SoerenKaiser99/parcel_tracker/pull/84))
+
 ### v0.3.61 (2026-11-19)
 
 - **UPS My Choice: „heute“ und „zugestellt“:** Die Mail „Paket ist heute für die Zustellung terminiert“ von `mcinfo@ups.com` setzt jetzt „In Zustellung“ mit dem Tag, „Ihr UPS Paket wurde zugestellt“ setzt „Zugestellt“ mit Tag und Uhrzeit aus der Mail. Bisher kam aus beiden nur die Sendungsnummer. Danke an stormrider3106 für die Beispielmails. ([#37](https://github.com/SoerenKaiser99/parcel_tracker/issues/37))
