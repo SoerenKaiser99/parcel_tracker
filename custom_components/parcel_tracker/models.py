@@ -528,16 +528,16 @@ def name_parts(parcel: Parcel) -> tuple[str | None, int]:
     """(name, more): the name a mail gave the parcel, without the further items it holds,
     and how many further items there are (shown as "(+2)", see ``with_more``).
 
-    A name from the items of its newest mail (the title of the first one) is taken as it
-    is, and they tell how many more (``Parcel.items``). Any other name from a mail is one
-    from a subject: it tells them in words ("… und 2 weitere Artikel"), and one stored by an
-    older version may end in the entry's own number ("… (2)" for "…P2"), which goes. A
-    name the user typed in is taken as it is.
+    A name from the items of its newest mail (the title of the first one that has one) is
+    taken as it is, and they tell how many more (``Parcel.items``). Any other name from a
+    mail is one from a subject: it tells them in words ("… und 2 weitere Artikel"), and one
+    stored by an older version may end in the entry's own number ("… (2)" for "…P2"),
+    which goes. A name the user typed in is taken as it is.
     """
     name = parcel.name
     if not name or parcel.name_manual:
         return name, 0
-    if parcel.items and name == parcel.items[0].title:
+    if parcel.items and name == next((i.title for i in parcel.items if i.title), None):
         return name, len(parcel.items) - 1
     if (entry := _ENTRY_NUMBER.search(name)) and parcel.number.endswith(f"P{entry.group(1)}"):
         name = name[: entry.start()]

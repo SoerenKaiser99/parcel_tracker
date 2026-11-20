@@ -298,7 +298,7 @@ Das Event `parcel_tracker_status_changed` und die Auslöser im Automations-Edito
 
 ## Event beim Anlegen: `parcel_tracker_parcel_added`
 
-Feuert einmal, sobald ein Paket neu angelegt ist: aus einer Mail (auch ein weiterer Karton einer Bestellung), über den Dienst `parcel_tracker.add_parcel` oder über die Karte. Es feuert nicht beim Neustart oder Neuladen, nicht bei weiteren Mails zum selben Paket und nicht, wenn eine Mail in einen bestehenden Eintrag zusammengeführt wird. Übernimmt eine neue Bestellung ein schon gemeldetes Paket des Paketdienstes, feuert es auch nicht: ein Event pro Karton.
+Feuert einmal, sobald ein Paket neu angelegt ist: aus einer Mail (auch ein weiterer Karton einer Bestellung oder der noch nicht versandte Rest einer Amazon-Bestellung, siehe [Mail-Import](mail-import.md#was-aus-welcher-mail-wird)), über den Dienst `parcel_tracker.add_parcel` oder über die Karte. Es feuert nicht beim Neustart oder Neuladen, nicht bei weiteren Mails zum selben Paket, nicht für stornierte Artikel einer Bestellung („Storniert“, eigener Eintrag) und nicht, wenn eine Mail in einen bestehenden Eintrag zusammengeführt wird. Übernimmt eine neue Bestellung ein schon gemeldetes Paket des Paketdienstes, feuert es auch nicht: ein Event pro Karton.
 
 | Feld | Inhalt |
 |---|---|

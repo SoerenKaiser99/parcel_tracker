@@ -9,7 +9,7 @@ from email.message import EmailMessage
 from urllib.parse import SplitResult, parse_qsl, urlsplit
 
 from ..const import MAX_ORDER_ITEMS
-from ..models import OrderItem, ParcelStatus
+from ..models import MORE_ITEMS, OrderItem, ParcelStatus
 from .base import (
     ATTEMPT_TEXT,
     DELAY_TEXT,
@@ -630,12 +630,37 @@ def parse_amazon_pickup(msg: EmailMessage) -> list[MailUpdate]:
     return updates
 
 
-def _cancellation(subj: str, text: str, sent: datetime) -> list[MailUpdate]:
+def _listed_cancelled(listing: str, title: str) -> dict[str, tuple[OrderItem, ...]]:
+    """The items a cancellation lists, per order (``_listed``): below the one mention of its
+    number that lists any. The mail names the order in its head as well, with no item
+    below it; if more than one mention lists items, the same ones may be listed twice, and
+    the order would lose more than was cancelled: then none. None either unless they are
+    as many as the title tells (its item, and "… und 2 weitere Artikel"): more would be
+    another list below them (what is still to come), which is not cancelled."""
+    more = MORE_ITEMS.search(title)
+    count = 1 + (int(more.group(1)) if more else 0)
+    mentions = list(_ORDER.finditer(listing))
+    listed: dict[str, list[list[OrderItem]]] = {}
+    for index, match in enumerate(mentions):
+        end = mentions[index + 1].start() if index + 1 < len(mentions) else len(listing)
+        if items := _listed(listing[match.end() : end].splitlines()):
+            listed.setdefault(match.group(2), []).append(items)
+    return {
+        number: tuple(lists[0][:MAX_ORDER_ITEMS])
+        for number, lists in listed.items()
+        if len(lists) == 1 and len(lists[0]) == count
+    }
+
+
+def _cancellation(msg: EmailMessage, subj: str, text: str, sent: datetime) -> list[MailUpdate]:
     """A cancellation: one update per order, however often the mail names it.
 
     The mail about the whole order names no item (``title`` None). The mails about items
     name the first one they cancel, so only an order of that one item is closed (see
-    ``apply._cancel_order``); without an item they tell nothing.
+    ``apply._cancel_order``); without an item they tell nothing. They list the items they
+    cancel as well, with article number and quantity where the HTML part names them below
+    "Bestellnr." (``_listed_cancelled``): an order loses just those. A mail that
+    names the order otherwise ("Bestell-Nr.") gives none: then the title tells the item.
     """
     numbers = dict.fromkeys(_CANCELLED_ORDER.findall(text))
     title = None
@@ -648,8 +673,18 @@ def _cancellation(subj: str, text: str, sent: datetime) -> list[MailUpdate]:
             title = shorten(item.group("title"))
         if title is None:
             return []
+    cancelled = {}
+    if title:  # (only the mails about items need the HTML part)
+        cancelled = _listed_cancelled(html_body_text(msg, _ItemText()) or text, title)
     return [
-        MailUpdate(order_number(n), "amazon", ParcelStatus.CANCELLED, sent, title=title)
+        MailUpdate(
+            order_number(n),
+            "amazon",
+            ParcelStatus.CANCELLED,
+            sent,
+            title=title,
+            items=cancelled.get(n, ()),
+        )
         for n in numbers
     ]
 
@@ -663,7 +698,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
     sent = sent_at(msg)
     status = subject_status(subj) or stage_status(text)
     if status is ParcelStatus.CANCELLED:
-        return _cancellation(subj, text, sent)
+        return _cancellation(msg, subj, text, sent)
     # In the plain layout an order named again is the same one (in the head and again above
     # the items): its last mention counts. In the usual layout a number that comes again is
     # a further shipment with its own day and items.
@@ -739,6 +774,7 @@ def parse_amazon(msg: EmailMessage, read_otp: bool) -> list[MailUpdate]:
                 delivered_at=sent if status is ParcelStatus.DELIVERED else None,
                 delivery_code=code,
                 postponed=attempt or delay,
+                updates_box=news,
                 status_text=ATTEMPT_TEXT if attempt else DELAY_TEXT if delay else None,
                 shipment_id=shipments.get(match.group(2)),
                 seller=sellers[index],

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 
@@ -21,8 +22,10 @@ from ..const import (
 )
 from ..models import (
     CLOSED_STATUSES,
+    MORE_ITEMS,
     NO_ETA_STATUSES,
     PROGRESS_STEP,
+    OrderItem,
     Parcel,
     ParcelStatus,
     TrackingEvent,
@@ -379,11 +382,18 @@ def _confirm(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
     return True
 
 
+# The number of a further entry of an order ("…P2") behind the order's own.
+_FURTHER_ENTRY = re.compile(r"P\d+$")
+
+
+def order_of(number: str) -> str:
+    """The order an entry belongs to: its number without "P<n>" ("AMZ…P2" → "AMZ…")."""
+    return _FURTHER_ENTRY.sub("", number)
+
+
 def _order_parcels(parcels: dict[str, Parcel], carrier: str, number: str) -> list[Parcel]:
     siblings = [
-        p
-        for p in parcels.values()
-        if p.carrier == carrier and (p.number == number or p.number.startswith(f"{number}P"))
+        p for p in parcels.values() if p.carrier == carrier and order_of(p.number) == number
     ]
     return sorted(siblings, key=lambda p: (len(p.number), p.number))
 
@@ -522,13 +532,280 @@ def _remember_items(parcel: Parcel, update: MailUpdate) -> None:
     (``models.name_parts``). Not a name the user typed in, and not without a title (a mail
     without HTML part): then the subject names it, as before.
     """
-    if not update.items or (parcel.items_at is not None and update.sent_at < parcel.items_at):
+    if not update.items:
         return
     if update.status is ParcelStatus.PRE_TRANSIT and parcel.shipment_ids:
         return
+    # A box's mail gives an entry that is only ordered the box's items whenever it was
+    # sent: the entry's are what was ordered, less what was cancelled since (``_cancel_part``).
+    boxed = _only_ordered(parcel) and _step(update.status) >= _step(ParcelStatus.IN_TRANSIT)
+    if parcel.items_at is not None and update.sent_at < parcel.items_at and not boxed:
+        return
     parcel.items, parcel.items_at = list(update.items), update.sent_at
-    if not parcel.name_manual and (title := parcel.items[0].title):
+    if not parcel.name_manual and (title := _items_title(parcel.items)):
         parcel.name = title
+
+
+def _new_box(update: MailUpdate) -> bool:
+    """Can the mail tell a box of an order nobody knew of: "Versendet", and neither a
+    postponed delivery nor news about a box on its way (``MailUpdate.updates_box``)?"""
+    return (
+        update.status is ParcelStatus.IN_TRANSIT
+        and not update.postponed
+        and not update.updates_box
+    )
+
+
+def _parts(entries: list[Parcel]) -> tuple[list[Parcel], list[Parcel]]:
+    """The entries of an order that are only ordered (``_only_ordered``) and its boxes."""
+    waiting = [p for p in entries if _only_ordered(p)]
+    return waiting, [p for p in entries if not _only_ordered(p)]
+
+
+def _same_time(one: datetime, other: datetime) -> bool:
+    """Were two mails sent at the same time, as a copy tells it? To the second, or to the
+    minute where one of them has no seconds: a mail forwarded by hand quotes the
+    original's time without them. Two mails of the same minute with seconds of their own
+    are two mails."""
+    if one.second and other.second:
+        return int(one.timestamp()) == int(other.timestamp())
+    return int(one.timestamp() // 60) == int(other.timestamp() // 60)
+
+
+def _told_then(parcel: Parcel, update: MailUpdate, text: str | None) -> bool:
+    """Has the entry's history a line of these words from the time the mail was sent
+    (``_same_time``)?"""
+    return parcel.result is not None and any(
+        e.text == text and _same_time(e.timestamp, update.sent_at) for e in parcel.result.events
+    )
+
+
+def _articles(items) -> set[str | None]:
+    return {item.article_id for item in items}
+
+
+def cancelled_part(parcel: Parcel) -> bool:
+    """A further entry of an order ("…P3") that is cancelled: items cancelled from what was
+    only ordered (``_cancel_part``), or a rest cancelled as a whole. It tells what will not
+    come, and nothing more: no mail goes to it (``_apply_order``), nor does it make an order
+    look split (``_merge_candidate``) or keep a removed one there (the coordinator's
+    ``_removed_lately``), nor is it announced as a new parcel (``_added_since``). The
+    order's own entry is never one: cancelled as a whole, a later mail opens it again, as
+    before."""
+    return parcel.status is ParcelStatus.CANCELLED and parcel.number != order_of(parcel.number)
+
+
+def _rest(parcel: Parcel) -> bool:
+    """What a box of an order left (``_split``): a further entry of the order ("…P2") that
+    is only ordered. Told by its number, not by the entries stored: once the order's boxes
+    are cleaned up, it may be the order's only one."""
+    return parcel.number != order_of(parcel.number) and _only_ordered(parcel)
+
+
+def _box_gone(siblings: list[Parcel], update: MailUpdate) -> bool:
+    """Is a mail about a box of a split order of which only what is not shipped yet is
+    left (its boxes cleaned up or deleted) about a box that is gone?
+
+    So if it lists none of the articles left, or it lists no article numbers and is no new
+    box (``_new_box``: a "Versendet" may be the rest's own box): it changes nothing. Else
+    it would take what is left over, shipped or delivered with the box's items, and those
+    would be lost. An article Amazon lists under another number than the order did looks
+    the same, and so does news about the rest's own box whose "Versendet" was never read
+    and whose mail lists no article numbers; both are left out as well.
+    """
+    if not siblings or _step(update.status) < _step(ParcelStatus.IN_TRANSIT):
+        return False
+    # (the order's own entry is its first box: while it is there, no box is gone)
+    if not all(_rest(p) for p in siblings):
+        return False
+    articles = _articles(update.items)
+    held = set().union(*(_articles(p.items) for p in siblings))
+    if articles and held and None not in articles | held:
+        return not articles & held
+    return not _new_box(update)
+
+
+def _copy_of_box(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
+    """The box of an order a mail without Amazon's id is a copy of (forwarded by hand: a
+    message id of its own): the one box that holds the same articles and whose history has
+    the mail's line from the time the mail was sent (``_same_time``).
+
+    A copy of a box's "Versendet" is that box, never a new one: else it would split what
+    is left once more (``_split``). Two boxes of the same articles told at the same time
+    without an id look alike: the second is taken for the first. None for a mail that
+    lists no article numbers (then ``_by_items`` and the title decide, as before).
+    """
+    if _step(update.status) < _step(ParcelStatus.IN_TRANSIT) or not update.items:
+        return None
+    articles = _articles(update.items)
+    if None in articles:
+        return None
+    text = update.status_text or SHOP_TEXT.get(update.status)
+    found = [
+        p
+        for p in siblings
+        if not _only_ordered(p)
+        and _articles(p.items) == articles
+        and _told_then(p, update, text)
+    ]
+    return found[0] if len(found) == 1 else None
+
+
+def _rest_or_box(entries: list[Parcel], update: MailUpdate, key: str | None) -> list[Parcel]:
+    """Of the entries of a split order (``_split``: some only ordered, some boxes), those a
+    box's mail goes to: a new box (``_new_box``) to what is only ordered, unless its title
+    names a box and not that (a box's "Versendet" again, cut short); any other mail about a
+    box to the boxes, never to what is not shipped yet. All entries for any other mail, or
+    for an order that is not split."""
+    waiting, boxes = _parts(entries)
+    if not waiting or not boxes or _step(update.status) < _step(ParcelStatus.IN_TRANSIT):
+        return entries
+    if not _new_box(update):
+        return boxes
+    named = [p for p in boxes if _names_item(p, key)]
+    return named if named and not any(_names_item(p, key) for p in waiting) else waiting
+
+
+def _less(items: list[OrderItem], taken: list[OrderItem]) -> list[OrderItem] | None:
+    """``items`` without what is ``taken`` (what a box holds, or what the shop cancelled):
+    each article less the quantity taken of it, by article number. "Menge: 2" may come as
+    1 + 1 in two boxes, so quantities are taken away, not whole items.
+
+    None if that is not known for sure: an item without an article number on either side
+    (a mail without HTML part), or nothing taken is one of ``items`` (it is about another
+    order). An article taken that ``items`` does not list takes nothing away.
+    """
+    if not items or not taken or any(i.article_id is None for i in (*items, *taken)):
+        return None
+    left: dict[str | None, int] = {}
+    for item in taken:
+        left[item.article_id] = left.get(item.article_id, 0) + item.quantity
+    if not any(item.article_id in left for item in items):
+        return None
+    rest = []
+    for item in items:
+        gone = min(item.quantity, left.get(item.article_id, 0))
+        if gone:
+            left[item.article_id] -= gone
+        if item.quantity > gone:
+            rest.append(replace(item, quantity=item.quantity - gone))
+    return rest
+
+
+def _items_title(items: list[OrderItem]) -> str | None:
+    """The name of the first of these items that has one (``_listed``: an item whose link
+    shows no text has none)."""
+    return next((item.title for item in items if item.title), None)
+
+
+def _split(
+    parcels: dict[str, Parcel],
+    ordered: Parcel,
+    box: Parcel,
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
+) -> None:
+    """A box took over an entry that was only ordered (``ordered``: that entry as it was
+    before the box's mail): what of its items the box does not hold (``_less``) stays
+    ordered, in an entry of its own.
+
+    The box keeps the entry's number, so a sensor never changes its number: the order's
+    first box is the order's own entry ("AMZ…"), what is left becomes "…P2", and the next
+    box takes that one over in turn (``_by_shipment``: an entry without id that is only
+    ordered). The new entry is what the old one was: "Bestellt" with the order's history,
+    day, owner, gift and seller; a gift also while the Geschenkmodus is on (``gift``), like
+    a further box of the same mail. It is made quietly: an order that is not shipped yet
+    is no news, and the box tells its own change.
+
+    Nothing if the box holds an article the entry does not list: then the two lists do not
+    tell the same articles alike (another order's items in the box, an article under
+    another number), and what is left is not known for sure. Nor if the mail lists fewer
+    items than its title tells (its item, and "… und 2 weitere Artikel"): what it leaves
+    out would stay ordered in a rest that never comes, as the cancellations check
+    (``amazon._listed_cancelled``).
+    """
+    ordered_articles = {item.article_id for item in ordered.items}
+    if any(item.article_id not in ordered_articles for item in box.items):
+        return
+    more = MORE_ITEMS.search(update.title) if update.title else None
+    if more and len(box.items) < 1 + int(more.group(1)):
+        return
+    rest = _less(ordered.items, box.items)
+    if not rest:
+        return
+    # (the next free number, "…P3"; named after the first of the items left, how many more
+    # there are is shown behind it, see ``models.name_parts``)
+    order = update.number
+    number = _new_number(parcels, _order_parcels(parcels, box.carrier, order), order)
+    title = _items_title(rest)
+    entry = Parcel(
+        number,
+        box.carrier,
+        "mail",
+        title or _shop_box(box.carrier),
+        now,
+        now,
+        mail_title=title,
+        items=rest,
+        # (closed without a delivery mail it stays so: the next box opens it again)
+        result=replace(ordered.result),
+        assumed_delivered=ordered.assumed_delivered,
+        items_at=ordered.items_at,
+        last_mail_at=ordered.last_mail_at,
+        sellers=list(ordered.sellers),
+        gift=gift or ordered.gift,
+        gift_for=list(ordered.gift_for),
+        owner=ordered.owner,
+        owner_manual=ordered.owner_manual,
+    )
+    parcels[number] = entry
+    if ordered.tracking_ref is not None:
+        # A carrier's number told for the order before Amazon named the box is the box's,
+        # and so is what the carrier told: the rest keeps only the shop's own lines.
+        lines = [e for e in ordered.result.events if e.text in _ORDERED_TEXTS]
+        text = SHOP_TEXT[ParcelStatus.PRE_TRANSIT]
+        entry.result = TrackingResult(
+            status=ParcelStatus.PRE_TRANSIT,
+            status_text=text,
+            eta_date=None,
+            eta_from=None,
+            eta_to=None,
+            location=None,
+            pickup_point=None,
+            pickup_until=None,
+            delivered_at=None,
+            events=lines or [TrackingEvent(ordered.items_at or now, text, None)],
+        )
+
+
+def _by_items(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
+    """The entry of an order with more than one a box's mail without Amazon's id goes to,
+    by the articles it lists.
+
+    A new box (``_new_box``) goes to the entry that is only ordered and holds one of its
+    articles: what was left of the order (``_split``). Any mail about a box goes to the box
+    that holds the same articles. What is only ordered takes such a mail only if no box
+    holds any of its articles: then the mail is about the box it was sent in, whose
+    "Versendet" was never read. Each only if it is the one entry that fits; None if none
+    fits for sure (then the title decides, as without items).
+    """
+    if _step(update.status) < _step(ParcelStatus.IN_TRANSIT) or not update.items:
+        return None
+    articles = {item.article_id for item in update.items}
+    if None in articles or len(siblings) < 2:
+        return None
+    held = {p.number: {item.article_id for item in p.items} for p in siblings}
+    ordered, shipped = _parts(siblings)
+    waiting = [p for p in ordered if articles & held[p.number]]
+    boxes = [p for p in shipped if held[p.number] == articles]
+    if _new_box(update):
+        found = (waiting, boxes)
+    elif any(articles & held[p.number] for p in shipped):
+        found = (boxes,)
+    else:
+        found = (waiting,)
+    return next((entries[0] for entries in found if len(entries) == 1), None)
 
 
 def _gift_for(*parcels: Parcel) -> list[str]:
@@ -590,7 +867,12 @@ def _names_item(parcel: Parcel, key: str | None) -> bool:
     """Like ``_same_item``, but a title cut short counts as well: the subject of a shipping
     mail may name only the first word ("Lsa…"), the order's mail names it in full."""
     theirs = title_key(parcel.mail_title) if parcel.mail_title else ""
-    return bool(key and theirs) and (theirs.startswith(key) or key.startswith(theirs))
+    return _same_start(key or "", theirs)
+
+
+def _same_start(key: str, other: str) -> bool:
+    """Do two title keys (``title_key``) name the same item, one of them cut short?"""
+    return bool(key and other) and (other.startswith(key) or key.startswith(other))
 
 
 def _only_ordered(parcel: Parcel) -> bool:
@@ -613,13 +895,13 @@ def _only_ordered(parcel: Parcel) -> bool:
 
 
 def _further_shipment(siblings: list[Parcel], update: MailUpdate, key: str | None) -> bool:
-    """A mail no entry of the order took is a further shipment: "Versendet" with an item,
-    once every entry is shipped (a postponed delivery is news about a box there is)."""
+    """A mail no entry of the order took is a further shipment: a new box (``_new_box``:
+    "Versendet", no postponed delivery or news about a box there is) with an item, once
+    every entry is shipped."""
     return (
         key is not None
         and update.carrier not in SINGLE_PARCEL_SHOPS
-        and not update.postponed
-        and update.status is ParcelStatus.IN_TRANSIT
+        and _new_box(update)
         and all(_step(p.status) >= _step(ParcelStatus.IN_TRANSIT) for p in siblings)
     )
 
@@ -638,8 +920,11 @@ def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
     named no id (read before the ids were kept, or without the link): only those count,
     one with another id is another box. Of those it takes
 
-    - the one that names its item, else the order itself while no box was told for it
-      (``_only_ordered``: the first box takes it over);
+    - the one its articles tell (``_by_items``: a box whose "Versendet" came without the
+      link takes no other box's mail), else the one that names its item, else the order
+      itself while no box was told for it (``_only_ordered``: the first box takes it
+      over); of a split order a new box takes what is not shipped yet, any other mail a
+      box (``_rest_or_box``);
     - else what a mail without id would take: none for a further shipment
       (``_further_shipment``), else the first open one, else the first.
 
@@ -652,8 +937,12 @@ def _by_shipment(siblings: list[Parcel], update: MailUpdate) -> Parcel | None:
         return next((p for p in held if _names_item(p, key)), held[0])
     if not (free := [p for p in siblings if not p.shipment_ids]):
         return None
+    # (the articles first: a title cut short may name two entries, "Beispiel…")
+    if (by_items := _by_items(free, update)) is not None:
+        return by_items
     if key is not None and (named := next((p for p in free if _names_item(p, key)), None)):
         return named
+    free = _rest_or_box(free, update, key)
     if ordered := next((p for p in free if _only_ordered(p)), None):
         return ordered
     if _further_shipment(siblings, update, key):
@@ -720,18 +1009,35 @@ def _apply_order(
     shipments (never for AliExpress and Eventim: their mails name an order's items in turn).
 
     A mail that names its shipment (Amazon's id) goes by it (``_by_shipment``). Any other
-    goes by the item it names, else to the order's first open entry; it is a further
-    shipment only as "Versendet" with an item no entry names, once every entry of the
-    order is shipped. A further entry takes the number after the highest one the order
-    has (``_new_number``, "…P3") and is named after its item, without that number.
+    goes by the articles it lists once the order has more than one entry (``_by_items``),
+    else by the item it names, else to the order's first open entry (of a split order: a
+    new box to what is only ordered, any other mail about a box to a box); it is a further
+    shipment only as a new box (``_new_box``) with an item no entry names, once every entry
+    of the order is shipped. A further entry takes the number after the highest one the
+    order has (``_new_number``, "…P3") and is named after its item, without that number.
+
+    A box that takes over an entry that was only ordered leaves what it does not hold
+    ordered, in an entry of its own (``_split``). An order's mail read only after its boxes'
+    makes none: then nothing tells what was cancelled in between. A copy of a box's mail
+    without id (forwarded by hand) goes to that box, never to what is left
+    (``_copy_of_box``). What was cancelled of the order takes no mail (``cancelled_part``),
+    nor does what is left of it a mail about a box that is gone (``_box_gone``).
     """
-    siblings = _order_parcels(parcels, update.carrier, update.number)
+    entries = _order_parcels(parcels, update.carrier, update.number)
+    # (what was cancelled of it takes no mail: ``cancelled_part``)
+    siblings = [p for p in entries if not cancelled_part(p)]
+    if _box_gone(siblings, update):
+        return None
     key = title_key(update.title) if update.title else None
     if update.shipment_id and siblings:
         target = _by_shipment(siblings, update)
         further_shipment = target is None
     else:
-        target = next((p for p in siblings if _same_item(p, key)), None)
+        target = (
+            _copy_of_box(siblings, update)
+            or _by_items(siblings, update)
+            or next((p for p in siblings if _same_item(p, key)), None)
+        )
         further_shipment = False
     if target is None and siblings and not further_shipment:
         further_shipment = _further_shipment(siblings, update, key)
@@ -740,7 +1046,14 @@ def _apply_order(
             # (it was not shipped yet, like one that is only "Bestellt").
             open_ = [p for p in siblings if p.status not in CLOSED_STATUSES]
             cancelled = [p for p in siblings if p.status is ParcelStatus.CANCELLED]
-            target = (open_ or cancelled or siblings)[0]
+            candidates = open_ or cancelled or siblings
+            # A split order (``_split``): a new box goes to what is only ordered, any other
+            # mail about a box to a box (``_rest_or_box``).
+            split = {p.number for p in _rest_or_box(siblings, update, key)}
+            candidates = [p for p in candidates if p.number in split] or [
+                p for p in siblings if p.number in split
+            ]
+            target = candidates[0]
     if target is None and update.along and siblings:
         # An order that came along in another order's box makes no further entry: no
         # phantom "…P2" delivered next to its entry, left behind when its own box has
@@ -750,7 +1063,7 @@ def _apply_order(
     if target is not None and _cancelled_before(target, update):
         return None
     if target is None:
-        number = _new_number(parcels, siblings, update.number)
+        number = _new_number(parcels, entries, update.number)
         if update.title:
             name = update.title
         else:
@@ -788,6 +1101,20 @@ def _apply_order(
         )
         return Change(target, None, True, announce=news)
     _claim(target, owner)
+    # A box's mail to an entry that is only ordered: the entry as it was, for what the box
+    # leaves of it (``_split``). Only ordered as ``_by_shipment`` and ``_take_over`` tell it,
+    # also with a carrier's number told for it already; the lists it reads copied.
+    box_mail = _step(update.status) >= _step(ParcelStatus.IN_TRANSIT) and bool(update.items)
+    ordered = (
+        replace(
+            target,
+            items=list(target.items),
+            sellers=list(target.sellers),
+            gift_for=list(target.gift_for),
+        )
+        if box_mail and _only_ordered(target)
+        else None
+    )
     _take_over(target, update)
     if target.mail_title is None and update.title:
         target.mail_title = update.title
@@ -797,9 +1124,13 @@ def _apply_order(
     old = target.status
     own = parcels.get(update.tracking_ref) if update.tracking_ref else None
     facts = _take_shop_facts(parcels, target, update, now, gift)
+    # (the items first: an entry is only ordered until it keeps the box's id. The items of
+    # the whole order are no entry's once it is split, also when only its rest is left
+    # (``_rest``): an order's mail gives none then)
+    if not (update.status is ParcelStatus.PRE_TRANSIT and (len(siblings) > 1 or _rest(target))):
+        _remember_items(target, update)
     _remember_shipment(target, update)
     _remember_sellers(target, update)
-    _remember_items(target, update)
     # A carrier's parcel of that number was folded into the order just now. If it was
     # delivered, its delivery was announced (``_delivery_told``) and nothing about it
     # waits to be announced, the box's delivery is told: known from what is stored, so
@@ -815,6 +1146,10 @@ def _apply_order(
     forwarded = _forward(target, update, now)
     if facts and not forwarded:
         target.last_change_at = now
+    # (the box's mail gave the entry the box's items, ``_remember_items``: also one read too
+    # late to change its status, the entry is that box all the same)
+    if ordered is not None:
+        _split(parcels, ordered, target, update, now, gift)
     return Change(target, old, False, told) if facts or forwarded else None
 
 
@@ -948,13 +1283,25 @@ def _merge_candidate(
     window, that day must lie in or close to it (``_near_window``: carriers are a day
     early or late). An order for quite other days waits for another box, whoever carries
     it.
+
+    What of a split order is not shipped yet (``_split``) is never a candidate: a carrier
+    carries a box, and the boxes of that order are its other entries. It takes a carrier's
+    mail only once Amazon named it a box of its own.
     """
+    # (what of a split order is not shipped yet: a rest, ``_rest``, also once its boxes are
+    # cleaned up; or an order's entry that is only ordered next to others of it)
+    entries = Counter(
+        (p.carrier, order_of(p.number))
+        for p in parcels.values()
+        if p.carrier in SHOP_CARRIERS and not cancelled_part(p)
+    )
     orders = [
         p
         for p in parcels.values()
         if p.carrier in SHOP_CARRIERS
         and p.tracking_ref is None
         and p.status not in CLOSED_STATUSES
+        and not (_rest(p) or entries[(p.carrier, order_of(p.number))] > 1 and _only_ordered(p))
     ]
     open_orders = [
         p
@@ -1224,7 +1571,8 @@ def _cancels_all(parcel: Parcel, update: MailUpdate) -> bool:
 
     A mail about the order does (it names no item). One about items only if the order is
     that one item: its title names it (cut short counts, see ``_names_item``) and no
-    further one ("… und 2 weitere Artikel").
+    further one ("… und 2 weitere Artikel"), nor do its items (what of a split order is not
+    shipped yet is named after its first item alone, see ``_split``).
     """
     if update.title is None:
         return True
@@ -1232,11 +1580,157 @@ def _cancels_all(parcel: Parcel, update: MailUpdate) -> bool:
     return (
         title is not None
         and not names_more_items(title)
+        and len(parcel.items) <= 1
         and _names_item(parcel, title_key(update.title))
     )
 
 
-def _cancel_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime) -> Change | None:
+def _without_title(items: list[OrderItem], title: str) -> list[OrderItem] | None:
+    """``items`` without the one article whose name the cancellation's title names (cut
+    short counts, as in ``_names_item``), all of it: the mail tells no quantity. None unless
+    exactly one article fits, and for a title that names further items ("… und 1 weiterer
+    Artikel"): which ones is not told."""
+    if names_more_items(title) or not (key := title_key(title)):
+        return None
+    named = [i for i in items if i.title and _same_start(key, title_key(i.title))]
+    return [i for i in items if i is not named[0]] if len(named) == 1 else None
+
+
+def _cancelled_items(
+    entries: list[Parcel], update: MailUpdate
+) -> tuple[Parcel, list[OrderItem]] | None:
+    """The entry of an order a cancellation of items takes them from, and what it holds
+    afterwards (``_less``: by article number and quantity; without article numbers by the
+    item the title names, ``_without_title``).
+
+    Only an entry that is only ordered and knows its items (``_only_ordered``): what is on its
+    way comes anyway. None if the mail is about the whole order (no title), or if not
+    exactly one entry holds what it cancels.
+    """
+    if update.title is None:
+        return None
+    found = []
+    for entry in entries:
+        if not _only_ordered(entry) or not entry.items:
+            continue
+        if update.items and all(i.article_id for i in update.items):
+            left = _less(entry.items, list(update.items))
+        else:
+            left = _without_title(entry.items, update.title)
+        if left is not None:
+            found.append((entry, left))
+    return found[0] if len(found) == 1 else None
+
+
+def _cancelled_by(parcel: Parcel, update: MailUpdate) -> bool:
+    """Did this cancellation make the entry what it is? Then the mail is a copy read again
+    (forwarded by hand: a message id of its own), and it takes nothing more.
+
+    The entry is cancelled, its line "Storniert" has the time the mail was sent
+    (``_same_time``), and it holds what the mail cancels: the same articles, else (no
+    article numbers) the item its title names. So two cancellations read in any order each
+    take their own items, and only a copy finds its entry.
+    """
+    if parcel.status is not ParcelStatus.CANCELLED or not _told_then(
+        parcel, update, CANCELLED_TEXT
+    ):
+        return False
+    articles = _articles(update.items)
+    if update.items and None not in articles:
+        return _articles(parcel.items) == articles
+    return update.title is not None and _names_item(parcel, title_key(update.title))
+
+
+def _cancel_part(
+    parcels: dict[str, Parcel],
+    entry: Parcel,
+    left: list[OrderItem],
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
+) -> Change:
+    """Some items of an entry that is only ordered were cancelled: it holds the others
+    (``left``) and is named after the first of them, as if they had been all it was
+    ordered with. Still "Bestellt", so it is no news: the change tells no status. What was
+    cancelled is an entry of its own (``_cancelled_entry``).
+
+    The entry's items are never older than this mail (``Parcel.items_at``): an order's
+    mail read late does not bring back what was cancelled (``_remember_items``).
+    """
+    by_article = bool(update.items) and None not in _articles(update.items)
+    taken = (
+        _less(entry.items, left) or []
+        if by_article
+        else [i for i in entry.items if not any(i is j for j in left)]
+    )
+    _cancelled_entry(parcels, entry, taken, update, now, gift)
+    entry.items = left
+    if entry.items_at is None or entry.items_at < update.sent_at:
+        entry.items_at = update.sent_at
+    title = _items_title(left)
+    if not entry.name_manual:
+        entry.name = title or _shop_box(entry.carrier)
+    entry.mail_title = title
+    entry.last_change_at = now
+    return Change(entry, entry.status, False)
+
+
+def _cancelled_entry(
+    parcels: dict[str, Parcel],
+    entry: Parcel,
+    taken: list[OrderItem],
+    update: MailUpdate,
+    now: datetime,
+    gift: bool = False,
+) -> None:
+    """The items a cancellation took from an entry that is only ordered (``_cancel_part``),
+    in an entry of their own ("…P3") that is "Storniert": what will not come shows, and is
+    kept as long as any cancelled order. Owner, gift and seller are the entry's; a gift
+    also while the Geschenkmodus is on (``gift``).
+
+    Made quietly, like the rest of a split order (``_split``): a cancellation is no news.
+    It takes no mail afterwards (``cancelled_part``); its line "Storniert" with the time
+    of the mail tells a copy of the cancellation (``_cancelled_by``).
+    """
+    order = order_of(entry.number)
+    number = _new_number(parcels, _order_parcels(parcels, entry.carrier, order), order)
+    title = _items_title(taken) or update.title
+    lines = [e for e in entry.result.events if e.text in _ORDERED_TEXTS]
+    events = [TrackingEvent(update.sent_at, CANCELLED_TEXT, None), *lines]
+    parcels[number] = Parcel(
+        number,
+        entry.carrier,
+        "mail",
+        title or _shop_box(entry.carrier),
+        now,
+        now,
+        mail_title=title,
+        items=taken,
+        items_at=update.sent_at,
+        result=TrackingResult(
+            status=ParcelStatus.CANCELLED,
+            status_text=CANCELLED_TEXT,
+            eta_date=None,
+            eta_from=None,
+            eta_to=None,
+            location=None,
+            pickup_point=None,
+            pickup_until=None,
+            delivered_at=None,
+            events=events[:MAX_EVENTS],
+        ),
+        last_mail_at=update.sent_at,
+        sellers=list(entry.sellers),
+        gift=gift or entry.gift,
+        gift_for=list(entry.gift_for),
+        owner=entry.owner,
+        owner_manual=entry.owner_manual,
+    )
+
+
+def _cancel_order(
+    parcels: dict[str, Parcel], update: MailUpdate, now: datetime, gift: bool = False
+) -> Change | None:
     """The shop cancelled an order: closed with a status of its own, "Storniert".
 
     Only the one order that has not left yet (``_never_shipped``) and that the mail
@@ -1247,16 +1741,30 @@ def _cancel_order(parcels: dict[str, Parcel], update: MailUpdate, now: datetime)
     named goes: nothing comes. A mail the shop sends after that opens the order again
     (``_apply_order``).
 
+    An entry that knows its items loses the ones a mail cancels (``_cancelled_items``):
+    what is left is still ordered, and no box or rest of the order holds them later
+    (``_split``); what was cancelled is an entry of its own (``_cancel_part``). Once
+    nothing is left, the entry itself is cancelled. Cancellations of items count in any
+    order they are read; a copy of one (forwarded by hand) takes nothing more
+    (``_cancelled_by``).
+
     Known limits, both rare: a cancellation read before the order's first mail (cancelled
     right after ordering) finds no order and is lost, the order then waits until it is
     closed without a delivery mail. And a mail sent before the cancellation but read after
     it is dropped altogether (``_cancelled_before`` compares the times of the mails).
     """
-    waiting = [
-        p
-        for p in _order_parcels(parcels, update.carrier, update.number)
-        if _never_shipped(p) and _cancels_all(p, update)
-    ]
+    entries = _order_parcels(parcels, update.carrier, update.number)
+    if update.title is not None and any(_cancelled_by(p, update) for p in entries):
+        return None
+    if part := _cancelled_items(entries, update):
+        entry, left = part
+        if left:
+            return _cancel_part(parcels, entry, left, update, now, gift)
+        # (cancelled as a whole only while nothing of it left: a carrier's number told for
+        # it may be a box on its way)
+        waiting = [entry] if _never_shipped(entry) else []
+    else:
+        waiting = [p for p in entries if _never_shipped(p) and _cancels_all(p, update)]
     if len(waiting) != 1:
         return None
     target = waiting[0]
@@ -1376,7 +1884,7 @@ def apply_update(
     """
     if update.carrier in SHOP_CARRIERS:
         if update.status is ParcelStatus.CANCELLED:
-            return _cancel_order(parcels, update, now)
+            return _cancel_order(parcels, update, now, gift)
         if not update.number:
             return _apply_orderless(parcels, update, now, owner)
         return _apply_order(parcels, update, now, gift, owner)

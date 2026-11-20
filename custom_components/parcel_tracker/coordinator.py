@@ -107,9 +107,11 @@ from .mail import OTHER_DOMAIN, forwarded_original, known_sender_domain, parse_m
 from .mail.apply import (
     Change,
     apply_update,
+    cancelled_part,
     close_unconfirmed,
     fold_delivered,
     mark_received,
+    order_of,
     tells_newer,
 )
 from .mail.base import MailResult, MailUpdate, is_forwarded, sender, sent_at
@@ -1047,9 +1049,10 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         numbers = [n for n in (own, update.tracking_ref) if n]
         if not any(self.store.was_removed(n) for n in numbers):
             return False
-        # An order that is still there (or one of its boxes, "…P2") takes its mail.
+        # An order that is still there (or one of its boxes, "…P2") takes its mail; items
+        # cancelled from it (``cancelled_part``) take none and keep nothing there.
         if own is None and any(
-            p.number == update.number or p.number.startswith(f"{update.number}P")
+            order_of(p.number) == update.number and not cancelled_part(p)
             for p in self.store.parcels.values()
         ):
             return False
@@ -1711,8 +1714,11 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         ]
 
     def _fire_added_all(self, parcels: list[Parcel]) -> None:
+        """Announce the new entries (``_added_since``), except items cancelled from an
+        order (``cancelled_part``): they tell what will not come, not a new parcel."""
         for parcel in parcels:
-            self._fire_added(parcel)
+            if not cancelled_part(parcel):
+                self._fire_added(parcel)
 
     def _announce(self, parcel: Parcel, old: ParcelStatus) -> None:
         r = parcel.result
