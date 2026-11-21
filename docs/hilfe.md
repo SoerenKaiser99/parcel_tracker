@@ -186,7 +186,7 @@ Alle für diesen Monat erlaubten UPS-Abfragen sind verbraucht. UPS-Pakete kommen
 
 - Ist ein Ziel gewählt? Ohne Ziel wird nichts gesendet.
 - Ist das Ereignis angekreuzt? „Problem“ ist von Haus aus nicht angekreuzt.
-- Der allererste Status eines neuen Pakets wird nicht gemeldet. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
+- Ein Paket, das du selbst anlegst, meldet seinen ersten Status nicht. Ein Paket aus einer Mail meldet ihn, ein erster Status „Zugestellt“ aber nur, wenn die Mail höchstens 24 Stunden alt ist (siehe [Wann wird gesendet?](benachrichtigungen.md#wann-wird-gesendet)).
 - Für eine Bestellung, die ohne Zustellmail abgeschlossen wurde, gibt es keine Meldung.
 - Steht ein Ziel mit dem Zusatz „nicht mehr vorhanden“ in der Auswahl, wird es übersprungen.
 

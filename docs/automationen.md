@@ -26,15 +26,20 @@ Derselbe Weg geht über **Einstellungen → Geräte & Dienste → Paket Tracker*
 
 Dieser Dienst ist seit v0.3.27 da. Sensoren und Kalender hängen bewusst nicht an ihm; ihre Namen und Entitäts-IDs sind unverändert.
 
-### Die fünf Auslöser
+### Die Auslöser
 
 | Auslöser | Feuert, wenn |
 |---|---|
+| **Paket wurde bestellt** | ein Shop die Bestellung bestätigt hat (neuer Status `pre_transit` bei einer Shop-Bestellung) |
+| **Paket wurde angekündigt** | ein Paketdienst das Paket kennt (neuer Status `pre_transit` bei einem Paketdienst) |
+| **Paket ist unterwegs** | der neue Status „Unterwegs“ ist |
+| **Paket ist im Zustelldepot** | der neue Status „Im Zustelldepot“ ist |
 | **Paket ist in Zustellung** | der neue Status „In Zustellung“ ist |
 | **Paket wurde zugestellt** | der neue Status „Zugestellt“ ist und der Paketdienst oder eine Mail die Zustellung gemeldet hat |
 | **Paket liegt zur Abholung bereit** | das Paket in Packstation, Filiale oder PaketShop liegt |
 | **Problem bei einem Paket** | der Paketdienst ein Problem meldet |
-| **Paketstatus hat sich geändert** | bei jedem Statuswechsel, auch denen ohne eigenen Auslöser (z. B. „Unterwegs“) |
+| **Bestellung wurde storniert** | der Shop die Bestellung storniert hat |
+| **Paketstatus hat sich geändert** | bei jedem Statuswechsel |
 
 Die Auslöser feuern genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert, und gelten für alle Pakete.
 
@@ -86,7 +91,7 @@ Markierst du ein Paket von Hand als erhalten – mit dem Knopf [„Erhalten“](
 
 Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt.
 
-- Der allererste Status eines neuen Pakets feuert kein Event. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet (mit `old_status` gleich `unknown`) – aber nur, wenn die Mail höchstens 24 Stunden alt ist. Für neue Pakete gibt es das eigene Event [`parcel_tracker_parcel_added`](sensoren.md#event-beim-anlegen-parcel_tracker_parcel_added).
+- Legt eine Mail ein neues Paket an, feuert das Event mit seinem ersten Status und `old_status` gleich `unknown` (z. B. „Bestellt“ aus der Bestellbestätigung). Ein erster Status „Zugestellt“ feuert nur, wenn eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket anlegt, einen Shop oder eine Firma nennt und höchstens 24 Stunden alt ist. Ein Paket, das du selbst anlegst, feuert für seinen ersten Status kein Event. Für neue Pakete gibt es zusätzlich das eigene Event [`parcel_tracker_parcel_added`](sensoren.md#event-beim-anlegen-parcel_tracker_parcel_added).
 - Wechsel während eines Neustarts gehen nicht verloren: Das Event folgt genau einmal, sobald Home Assistant fertig gestartet ist, spätestens zwei Minuten nachdem die Integration geladen wurde. Mehrere Wechsel in dieser Zeit werden zu einem Event vom alten zum neuesten Status.
 
 ### Felder des Events
@@ -99,6 +104,7 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | `carrier_name` | Anzeigename wie am Sensor | `DHL` |
 | `old_status` | vorheriger Status | `in_transit` |
 | `new_status` | neuer Status | `out_for_delivery` |
+| `event` | Ereignis wie in den Optionen und Auslösern: der neue Status, für `pre_transit` aber `ordered` (Shop-Bestellung) oder `announced` (Paketdienst); leer bei `unknown` | `ordered` |
 | `eta_date` | Liefertag (ISO-Datum) oder leer | |
 | `eta_from` | Beginn des Zeitfensters (ISO-Zeitpunkt) oder leer | |
 | `eta_to` | Ende des Zeitfensters (ISO-Zeitpunkt) oder leer | |

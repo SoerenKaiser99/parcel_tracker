@@ -76,7 +76,7 @@ def test_the_code_names_what_this_test_expects():
     assert EVENT_FIELDS == {
         "entry_id", "number", "name", "carrier", "carrier_name", "old_status", "new_status",
         "eta_date", "eta_from", "eta_to", "location", "assumed", "manual", "owner", "gift",
-        "outgoing",
+        "outgoing", "event",
     }
 
 
