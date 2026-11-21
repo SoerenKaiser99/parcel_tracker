@@ -90,7 +90,7 @@ async def test_section_offers_targets_and_events_but_no_dashboard_path(hass):
     assert events["options"] == list(NOTIFY_EVENTS)
     assert events["translation_key"] == "notify_events"
     assert inner[CONF_NOTIFY_EVENTS]["default"] == [
-        "out_for_delivery", "delivered", "awaiting_pickup",
+        "out_for_delivery", "awaiting_pickup", "delivered", "cancelled",
     ]
     assert inner[CONF_NOTIFY_ENABLED]["default"] is False
 
@@ -214,7 +214,7 @@ async def test_setting_targets_switches_notifications_on(hass):
     )
     assert entry.options[CONF_NOTIFY_TARGETS] == [PHONE, TABLET]
     assert entry.options[CONF_NOTIFY_EVENTS] == [
-        "out_for_delivery", "delivered", "awaiting_pickup",
+        "out_for_delivery", "awaiting_pickup", "delivered", "cancelled",
     ]
     assert entry.options[CONF_POSTCODE] == "10115"
 
@@ -227,8 +227,8 @@ async def test_changing_targets_and_events(hass):
          CONF_NOTIFY_EVENTS: ["exception", "awaiting_pickup", "delivered"]},
     )
     assert entry.options[CONF_NOTIFY_TARGETS] == [TABLET]
-    # Stored in the fixed order of the four events.
-    assert entry.options[CONF_NOTIFY_EVENTS] == ["delivered", "awaiting_pickup", "exception"]
+    # Stored in the fixed order of the events.
+    assert entry.options[CONF_NOTIFY_EVENTS] == ["awaiting_pickup", "delivered", "exception"]
 
 
 async def test_emptying_the_targets_switches_notifications_off(hass):
@@ -278,7 +278,7 @@ async def test_no_events_ticked_is_stored_as_none(hass):
 @pytest.mark.parametrize(
     "notify",
     [
-        {CONF_NOTIFY_EVENTS: ["in_transit"]},
+        {CONF_NOTIFY_EVENTS: ["pre_transit"]},
         {CONF_NOTIFY_TARGETS: ["sensor.pakete_heute"]},
         {CONF_NOTIFY_TARGETS: ["kein entity"]},
         {CONF_NOTIFY_TARGETS: ["notify.gibt_es_nicht"]},

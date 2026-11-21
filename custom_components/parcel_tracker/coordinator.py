@@ -141,7 +141,12 @@ from .models import (
     person_configs,
     shared_addresses,
 )
-from .notification import build_notification, notification_tag, service_name
+from .notification import (
+    build_notification,
+    notification_tag,
+    notify_event,
+    service_name,
+)
 from .schedule import GLS_MIN_INTERVAL, backoff, order_overdue, poll_interval, should_remove
 from .store import DuplicateParcel, ParcelStore
 
@@ -217,12 +222,31 @@ def _parse_mails(
     return [_parse_one(raw, read_otp, now, plain_names, persons, shared) for raw in raws]
 
 
+def _first_news(parcel: Parcel) -> bool:
+    """Is the parcel's very first status news? For a parcel a mail created (also one whose
+    mail told no status, and the next mail or the carrier's lookup tells the first one),
+    not for one the user added: they know. "delivered" has rules of its own (``_news``,
+    ``_untold``)."""
+    return parcel.carrier_mode == "mail" and parcel.status not in (
+        None,
+        ParcelStatus.UNKNOWN,
+        ParcelStatus.DELIVERED,
+    )
+
+
 def _news(change: Change) -> bool:
-    """Does the change tell a status (``_mail_changed`` fires it)? A first status does not,
-    unless it is news all the same (``Change.announce``)."""
+    """Does the change tell a status (``_mail_changed`` fires it)?
+
+    A parcel a mail created tells its first status ("Bestellt", "Angekündigt",
+    "Unterwegs", …), as a change from "unknown": ``_first_news``. A first "delivered"
+    only when it is news all the same (``Change.announce``): a mail about a delivery long
+    ago makes no news.
+    """
     status = change.parcel.status
     if change.old_status is None:
-        return change.announce and status is ParcelStatus.DELIVERED
+        if status is ParcelStatus.DELIVERED:
+            return change.announce
+        return _first_news(change.parcel)
     return status is not None and status is not change.old_status
 
 
@@ -1156,11 +1180,13 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         elif change.told and parcel.status is not None:
             # (a box without a carrier number: Amazon's own delivery)
             self._told_along[parcel.number] = parcel.status
-        if (
-            change.old_status is not None
-            and parcel.status is not None
-            and change.old_status is not parcel.status
-        ):
+        if change.old_status is None:
+            if parcel.status is not ParcelStatus.DELIVERED and _news(change):
+                # A mail created the parcel: its first status is news ("Bestellt",
+                # "Unterwegs", …). It had none before: "unknown". After the marks above,
+                # so a parcel that came along in a told box is not pushed again.
+                self._fire(parcel, ParcelStatus.UNKNOWN)
+        elif parcel.status is not None and change.old_status is not parcel.status:
             self._fire(parcel, change.old_status)
 
     # ----- polling -----
@@ -1596,6 +1622,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel.next_poll_at = self._next_poll(result.status, now, key)
         if old is None and result.status is ParcelStatus.DELIVERED:
             self._untold(parcel)
+        elif old is None and _first_news(parcel):
+            # A mail made the parcel but told no status: the carrier tells the first one.
+            self._fire(parcel, ParcelStatus.UNKNOWN)
         if old is not None and old != result.status and self._news(parcel, old, took_over):
             self._fire(parcel, old)
 
@@ -1736,6 +1765,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 "carrier_name": carrier_name(parcel),
                 "old_status": old.value,
                 "new_status": r.status.value,
+                # The event of the options the new status belongs to: the status, but
+                # "ordered" or "announced" for "pre_transit" (see ``notify_event``).
+                "event": notify_event(parcel),
                 "eta_date": r.eta_date.isoformat() if r.eta_date else None,
                 "eta_from": r.eta_from.isoformat() if r.eta_from else None,
                 "eta_to": r.eta_to.isoformat() if r.eta_to else None,
@@ -1817,7 +1849,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             targets = self.push_targets(parcel)
             # A sent parcel only tells its arrival, chosen with "delivered" (see
             # ``build_notification``).
-            event = "delivered" if parcel.outgoing else parcel.result.status.value
+            event = "delivered" if parcel.outgoing else notify_event(parcel)
             if not targets or event not in self._notify_events:
                 return False
             built = build_notification(parcel, old, dt_util.now(), self.hide_names)
@@ -2065,6 +2097,9 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         parcel.result = result
         if old is None and result is not None and result.status is ParcelStatus.DELIVERED:
             self._untold(parcel)
+        elif old is None and result is not None and _first_news(parcel):
+            # A mail made the parcel but told no status: 17track tells the first one.
+            self._fire(parcel, ParcelStatus.UNKNOWN)
         if old is not None and result is not None and old != result.status:
             self._fire(parcel, old)
 

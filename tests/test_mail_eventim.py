@@ -540,7 +540,10 @@ async def test_from_the_order_to_the_closing_without_a_delivery_mail(
     assert list(coord.store.parcels) == [ORDER]
     assert coord.unrecognized_mails == type(coord.unrecognized_mails)(maxlen=10)
     order = coord.store.parcels[ORDER]
-    assert order.status is ParcelStatus.PRE_TRANSIT and events == []
+    # The order mail created it: "Bestellt", as a change from "unknown".
+    assert order.status is ParcelStatus.PRE_TRANSIT
+    assert [(e.data["old_status"], e.data["event"]) for e in events] == [("unknown", "ordered")]
+    events.clear()
 
     freezer.move_to(SENT + timedelta(minutes=5))
     assert await _mail_in(hass, coord, SHIPPED) == "Paket-Tracker-Verarbeitet"
@@ -595,6 +598,7 @@ async def test_erhalten_closes_the_order(hass, hass_storage, freezer):
     summary = summarize(coord.store.parcels.values(), date(2026, 1, 10), BERLIN)
     assert summary.delivered_today == [order] and summary.active == []
     assert [(e.data["new_status"], e.data["manual"]) for e in events] == [
+        ("pre_transit", False),
         ("in_transit", False), ("delivered", True),
     ]
     assert calls == []
@@ -606,7 +610,7 @@ async def test_erhalten_closes_the_order(hass, hass_storage, freezer):
     freezer.move_to(datetime(2026, 1, 13, 11, 1, tzinfo=BERLIN))
     await _refresh(hass, coord)
     assert coord.store.parcels == {}
-    assert len(events) == 2
+    assert len(events) == 3  # nothing more after the closing
     await coord.async_shutdown()
 
 
@@ -622,7 +626,9 @@ async def test_an_order_that_is_only_ordered_can_be_marked_as_received(
     # Weeks without a shipping notice: still open.
     freezer.move_to(ORDERED + timedelta(days=20))
     await _refresh(hass, coord)
-    assert coord.store.parcels[ORDER].status is ParcelStatus.PRE_TRANSIT and events == []
+    assert coord.store.parcels[ORDER].status is ParcelStatus.PRE_TRANSIT
+    assert [e.data["event"] for e in events] == ["ordered"]  # when it was created
+    events.clear()
     await coord.async_mark_delivered(ORDER)
     assert coord.store.parcels[ORDER].result.status_text == MANUAL_TEXT
     # The shipping notice that comes after all is filed and changes nothing.

@@ -494,7 +494,7 @@ def test_docs_trigger_names_match_the_german_translation():
     de = json.loads(
         (ROOT / "custom_components/parcel_tracker/translations/de.json").read_text("utf-8")
     )
-    section = _section(AUTOMATIONS, "Die fünf Auslöser")
+    section = _section(AUTOMATIONS, "Die Auslöser")
     for name in de["device_automation"]["trigger_type"].values():
         assert f"**{name}**" in section, name
 
@@ -1208,6 +1208,32 @@ def test_docs_explain_hide_names():
         "### Grenzen",
         "Der Verlauf von Home Assistant",
     ))
+
+
+def test_docs_list_every_notification_event_with_an_example():
+    """Every event of the options in the table of events and with an example text, named
+    like the option (the German translation)."""
+    de = json.loads(
+        (ROOT / "custom_components/parcel_tracker/translations/de.json").read_text("utf-8")
+    )
+    events = _section(NOTIFY, "Ereignisse")
+    texts = _section(NOTIFY, "So sehen die Texte aus")
+    for name in de["selector"]["notify_events"]["options"].values():
+        assert f"| {name} |" in events, name
+        assert f"| {name} |" in texts, name
+    _all_have(texts, ("`🚚 Kopfhörer (Amazon): Zustellung versucht`",
+                      "Der Betreff einer Mail oder der Text eines Paketdienstes steht nie"))
+
+
+def test_docs_say_a_new_parcel_from_a_mail_tells_its_first_status():
+    notify = _section(NOTIFY, "Wann wird gesendet?")
+    _all_have(notify, ("**Ein neues Paket aus einer Mail** meldet seinen ersten Status",
+                       "**Ein Paket, das du selbst anlegst**",
+                       "höchstens 24 Stunden alt"))
+    assert "Der allererste Status eines neuen Pakets" not in TEXTS[HELP]
+    assert "| `event` |" in _section(AUTOMATIONS, "Felder des Events")
+    assert "| `event` |" in _section(NOTIFY, "Variablen für den Text")
+    assert "mit dem Ereignis „Storniert“" in _tab(MAIL, "Amazon")
 
 
 def test_docs_name_hide_names_where_notifications_are_explained():

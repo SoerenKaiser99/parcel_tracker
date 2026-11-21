@@ -272,10 +272,15 @@
   },
   "device_automation": {
     "trigger_type": {
+      "ordered": "Paket wurde bestellt",
+      "announced": "Paket wurde angekündigt",
+      "in_transit": "Paket ist unterwegs",
+      "at_delivery_depot": "Paket ist im Zustelldepot",
       "out_for_delivery": "Paket ist in Zustellung",
-      "delivered": "Paket wurde zugestellt",
       "awaiting_pickup": "Paket liegt zur Abholung bereit",
+      "delivered": "Paket wurde zugestellt",
       "exception": "Problem bei einem Paket",
+      "cancelled": "Bestellung wurde storniert",
       "status_changed": "Paketstatus hat sich geändert"
     }
   },
@@ -325,10 +330,15 @@
     },
     "notify_events": {
       "options": {
+        "ordered": "Bestellt",
+        "announced": "Angekündigt",
+        "in_transit": "Unterwegs",
+        "at_delivery_depot": "Im Zustelldepot",
         "out_for_delivery": "In Zustellung",
-        "delivered": "Zugestellt",
         "awaiting_pickup": "Abholbereit",
-        "exception": "Problem"
+        "delivered": "Zugestellt",
+        "exception": "Problem",
+        "cancelled": "Storniert"
       }
     }
   },

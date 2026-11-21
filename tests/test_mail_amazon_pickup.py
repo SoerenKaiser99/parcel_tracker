@@ -427,7 +427,10 @@ async def test_import_fires_the_event_and_the_default_notification(hass, freezer
     await coord.async_refresh()
     await hass.async_block_till_done()
     assert coord.store.get(ORDER).status is ParcelStatus.IN_TRANSIT
-    assert events == [] and calls == []  # a new order is no news
+    # The new order tells its first status, "Unterwegs": not ticked by default, no push.
+    (created,) = events
+    assert (created.data["old_status"], created.data["new_status"]) == ("unknown", "in_transit")
+    assert calls == []
 
     mailbox.mails = [("2", _raw())]
     coord._mail_next = None
@@ -436,8 +439,8 @@ async def test_import_fires_the_event_and_the_default_notification(hass, freezer
     order = coord.store.get(ORDER)
     assert order.status is ParcelStatus.AWAITING_PICKUP
     assert order.result.pickup_point == PLACE
-    assert len(events) == 1
-    assert (events[0].data["old_status"], events[0].data["new_status"]) == (
+    assert len(events) == 2
+    assert (events[1].data["old_status"], events[1].data["new_status"]) == (
         "in_transit", "awaiting_pickup",
     )
     assert [call.data["message"] for call in calls] == [

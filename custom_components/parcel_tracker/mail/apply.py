@@ -1144,6 +1144,17 @@ def _apply_order(
         and _delivery_told(own)
     )
     forwarded = _forward(target, update, now)
+    # Not delivered: a carrier's parcel a mail made told every status of its own (its
+    # first one as well), so the status the order takes over with it is told already,
+    # also after a restart emptied the push memory. Nothing of it may wait to be told.
+    told = told or (
+        own is not None
+        and own is not target
+        and update.tracking_ref not in parcels
+        and own.status not in (None, ParcelStatus.UNKNOWN, ParcelStatus.DELIVERED)
+        and own.status is target.status
+        and own.unannounced_from is None
+    )
     if facts and not forwarded:
         target.last_change_at = now
     # (the box's mail gave the entry the box's items, ``_remember_items``: also one read too

@@ -932,10 +932,10 @@ async def test_the_rest_is_added_without_a_push(hass, hass_storage, freezer):
         assert (await coord.async_import_raw_mail(msg.as_bytes()))["result"] == "recognized"
     await hass.async_block_till_done()
     await coord.async_shutdown()
-    # One box, one push. The rest is new, so it is added, but "Bestellt" is its first
-    # status and no news.
+    # One box, one push. The order's first mail told "Bestellt" (not pushed by default);
+    # the rest is added, but it came out of the box's mail: no news of its own.
     assert [(e.data["number"], e.data["new_status"]) for e in changed] == [
-        (NUMBER, "delivered")
+        (NUMBER, "pre_transit"), (NUMBER, "delivered")
     ]
     assert len(calls) == 1
     assert [e.data["number"] for e in added] == [NUMBER, P2]
@@ -958,4 +958,6 @@ async def test_a_cancelled_item_is_neither_pushed_nor_announced(hass, hass_stora
     # (an automation on a new parcel, like the gift question, would ask about it)
     assert P2 in coord.store.parcels
     assert [e.data["number"] for e in added] == [NUMBER]
-    assert changed == [] and calls == []
+    # Only the order's own "Bestellt" from its first mail; nothing pushed by default.
+    assert [(e.data["number"], e.data["event"]) for e in changed] == [(NUMBER, "ordered")]
+    assert calls == []

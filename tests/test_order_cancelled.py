@@ -207,7 +207,8 @@ def test_an_ebay_purchase_broken_off_without_its_item_in_the_text_is_all_of_it()
 def test_a_cancelled_order_is_done_but_never_delivered():
     order = _order()
     apply_update({ORDER: order}, _cancel(), NOW)
-    assert build_notification(order, ParcelStatus.PRE_TRANSIT, NOW) is None
+    _, message = build_notification(order, ParcelStatus.PRE_TRANSIT, NOW)
+    assert message.startswith("❌ ") and message.endswith(" (Amazon) wurde storniert")
     assert not delivered_today(order, TODAY, BERLIN)
     summary = summarize([order], TODAY, BERLIN)
     assert summary.active == [] and summary.delivered_today == [] and summary.sure == []
@@ -445,7 +446,7 @@ def _closed_on_its_own():
 @pytest.mark.parametrize(
     ("order", "old"), [(_order, "pre_transit"), (_closed_on_its_own, "delivered")]
 )
-async def test_cancelling_fires_the_event_and_sends_no_notification(
+async def test_cancelling_fires_the_event_and_the_notification(
     hass, hass_storage, freezer, order, old
 ):
     calls, events = await _prepared(hass, freezer)
@@ -459,7 +460,11 @@ async def test_cancelling_fires_the_event_and_sends_no_notification(
     [event] = events
     assert (event.data["old_status"], event.data["new_status"]) == (old, "cancelled")
     assert event.data["assumed"] is False and "cancelled" not in event.data
-    assert calls == []
+    assert event.data["event"] == "cancelled"
+    # "Storniert" is ticked by default.
+    (call,) = calls
+    assert call.data["message"].startswith("❌ ")
+    assert call.data["message"].endswith(" (Amazon) wurde storniert")
     await coord.async_shutdown()
 
 

@@ -115,11 +115,24 @@ EVENT_PARCEL_ADDED = "parcel_tracker_parcel_added"
 # Status changes found while Home Assistant starts are announced once it has started,
 # but never later than this after the first refresh (a start can hang for minutes).
 ANNOUNCE_MAX_WAIT = timedelta(seconds=120)
-# Statuses a push notification can announce (in the order the options show them)
-# and the ones ticked by default.
-NOTIFY_EVENTS = ("out_for_delivery", "delivered", "awaiting_pickup", "exception")
-# "Ready for pickup" is the one status that asks the recipient to act: on from the start.
-DEFAULT_NOTIFY_EVENTS = ("out_for_delivery", "delivered", "awaiting_pickup")
+# Events a push notification can announce (in the order the options show them, the
+# steps of the card's bar first) and the ones ticked by default. Mostly a status; the
+# status "pre_transit" is two events: "ordered" for a shop's order, "announced" for a
+# carrier's parcel (see ``notification.notify_event``).
+NOTIFY_EVENTS = (
+    "ordered",
+    "announced",
+    "in_transit",
+    "at_delivery_depot",
+    "out_for_delivery",
+    "awaiting_pickup",
+    "delivered",
+    "exception",
+    "cancelled",
+)
+# "Ready for pickup" asks the recipient to act, "cancelled" tells that nothing comes:
+# both on from the start, like the last steps of a delivery. The early steps come often.
+DEFAULT_NOTIFY_EVENTS = ("out_for_delivery", "awaiting_pickup", "delivered", "cancelled")
 # A stored notify target is either the ID of a notify entity ("notify.tablet") or,
 # with this prefix, the name of a classic notify service ("service:pushover" is the
 # service notify.pushover). No entity ID contains a colon, so the two never collide.

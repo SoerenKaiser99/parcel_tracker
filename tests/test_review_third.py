@@ -305,10 +305,8 @@ def test_apply_tells_that_the_folded_delivery_was_announced_already():
         _delivered_parcel(delivery_announced=False),
         # stored by an older version with a single line: it never had another status
         _delivered_parcel(),
-        Parcel(DHL, "dhl", "mail", None, NOW, NOW, order_checked=True,
-               result=_result(OUT, "In Zustellung")),  # not delivered at all
     ],
-    ids=["waiting", "never-told", "old-store-one-line", "not-delivered"],
+    ids=["waiting", "never-told", "old-store-one-line"],
 )
 def test_apply_tells_nothing_like_that_for_any_other_fold(parcel):
     parcels = {ALI_A: _ali(ALI_A, None), DHL: parcel}
@@ -637,10 +635,8 @@ async def test_a_company_name_is_enough_and_names_the_parcel(hass, hass_storage,
     [
         MailUpdate(DHL, "dhl", DONE, _local(NOW)),  # names nothing but the number
         _delivered_mail(NOW - timedelta(hours=25)),  # an old mail, read late
-        MailUpdate(DHL, "dhl", MOVING, _local(NOW), shop="amazon",
-                   eta_date=TODAY - _days(9)),  # not delivered: a first status is no news
     ],
-    ids=["number-only", "old-mail", "not-delivered"],
+    ids=["number-only", "old-mail"],
 )
 async def test_other_parcels_a_mail_makes_stay_silent(hass, hass_storage, freezer, mail):
     calls, events = await _prepared(hass, freezer)
@@ -648,6 +644,24 @@ async def test_other_parcels_a_mail_makes_stay_silent(hass, hass_storage, freeze
     await _import(coord, hass, mail)
     assert set(coord.store.parcels) == {ORDER, DHL}
     assert events == [] and calls == []
+    await coord.async_shutdown()
+
+
+async def test_a_parcel_a_mail_makes_not_delivered_tells_its_first_status(
+    hass, hass_storage, freezer
+):
+    """Not delivered: its first status is news like any other ("Unterwegs"), as a change
+    from "unknown". Not ticked by default: the event, but no push. The order stays as it
+    is."""
+    calls, events = await _prepared(hass, freezer)
+    coord = await _far_order(hass, hass_storage)
+    mail = MailUpdate(DHL, "dhl", MOVING, _local(NOW), shop="amazon", eta_date=TODAY - _days(9))
+    await _import(coord, hass, mail)
+    assert set(coord.store.parcels) == {ORDER, DHL}
+    assert [(e.data["number"], e.data["old_status"], e.data["new_status"]) for e in events] == [
+        (DHL, "unknown", "in_transit")
+    ]
+    assert calls == []
     await coord.async_shutdown()
 
 
