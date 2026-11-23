@@ -321,7 +321,7 @@ def test_a_box_that_holds_more_than_the_refund_names_is_none_brought_back():
 
 
 # ----- told -----
-async def test_a_box_brought_back_tells_its_status_and_pushes_cancelled(hass, hass_storage, freezer):
+async def test_a_box_brought_back_pushes_cancelled(hass, hass_storage, freezer):
     # "Storniert" is a default push since #91; automations hear of it too.
     freezer.move_to(datetime(2026, 10, 12, 9, 0, tzinfo=BERLIN))
     await hass.config.async_set_time_zone("Europe/Berlin")

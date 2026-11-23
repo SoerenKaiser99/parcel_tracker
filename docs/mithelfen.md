@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 20. November 2026, Version 0.3.63. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 23. November 2026, Version 0.3.64. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -31,6 +31,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 |---|---|---|
 | **AliExpress** | Erscheint die Bestellung mit Artikelname und Zustelltag? Wird nach der „Packstück“-Mail live beim Paketdienst abgefragt? Werden die Mails „Vom Kurier abgeholt“ und „Packstück … hat eine Aktualisierung“ erkannt? Landet eine Mail bei den nicht erkannten? |
 | **UPS My Choice (`mcinfo@ups.com`)** | Steht das Paket nach „Ihr Paket ist unterwegs!“ und „Paket ist morgen für die Zustellung terminiert“ auf „Versendet“, mit Tag, Zeitfenster und Absender? Springt es mit „heute für die Zustellung terminiert“ auf „In Zustellung“ und mit „wurde zugestellt“ auf „Zugestellt“ mit Uhrzeit (neu seit v0.3.61)? Gebaut nach vier Beispielmails. Eine Mail zu einem neuen Zustelldatum fehlt noch. | [Issue #37](https://github.com/SoerenKaiser99/parcel_tracker/issues/37) |
+| **Amazon: Karton geht an Amazon zurück** | Steht ein versendeter Karton nach der Mail „Erstattung veranlasst für …“ von `rueckgabe@amazon.de` auf „Storniert“ mit „Zurück an Amazon“, wenn der Paketdienst ihn nicht zustellen konnte? Bleiben alle anderen Erstattungsmails ohne Wirkung? Neu seit v0.3.64 (Beitrag von benep). | [PR #90](https://github.com/SoerenKaiser99/parcel_tracker/pull/90) |
 | **Amazon: eine Bestellung in mehreren Kartons** | Bekommt jeder Karton einen eigenen Eintrag mit seinen Artikeln, und bleibt der Rest als „…P2“ auf „Bestellt“, bis er versendet wird? Steht ein Teilstorno als eigener Eintrag „Storniert“, ohne Push? Neu seit v0.3.63 (Beitrag von benep). | [PR #87](https://github.com/SoerenKaiser99/parcel_tracker/pull/87) |
 | **Amazon: Artikelname als Paketname** | Heißt eine Amazon-Bestellung nach dem vollen Titel des ersten Artikels, mit „(+N)“ für weitere Artikel? Stimmt der Name auch bei Teillieferungen? Neu seit v0.3.57. | [PR #80](https://github.com/SoerenKaiser99/parcel_tracker/pull/80) |
 | **Galaxus** | Heißt das Paket nach der Mail „Dein Paket ist auf dem Weg zu dir“ wie der Artikel? Wie sieht die Mail aus, wenn mehrere Artikel in einem Paket sind? Kommen Mails aus Österreich oder der Schweiz genauso? Gebaut nach einer Beispielmail aus Deutschland, neu seit v0.3.60. | [Issue #83](https://github.com/SoerenKaiser99/parcel_tracker/issues/83) |
@@ -77,7 +78,8 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **Einfuhrabgaben (Zoll) bei DHL** | Zeigt die Karte bei einer DHL-Sendung aus dem Ausland den Betrag („Einfuhrabgaben: … € in bar bei Zustellung“), kommt er in die Benachrichtigung „In Zustellung“, und verschwindet er nach der Zustellung? Stimmt der Betrag mit der Mail überein, auch bei Beträgen ab 1.000 €? | [Fehler melden](hilfe.md#fehler-melden) |
 | **„Absendernamen aus DHL-Mails übernehmen“** | Heißt ein Paket nach dem Namen aus dem DHL-Betreff „Ihre <Name> Sendung …“, auch bei einem kleinen Shop oder einer Privatperson? Fehlt das „..“ am Ende? Blendet „Namen ausblenden“ den Namen weiterhin aus? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Benachrichtigung „Abholbereit“** | Kommt die Meldung, wenn ein Paket in Packstation, Filiale oder PaketShop liegt? | im Forum |
-| **Auslöser im Automations-Editor** | Findest du die fünf Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |
+| **Auslöser im Automations-Editor** | Findest du die neun Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |
+| **Benachrichtigung bei „Bestellt“, „Angekündigt“, „Unterwegs“, „Im Zustelldepot“ und „Storniert“** | Kommt die Meldung schon bei der Bestell- oder Ankündigungsmail, wenn du den Status in den Optionen oder im Blueprint ankreuzt? Kommt eine Meldung pro Paket, nicht doppelt, wenn die Bestellung später das Paket übernimmt? Neu seit v0.3.64 (Beitrag von benep). | [PR #91](https://github.com/SoerenKaiser99/parcel_tracker/pull/91) |
 | **eBay: Kaufbestätigung** | Legt „Bestellung bestätigt: …“ bzw. „Ihre Bestellung wurde bestätigt“ die Bestellung als „Bestellt“ an, mit Artikel und Lieferzeitraum? Übernimmt die spätere Versandmail dieselbe Bestellung, ohne dass ein zweiter Eintrag entsteht? Neu seit v0.3.39 (Beitrag von benep). | im Forum |
 | **DHL: Abholort aus der Abholmail** | Steht bei „… ist in der Filiale abholbereit“ bzw. „Ihr DHL Paket ist ab sofort abholbereit“ die Filiale oder Packstation mit Straße als Abholort auf der Karte, aber nie deine eigene Adresse? Neu seit v0.3.39 (Beitrag von benep). | [Fehler melden](hilfe.md#fehler-melden) |
 | **Amazon: Versand durch Verkäufer** | Landet eine DHL- oder Hermes-Mail „von Amazon“ bei der richtigen Bestellung, wenn eine andere Bestellung vom Verkäufer selbst verschickt wird? Neu seit v0.3.39 (Beitrag von benep). | im Forum |

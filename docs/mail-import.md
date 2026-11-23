@@ -76,6 +76,7 @@ Lehnt der Mailserver die Anmeldung ab? Viele Anbieter verlangen für IMAP nicht 
 - **mailbox.org:** je nach Kontoeinstellung (z. B. mit Zwei-Faktor-Anmeldung) ein Anwendungspasswort für IMAP anlegen.
 - **Gmail** und **iCloud:** immer ein App-Passwort. Das normale Passwort funktioniert für IMAP nicht.
 - **GMX** und **web.de:** den Zugriff per IMAP in den Einstellungen des Postfachs erst erlauben.
+- **T-Online:** ein eigenes „E-Mail-Passwort“ im Kundencenter unter den E-Mail-Einstellungen anlegen, das Login-Passwort geht für IMAP nicht. IMAP-Server `secureimap.t-online.de`, Port 993, verschlüsselt.
 
 ### Wie oft wird das Postfach gelesen?
 

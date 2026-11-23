@@ -18,7 +18,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist. Mit `gift_for` bleibt ein Geschenk vor den Personen verborgen, für die es ist.
 - **Personen zuordnen (optional):** die Integration erkennt an den Kopfzeilen der Mail, wem ein Paket gehört (Plus-Adresse, Alias oder eigene Adresse). Die Karte filtert mit `person` und lässt den Besitzer wählen, Meldungen gehen nur an dessen Ziele.
 - **Namen ausblenden:** alle Pakete heißen nur nach dem Paketdienst und den letzten Stellen der Nummer.
-- **Benachrichtigungen (optional):** bei „in Zustellung“, „zugestellt“, „abholbereit“ und Problem, an Benachrichtigungs-Entitäten und klassische Dienste. Dazu ein Blueprint für eigene Texte.
+- **Benachrichtigungen (optional):** für jeden Status von „Bestellt“ bis „Storniert“ wählbar (voreingestellt: in Zustellung, abholbereit, zugestellt, storniert), an Benachrichtigungs-Entitäten und klassische Dienste. Dazu ein Blueprint für eigene Texte.
 - **Sensoren:** `sensor.paket_<nummer>` pro Paket, `sensor.pakete_heute` und vier Zählsensoren (unterwegs, möglich, zugestellt heute, abholbereit).
 - **Kalender:** `calendar.pakete` mit den erwarteten Zustellterminen.
 - **Schalter:** `switch.paket_tracker_geschenkmodus` für den Geschenkmodus.
@@ -35,6 +35,12 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.64 (2026-11-23)
+
+- **Benachrichtigungen für mehr Status:** In den Optionen, im Blueprint und bei den Geräte-Auslösern stehen jetzt neun Status zur Wahl: Bestellt, Angekündigt, Unterwegs, Im Zustelldepot, In Zustellung, Abholbereit, Zugestellt, Problem und Storniert. Neu voreingestellt sind In Zustellung, Abholbereit, Zugestellt und Storniert; wer schon eingerichtet hat, behält seine Auswahl. Ein Paket, das eine Mail anlegt, meldet jetzt auch seinen ersten Status (Event mit `old_status: unknown` und dem neuen Feld `event`: `ordered`, `announced` oder der Status). Steht in der Mail ein fester Begriff wie „Zustellung versucht“, kommt er statt des Standardsatzes. Danke an benep. ([PR #91](https://github.com/SoerenKaiser99/parcel_tracker/pull/91), [Issue #51](https://github.com/SoerenKaiser99/parcel_tracker/issues/51))
+- **Amazon: Karton geht an Amazon zurück:** Konnte der Paketdienst einen Karton nicht zustellen und bringt ihn zu Amazon zurück, setzt die Mail „Erstattung veranlasst für …“ von `rueckgabe@amazon.de` diesen Karton auf „Storniert“ mit „Zurück an Amazon“. Nur dieser Fall zählt, alle anderen Erstattungs- und Rückgabemails bleiben ohne Wirkung; ist der Karton nicht eindeutig, passiert nichts. Danke an benep. ([PR #90](https://github.com/SoerenKaiser99/parcel_tracker/pull/90))
+- **Doku:** Hinweis zu T-Online (eigenes E-Mail-Passwort, `secureimap.t-online.de`) beim Mail-Import.
 
 ### v0.3.63 (2026-11-20)
 
