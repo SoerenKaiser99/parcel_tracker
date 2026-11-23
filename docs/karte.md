@@ -73,7 +73,7 @@ Jede Zeile zeigt den Paketdienst, den Namen, den Status, einen Fortschrittsbalke
 | „Abholbereit“ | liegt in Packstation, Filiale oder PaketShop |
 | „Zugestellt heute“, „Zugestellt gestern“, „Zugestellt am …“ | zugestellt |
 | „Abgeschlossen (ohne Zustellbestätigung)“ | Bestellung ohne Zustellmail, siehe [E-Mail-Import](mail-import.md#bestellungen-ohne-zustellmail) |
-| „Storniert“ | Der Shop hat die Bestellung storniert, sie steht ausgegraut am Ende der Liste, siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird) |
+| „Storniert“ | Der Shop hat die Bestellung storniert oder (mit „Zurück an Amazon“) der Paketdienst bringt den Karton zum Shop zurück, sie steht ausgegraut am Ende der Liste, siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird) |
 | „Noch kein Termin“ | Das Paket hat einen Status, aber noch keinen Zustelltag. Ein Paket „in Zustellung“ ohne Liefertag, dessen Status sich nicht heute geändert hat, steht auch hier |
 | „Termin überschritten“ | Der genannte Liefertag ist vorbei |
 | „Kein Live-Status“ | Der Paketdienst lässt sich nicht abfragen, weil der DHL-API-Key oder die UPS-Zugangsdaten fehlen |

@@ -31,7 +31,9 @@ class ParcelStatus(StrEnum):
     AWAITING_PICKUP = "awaiting_pickup"
     DELIVERED = "delivered"
     EXCEPTION = "exception"
-    CANCELLED = "cancelled"  # a shop order the shop cancelled (see mail.apply._cancel_order)
+    # A shop order the shop cancelled, or a box the carrier brings back to the shop (see
+    # mail.apply._cancel_order).
+    CANCELLED = "cancelled"
     UNKNOWN = "unknown"
 
 
