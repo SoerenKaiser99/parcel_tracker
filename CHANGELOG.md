@@ -5,12 +5,12 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 ## Was die Integration kann
 
 - **DHL:** Live-Status über die offizielle API mit eigenem, kostenlosem Key. Ohne Key kommen DHL-Pakete aus den DHL-Mails.
-- **DPD, GLS, Hermes:** Live-Status über die öffentlichen Sendungsverfolgungen, ohne Zugangsdaten.
+- **DPD, GLS, Hermes, Hermes Einrichtungs Service (HES):** Live-Status über die öffentlichen Sendungsverfolgungen, ohne Zugangsdaten.
 - **UPS:** Status aus UPS-Mails, live über die offizielle UPS-Track-API mit eigenem Entwicklerzugang (braucht ein UPS-Konto mit Abrechnung; mit Monatsbudget).
 - **17track (optional):** ergänzt Ort, Zeitfenster und Verlauf und verfolgt Paketdienste ohne eigene Anbindung, nur auf ausdrücklichen Wunsch.
 - **Länder:** Deutschland, Österreich und Schweiz (Postleitzahl und GLS-Abfrage passend zum Land).
 - **E-Mail-Import (optional):** liest ein eigenes Paket-Postfach per IMAP (eigener Ordner, Port und Verbindungsart wählbar, Abfrage-Intervall einstellbar) und legt Pakete aus den Mails an. Auf Wunsch löscht er erkannte Mails nach einer einstellbaren Zahl von Tagen.
-- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, UPS, eBay, AliExpress, Eventim (nur Postversand) und Galaxus (Versandmail, als Paketname).
+- **Absender im Mail-Import:** Amazon, DHL, DHL Express, DHL eCommerce, DPD (Deutschland, Österreich), GLS (Deutschland, Österreich), Hermes, Hermes Einrichtungs Service (HES), UPS, eBay, AliExpress, Eventim (nur Postversand) und Galaxus (Versandmail, als Paketname).
 - **Weitergeleitete Mails:** von Hand weitergeleitete Mails, Apples „E-Mail-Adresse verbergen“ und Mails per HTTP-Aufruf (z. B. aus n8n oder Node-RED).
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst. Amazon-Bestellungen in mehreren Kartons werden nach Artikeln aufgeteilt, der noch offene Rest bleibt ein eigener Eintrag.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
@@ -23,7 +23,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Kalender:** `calendar.pakete` mit den erwarteten Zustellterminen.
 - **Schalter:** `switch.paket_tracker_geschenkmodus` für den Geschenkmodus.
 - **Dienste:** `add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift` und `set_owner`.
-- **Event und Auslöser:** das Event `parcel_tracker_status_changed`, das Event `parcel_tracker_parcel_added` für neue Pakete und fünf Auslöser im Automations-Editor ohne YAML.
+- **Event und Auslöser:** das Event `parcel_tracker_status_changed`, das Event `parcel_tracker_parcel_added` für neue Pakete und neun Auslöser im Automations-Editor ohne YAML.
 - **Einfuhrabgaben (Zoll):** Betrag und Barzahlung aus der DHL-Mail am Zustelltag auf der Karte und in der Benachrichtigung.
 - **Versendete Pakete:** ein DHL-Einlieferungsbeleg legt ein Paket als versendet an (Schild „Versendet“, `outgoing`), außerhalb aller Zähler, mit einer Meldung bei Zustellung.
 - **Mehrere Bestellungen in einem Paket:** stehen auf der Karte als eine Zeile, mit „Erhalten“ fürs ganze Paket.
@@ -35,6 +35,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.66 (2026-11-23)
+
+- **Hermes Einrichtungs Service (HES):** Möbel- und Großstücksendungen von HES (21-stellige Nummern) werden über die öffentliche Sendungsverfolgung von myhes.de abgefragt, ohne Anmeldung. HES-Mails legen das Paket an und stoßen eine Abfrage an; nur die Mail „Auftragseingang“ setzt „Angekündigt“, alle anderen setzen weder Status noch Termin, den Stand liefert myhes.de. Danke an danuvius92. ([PR #70](https://github.com/SoerenKaiser99/parcel_tracker/pull/70))
 
 ### v0.3.65 (2026-11-23)
 
