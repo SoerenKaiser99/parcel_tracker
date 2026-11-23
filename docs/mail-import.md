@@ -395,6 +395,13 @@ Eine Mail, die die Zustellung verschiebt (Zustellversuch, Verspätung, neuer Zus
     - Den Text des Wunsch-Ablageorts übernimmt die Integration nie – weder in Attribute noch ins Log.
     - Alte Amazon-Versandmails mit Hermes-Nummer hängen die Nummer an das Amazon-Paket; ab dann fragt es Hermes ab.
 
+=== "Hermes Einrichtungs Service"
+
+    - Mails von `hes.de` legen ein Paket „Hermes Einrichtungs Service“ an; danach fragt die Integration die Sendungsverfolgung von myhes.de ab. Die Nummer (21 Ziffern) kommt aus dem Link zu myhes.de, aus „Sendungsnummer:“ oder aus dem Betreff; die Leerzeichen darin fallen weg.
+    - „Auftragseingang deiner Sendung …“ setzt „Angekündigt“. Jede andere HES-Mail setzt keinen Status, keinen Liefertag und kein Zeitfenster: Sie legt das Paket nur an bzw. lässt es gleich neu abfragen. Status, Liefertag, Zeitfenster und Zustellung kommen von myhes.de – ein aus einem unbekannten Betreff geratenes „Zugestellt“ würde die Abfrage für immer beenden.
+    - „Deine Sendung von:“ wird zum Namen, solange das Paket noch keinen hat (bei einer Firma bis zur Rechtsform: „Beispiel Matratzen GmbH (Hammer)“ wird „Beispiel Matratzen GmbH“).
+    - „Sendung verfolgen“ führt zu myhes.de.
+
 ## Versendete Pakete (Einlieferungsbelege)
 
 Verschickst du selbst ein Paket, schickt dir DHL einen Einlieferungsbeleg. Auch den kann der Import lesen. Das Paket steht dann als **versendet** in der Liste und wird wie jedes andere verfolgt, nur dass es nicht zu dem zählt, was bei dir ankommt.

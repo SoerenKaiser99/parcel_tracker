@@ -9,6 +9,7 @@ from .dhl import DhlCarrier
 from .dpd import DpdCarrier
 from .gls import GlsCarrier
 from .hermes import HermesCarrier
+from .hes import HesCarrier
 
 
 def build_carriers(
@@ -22,5 +23,6 @@ def build_carriers(
         "dhl": DhlCarrier(session, dhl_api_key),
         "dpd": DpdCarrier(),
         "hermes": HermesCarrier(session),
+        "hes": HesCarrier(session),
         "gls": GlsCarrier(session, country),
     }
