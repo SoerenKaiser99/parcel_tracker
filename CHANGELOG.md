@@ -15,7 +15,7 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Zusammenführen:** Bestellung (Amazon, eBay, AliExpress) und das Paket des Paketdienstes werden zu einem Eintrag. Bestellungen ohne Zustellmail schließen sich von selbst. Amazon-Bestellungen in mehreren Kartons werden nach Artikeln aufgeteilt, der noch offene Rest bleibt ein eigener Eintrag.
 - **Karte** `custom:parcel-tracker-card`: Pakete hinzufügen, umbenennen, als erhalten markieren und löschen, Verlauf, Sendungs- und Bestellnummer, Symbole „Sendung verfolgen“ und „Bestellung“.
 - **Schilder auf der Karte:** „heute“, „möglich“ und „zugestellt“, jeweils nur, wenn es etwas zu zählen gibt. Die Karte blendet sich auf Wunsch selbst aus (`show`), die Eingabe ist einklappbar (`add_form`), die Kopfzeile abschaltbar (`header`), Geschenke lassen sich ausblenden (`gifts`).
-- **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist. Mit `gift_for` bleibt ein Geschenk vor den Personen verborgen, für die es ist.
+- **Geschenkmodus:** neue Pakete heißen „Geschenk · …“ und verbergen Name, Links und Mail-Titel. Nur festgelegte Personen sehen auf der Karte, was drin ist. Pakete lassen sich auch einzeln als Geschenk kennzeichnen. Mit `gift_for` bleibt ein Geschenk vor den Personen verborgen, für die es ist.
 - **Personen zuordnen (optional):** die Integration erkennt an den Kopfzeilen der Mail, wem ein Paket gehört (Plus-Adresse, Alias oder eigene Adresse). Die Karte filtert mit `person` und lässt den Besitzer wählen, Meldungen gehen nur an dessen Ziele.
 - **Namen ausblenden:** alle Pakete heißen nur nach dem Paketdienst und den letzten Stellen der Nummer.
 - **Benachrichtigungen (optional):** für jeden Status von „Bestellt“ bis „Storniert“ wählbar (voreingestellt: in Zustellung, abholbereit, zugestellt, storniert), an Benachrichtigungs-Entitäten und klassische Dienste. Dazu ein Blueprint für eigene Texte.
@@ -35,6 +35,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 - **Doku und Demo:** eine Doku-Seite mit Rezepten und eine Demo-Karte mit erfundenen Paketen.
 
 ## Versionen
+
+### v0.3.65 (2026-11-23)
+
+- **Geschenke einzeln auswählen:** Im aufgeklappten Paket gibt es den Knopf „Geschenk“, der genau dieses Paket als Geschenk kennzeichnet, auch bei ausgeschaltetem Geschenkmodus. Beim Einschalten des Geschenkmodus gibt es neben „Ja, verbergen“ und „Nein, nur neue Pakete“ jetzt „Einzeln auswählen“: Die offenen Pakete stehen mit Häkchen da, nur die angekreuzten werden Geschenke. Wer Geschenke nicht sehen darf, bestätigt den Knopf noch einmal, weil nur Geschenk-Seher das Kennzeichen zurücknehmen können.
 
 ### v0.3.64 (2026-11-23)
 

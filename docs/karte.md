@@ -111,10 +111,13 @@ Aufgeklappt siehst du:
 **Umbenennen**
 :   Gibt dem Paket einen eigenen Namen.
 
+**Geschenk**
+:   Kennzeichnet das Paket als Geschenk. Fehlt bei einem Geschenk und einem versendeten Paket. Siehe [Geschenkmodus](#geschenkmodus).
+
 **Löschen**
 :   Entfernt das Paket, mit Rückfrage „Wirklich löschen?“.
 
-Die beiden Links stehen als Symbole hinter den Nummern, die Knöpfe darunter in einer Zeile: „Erhalten“, „Umbenennen“ und „Löschen“. Auf schmalen Karten bricht die Zeile um.
+Die beiden Links stehen als Symbole hinter den Nummern, die Knöpfe darunter in einer Zeile: „Erhalten“, „Umbenennen“, „Geschenk“ und „Löschen“. Auf schmalen Karten bricht die Zeile um.
 
 ### Erhalten
 
@@ -152,7 +155,9 @@ Neben „Pakete“ im Kartenkopf steht ein Geschenk-Symbol: der Schalter „Gesc
 !!! warning "Wähle zuerst, wer Geschenke sehen darf"
     Unter **Konfigurieren** im Bereich „Geschenkmodus (optional)“ legst du fest, wer Geschenke sehen darf. Ist niemand gewählt, kann den Modus über die Karte keiner mehr ausschalten, nur eine Automation ([so geht's](automationen.md#geschenkmodus-per-automation-schalten)). Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant, sonst gelten sie als der Elternteil, mit dem sie angemeldet sind.
 
-**Einschalten.** Ein Tipp auf das Symbol fragt zuerst: „Auch die N offenen Pakete verbergen?“ Offen heißt: weder zugestellt noch storniert und noch kein Geschenk. „Ja, verbergen“ schaltet den Modus ein und kennzeichnet auch diese Pakete, „Nein, nur neue Pakete“ schaltet nur ein. Sind keine Pakete offen, gibt es „Einschalten“. Mit „Abbrechen“ oder ++esc++ passiert nichts. Wer nicht zu den Personen gehört, die Geschenke sehen dürfen, bekommt in der Rückfrage zusätzlich den Hinweis, zuerst zu wählen, wer das darf.
+**Einschalten.** Ein Tipp auf das Symbol fragt zuerst: „Auch die N offenen Pakete verbergen?“ Offen heißt: weder zugestellt noch storniert und noch kein Geschenk. „Ja, verbergen“ schaltet den Modus ein und kennzeichnet auch diese Pakete, „Nein, nur neue Pakete“ schaltet nur ein. „Einzeln auswählen“ schaltet ebenfalls ein und zeigt dir die offenen Pakete mit je einem Kästchen: Hak an, was ein Geschenk ist, und tippe auf „Als Geschenk markieren“. Ohne Haken, mit „Fertig“ oder ++esc++ bleibt es beim eingeschalteten Modus, gekennzeichnet wird nichts. Sind keine Pakete offen, gibt es „Einschalten“. Mit „Abbrechen“ oder ++esc++ passiert nichts. Wer nicht zu den Personen gehört, die Geschenke sehen dürfen, bekommt in der Rückfrage zusätzlich den Hinweis, zuerst zu wählen, wer das darf.
+
+**Ein einzelnes Paket kennzeichnen.** Klapp das Paket auf und tippe auf „Geschenk“. Das geht bei eingeschaltetem und ausgeschaltetem Modus, für jedes Paket, das noch kein Geschenk ist, auch zugestellt oder storniert. Ein versendetes Paket hat den Knopf nicht. Danach klappt die Zeile zu und zeigt das Paket als Geschenk. Wer Geschenke nicht sehen darf, bekommt vorher die Rückfrage „Wirklich als Geschenk verbergen?“: Zurücknehmen kann das nur, wer Geschenke sehen darf.
 
 **Ausschalten** kann nur, wer Geschenke sehen darf, mit einem Tipp, ohne Rückfrage. Alle anderen sehen bei eingeschaltetem Modus nur das Zeichen „Geschenkmodus“ ohne Knopf.
 
@@ -172,7 +177,7 @@ Zusammengefasst wird, wenn
 
 Hast du eine der Bestellungen schon von Hand als erhalten markiert, steht sie wieder in einer eigenen Zeile.
 
-Aufgeklappt stehen der Verlauf und die Sendungsnummer einmal. Darunter folgt jede Bestellung mit Namen, Bestellnummer samt Link, „Gehört“ und den Knöpfen „Umbenennen“ und „Löschen“. Die gelten nur für diese eine Bestellung.
+Aufgeklappt stehen der Verlauf und die Sendungsnummer einmal. Darunter folgt jede Bestellung mit Namen, Bestellnummer samt Link, „Gehört“ und den Knöpfen „Umbenennen“, „Geschenk“ und „Löschen“. Die gelten nur für diese eine Bestellung. Eine Bestellung, die du als Geschenk kennzeichnest, steht danach in einer eigenen Zeile.
 
 **Erhalten** gibt es einmal für das ganze Paket. Nach der Rückfrage „Wirklich erhalten?“ markiert es jede Bestellung im Paket, die sich noch markieren lässt.
 

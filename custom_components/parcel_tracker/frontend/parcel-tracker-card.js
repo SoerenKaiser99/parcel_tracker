@@ -1,7 +1,7 @@
 const CARRIER_ICONS = {"dhl": {"path": "M4.22 10.303l-.767 1.043h4.18c.21 0 .208.078.105.218-.105.142-.28.39-.386.534-.054.073-.154.207.171.207h1.71l.505-.69c.314-.426.028-1.312-1.095-1.312H4.22zM11.424 10.303l-1.475 2.002h5.39l1.473-2.002H14.61l-.843 1.146h-.985l.846-1.146h-2.203zM17.529 10.303l-1.474 2.002h2.334l1.472-2.002H17.53zM4.684 11.603l-1.54 2.094h3.754c1.24 0 1.932-.844 2.145-1.136h-2.56c-.326 0-.226-.133-.172-.207.107-.143.283-.388.388-.53.104-.14.107-.22-.105-.22h-1.91zM9.762 12.562l-.836 1.136h2.203l.836-1.136H9.762zM12.947 12.562l-.836 1.136h2.203l.836-1.136h-2.203zM15.865 12.562s-.159.22-.238.326c-.276.374-.033.81.87.81h3.538l.834-1.136h-5.004z", "color": "#FFCC00", "mark": "#D40511"}, "dpd": {"path": "M16.01 10.71a.364.364 0 01-.343-.006l-.558-.331a.43.43 0 01-.182-.312l-.014-.65a.363.363 0 01.165-.3l6.7-3.902L12.377.085A.799.799 0 0012 0a.798.798 0 00-.377.085l-9.4 5.124 10.53 6.13c.098.054.172.181.172.295v8.944c0 .112-.08.241-.178.294l-.567.315c-.171.062-.256.043-.361 0l-.569-.315a.362.362 0 01-.175-.294v-7.973a.223.223 0 00-.095-.156L1.702 7.048v10.579c0 .236.167.528.371.648l9.556 5.636c.102.06.237.09.371.089a.745.745 0 00.371-.09l9.557-5.635a.835.835 0 00.37-.648V7.047Z", "color": "#DC0032"}, "amazon": {"path": "M.045 18.02c.072-.116.187-.124.348-.022 3.636 2.11 7.594 3.166 11.87 3.166 2.852 0 5.668-.533 8.447-1.595l.315-.14c.138-.06.234-.1.293-.13.226-.088.39-.046.525.13.12.174.09.336-.12.48-.256.19-.6.41-1.006.654-1.244.743-2.64 1.316-4.185 1.726a17.617 17.617 0 01-10.951-.577 17.88 17.88 0 01-5.43-3.35c-.1-.074-.151-.15-.151-.22 0-.047.021-.09.051-.13zm6.565-6.218c0-1.005.247-1.863.743-2.577.495-.71 1.17-1.25 2.04-1.615.796-.335 1.756-.575 2.912-.72.39-.046 1.033-.103 1.92-.174v-.37c0-.93-.105-1.558-.3-1.875-.302-.43-.78-.65-1.44-.65h-.182c-.48.046-.896.196-1.246.46-.35.27-.575.63-.675 1.096-.06.3-.206.465-.435.51l-2.52-.315c-.248-.06-.372-.18-.372-.39 0-.046.007-.09.022-.15.247-1.29.855-2.25 1.82-2.88.976-.616 2.1-.975 3.39-1.05h.54c1.65 0 2.957.434 3.888 1.29.135.15.27.3.405.48.12.165.224.314.283.45.075.134.15.33.195.57.06.254.105.42.135.51.03.104.062.3.076.615.01.313.02.493.02.553v5.28c0 .376.06.72.165 1.036.105.313.21.54.315.674l.51.674c.09.136.136.256.136.36 0 .12-.06.226-.18.314-1.2 1.05-1.86 1.62-1.963 1.71-.165.135-.375.15-.63.045a6.062 6.062 0 01-.526-.496l-.31-.347a9.391 9.391 0 01-.317-.42l-.3-.435c-.81.886-1.603 1.44-2.4 1.665-.494.15-1.093.227-1.83.227-1.11 0-2.04-.343-2.76-1.034-.72-.69-1.08-1.665-1.08-2.94l-.05-.076zm3.753-.438c0 .566.14 1.02.425 1.364.285.34.675.512 1.155.512.045 0 .106-.007.195-.02.09-.016.134-.023.166-.023.614-.16 1.08-.553 1.424-1.178.165-.28.285-.58.36-.91.09-.32.12-.59.135-.8.015-.195.015-.54.015-1.005v-.54c-.84 0-1.484.06-1.92.18-1.275.36-1.92 1.17-1.92 2.43l-.035-.02zm9.162 7.027c.03-.06.075-.11.132-.17.362-.243.714-.41 1.05-.5a8.094 8.094 0 011.612-.24c.14-.012.28 0 .41.03.65.06 1.05.168 1.172.33.063.09.099.228.099.39v.15c0 .51-.149 1.11-.424 1.8-.278.69-.664 1.248-1.156 1.68-.073.06-.14.09-.197.09-.03 0-.06 0-.09-.012-.09-.044-.107-.12-.064-.24.54-1.26.806-2.143.806-2.64 0-.15-.03-.27-.087-.344-.145-.166-.55-.257-1.224-.257-.243 0-.533.016-.87.046-.363.045-.7.09-1 .135-.09 0-.148-.014-.18-.044-.03-.03-.036-.047-.02-.077 0-.017.006-.03.02-.063v-.06z", "color": "#FF9900"}, "ups": {"path": "M11.668 14.544l-.028-5.226c.138-.055.387-.111.608-.111.995 0 1.41.774 1.41 2.682 0 1.853-.47 2.765-1.438 2.765-.22 0-.441-.055-.552-.11zM3.124 7.438c4.203-3.843 9.29-4.866 14.018-4.866 1.3 0 2.544.083 3.76.194h-.028v11.253c0 2.184-.774 3.926-2.295 5.171-1.355 1.134-5.447 2.959-6.581 3.456-1.161-.525-5.253-2.378-6.581-3.456-1.493-1.244-2.295-3.014-2.295-5.171V7.438zm12.664 2.599c.028.912.276 1.576 1.687 2.406.747.442 1.051.747 1.051 1.272 0 .581-.387.94-1.023.94-.553 0-1.189-.304-1.631-.691v1.576c.553.304 1.217.525 1.88.525 1.687 0 2.433-1.189 2.461-2.267.028-.995-.249-1.742-1.659-2.571-.608-.387-1.134-.636-1.106-1.244 0-.581.525-.802.995-.802.581 0 1.161.332 1.521.691V8.378c-.304-.221-.94-.581-1.88-.553-1.135.028-2.296.829-2.296 2.212zm-5.834 9.484h1.714l-.028-3.594c.166.028.415.083.774.083 1.908 0 2.986-1.687 2.986-4.175 0-2.461-1.106-4.009-3.152-4.009-.94 0-1.687.221-2.295.608v11.087zm-5.945-6.166c0 1.797.829 2.71 2.516 2.71 1.051 0 1.908-.249 2.571-.691V7.991H7.41v6.387c-.194.138-.47.221-.802.221-.774 0-.885-.719-.885-1.189V7.991H4.009v5.364zM22.12 2.295v11.723c0 2.516-.94 4.645-2.765 6.111-1.549 1.3-6.332 3.429-7.355 3.871-1.023-.442-5.806-2.571-7.355-3.843-1.797-1.465-2.765-3.594-2.765-6.111V2.295C4.756.747 8.074 0 12 0s7.244.747 10.12 2.295zm-.304.221c-2.71-1.465-6-2.184-9.788-2.184s-7.079.746-9.788 2.184v11.502c0 2.433.912 4.452 2.627 5.862 1.576 1.3 6.581 3.484 7.161 3.76.581-.249 5.585-2.433 7.161-3.733 1.714-1.41 2.627-3.429 2.627-5.862V2.516zm-2.433 20.295c0 .47-.387.829-.829.829a.831.831 0 0 1-.829-.829c0-.47.387-.829.829-.829.441 0 .801.359.829.829zm-.166 0a.679.679 0 0 0-.664-.691c-.359 0-.664.332-.664.691 0 .359.304.664.664.664a.673.673 0 0 0 .664-.664zm-.553.055c.028.055.304.442.304.442h-.221s-.276-.387-.276-.415h-.028v.415h-.194v-.995l.304-.028c.249 0 .332.166.332.304s-.083.25-.221.277zm.027-.276c0-.055 0-.138-.166-.138h-.083v.304h.028c.194 0 .221-.083.221-.166z", "color": "var(--primary-text-color)"}, "ebay": {"path": "M6.056 12.132v-4.92h1.2v3.026c.59-.703 1.402-.906 2.202-.906 1.34 0 2.828.904 2.828 2.855 0 .233-.015.457-.06.668.24-.953 1.274-1.305 2.896-1.344.51-.018 1.095-.018 1.56-.018v-.135c0-.885-.556-1.244-1.53-1.244-.72 0-1.245.3-1.305.81h-1.275c.136-1.29 1.5-1.62 2.686-1.62 1.064 0 1.995.27 2.415 1.02l-.436-.84h1.41l2.055 4.125 2.055-4.126H24l-3.72 7.305h-1.346l1.07-2.04-2.33-4.38c.13.255.2.555.2.93v2.46c0 .346.01.69.04 1.005H16.8a6.543 6.543 0 01-.046-.765c-.603.734-1.32.96-2.32.96-1.48 0-2.272-.78-2.272-1.695 0-.15.015-.284.037-.405-.3 1.246-1.36 2.086-2.767 2.086-.87 0-1.694-.315-2.2-.93 0 .24-.015.494-.04.734h-1.18c.02-.39.04-.855.04-1.245v-1.05h-4.83c.065 1.095.818 1.74 1.853 1.74.718 0 1.355-.3 1.568-.93h1.24c-.24 1.29-1.61 1.725-2.79 1.725C.95 15.009 0 13.822 0 12.232c0-1.754.982-2.91 3.116-2.91 1.688 0 2.93.886 2.94 2.806v.005zm9.137.183c-1.095.034-1.77.233-1.77.95 0 .465.36.97 1.305.97 1.26 0 1.935-.69 1.935-1.814v-.13c-.45 0-.99.006-1.484.022h.012zm-6.06 1.875c1.11 0 1.876-.806 1.876-2.02s-.768-2.02-1.893-2.02c-1.11 0-1.89.806-1.89 2.02s.765 2.02 1.875 2.02h.03zm-4.35-2.514c-.044-1.125-.854-1.546-1.725-1.546-.944 0-1.694.474-1.815 1.546z", "color": "#E53238"}};
 // The version of the integration this file ships with. The browser keeps an old card after
 // an update until the page is reloaded: sensor.pakete_heute names the installed version.
-const CARD_VERSION = "0.3.64";
+const CARD_VERSION = "0.3.65";
 const CARRIER_LABEL = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", ups: "UPS", amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", eventim: "Eventim", other: "17track" };
 // Simple Icons' "hermes" is not used for the parcel service, it has no GLS logo, and
 // "other" has no logo: a coloured dot with letters instead. AliExpress and Eventim likewise.
@@ -157,6 +157,7 @@ const SERVICE_ERRORS = {
   gift_rename_not_allowed: "Nur wer Geschenke sehen darf, kann ein Geschenk umbenennen.",
   gift_target: "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete.",
   gift_owner_not_allowed: "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört.",
+  gift_outgoing: "Ein versendetes Paket kann kein Geschenk sein.",
   owner_unknown: "Diese Person ist im Paket Tracker nicht eingerichtet.",
 };
 
@@ -171,6 +172,13 @@ const GIFT_VIEWER_TRIES = 5;
 const GIFT_RECHECK_MS = 60000;
 const GIFT_SHOW = "Inhalt anzeigen";
 const GIFT_HINT = "Wandtablets und Kinder-Handys brauchen einen eigenen Benutzer in Home Assistant.";
+// The button that marks one parcel as a gift, and its question for a user who cannot take
+// the mark back (only a gift viewer can).
+const GIFT_MARK = "Geschenk";
+const GIFT_MARK_TITLE = "Als Geschenk kennzeichnen";
+const GIFT_PICK = "Einzeln auswählen";
+const GIFT_PICK_TEXT = "Welche Pakete sollen Geschenke sein?";
+const GIFT_PICK_NONE = "Keine offenen Pakete mehr.";
 const GIFT_NO_VIEWER = "Wähle zuerst unter Konfigurieren aus, wer Geschenke sehen darf. Sonst lässt sich der Geschenkmodus nur per Automation wieder ausschalten.";
 // The delivery code is no attribute (a secret in the state machine): the integration gives it
 // on request (WebSocket parcel_tracker/delivery_code), asked only when it is revealed.
@@ -721,6 +729,13 @@ class ParcelTrackerCard extends HTMLElement {
     this._viewerGifts = this._viewerGifts instanceof Set ? this._viewerGifts : null;
     this._revealed = new Map(); // number -> the answer of parcel_tracker/gift_name
     this._giftAsk = false;
+    // "Einzeln auswählen": the numbers ticked in the list under the head (null: no list).
+    this._giftPick = null;
+    this._giftPickSig = null; // the list currently shown
+    this._giftMarking = new Set(); // numbers awaiting the "Geschenk" confirmation
+    // {number, toggles}: a parcel just marked as a gift; the focus goes to the first of these
+    // rows (data-number) until its sensor says it is a gift.
+    this._giftFocus = null;
     this._error = "";
     this._lastSig = null; // the empty-list text depends on the option
     this._syncForm();
@@ -839,9 +854,11 @@ class ParcelTrackerCard extends HTMLElement {
       // Whatever the user before had open or typed (a revealed name in the rename field, too)
       // is not shown to the next one.
       for (const kept of [this._revealed, this._renaming, this._open, this._confirming,
-        this._receiving, this._code, this._codes, this._t17ask]) {
+        this._receiving, this._code, this._codes, this._t17ask, this._giftMarking]) {
         if (kept) kept.clear();
       }
+      this._giftPick = null;
+      this._giftFocus = null;
     }
     if (giftMode(h) === null || typeof h.callWS !== "function") return;
     const gifts = this._parcels().filter((st) => isGift(st.attributes));
@@ -911,6 +928,7 @@ class ParcelTrackerCard extends HTMLElement {
       + "|ren:" + Array.from(this._renaming.keys()).sort().join(",")
       + "|del:" + Array.from(this._confirming).sort().join(",")
       + "|rcv:" + Array.from(this._receiving).sort().join(",")
+      + "|gmk:" + Array.from(this._giftMarking).sort().join(",")
       + "|code:" + Array.from(this._code.entries()).map(([n, v]) => `${n}=${v}`).sort().join(",")
       + "|t17:" + Array.from(this._t17ask).sort().join(",")
       + "|quota:" + (h.states[QUOTA_ENTITY] ? `${h.states[QUOTA_ENTITY].state}@${h.states[QUOTA_ENTITY].last_updated}` : "")
@@ -1056,6 +1074,10 @@ class ParcelTrackerCard extends HTMLElement {
         .giftask { margin:-4px 0 12px; padding-left:8px; border-left:2px solid var(--primary-color); font-size:13px; line-height:1.5; }
         .giftask p { margin:0 0 4px; }
         .giftask .muted { font-size:12px; color:var(--secondary-text-color); }
+        .giftpick { display:flex; flex-direction:column; gap:2px; margin:0 0 4px; }
+        .giftpick label { display:flex; align-items:center; gap:8px; min-height:32px; cursor:pointer; }
+        .giftpick input { flex:none; width:18px; height:18px; margin:0; accent-color:var(--primary-color); }
+        .giftpick .muted { color:var(--secondary-text-color); }
         .gline { display:flex; align-items:center; gap:6px; }
         .gline .row-toggle { flex:1 1 auto; min-width:0; }
         .giftbox { flex:none; display:inline-grid; place-items:center; width:28px; height:28px; margin:-4px 0; padding:0; border:none; border-radius:50%; color:var(--primary-color); --mdc-icon-size:18px; }
@@ -1092,8 +1114,16 @@ class ParcelTrackerCard extends HTMLElement {
           <div class="actions">
             <button type="button" id="giftask-all">Ja, verbergen</button>
             <button type="button" id="giftask-new">Nein, nur neue Pakete</button>
+            <button type="button" id="giftask-pick">${GIFT_PICK}</button>
             <button type="button" id="giftask-on">Einschalten</button>
             <button type="button" id="giftask-cancel">Abbrechen</button>
+          </div>
+          <div id="giftpick" hidden>
+            <div class="giftpick" id="giftpick-list" role="group" aria-label="Pakete als Geschenk auswählen"></div>
+            <div class="actions">
+              <button type="button" id="giftpick-mark">Als Geschenk markieren</button>
+              <button type="button" id="giftpick-done">Fertig</button>
+            </div>
           </div>
         </div>
         <div id="form" hidden>
@@ -1143,11 +1173,21 @@ class ParcelTrackerCard extends HTMLElement {
     $("giftask-all").addEventListener("click", () => this._giftModeOn(true));
     $("giftask-new").addEventListener("click", () => this._giftModeOn(false));
     $("giftask-on").addEventListener("click", () => this._giftModeOn(false));
+    $("giftask-pick").addEventListener("click", () => this._giftModeOn("pick"));
     $("giftask-cancel").addEventListener("click", () => this._setGiftAsk(false));
+    $("giftpick-list").addEventListener("change", (e) => {
+      const box = e.target;
+      const num = box && box.dataset ? box.dataset.number : undefined;
+      if (this._giftPick === null || num == null) return;
+      box.checked ? this._giftPick.add(num) : this._giftPick.delete(num);
+    });
+    $("giftpick-mark").addEventListener("click", () => this._giftPickMark());
+    $("giftpick-done").addEventListener("click", () => this._setGiftPick(null));
     $("giftask").addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       e.preventDefault();
-      this._setGiftAsk(false);
+      if (this._giftPick !== null) this._setGiftPick(null);
+      else this._setGiftAsk(false);
     });
     // The × is gone with its line: the focus goes to where the next parcel is entered.
     $("added-close").addEventListener("click", () => {
@@ -1290,9 +1330,16 @@ class ParcelTrackerCard extends HTMLElement {
     }
   }
 
-  // Yes: the parcels on their way become gifts as well; no: only parcels from now on.
+  // Yes: the parcels on their way become gifts as well; no: only parcels from now on;
+  // "pick": on like no, then the open parcels to tick one by one.
   async _giftModeOn(openParcels) {
-    this._setGiftAsk(false);
+    if (openParcels === "pick") {
+      this._giftAsk = false;
+      this._setGiftPick(new Set());
+      openParcels = false;
+    } else {
+      this._setGiftAsk(false);
+    }
     try {
       await this._hass.callService("switch", "turn_on", { entity_id: GIFT_ENTITY }, undefined, false);
       if (openParcels) {
@@ -1300,8 +1347,52 @@ class ParcelTrackerCard extends HTMLElement {
       }
       this._setError("");
     } catch (e) {
+      // Not switched on: nothing to pick either.
+      if (this._giftPick !== null) this._setGiftPick(null);
       this._setError(errorText(e));
     }
+  }
+
+  // Opens (a Set of ticked numbers) or closes (null) the list of "Einzeln auswählen". Open:
+  // the focus on the first parcel (or "Fertig"); closed: back on the switch like the question.
+  _setGiftPick(pick) {
+    this._giftPick = pick;
+    this._renderGiftHead();
+    const $ = (id) => this._root.getElementById(id);
+    if (pick !== null) {
+      const first = $("giftpick-0");
+      (first && this._giftPickSig !== "[]" ? first : $("giftpick-done")).focus();
+    } else {
+      this._focusGiftSwitch();
+    }
+  }
+
+  // The switch, or, switched on by someone who cannot switch it off, the sign in its place.
+  _focusGiftSwitch() {
+    if (!this._header) return;
+    const $ = (id) => this._root.getElementById(id);
+    ($("gm").hidden && !$("gm-on").hidden ? $("gm-on") : $("gm")).focus();
+  }
+
+  // "Als Geschenk markieren": set_gift for each ticked parcel still open, one after the other.
+  // A refused one stops (its error is shown) and the list stays with what is left ticked.
+  async _giftPickMark() {
+    if (this._giftPick === null || this._giftPickBusy) return;
+    const open = new Set(this._openNotGiftStates().map((st) => String(st.attributes.number)));
+    const numbers = Array.from(this._giftPick).filter((n) => open.has(n));
+    this._giftPickBusy = true;
+    try {
+      for (const num of numbers) {
+        if (!(await this._call("set_gift", { number: num, gift: true }))) {
+          this._renderGiftHead();
+          return;
+        }
+        if (this._giftPick) this._giftPick.delete(num);
+      }
+    } finally {
+      this._giftPickBusy = false;
+    }
+    if (this._giftPick !== null) this._setGiftPick(null);
   }
 
   _setGiftAsk(asking) {
@@ -1315,12 +1406,17 @@ class ParcelTrackerCard extends HTMLElement {
   }
 
   // Parcels the question is about: neither delivered nor cancelled, not a gift yet, and not
-  // sent by the user (set_gift with open_parcels leaves those out).
-  _openNotGift() {
+  // sent by the user (set_gift with open_parcels leaves those out). Also the list of
+  // "Einzeln auswählen".
+  _openNotGiftStates() {
     return this._parcels().filter(
       (st) => st.state !== DONE && st.state !== CANCELLED && !isGift(st.attributes)
         && !isOutgoing(st.attributes),
-    ).length;
+    );
+  }
+
+  _openNotGift() {
+    return this._openNotGiftStates().length;
   }
 
   // Switch, its question and the "on" sign for those who cannot switch it off.
@@ -1329,6 +1425,7 @@ class ParcelTrackerCard extends HTMLElement {
     const mode = giftMode(this._hass);
     // Without a head there is no switch to ask from (switch.paket_tracker_geschenkmodus).
     if (mode !== "off" || !this._header) this._giftAsk = false;
+    if (mode === null || !this._header) this._giftPick = null;
     const gm = $("gm");
     const on = mode === "on";
     const hadFocus = this._root.activeElement === gm;
@@ -1341,7 +1438,15 @@ class ParcelTrackerCard extends HTMLElement {
     // the sign that stands in its place.
     if (hadFocus && gm.hidden && !$("gm-on").hidden) $("gm-on").focus();
     const box = $("giftask");
-    box.hidden = !this._giftAsk;
+    const picking = this._giftPick !== null;
+    box.hidden = !this._giftAsk && !picking;
+    $("giftpick").hidden = !picking;
+    for (const id of ["giftask-all", "giftask-new", "giftask-pick", "giftask-on", "giftask-cancel"]) {
+      $(id).hidden = picking;
+    }
+    box.setAttribute("aria-label", picking ? "Geschenke auswählen" : `${GIFT_LABEL} einschalten`);
+    if (picking) { this._renderGiftPick(); return; }
+    this._giftPickSig = null;
     if (!this._giftAsk) return;
     const count = this._openNotGift();
     const lines = [];
@@ -1353,7 +1458,33 @@ class ParcelTrackerCard extends HTMLElement {
     if (el.innerHTML !== text) el.innerHTML = text;
     $("giftask-all").hidden = !count;
     $("giftask-new").hidden = !count;
+    $("giftask-pick").hidden = !count;
     $("giftask-on").hidden = !!count;
+  }
+
+  // The list of "Einzeln auswählen": the open parcels (as the question counts them) with a
+  // box each. Written again only when the parcels change, so a focused box keeps the focus;
+  // a parcel gone from the list (a gift now, delivered) is no longer ticked.
+  _renderGiftPick() {
+    const $ = (id) => this._root.getElementById(id);
+    const states = this._openNotGiftStates();
+    const nums = states.map((st) => String(st.attributes.number));
+    for (const num of Array.from(this._giftPick)) if (!nums.includes(num)) this._giftPick.delete(num);
+    const text = `<p>${esc(states.length ? GIFT_PICK_TEXT : GIFT_PICK_NONE)}</p>`;
+    const el = $("giftask-text");
+    if (el.innerHTML !== text) el.innerHTML = text;
+    $("giftpick-mark").hidden = !states.length;
+    const rows = states.map((st) => [String(st.attributes.number), st.attributes.name || String(st.attributes.number)]);
+    const sig = JSON.stringify(rows);
+    if (sig === this._giftPickSig) return;
+    const list = $("giftpick-list");
+    const active = this._root.activeElement;
+    const focused = active && active.dataset && active.dataset.pick != null ? active.dataset.number : null;
+    this._giftPickSig = sig;
+    list.hidden = !rows.length;
+    list.innerHTML = rows.map(([num, name], i) => `<label for="giftpick-${i}"><input type="checkbox" id="giftpick-${i}" data-pick="" data-number="${esc(num)}"${this._giftPick.has(num) ? " checked" : ""}><span>${esc(name)}</span>${name !== num ? ` <span class="muted">…${esc(num.slice(-4))}</span>` : ""}</label>`).join("");
+    const again = focused == null ? -1 : nums.indexOf(focused);
+    if (again >= 0) $(`giftpick-${again}`).focus();
   }
 
   // The gift box at the start of a gift's row: for a viewer a button that shows the real
@@ -1470,11 +1601,23 @@ class ParcelTrackerCard extends HTMLElement {
         <button type="button" data-a="received-cancel" data-number="${n}">Abbrechen</button>
         <button type="button" data-a="received-confirm" data-number="${n}">Wirklich erhalten?</button></div>`;
     }
+    // "Geschenk": everybody may mark (set_gift), not a sent parcel, and only with an
+    // integration that has the Geschenkmodus. Only a gift viewer can take the mark back, so
+    // everybody else is asked twice (like "Erhalten").
+    const markable = !isGift(a) && !isOutgoing(a) && giftMode(this._hass) !== null;
+    if (!markable) this._giftMarking.delete(a.number);
+    if (this._giftMarking.has(a.number)) {
+      return `<div class="actions" role="group" aria-label="Geschenk bestätigen">
+        <button type="button" data-a="gift-mark-cancel" data-number="${n}">Abbrechen</button>
+        <button type="button" data-a="gift-mark-confirm" data-number="${n}">Wirklich als Geschenk verbergen?</button></div>`;
+    }
     const received = withReceived && canMarkReceived(a, s)
       ? `<button type="button" data-a="received" data-number="${n}">Erhalten</button>` : "";
     // A gift is renamed or deleted only by a gift viewer (the integration refuses it anyway).
     if (isGift(a) && !this._seesGift(a)) return received ? `<div class="actions">${received}</div>` : "";
-    return `<div class="actions">${received}<button type="button" data-a="rename" data-number="${n}">Umbenennen</button><button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
+    const mark = markable
+      ? `<button type="button" data-a="gift-mark" data-number="${n}" title="${GIFT_MARK_TITLE}">${GIFT_MARK}</button>` : "";
+    return `<div class="actions">${received}<button type="button" data-a="rename" data-number="${n}">Umbenennen</button>${mark}<button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
   }
 
   _codeHtml(a) {
@@ -1551,7 +1694,9 @@ class ParcelTrackerCard extends HTMLElement {
     box.querySelector("#addask-no").addEventListener("click", () => { this._dismissAddAsk(); toNumber(); });
   }
 
-  _wireActions(item, a) {
+  // `rows`: where the focus goes once the parcel is a gift (data-number of a row's button):
+  // the parcel's own row, in a parcel row first the row and its other orders.
+  _wireActions(item, a, rows = [String(a.number)]) {
     const on = (act, fn) => {
       const el = item.querySelector(`[data-a="${act}"]`);
       if (el) el.addEventListener("click", fn);
@@ -1658,6 +1803,29 @@ class ParcelTrackerCard extends HTMLElement {
       this._pendingFocus = { number: num, a: "gift" };
       this._renderList();
     });
+    // Marked: every question and the rename field of the parcel are gone, its row closes (a
+    // gift for someone who may not see it must not stay open with its name), the focus goes
+    // to the row (see _giftFocus).
+    const mark = async () => {
+      if (!(await this._call("set_gift", { number: num, gift: true }))) return;
+      for (const kept of [this._giftMarking, this._renaming, this._confirming, this._receiving,
+        this._code, this._t17ask, this._open]) kept.delete(num);
+      this._giftFocus = { number: String(num), toggles: rows };
+      this._renderList();
+    };
+    const askMark = (asking, focus) => {
+      asking ? this._giftMarking.add(num) : this._giftMarking.delete(num);
+      this._pendingFocus = { number: num, a: focus };
+      this._renderList();
+    };
+    on("gift-mark", () => {
+      this._renaming.delete(num); this._confirming.delete(num); this._receiving.delete(num);
+      if (this._viewer === true) return mark();
+      askMark(true, "gift-mark-cancel");
+      return undefined;
+    });
+    on("gift-mark-cancel", () => askMark(false, "gift-mark"));
+    on("gift-mark-confirm", mark);
     on("gift-unhide", async () => {
       if (await this._call("set_gift", { number: num, gift: false })) {
         this._revealed.delete(num);
@@ -1676,7 +1844,7 @@ class ParcelTrackerCard extends HTMLElement {
         this._renderList();
       });
     }
-    on("remove", () => { this._renaming.delete(num); this._receiving.delete(num); this._confirming.add(num); this._renderList(); });
+    on("remove", () => { this._renaming.delete(num); this._receiving.delete(num); this._giftMarking.delete(num); this._confirming.add(num); this._renderList(); });
     on("remove-cancel", () => { this._confirming.delete(num); this._renderList(); });
     on("remove-confirm", async () => {
       if (await this._call("remove_parcel", { number: num })) {
@@ -1729,6 +1897,7 @@ class ParcelTrackerCard extends HTMLElement {
         this._code.delete(a.number); // hide the code again on collapse
         this._t17ask.delete(a.number);
         this._receiving.delete(a.number); // a question left open is not asked again later
+        this._giftMarking.delete(a.number);
       } else {
         this._open.add(a.number);
       }
@@ -1816,6 +1985,7 @@ class ParcelTrackerCard extends HTMLElement {
         for (const m of members) {
           this._code.delete(m.number);
           this._t17ask.delete(m.number);
+          this._giftMarking.delete(m.number);
         }
       } else {
         this._open.add(key);
@@ -1858,7 +2028,12 @@ class ParcelTrackerCard extends HTMLElement {
     const t17 = item.querySelector(".boxt17");
     if (t17) this._wireActions(t17, members[0]);
     const blocks = item.querySelectorAll(".member");
-    members.forEach((m, i) => { if (blocks[i]) this._wireActions(blocks[i], m); });
+    // Marking one order as a gift takes it out of the row (a gift never joins one): the
+    // focus stays on the row, or on the order left alone in a row of its own.
+    const rows = [key, ...members.map((m) => String(m.number))];
+    members.forEach((m, i) => {
+      if (blocks[i]) this._wireActions(blocks[i], m, rows.filter((r) => r !== String(m.number)).concat(String(m.number)));
+    });
   }
 
   _renderList() {
@@ -1906,7 +2081,27 @@ class ParcelTrackerCard extends HTMLElement {
         }
       }
     }
+    this._focusMarkedGift(list);
     this._lastSig = this._signature();
+  }
+
+  // After "Geschenk": the focus on the first row of _giftFocus there is, again with each
+  // render until the parcel's sensor says it is a gift (rows are regrouped then). Not when
+  // the user went elsewhere in the meantime.
+  _focusMarkedGift(list) {
+    const gf = this._giftFocus;
+    if (!gf) return;
+    const st = this._parcels().find((x) => String(x.attributes.number) === gf.number);
+    if (!st || isGift(st.attributes)) this._giftFocus = null;
+    const active = this._root.activeElement;
+    if (active && !list.contains(active)) { this._giftFocus = null; return; }
+    const toggles = Array.from(list.querySelectorAll('[data-a="toggle"]'));
+    for (const want of gf.toggles) {
+      const el = toggles.find((t) => t.dataset.number === want);
+      if (el) { if (active !== el) el.focus(); return; }
+    }
+    // A gift the option `gifts` leaves out: no row any more, the focus goes to the head.
+    if (!this._giftFocus) this._focusGiftSwitch();
   }
 
   static getStubConfig() { return {}; }

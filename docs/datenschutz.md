@@ -153,6 +153,8 @@ Bei Namen, die vor v0.3.24 vergeben wurden, weiß die Integration nicht, wer sie
 
 Für Familien in der Weihnachtszeit: Während der Geschenkmodus läuft, zeigt das Dashboard nicht, was in einem neuen Paket steckt. Anders als „Namen ausblenden“ (alle Pakete, immer) gilt der Modus nur für Pakete, die man als Geschenk kennzeichnet, und nur bestimmte Personen sehen, was drin ist. Die Karte und ihre Bedienung stehen unter [Die Karte](karte.md#geschenkmodus).
 
+Zum Geschenk wird ein Paket auf drei Wegen: beim Einschalten des Modus mit „Ja, verbergen“ (alle offenen Pakete) oder „Einzeln auswählen“ (die angehakten), jederzeit über den Knopf „Geschenk“ im aufgeklappten Paket auf der Karte oder mit dem Dienst [`parcel_tracker.set_gift`](sensoren.md#parcel_trackerset_gift), auch per Automation. Ein versendetes Paket wird nie ein Geschenk.
+
 ### Wer was darf
 
 Wer Geschenke sehen darf, legst du unter **Einstellungen → Geräte & Dienste → Paket Tracker → Konfigurieren** im Bereich **Geschenkmodus (optional)** fest: Das sind Personen von Home Assistant (`person`-Entitäten), die ein Benutzerkonto haben.

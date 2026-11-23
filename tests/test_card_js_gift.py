@@ -415,7 +415,8 @@ def test_a_gift_shows_no_links_to_others(card):
 def test_renaming_and_deleting_a_gift_only_for_viewers(card):
     assert _actions(card["other"]["open"][G1]) == ["Erhalten"]
     assert _actions(card["other"]["open"][G3]) == []
-    assert _actions(card["other"]["open"][P1]) == ["Erhalten", "Umbenennen", "Löschen"]
+    # Not a gift (yet): "Geschenk" marks it (test_card_js_gift_pick.py).
+    assert _actions(card["other"]["open"][P1]) == ["Erhalten", "Umbenennen", "Geschenk", "Löschen"]
     assert _actions(card["viewer"]["open"]) == ["Erhalten", "Umbenennen", "Löschen"]
 
 
