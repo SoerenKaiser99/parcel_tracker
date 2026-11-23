@@ -4,8 +4,10 @@ nothing else).
 One German line per change. It names the parcel by its name (or the last four
 digits of its number; with the option "Namen ausblenden" by its carrier and those
 digits, unless the user typed the name in), the carrier and, where known, today's
-time window or the pickup branch. Never part of it: the delivery code, the whole tracking number,
-addresses, a drop-off place, or any status or event text of the carrier.
+time window or the pickup branch; instead of the usual sentence the mail's own words where
+they are one of a few fixed phrases ("Zustellung versucht"). Never part of it: the delivery
+code, the whole tracking number, addresses, a drop-off place, or any other status or event
+text of the carrier.
 """
 
 from __future__ import annotations
@@ -19,7 +21,11 @@ from .const import (
     NOTIFY_EVENTS,
     NOTIFY_SERVICE_PREFIX,
     NOTIFY_SERVICES_HIDDEN,
+    SHOP_CARRIERS,
 )
+from .mail.aliexpress import CUSTOMS_TEXT, HANDED_OVER_TEXT
+from .mail.base import ATTEMPT_TEXT, DELAY_TEXT, PROBLEM_TEXT, READY_TEXT
+from .mail.shipping import DAMAGED_TEXT
 from .models import (
     Parcel,
     ParcelStatus,
@@ -36,6 +42,7 @@ __all__ = [
     "TITLE",
     "build_notification",
     "notification_tag",
+    "notify_event",
     "service_name",
     "service_target",
 ]
@@ -147,6 +154,47 @@ def _pickup(parcel: Parcel) -> str:
 
 _ARRIVED = frozenset({ParcelStatus.DELIVERED, ParcelStatus.AWAITING_PICKUP})
 
+# A mail's own words for its status (``TrackingResult.status_text``) that may replace the
+# usual sentence: fixed phrases the parsers set themselves. Anything else in the status
+# text (a carrier's event text, a drop-off place) never reaches a notification.
+_OWN_WORDS = frozenset(
+    {
+        ATTEMPT_TEXT,
+        DELAY_TEXT,
+        PROBLEM_TEXT,
+        READY_TEXT,
+        DAMAGED_TEXT,
+        HANDED_OVER_TEXT,
+        CUSTOMS_TEXT,
+    }
+)
+# The emoji in front of each status's line.
+_ICON = {
+    ParcelStatus.PRE_TRANSIT: "🛒",
+    ParcelStatus.IN_TRANSIT: "🚚",
+    ParcelStatus.AT_DELIVERY_DEPOT: "🏭",
+    ParcelStatus.OUT_FOR_DELIVERY: "📦",
+    ParcelStatus.AWAITING_PICKUP: "📍",
+    ParcelStatus.DELIVERED: "✅",
+    ParcelStatus.EXCEPTION: "⚠️",
+    ParcelStatus.CANCELLED: "❌",
+}
+_ANNOUNCED_ICON = "📋"
+
+
+def notify_event(parcel: Parcel) -> str | None:
+    """The event of the options (``NOTIFY_EVENTS``) the parcel's status belongs to.
+
+    Mostly the status itself. "pre_transit" is "ordered" for a shop's order and
+    "announced" for a carrier's parcel. None without a status, or for "unknown".
+    """
+    if parcel.result is None or parcel.result.status is ParcelStatus.UNKNOWN:
+        return None
+    status = parcel.result.status
+    if status is ParcelStatus.PRE_TRANSIT:
+        return "ordered" if parcel.carrier in SHOP_CARRIERS else "announced"
+    return status.value
+
 
 def _outgoing(
     parcel: Parcel, label: str, old_status: ParcelStatus | None
@@ -180,15 +228,30 @@ def build_notification(
     label = _label(parcel, hide_names)
     if parcel.outgoing:
         return _outgoing(parcel, label, old_status)
-    match result.status:
-        case ParcelStatus.OUT_FOR_DELIVERY:
-            message = f"📦 {label} ist in Zustellung{_window_today(parcel, now)}{_customs(parcel)}"
-        case ParcelStatus.DELIVERED:
-            message = f"✅ {label} wurde zugestellt"
-        case ParcelStatus.AWAITING_PICKUP:
-            message = f"📍 {label} liegt zur Abholung bereit{_pickup(parcel)}"
-        case ParcelStatus.EXCEPTION:
-            message = f"⚠️ {label}: Problem bei der Zustellung"
-        case _:
-            return None
-    return TITLE, message
+    event = notify_event(parcel)
+    if event is None:
+        return None
+    icon = _ANNOUNCED_ICON if event == "announced" else _ICON[result.status]
+    if result.status_text in _OWN_WORDS:
+        # The mail's own words say more than the status: "Zustellung versucht".
+        return TITLE, f"{icon} {label}: {result.status_text}"
+    match event:
+        case "ordered":
+            message = f"{label} wurde bestellt"
+        case "announced":
+            message = f"{label} ist angekündigt"
+        case "in_transit":
+            message = f"{label} ist unterwegs"
+        case "at_delivery_depot":
+            message = f"{label} ist im Zustelldepot"
+        case "out_for_delivery":
+            message = f"{label} ist in Zustellung{_window_today(parcel, now)}{_customs(parcel)}"
+        case "delivered":
+            message = f"{label} wurde zugestellt"
+        case "awaiting_pickup":
+            message = f"{label} liegt zur Abholung bereit{_pickup(parcel)}"
+        case "exception":
+            message = f"{label}: Problem bei der Zustellung"
+        case _:  # "cancelled"
+            message = f"{label} wurde storniert"
+    return TITLE, f"{icon} {message}"

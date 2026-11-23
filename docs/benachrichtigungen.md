@@ -45,14 +45,23 @@ Welche Ereignisse gemeldet werden, gilt für alle gleich.
 
 ### Ereignisse
 
-| Ereignis | Voreingestellt (ab v0.3.26) |
-|---|---|
-| In Zustellung | ja |
-| Zugestellt | ja |
-| Abholbereit | ja |
-| Problem | nein |
+| Ereignis | Wann | Voreingestellt |
+|---|---|---|
+| Bestellt | Ein Shop hat die Bestellung bestätigt (Amazon, eBay, AliExpress, Eventim). | nein |
+| Angekündigt | Ein Paketdienst kennt das Paket, es ist aber noch nicht unterwegs. | nein |
+| Unterwegs | Das Paket ist verschickt oder auf dem Weg. Auch ein Zustellversuch oder eine Verspätung führt oft zurück auf „Unterwegs“. | nein |
+| Im Zustelldepot | Das Paket liegt im Depot, aus dem zugestellt wird (nur über die Abfrage bei DHL, Hermes, GLS und DPD). | nein |
+| In Zustellung | | ja |
+| Abholbereit | | ja |
+| Zugestellt | | ja |
+| Problem | | nein |
+| Storniert | Der Shop hat die ganze Bestellung storniert. | ja |
 
-Hast du die Benachrichtigungen schon vor v0.3.26 eingerichtet, behältst du deine Auswahl.
+Die Namen sind dieselben wie auf der Karte. „Bestellt“ und „Angekündigt“ sind derselbe Status (`pre_transit`): „Bestellt“ gilt für Bestellungen bei einem Shop, „Angekündigt“ für Pakete eines Paketdienstes.
+
+Die frühen Ereignisse (Bestellt bis Im Zustelldepot) kommen oft, manche Paketdienste springen zwischen „Unterwegs“ und „Im Zustelldepot“ hin und her. Sind es dir zu viele Meldungen, nimm den Haken dort einfach wieder heraus.
+
+Hast du die Benachrichtigungen schon früher eingerichtet, behältst du deine Auswahl: Die neuen Ereignisse (auch „Storniert“) sind dann nicht angehakt.
 
 Für ein **versendetes Paket** (Einlieferungsbeleg, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)) kommt genau eine Meldung, wenn es beim Empfänger zugestellt ist oder zur Abholung bereitliegt, und nur, wenn „Zugestellt“ gewählt ist. Sie lautet „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“. Andere Meldungen gibt es für versendete Pakete nicht. Die Ankunft sieht die Integration nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen) oder nach „Details über 17track holen“ auf der Karte. Ohne beides bleibt das Paket auf „unterwegs“, und die Meldung kommt nie.
 
@@ -62,11 +71,18 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 
 | Ereignis | Beispiel |
 |---|---|
+| Bestellt | `🛒 Kopfhörer (Amazon) wurde bestellt` |
+| Angekündigt | `📋 Kopfhörer (DHL) ist angekündigt` |
+| Unterwegs | `🚚 Kopfhörer (DHL) ist unterwegs` |
+| Im Zustelldepot | `🏭 Kopfhörer (DHL) ist im Zustelldepot` |
 | In Zustellung | `📦 Kopfhörer (DHL) ist in Zustellung – heute 14:00–16:00 Uhr` |
 | In Zustellung, mit Zoll | `📦 Kopfhörer (DHL) ist in Zustellung – Einfuhrabgaben 12,34 € bar bereithalten` |
-| Zugestellt | `✅ Kopfhörer (DHL) wurde zugestellt` |
 | Abholbereit | `📍 Kopfhörer (DHL) liegt zur Abholung bereit – Bonn bis 06.10.` |
+| Zugestellt | `✅ Kopfhörer (DHL) wurde zugestellt` |
 | Problem | `⚠️ Kopfhörer (DHL): Problem bei der Zustellung` |
+| Storniert | `❌ Kopfhörer (Amazon) wurde storniert` |
+
+Hat die Mail eigene Worte für den Status, stehen sie statt des Satzes da, z. B. `🚚 Kopfhörer (Amazon): Zustellung versucht`. Das gilt nur für diese festen Begriffe: „Zustellung versucht“, „Lieferung verspätet“, „Lieferprobleme“ (Amazon, eBay), „Versandbereit“, „Dem Versandunternehmen übergeben“, „Zollabfertigung beendet“ (AliExpress) und „Verpackung beschädigt“ (DHL). Der Betreff einer Mail oder der Text eines Paketdienstes steht nie in einer Benachrichtigung.
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
 - Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da. Meldet die DHL-Abfrage (mit API-Key) „In Zustellung“, bevor die Mail mit dem Betrag da ist, geht die Meldung ohne Zoll raus, und die spätere Mail löst keine zweite aus; der Betrag steht dann trotzdem auf der Karte und in den Attributen.
@@ -82,12 +98,14 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 
 Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert – egal, ob der neue Status vom Paketdienst oder aus einer Mail kommt. Also nicht doppelt für denselben Status und nicht, wenn ein Paketdienst nach 17track mit einem älteren Stand antwortet.
 
-- **Der allererste Status** eines neuen Pakets wird nicht gemeldet. Eine Ausnahme: Legt eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket an und nennt sie einen Shop oder eine Firma, wird diese Zustellung einmal gemeldet – aber nur, wenn die Mail höchstens 24 Stunden alt ist.
+- **Ein neues Paket aus einer Mail** meldet seinen ersten Status, als Wechsel von `unknown`: Die Bestellbestätigung meldet „Bestellt“, die Versandmail eines Paketdienstes „Angekündigt“ oder „Unterwegs“. Das gilt auch beim ersten Lesen des Postfachs für alle Mails darin (höchstens 14 Tage alt); sind dann schon Ziele gewählt, kommt für jedes dieser Pakete eine Meldung.
+- **Ein erster Status „Zugestellt“** wird nur gemeldet, wenn eine „Zugestellt“-Mail eines Paketdienstes ein neues Paket anlegt, einen Shop oder eine Firma nennt und höchstens 24 Stunden alt ist. Eine Mail über eine Zustellung von vor Tagen ist keine Neuigkeit.
+- **Ein Paket, das du selbst anlegst** (auf der Karte oder über den Dienst `parcel_tracker.add_parcel`), meldet seinen ersten Status nicht. Eine Mail, die über den HTTP-Endpunkt kommt, zählt wie eine aus dem Postfach.
 - **Während eines Neustarts** geht nichts verloren: Wechselt ein Paket den Status, während Home Assistant neu startet oder die Integration neu lädt, folgen Event und Benachrichtigung genau einmal, sobald Home Assistant fertig gestartet ist – spätestens zwei Minuten nachdem die Integration geladen wurde. Nach einem Neuladen im laufenden Betrieb sofort. Eine noch ausstehende Meldung wird mit dem Paket gespeichert: Sie übersteht auch ein erneutes Neuladen und einen weiteren Neustart, bevor sie gesendet wurde.
 - **Mehrere Wechsel** in dieser Zeit werden zu einer Meldung vom alten zum neuesten Status.
 - **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam („Abgeschlossen ohne Zustellbestätigung“, siehe [Bestellungen ohne Zustellmail](mail-import.md#bestellungen-ohne-zustellmail)), feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.
 - **Von Hand erhalten:** Markierst du ein Paket mit [„Erhalten“](karte.md#erhalten) selbst als erhalten, feuert das Event mit dem Feld `manual` auf `true`. Eine Benachrichtigung gibt es auch dafür nicht.
-- **Storniert:** Storniert ein Shop eine Bestellung oder bringt der Paketdienst einen Amazon-Karton zurück („Zurück an Amazon“), feuert das Event mit `new_status` `cancelled`. Eine Benachrichtigung gibt es nicht: Weder die Optionen noch der Blueprint bieten diesen Status an.
+- **Storniert:** Storniert ein Shop eine ganze Bestellung oder bringt der Paketdienst einen Amazon-Karton zurück („Zurück an Amazon“), feuert das Event mit `new_status` `cancelled`, und mit „Storniert“ kommt eine Benachrichtigung. Werden nur einzelne Artikel storniert (siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird)), gibt es keine.
 - **Mehrere Bestellungen in einem Paket** (AliExpress, Amazon): Das Event feuert für jede Bestellung, die Benachrichtigung aus den Optionen geht für das Paket einmal raus.
 
 Schlägt das Senden fehl, steht eine Warnung ohne Paketdaten im Log. Die Paketabfrage läuft unverändert weiter.
@@ -120,7 +138,7 @@ Danach legst du unter **Einstellungen → Automationen & Szenen → Blueprints**
 
 | Eingabe | Bedeutung | Standard |
 |---|---|---|
-| **Status** | Bei welchen neuen Status benachrichtigt wird. Wählbar: Angekündigt, Unterwegs, Im Zustelldepot, In Zustellung, Abholbereit, Zugestellt, Problem. | In Zustellung, Zugestellt, Abholbereit |
+| **Status** | Bei welchen neuen Status benachrichtigt wird. Wählbar wie in den Optionen: Bestellt, Angekündigt, Unterwegs, Im Zustelldepot, In Zustellung, Abholbereit, Zugestellt, Problem, Storniert. | In Zustellung, Abholbereit, Zugestellt, Storniert |
 | **Benachrichtigungsdienst** | Ein klassischer Dienst als Text, z. B. `notify.mobile_app_mein_handy`. | `notify.notify` |
 | **Titel** | Überschrift der Benachrichtigung. | Paket Tracker |
 | **Text** | Vorlage für den Text, siehe unten. | `{{ text }}` |
@@ -130,6 +148,8 @@ Danach legst du unter **Einstellungen → Automationen & Szenen → Blueprints**
 
 Sind Dashboard-Pfad und Ersetzen nicht gesetzt, schickt der Blueprint nur Titel und Text und passt damit zu jedem Benachrichtigungsdienst.
 
+Hast du unter **Status** nie etwas geändert, gilt nach dem erneuten Import der neue Standard: Dann meldet die Automation auch „Storniert“. Willst du das nicht, nimm den Haken dort heraus. Eine Automation mit „Angekündigt“ aus einer älteren Fassung meldet weiterhin Bestellt und Angekündigt.
+
 ### Variablen für den Text
 
 | Variable | Inhalt |
@@ -137,6 +157,7 @@ Sind Dashboard-Pfad und Ersetzen nicht gesetzt, schickt der Blueprint nur Titel 
 | `name` | Name des Pakets, weitere Artikel als „(+2)“ dahinter; ohne Namen „Paket …“ und die letzten vier Stellen der Nummer |
 | `carrier` | Anzeigename des Paketdienstes, z. B. DHL |
 | `new_status` | neuer Status, z. B. `out_for_delivery` |
+| `event` | das Ereignis wie unter **Status**: der neue Status, für `pre_transit` aber `ordered` (Bestellt) oder `announced` (Angekündigt) |
 | `old_status` | vorheriger Status |
 | `text` | der fertige Standardsatz, z. B. „Kopfhörer (DHL) ist in Zustellung“ |
 | `outgoing` | `true` bei einem versendeten Paket, sonst `false` |

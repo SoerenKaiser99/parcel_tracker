@@ -231,16 +231,22 @@ async def test_status_change_from_mail_fires_event(hass):
     await coord.async_refresh()  # first refresh: no mail import, no events
     await coord.async_refresh()
     await hass.async_block_till_done()
-    assert events == []  # creation is not a status change
+    # The mail created the order: its first status is news, as a change from "unknown".
+    (created,) = events
+    assert created.data["number"] == PLAETTCHEN
+    assert created.data["old_status"] == "unknown"
+    assert created.data["new_status"] == "pre_transit"
+    assert created.data["event"] == "ordered"
     mailbox.mails = [("2", raw("074_versandbestaetigung_versendet.eml"))]
     coord._mail_next = None
     await coord.async_refresh()
     await hass.async_block_till_done()
-    assert len(events) == 1
-    assert events[0].data["number"] == PLAETTCHEN
-    assert events[0].data["old_status"] == "pre_transit"
-    assert events[0].data["new_status"] == "in_transit"
-    assert events[0].data["carrier"] == "amazon"
+    assert len(events) == 2
+    assert events[1].data["number"] == PLAETTCHEN
+    assert events[1].data["old_status"] == "pre_transit"
+    assert events[1].data["new_status"] == "in_transit"
+    assert events[1].data["event"] == "in_transit"
+    assert events[1].data["carrier"] == "amazon"
 
 
 async def test_read_otp_option_keeps_code_in_memory_only(hass, hass_storage):

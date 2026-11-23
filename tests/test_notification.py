@@ -18,6 +18,7 @@ from custom_components.parcel_tracker.notification import (
     NOTIFY_EVENTS,
     TITLE,
     build_notification,
+    notify_event,
 )
 
 BERLIN = ZoneInfo("Europe/Berlin")
@@ -62,8 +63,90 @@ def _message(parcel, old=ParcelStatus.IN_TRANSIT, now=NOW) -> str:
     return message
 
 
-def test_the_four_events():
-    assert NOTIFY_EVENTS == ("out_for_delivery", "delivered", "awaiting_pickup", "exception")
+def test_the_events():
+    assert NOTIFY_EVENTS == (
+        "ordered", "announced", "in_transit", "at_delivery_depot", "out_for_delivery",
+        "awaiting_pickup", "delivered", "exception", "cancelled",
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "carrier", "event"),
+    [
+        (ParcelStatus.PRE_TRANSIT, "amazon", "ordered"),
+        (ParcelStatus.PRE_TRANSIT, "eventim", "ordered"),
+        (ParcelStatus.PRE_TRANSIT, "dhl", "announced"),
+        (ParcelStatus.PRE_TRANSIT, None, "announced"),
+        (ParcelStatus.IN_TRANSIT, "amazon", "in_transit"),
+        (ParcelStatus.CANCELLED, "ebay", "cancelled"),
+        (ParcelStatus.UNKNOWN, "dhl", None),
+    ],
+)
+def test_notify_event(status, carrier, event):
+    assert notify_event(_parcel(status, carrier=carrier)) == event
+
+
+def test_notify_event_without_a_result():
+    parcel = _parcel(ParcelStatus.DELIVERED)
+    parcel.result = None
+    assert notify_event(parcel) is None
+
+
+def test_ordered():
+    parcel = _parcel(ParcelStatus.PRE_TRANSIT, carrier="amazon")
+    assert _message(parcel, ParcelStatus.UNKNOWN) == "🛒 Kopfhörer (Amazon) wurde bestellt"
+
+
+def test_announced():
+    parcel = _parcel(ParcelStatus.PRE_TRANSIT)
+    assert _message(parcel, ParcelStatus.UNKNOWN) == "📋 Kopfhörer (DHL) ist angekündigt"
+
+
+def test_in_transit():
+    parcel = _parcel(ParcelStatus.IN_TRANSIT)
+    assert _message(parcel, ParcelStatus.PRE_TRANSIT) == "🚚 Kopfhörer (DHL) ist unterwegs"
+
+
+def test_at_delivery_depot():
+    parcel = _parcel(ParcelStatus.AT_DELIVERY_DEPOT)
+    assert _message(parcel) == "🏭 Kopfhörer (DHL) ist im Zustelldepot"
+
+
+def test_cancelled():
+    parcel = _parcel(ParcelStatus.CANCELLED, carrier="ebay")
+    assert _message(parcel, ParcelStatus.PRE_TRANSIT) == "❌ Kopfhörer (eBay) wurde storniert"
+
+
+@pytest.mark.parametrize(
+    ("status", "words", "icon"),
+    [
+        (ParcelStatus.IN_TRANSIT, "Zustellung versucht", "🚚"),
+        (ParcelStatus.IN_TRANSIT, "Lieferung verspätet", "🚚"),
+        (ParcelStatus.IN_TRANSIT, "Lieferprobleme", "🚚"),
+        (ParcelStatus.PRE_TRANSIT, "Versandbereit", "🛒"),
+    ],
+)
+def test_the_mails_own_words_replace_the_sentence(status, words, icon):
+    parcel = _parcel(status, carrier="amazon", status_text=words)
+    assert _message(parcel, ParcelStatus.UNKNOWN) == f"{icon} Kopfhörer (Amazon): {words}"
+
+
+@pytest.mark.parametrize(
+    "words",
+    ["Verpackung beschädigt", "Dem Versandunternehmen übergeben", "Zollabfertigung beendet"],
+)
+def test_own_words_of_carrier_mails(words):
+    parcel = _parcel(ParcelStatus.IN_TRANSIT, status_text=words)
+    assert _message(parcel, ParcelStatus.PRE_TRANSIT) == f"🚚 Kopfhörer (DHL): {words}"
+
+
+@pytest.mark.parametrize(
+    "words", ["Versendet", "Wird gleich zugestellt", "Lieferung bestätigt (laut AliExpress)"]
+)
+def test_other_status_texts_keep_the_usual_sentence(words):
+    """Only the fixed phrases: the usual word of a status, and all others, are not told."""
+    parcel = _parcel(ParcelStatus.IN_TRANSIT, status_text=words)
+    assert _message(parcel, ParcelStatus.PRE_TRANSIT) == "🚚 Kopfhörer (DHL) ist unterwegs"
 
 
 def test_out_for_delivery():
@@ -241,17 +324,8 @@ def test_carrier_name_as_on_the_sensor():
     assert _message(unknown) == "✅ Kopfhörer wurde zugestellt"
 
 
-@pytest.mark.parametrize(
-    "status",
-    [
-        ParcelStatus.PRE_TRANSIT,
-        ParcelStatus.IN_TRANSIT,
-        ParcelStatus.AT_DELIVERY_DEPOT,
-        ParcelStatus.UNKNOWN,
-    ],
-)
-def test_other_statuses_are_no_notification(status):
-    assert build_notification(_parcel(status), ParcelStatus.PRE_TRANSIT, NOW) is None
+def test_unknown_is_no_notification():
+    assert build_notification(_parcel(ParcelStatus.UNKNOWN), ParcelStatus.PRE_TRANSIT, NOW) is None
 
 
 def test_no_notification_without_a_change_or_a_result():
@@ -261,11 +335,16 @@ def test_no_notification_without_a_change_or_a_result():
     assert build_notification(parcel, ParcelStatus.IN_TRANSIT, NOW) is None
 
 
-@pytest.mark.parametrize("status", [ParcelStatus(value) for value in NOTIFY_EVENTS])
+@pytest.mark.parametrize(
+    ("status", "carrier"),
+    [(s, "dhl") for s in ParcelStatus if s is not ParcelStatus.UNKNOWN]
+    + [(ParcelStatus.PRE_TRANSIT, "amazon")],
+)
 @pytest.mark.parametrize("named", [True, False])
-def test_never_code_number_place_or_carrier_texts(status, named):
+def test_never_code_number_place_or_carrier_texts(status, carrier, named):
     parcel = _parcel(
         status,
+        carrier=carrier,
         name="Kopfhörer" if named else None,
         eta_date=NOW.date(),
         eta_from=NOW + timedelta(hours=1),
@@ -275,7 +354,7 @@ def test_never_code_number_place_or_carrier_texts(status, named):
         delivered_at=NOW,
     )
     parcel.tracking_ref = "1Z999AA10123456784"
-    title, message = build_notification(parcel, ParcelStatus.IN_TRANSIT, NOW)
+    title, message = build_notification(parcel, ParcelStatus.UNKNOWN, NOW)
     for text in (title, message):
         for private in (CODE, NUMBER, NUMBER[:-4], parcel.tracking_ref, STATUS_TEXT, "Garage",
                         "Musterweg", EVENT_TEXT, "Mustermann", LOCATION, "Carport",

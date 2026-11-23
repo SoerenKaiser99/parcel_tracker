@@ -147,9 +147,7 @@ def test_notify_translations_present():
             "notify_enabled", "notify_targets", "notify_events",
         }
         assert "description" in section
-        assert set(strings["selector"]["notify_events"]["options"]) == {
-            "out_for_delivery", "delivered", "awaiting_pickup", "exception",
-        }
+        assert list(strings["selector"]["notify_events"]["options"]) == list(const.NOTIFY_EVENTS)
         assert "notify_url" not in json.dumps(strings)
         assert strings["options"]["error"]["notify_no_target"]
     # Both kinds of targets are named: entities and classic services such as Pushover.
@@ -165,11 +163,17 @@ def test_notify_translations_present():
         "Wähl mindestens ein Ziel für die Benachrichtigungen."
     )
     german = _load("translations/de.json")["selector"]["notify_events"]["options"]
+    # Named like the card's steps and the blueprint's choice.
     assert german == {
+        "ordered": "Bestellt",
+        "announced": "Angekündigt",
+        "in_transit": "Unterwegs",
+        "at_delivery_depot": "Im Zustelldepot",
         "out_for_delivery": "In Zustellung",
-        "delivered": "Zugestellt",
         "awaiting_pickup": "Abholbereit",
+        "delivered": "Zugestellt",
         "exception": "Problem",
+        "cancelled": "Storniert",
     }
 
 
@@ -305,10 +309,15 @@ def test_device_trigger_translations_present():
     for name in ("strings.json", "translations/de.json"):
         assert set(_load(name)["device_automation"]["trigger_type"]) == set(TRIGGER_TYPES)
     assert _load("translations/de.json")["device_automation"]["trigger_type"] == {
+        "ordered": "Paket wurde bestellt",
+        "announced": "Paket wurde angekündigt",
+        "in_transit": "Paket ist unterwegs",
+        "at_delivery_depot": "Paket ist im Zustelldepot",
         "out_for_delivery": "Paket ist in Zustellung",
-        "delivered": "Paket wurde zugestellt",
         "awaiting_pickup": "Paket liegt zur Abholung bereit",
+        "delivered": "Paket wurde zugestellt",
         "exception": "Problem bei einem Paket",
+        "cancelled": "Bestellung wurde storniert",
         "status_changed": "Paketstatus hat sich geändert",
     }
 

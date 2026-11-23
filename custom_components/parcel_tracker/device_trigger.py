@@ -1,9 +1,11 @@
 """Device triggers: the status event, offered by the automation editor.
 
 Every trigger is an event trigger on ``parcel_tracker_status_changed`` under the hood,
-filtered by the config entry of the device and, except for the generic one, by the new
-status. An automation reads the event as usual: ``trigger.event.data.name``,
-``trigger.event.data.number``, ``trigger.event.data.new_status``, …
+filtered by the config entry of the device and, except for the generic one, by the event
+of the options the new status belongs to (``event``: the status, but "ordered" or
+"announced" for "pre_transit"). An automation reads the event as usual:
+``trigger.event.data.name``, ``trigger.event.data.number``,
+``trigger.event.data.new_status``, …
 """
 
 from __future__ import annotations
@@ -26,8 +28,8 @@ from .const import DOMAIN, EVENT_STATUS_CHANGED, NOTIFY_EVENTS
 
 # Any status change, also the ones that have no trigger of their own.
 TRIGGER_STATUS_CHANGED = "status_changed"
-# In the order the editor lists them: the statuses a notification can announce (each is
-# the ``new_status`` of the event), then the generic one.
+# In the order the editor lists them: the events a notification can announce (the
+# ``event`` field of the status event), then the generic one.
 TRIGGER_TYPES = (*NOTIFY_EVENTS, TRIGGER_STATUS_CHANGED)
 
 TRIGGER_SCHEMA = DEVICE_TRIGGER_BASE_SCHEMA.extend(
@@ -68,7 +70,7 @@ def _event_data(entry_id: str, trigger_type: str) -> dict[str, Any]:
     """
     data: dict[str, Any] = {"entry_id": entry_id}
     if trigger_type != TRIGGER_STATUS_CHANGED:
-        data["new_status"] = trigger_type
+        data["event"] = trigger_type
     if trigger_type == "delivered":
         data["assumed"] = False
         data["manual"] = False

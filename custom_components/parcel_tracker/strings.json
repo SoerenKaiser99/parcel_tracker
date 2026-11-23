@@ -272,10 +272,15 @@
   },
   "device_automation": {
     "trigger_type": {
+      "ordered": "Order placed",
+      "announced": "Parcel announced",
+      "in_transit": "Parcel is in transit",
+      "at_delivery_depot": "Parcel is at the delivery depot",
       "out_for_delivery": "Parcel is out for delivery",
-      "delivered": "Parcel was delivered",
       "awaiting_pickup": "Parcel is ready for pickup",
+      "delivered": "Parcel was delivered",
       "exception": "Problem with a parcel",
+      "cancelled": "Order cancelled",
       "status_changed": "Parcel status changed"
     }
   },
@@ -325,10 +330,15 @@
     },
     "notify_events": {
       "options": {
+        "ordered": "Ordered",
+        "announced": "Announced",
+        "in_transit": "In transit",
+        "at_delivery_depot": "At delivery depot",
         "out_for_delivery": "Out for delivery",
-        "delivered": "Delivered",
         "awaiting_pickup": "Ready for pickup",
-        "exception": "Problem"
+        "delivered": "Delivered",
+        "exception": "Problem",
+        "cancelled": "Cancelled"
       }
     }
   },

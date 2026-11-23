@@ -321,8 +321,8 @@ def test_a_box_that_holds_more_than_the_refund_names_is_none_brought_back():
 
 
 # ----- told -----
-async def test_a_box_brought_back_tells_its_status_without_a_push(hass, hass_storage, freezer):
-    # "Storniert" is no status a push is chosen for; automations hear of it.
+async def test_a_box_brought_back_tells_its_status_and_pushes_cancelled(hass, hass_storage, freezer):
+    # "Storniert" is a default push since #91; automations hear of it too.
     freezer.move_to(datetime(2026, 10, 12, 9, 0, tzinfo=BERLIN))
     await hass.config.async_set_time_zone("Europe/Berlin")
     calls = async_mock_service(hass, "notify", "send_message")
@@ -340,4 +340,5 @@ async def test_a_box_brought_back_tells_its_status_without_a_push(hass, hass_sto
     assert [(e.data["number"], e.data["new_status"]) for e in changed][-1:] == [
         (NUMBER, "cancelled")
     ]
-    assert calls == []
+    assert len(calls) == 1
+    assert "storniert" in calls[0].data["message"]

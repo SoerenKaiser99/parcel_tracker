@@ -28,7 +28,7 @@ Elf fertige Beispiele zum Kopieren. Jedes Rezept sagt, wofür es gut ist, zeigt 
     Alles, was mit `sensor.pakete_`, `calendar.pakete` oder `parcel_tracker` beginnt, kommt von der Integration und bleibt, wie es ist.
 
 !!! warning "Doppelte Meldungen"
-    Hast du die [eingebauten Benachrichtigungen](benachrichtigungen.md) eingeschaltet, melden sie „in Zustellung“, „zugestellt“ und „abholbereit“ schon von selbst. Ein Rezept, das dasselbe meldet, verdoppelt die Meldung.
+    Hast du die [eingebauten Benachrichtigungen](benachrichtigungen.md) eingeschaltet, melden sie die dort angehakten Ereignisse schon von selbst, voreingestellt „in Zustellung“, „abholbereit“, „zugestellt“ und „storniert“. Ein Rezept, das dasselbe meldet, verdoppelt die Meldung.
 
 Die Namen von Entitäten, Attributen, Diensten und Event-Feldern in den Rezepten sind gegen den Code der Integration geprüft. Als ganze Automation mit echten Paketen ist nicht jedes Rezept durchgelaufen – probier ein Rezept aus, bevor du dich darauf verlässt.
 

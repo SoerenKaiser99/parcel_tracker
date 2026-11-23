@@ -29,7 +29,13 @@ from .conftest import DAYTIME
 FETCH = "custom_components.parcel_tracker.carriers.dhl.DhlCarrier.fetch"
 NOW = datetime(2026, 9, 29, 9, 0, tzinfo=UTC)
 NUMBER = "00340999999999999901"
-TYPES = ("out_for_delivery", "delivered", "awaiting_pickup", "exception", "status_changed")
+TYPES = (
+    "ordered", "announced", "in_transit", "at_delivery_depot", "out_for_delivery",
+    "awaiting_pickup", "delivered", "exception", "cancelled", "status_changed",
+)
+# The status behind each event: "pre_transit" is two of them.
+STATUS = {"ordered": "pre_transit", "announced": "pre_transit"}
+_SAME = object()
 
 
 def _result(status=ParcelStatus.IN_TRANSIT):
@@ -89,7 +95,7 @@ async def _automations(hass, device_id, types=TYPES):
     return calls
 
 
-def _event(entry_id, new, old="in_transit", assumed=False, manual=False):
+def _event(entry_id, new, old="in_transit", assumed=False, manual=False, event=_SAME):
     """The status event as the coordinator fires it."""
     return {
         "entry_id": entry_id,
@@ -99,6 +105,7 @@ def _event(entry_id, new, old="in_transit", assumed=False, manual=False):
         "carrier_name": "DHL",
         "old_status": old,
         "new_status": new,
+        "event": new if event is _SAME else event,
         "eta_date": None,
         "eta_from": None,
         "eta_to": None,
@@ -123,7 +130,7 @@ def test_trigger_types_cover_the_statuses_a_notification_can_announce():
     assert TRIGGER_TYPES[: len(NOTIFY_EVENTS)] == NOTIFY_EVENTS
 
 
-async def test_the_device_offers_the_five_triggers(hass, hass_storage):
+async def test_the_device_offers_its_triggers(hass, hass_storage):
     _entry, device = await _setup(hass, hass_storage)
 
     triggers = await async_get_device_automations(hass, DeviceAutomationType.TRIGGER, device.id)
@@ -152,16 +159,17 @@ async def test_another_device_offers_no_trigger_of_ours(hass, hass_storage):
     assert await async_get_triggers(hass, "no-such-device") == []
 
 
-@pytest.mark.parametrize("status", NOTIFY_EVENTS)
-async def test_a_status_fires_its_trigger_and_the_generic_one(hass, hass_storage, status):
+@pytest.mark.parametrize("event", NOTIFY_EVENTS)
+async def test_an_event_fires_its_trigger_and_the_generic_one(hass, hass_storage, event):
     entry, device = await _setup(hass, hass_storage)
     calls = await _automations(hass, device.id)
+    status = STATUS.get(event, event)
 
-    assert await _fire(hass, calls, _event(entry.entry_id, status)) == sorted(
-        [status, "status_changed"]
+    assert await _fire(hass, calls, _event(entry.entry_id, status, event=event)) == sorted(
+        [event, "status_changed"]
     )
     # The event data is there for the automation: trigger.event.data.<field>.
-    call = next(c for c in calls if c.data["type"] == status)
+    call = next(c for c in calls if c.data["type"] == event)
     assert call.data["platform"] == "device"
     assert call.data["name"] == "Oma"
     assert call.data["number"] == NUMBER
@@ -169,14 +177,23 @@ async def test_a_status_fires_its_trigger_and_the_generic_one(hass, hass_storage
     assert (call.data["old"], call.data["new"]) == ("in_transit", status)
 
 
-@pytest.mark.parametrize("status", ["pre_transit", "in_transit", "at_delivery_depot", "unknown"])
-async def test_other_statuses_fire_only_the_generic_trigger(hass, hass_storage, status):
+async def test_unknown_fires_only_the_generic_trigger(hass, hass_storage):
     entry, device = await _setup(hass, hass_storage)
     calls = await _automations(hass, device.id)
 
-    assert await _fire(hass, calls, _event(entry.entry_id, status, old="exception")) == [
-        "status_changed"
-    ]
+    unknown = _event(entry.entry_id, "unknown", old="exception", event=None)
+    assert await _fire(hass, calls, unknown) == ["status_changed"]
+
+
+async def test_ordered_and_announced_fire_apart(hass, hass_storage):
+    """Both are "pre_transit": the ``event`` field tells them apart."""
+    entry, device = await _setup(hass, hass_storage)
+    calls = await _automations(hass, device.id)
+
+    ordered = _event(entry.entry_id, "pre_transit", old="unknown", event="ordered")
+    assert await _fire(hass, calls, ordered) == ["ordered", "status_changed"]
+    announced = _event(entry.entry_id, "pre_transit", old="unknown", event="announced")
+    assert await _fire(hass, calls, announced) == ["announced", "status_changed"]
 
 
 async def test_assumed_delivery_does_not_fire_delivered(hass, hass_storage):
