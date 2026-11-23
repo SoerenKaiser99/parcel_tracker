@@ -83,6 +83,7 @@ from .const import (
     GLS_PROBE_TRIES,
     IMAP_SECURITIES,
     KEEP_ETA_UNTIL_DAY_CARRIERS,
+    KEEP_STATUS_CARRIERS,
     MAIL_DEDUP_KEEP,
     MAIL_ETA_CARRIERS,
     MAIL_INTERVAL,
@@ -1533,6 +1534,24 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             return
         parcel.assumed_delivered = False
         known = strip_enrichment(parcel.result)  # the carrier's or a mail's own values
+        if (
+            key in KEEP_STATUS_CARRIERS
+            and result.status is ParcelStatus.UNKNOWN
+            and known is not None
+            and known.status is not ParcelStatus.UNKNOWN
+        ):
+            # A step the carrier's page added and nobody knows yet: what was known stays,
+            # with the carrier's history (the step was warned about in the log).
+            result = replace(
+                result,
+                status=known.status,
+                status_text=known.status_text,
+                eta_date=result.eta_date or known.eta_date,
+                eta_latest=result.eta_latest or known.eta_latest,
+                eta_from=result.eta_from or known.eta_from,
+                eta_to=result.eta_to or known.eta_to,
+                delivered_at=known.delivered_at,
+            )
         if (
             key in MAIL_ETA_CARRIERS
             and result.eta_date is None

@@ -9,7 +9,7 @@ def test_carrier_groups():
     assert const.SHIP_LATER_SHOPS == frozenset({"eventim"})
     assert const.MAIL_CARRIERS == const.SHOP_CARRIERS
     assert const.OPTIONAL_API_CARRIERS == frozenset({"ups"})
-    assert const.SELECTABLE_CARRIERS == ("dhl", "dpd", "gls", "hermes", "ups")
+    assert const.SELECTABLE_CARRIERS == ("dhl", "dpd", "gls", "hermes", "hes", "ups")
     assert const.MAIL_ETA_CARRIERS == frozenset({"hermes", "gls", "dpd"})
     assert const.GLS_MAX_EVENTS == 20
     assert const.CARRIER_NAMES == {
@@ -17,6 +17,7 @@ def test_carrier_groups():
         "dpd": "DPD",
         "gls": "GLS",
         "hermes": "Hermes",
+        "hes": "Hermes Einrichtungs Service",
         "ups": "UPS",
         "amazon": "Amazon",
         "ebay": "eBay",

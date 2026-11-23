@@ -745,8 +745,8 @@ def test_docs_table_says_what_each_service_needs():
     assert rows[0] == ["Dienst", "Live-Status direkt", "Aus Mails (Mail-Import)", "Voraussetzung"]
     table = {row[0]: row[1:] for row in rows[2:]}
     assert list(table) == [
-        "DHL", "DPD", "GLS", "Hermes", "UPS", "Amazon", "eBay", "AliExpress", "Eventim",
-        "andere Paketdienste",
+        "DHL", "DPD", "GLS", "Hermes", "Hermes Einrichtungs Service", "UPS", "Amazon", "eBay",
+        "AliExpress", "Eventim", "andere Paketdienste",
     ]
     assert all(len(cells) == 3 for cells in table.values())
     expected = {
@@ -754,6 +754,7 @@ def test_docs_table_says_what_each_service_needs():
         "DPD": ("ohne Key (nur Status, kein Ort)", "optional", "keine"),
         "GLS": ("ohne Key (mit PLZ auch der Verlauf)", "GLS-Mails", "keine"),
         "Hermes": ("ja, ohne Key", "Hermes-Mails", "keine"),
+        "Hermes Einrichtungs Service": ("ja, ohne Key", "Auftragseingang", "keine"),
         "UPS": ("nur mit eigenem UPS-Entwicklerzugang", "UPS-Mails", "Client-ID und Secret"),
         "Amazon": ("nein", "nur aus Mails", "E-Mail-Import"),
         "eBay": ("nein", "nur aus Mails", "E-Mail-Import"),

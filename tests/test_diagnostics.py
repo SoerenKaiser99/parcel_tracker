@@ -493,7 +493,7 @@ async def test_diagnostics_carriers_budget_and_17track(hass, hass_storage, freez
     entry = await _setup(hass, hass_storage, freezer)
     result = await async_get_config_entry_diagnostics(hass, entry)
     assert result["carriers"] == {
-        "active": ["dhl", "dpd", "hermes", "gls", "ups"],
+        "active": ["dhl", "dpd", "hermes", "hes", "gls", "ups"],
         "credentials": {"dhl": True, "ups": True, "track17": True, "mail": True},
         "dhl_calls_today": 0,
     }

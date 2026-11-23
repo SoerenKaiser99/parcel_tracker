@@ -429,3 +429,23 @@ async def test_raised_budget_polls_waiting_parcels_on_the_next_tick(hass, sessio
     assert (parcel.last_error, parcel.status) == (None, ParcelStatus.IN_TRANSIT)
     assert coord.store.ups_budget.count == 2
     assert ir.async_get(hass).async_get_issue(DOMAIN, "ups_budget") is None
+
+
+async def test_hes_unknown_step_keeps_the_known_status(hass, freezer):
+    """HES may add steps to its page: "unknown" never replaces what was known."""
+    freezer.move_to(DAYTIME)
+    hes = NoEtaCarrier("hes")
+    hes.status = ParcelStatus.UNKNOWN
+    coord = await _coordinator(hass, lambda store: {"hes": hes})
+    now = dt_util.utcnow()
+    number = "999999999999999999901"
+    coord.store.add(Parcel(number, "hes", "mail", None, now, now, result=_known_day()))
+    await coord.async_refresh()
+    parcel = coord.store.get(number)
+    assert parcel.status is ParcelStatus.PRE_TRANSIT
+    assert parcel.result.status_text == "Angekündigt"
+    assert parcel.result.eta_date == date(2026, 10, 1)
+    hes.status = ParcelStatus.IN_TRANSIT
+    freezer.tick(timedelta(hours=2))
+    await coord.async_refresh()
+    assert parcel.status is ParcelStatus.IN_TRANSIT

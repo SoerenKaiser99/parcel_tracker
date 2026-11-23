@@ -2,12 +2,13 @@ const CARRIER_ICONS = {"dhl": {"path": "M4.22 10.303l-.767 1.043h4.18c.21 0 .208
 // The version of the integration this file ships with. The browser keeps an old card after
 // an update until the page is reloaded: sensor.pakete_heute names the installed version.
 const CARD_VERSION = "0.3.65";
-const CARRIER_LABEL = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", ups: "UPS", amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", eventim: "Eventim", other: "17track" };
+const CARRIER_LABEL = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", hes: "Hermes Einrichtungs Service", ups: "UPS", amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", eventim: "Eventim", other: "17track" };
 // Simple Icons' "hermes" is not used for the parcel service, it has no GLS logo, and
 // "other" has no logo: a coloured dot with letters instead. AliExpress and Eventim likewise.
 const DOTS = {
   gls: { color: "#061AB1", letter: "G", size: 13, y: 16.5 },
   hermes: { color: "#0091CD", letter: "H", size: 13, y: 16.5 },
+  hes: { color: "#0091CD", letter: "HE", size: 10, y: 15.5 },
   aliexpress: { color: "#E43225", letter: "A", size: 13, y: 16.5 },
   eventim: { color: "#002B55", letter: "E", size: 13, y: 16.5 },
   other: { color: "#757575", letter: "17", size: 10, y: 15.5 },
@@ -1129,7 +1130,7 @@ class ParcelTrackerCard extends HTMLElement {
         <div id="form" hidden>
           <div class="row">
             <input id="num" placeholder="Sendungsnummer" autocomplete="off">
-            <select id="car"><option value="auto">Automatisch</option><option value="dhl">DHL</option><option value="dpd">DPD</option><option value="gls">GLS</option><option value="hermes">Hermes</option><option value="ups">UPS</option></select>
+            <select id="car"><option value="auto">Automatisch</option><option value="dhl">DHL</option><option value="dpd">DPD</option><option value="gls">GLS</option><option value="hermes">Hermes</option><option value="hes">Hermes Einrichtungs Service</option><option value="ups">UPS</option></select>
           </div>
           <div class="ownrow" id="own-row" hidden>
             <label for="own">${OWNER_LABEL}:</label>

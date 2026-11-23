@@ -1,0 +1,343 @@
+{
+ "body": {
+  "abstellgenehmigung": {
+   "abstellort": null,
+   "erteiltUm": null
+  },
+  "anzeigeSteuerung": {
+   "abstellgenehmigung": false,
+   "abstellgenehmigungSteuerung": {
+    "abstellgenehmigung": false,
+    "abstellgenehmigungInfo": false,
+    "widerruf": false,
+    "widerrufInfo": false
+   },
+   "anzeigeSteuerungKundenumfrageDto": {
+    "bannerAnzeigen": false,
+    "darfZustimmungAendern": false,
+    "kundenZustimmung": false
+   },
+   "anzeigeSteuerungNachnahmebetragDto": {
+    "hesPay": false,
+    "nachnahmeInfoText": false
+   },
+   "anzeigeSteuerungServiceInfoDto": {
+    "isServiceinfoText": false,
+    "isServiceinfoVideo": false,
+    "serviceinfoText": false,
+    "serviceinfoVideo": false
+   },
+   "anzeigeSteuerungZusatzserviceDto": {
+    "zusatzservice": false,
+    "zusatzserviceInfoText": false
+   },
+   "empfaengerdaten": {
+    "telefonnummer": false
+   },
+   "kneHinweis": false,
+   "liefertermin": {
+    "maxReachedTerminwahlMatrix": false,
+    "terminwahlMatrix": false,
+    "terminwahlMatrixUpselling": false,
+    "terminwahlMatrixUpsellingKostenlos": false,
+    "textInfoNewAppointment": false,
+    "textinfo": false
+   },
+   "nachbarschaftsabgabe": false,
+   "shopsystemAnzeigeSteuerung": null,
+   "statusbenachrichtigung": false,
+   "stornieren": false,
+   "terminbestaetigung": false,
+   "upsellingfaehig": null
+  },
+  "artikeldaten": [
+   {
+    "articleMasterNumber": null,
+    "availableBasicBundles": [],
+    "bezeichnung": "Beispielartikel",
+    "bookedBasicBundles": null,
+    "contractorItemReference": "0000000",
+    "serviceartikel": [],
+    "serviceartikelZubuchbarKostenlos": [
+     {
+      "artnr": null,
+      "bezeichnung": "Beispielservice"
+     }
+    ],
+    "smartPremiumPaket": null,
+    "smartPremiumPaketCode": null,
+    "smartPremiumPaketSize": null
+   },
+   {
+    "articleMasterNumber": null,
+    "availableBasicBundles": [],
+    "bezeichnung": "Beispielartikel",
+    "bookedBasicBundles": null,
+    "contractorItemReference": "0000000",
+    "serviceartikel": [],
+    "serviceartikelZubuchbarKostenlos": [
+     {
+      "artnr": null,
+      "bezeichnung": "Beispielservice"
+     }
+    ],
+    "smartPremiumPaket": null,
+    "smartPremiumPaketCode": null,
+    "smartPremiumPaketSize": null
+   }
+  ],
+  "auftragsdaten": {
+   "auftragId": 99999901,
+   "auftragsart": "Lieferung",
+   "hesBasicLieferterminZeit": null,
+   "kommunikationswegAvis": 6,
+   "lieferart": 4,
+   "lieferdatum": null,
+   "lieferscheinnummer": "999999999999999999901",
+   "lieferzeitfensterBis": null,
+   "lieferzeitfensterVon": null,
+   "statusjourneyDto": {
+    "auftragstatusdaten": [
+     {
+      "chatbotStatus": "wurde dem Hermes Einrichtungs Service elektronisch übermittelt. Weitere Informationen folgen in Kürze.",
+      "sendungsstatus": "Deine Sendung wurde elektronisch angekündigt. Weitere Informationen folgen in Kürze.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-16 06:31",
+      "sendungsstatusId": 40,
+      "voicebotStatus": "wurde dem Hermes Einrichtungs Service elektronisch übermittelt. Weitere Informationen folgen in Kürze."
+     },
+     {
+      "chatbotStatus": "ist im Verteilzentrum eingetroffen und wird in Kürze an dein zuständiges Auslieferdepot weitergeleitet.",
+      "sendungsstatus": "Deine Sendung ist im Verteilzentrum eingetroffen und wird in Kürze an dein regionales Auslieferdepot weitergeleitet.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-18 23:24",
+      "sendungsstatusId": 100,
+      "voicebotStatus": "ist im Verteilzentrum eingetroffen und wird in Kürze an dein zuständiges Auslieferdepot weitergeleitet."
+     },
+     {
+      "chatbotStatus": "hat das Warenverteilzentrum verlassen und befindet sich auf dem Weg zum regionalen Auslieferdepot.",
+      "sendungsstatus": "Deine Sendung hat unser Warenverteilzentrum verlassen und befindet sich auf dem Weg zum regionalen Auslieferdepot.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 03:32",
+      "sendungsstatusId": 190,
+      "voicebotStatus": "hat das Warenverteilzentrum verlassen und befindet sich auf dem Weg zum regionalen Auslieferdepot."
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Wir planen aktuell die Zustellung deiner Bestellung.\nZur Terminabstimmung wirst du in Kürze von unserem digitalen Assistenten Hermine telefonisch kontaktiert.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 10:30",
+      "sendungsstatusId": 310,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": "wird im Depot bearbeitet. Leider konntest du telefonisch nicht erreicht werden. Bitte kontaktiere das Depot, um den Liefertermin zu bestätigen.",
+      "sendungsstatus": "Leider konnten wir dich telefonisch nicht erreichen. Bitte kontaktiere das Depot, um den Liefertermin zu bestätigen.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 11:22",
+      "sendungsstatusId": 308,
+      "voicebotStatus": "wird im Depot bearbeitet. Leider konnten wir dich zur Terminabsprache telefonisch nicht erreichen. Bitte nenne das Stichwort Kundenservice um an einen Mitarbeitenden im Depot weitergeleitet zu werden."
+     },
+     {
+      "chatbotStatus": "wird im Depot bearbeitet. Vielen Dank für deine Terminbestätigung auf myhes.de.",
+      "sendungsstatus": "Du hast den Liefertermin bestätigt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 11:28",
+      "sendungsstatusId": 500,
+      "voicebotStatus": "wird aktuell in unserem Depot bearbeitet. deine Terminbestätigung auf mei HES.de ist bei uns eingegangen, vielen Dank dafür!"
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Wir planen aktuell die Zustellung deiner Bestellung.\nZur Terminabstimmung wirst du in Kürze von unserem digitalen Assistenten Hermine telefonisch kontaktiert.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 13:30",
+      "sendungsstatusId": 310,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Wir planen aktuell die Zustellung deiner Bestellung.\nZur Terminabstimmung wirst du in Kürze von unserem digitalen Assistenten Hermine telefonisch kontaktiert.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 14:11",
+      "sendungsstatusId": 310,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": "wird im Depot bearbeitet. Leider konntest du telefonisch nicht erreicht werden. Bitte kontaktiere das Depot, um den Liefertermin zu bestätigen.",
+      "sendungsstatus": "Leider konnten wir dich telefonisch nicht erreichen. Bitte kontaktiere das Depot, um den Liefertermin zu bestätigen.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 15:52",
+      "sendungsstatusId": 308,
+      "voicebotStatus": "wird im Depot bearbeitet. Leider konnten wir dich zur Terminabsprache telefonisch nicht erreichen. Bitte nenne das Stichwort Kundenservice um an einen Mitarbeitenden im Depot weitergeleitet zu werden."
+     },
+     {
+      "chatbotStatus": "wird im Depot bearbeitet.",
+      "sendungsstatus": "Der Liefertermin deines Auftrags wurde dir telefonisch mitgeteilt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 16:15",
+      "sendungsstatusId": 307,
+      "voicebotStatus": "wird im Depot bearbeitet."
+     },
+     {
+      "chatbotStatus": "ist im Auslieferdepot eingetroffen und wird für die Auslieferung vorbereitet.",
+      "sendungsstatus": "Deine Sendung ist in unserem Auslieferdepot eingetroffen und wird für die Auslieferung vorbereitet.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 02:18",
+      "sendungsstatusId": 300,
+      "voicebotStatus": "ist im Auslieferdepot eingetroffen und wird für die Auslieferung vorbereitet."
+     },
+     {
+      "chatbotStatus": "ist in Zustellung. Du kannst den Live-Standort des Fahrzeugs, sowie die Anzahl der Stopps vor deiner Anlieferung in der Sendungsverfolgung einsehen.",
+      "sendungsstatus": "Deine Sendung befindet sich auf Tour. Starte das Live-Tracking, um die geografische Echtzeit-Verfolgung des Auslieferfahrzeugs zu verfolgen.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 07:08",
+      "sendungsstatusId": 430,
+      "voicebotStatus": "ist in Zustellung. Um das Fahrzeug live zu verfolgen besuch du gerne mei HES.de."
+     },
+     {
+      "chatbotStatus": "wurde erfolgreich zugestellt.",
+      "sendungsstatus": "Deine Sendung wurde erfolgreich zugestellt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 11:28",
+      "sendungsstatusId": 700,
+      "voicebotStatus": "wurde erfolgreich zugestellt."
+     },
+     {
+      "chatbotStatus": "wurde abgeschlossen.",
+      "sendungsstatus": null,
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 14:51",
+      "sendungsstatusId": 790,
+      "voicebotStatus": "wurde abgeschlossen."
+     }
+    ],
+    "journeycode": 150,
+    "kreuzsymbol": false,
+    "statusdaten": [
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Eingang Hub Löhne (HES)",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-18 23:24",
+      "sendungsstatusId": 10105,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ausgang Hub Löhne (HES)",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 03:32",
+      "sendungsstatusId": 10107,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ihre Sendung ist dispositionsfähig und wird kurzfristig zur Auslieferung eingeplant.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 08:04",
+      "sendungsstatusId": 10100,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ihre Sendung wird am 20.10.2026 zwischen 10 - 14 Uhr zugestellt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 10:30",
+      "sendungsstatusId": 10200,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Leider haben wir Sie telefonisch nicht erreicht. Ihre Sendung wird am 20.10.2026 zwischen 10 - 14 Uhr zugestellt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 11:22",
+      "sendungsstatusId": 10207,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ihre Sendung wird am 20.10.2026 zwischen 10 - 14 Uhr zugestellt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 13:30",
+      "sendungsstatusId": 10200,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ihre Sendung wird am 20.10.2026 zwischen 10 - 14 Uhr zugestellt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 14:11",
+      "sendungsstatusId": 10200,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Leider haben wir Sie telefonisch nicht erreicht. Ihre Sendung wird am 20.10.2026 zwischen 10 - 14 Uhr zugestellt.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 15:52",
+      "sendungsstatusId": 10207,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ihre Sendung wird - wie telefonisch mitgeteilt - am 20.10.2026 zwischen 10 - 14 Uhr zugestellt",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-19 16:15",
+      "sendungsstatusId": 10204,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Eingang Depot 44",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 02:18",
+      "sendungsstatusId": 10110,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Fahrzeugbeladung : 20.10.2026 um 06:42.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 06:42",
+      "sendungsstatusId": 10802,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ankunft bei Kundenadresse : 20.10.2026 um 11:27.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 11:27",
+      "sendungsstatusId": 10850,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ware geliefert.",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 11:28",
+      "sendungsstatusId": 10864,
+      "voicebotStatus": null
+     },
+     {
+      "chatbotStatus": null,
+      "sendungsstatus": "Ihre Sendung wurde bei der angegebenen Adresse am 20.10.2026 zugestellt. (11:28)",
+      "sendungsstatusBuchungszeitpunkt": "2026-10-20 14:51",
+      "sendungsstatusId": 10900,
+      "voicebotStatus": null
+     }
+    ],
+    "tooltipdaten": [
+     {
+      "beschreibung": "Auftragsdaten an Hermes übermittelt",
+      "journeycode": 100
+     },
+     {
+      "beschreibung": "Eingang der Ware im Zentrallager",
+      "journeycode": 110
+     },
+     {
+      "beschreibung": "Eingang der Ware im Auslieferdepot",
+      "journeycode": 130
+     },
+     {
+      "beschreibung": "Lieferpersonal ist unterwegs",
+      "journeycode": 140
+     },
+     {
+      "beschreibung": "Sendung wurde zugestellt",
+      "journeycode": 150
+     }
+    ]
+   },
+   "wunschLieferdatum": null,
+   "wunschLieferzeitfensterBis": null,
+   "wunschLieferzeitfensterVon": null
+  },
+  "depotdaten": {
+   "email": "depot@example.org",
+   "servicezeiten": "Mo.-Fr. 08:00 - 17:00 Uhr",
+   "telefonnummer": "0000 000000"
+  },
+  "versenderdaten": {
+   "auftraggeber": 99999,
+   "fachhaendler": null,
+   "name": "Beispiel Matratzen GmbH (Hammer)",
+   "shopname": null
+  }
+ },
+ "headers": {},
+ "statusCode": "200 OK"
+}

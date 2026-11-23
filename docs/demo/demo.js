@@ -96,8 +96,8 @@
 
   const STEP = { pre_transit: 1, in_transit: 2, at_delivery_depot: 3, out_for_delivery: 4,
     awaiting_pickup: 4, delivered: 5, exception: 0, unknown: 0 };
-  const CARRIER_NAME = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes", ups: "UPS",
-    amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", other: "17track" };
+  const CARRIER_NAME = { dhl: "DHL", dpd: "DPD", gls: "GLS", hermes: "Hermes",
+    hes: "Hermes Einrichtungs Service", ups: "UPS", amazon: "Amazon", ebay: "eBay", aliexpress: "AliExpress", other: "17track" };
   // The carrier's tracking page, as links.py builds the attribute tracking_url: by the
   // number of the parcel, for a shop order by the carrier number it took over.
   const TRACKING_PAGE = {
@@ -105,6 +105,7 @@
     dpd: "https://tracking.dpd.de/status/de_DE/parcel/",
     gls: "https://www.gls-pakete.de/sendungsverfolgung?match=",
     hermes: "https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#",
+    hes: "https://myhes.de/de/tracking/",
     ups: "https://www.ups.com/track?loc=de_DE&tracknum=",
   };
   const trackingUrl = (carrier, number) => (
