@@ -330,6 +330,13 @@ class Parcel:
     # replace it, and a second such mail of the same day is not told again. Persisted;
     # None in older stores.
     soon_until: datetime | None = None
+    # The carrier's number of a shop order was typed in ("Sendungsnummer eintragen", see
+    # ``mail.apply.link_tracking``) and no mail named it since: it may be changed or taken
+    # away again (``mail.apply.unlink_tracking``), and the order goes back to the result
+    # it had before (``result_before_tracking``, None if it had none). A mail naming the
+    # number confirms it (``mail.apply.confirm_tracking``). Persisted; False in older stores.
+    tracking_manual: bool = False
+    result_before_tracking: TrackingResult | None = None
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -427,6 +434,10 @@ class Parcel:
             "outgoing": self.outgoing,
             "arrival_told": self.arrival_told,
             "soon_until": _iso(self.soon_until),
+            "tracking_manual": self.tracking_manual,
+            "result_before_tracking": (
+                self.result_before_tracking.to_dict() if self.result_before_tracking else None
+            ),
         }
 
     @classmethod
@@ -487,6 +498,12 @@ class Parcel:
             outgoing=data.get("outgoing") is True,
             arrival_told=data.get("arrival_told") is True,
             soon_until=_dt(data.get("soon_until")),
+            tracking_manual=data.get("tracking_manual") is True,
+            result_before_tracking=(
+                TrackingResult.from_dict(data["result_before_tracking"])
+                if data.get("result_before_tracking")
+                else None
+            ),
         )
 
 

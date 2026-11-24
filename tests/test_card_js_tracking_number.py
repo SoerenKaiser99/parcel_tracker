@@ -31,17 +31,19 @@ card.setConfig({});
 card._hass = { states: {}, entities: {} };
 const order = { number: "AMZ99999999999999901", carrier: "amazon", amazon_shipment: "DAbCdE9fG" };
 const out = {};
+// (the line below the numbers; the end of the line of a number typed in is tested elsewhere)
+const more = (a, s) => card._refHtml(a, s)[0];
 out.line = {
-  order: card._refHtml(order, "in_transit"),
-  delivered: card._refHtml(order, "delivered"),
-  cancelled: card._refHtml(order, "cancelled"),
-  tracked: card._refHtml({ ...order, tracking_ref: "00340999999999999901" }, "in_transit"),
-  parcel: card._refHtml({ number: "00340999999999999901", carrier: "dhl" }, "in_transit"),
-  ebay: card._refHtml({ number: "EBAY999999999901", carrier: "ebay" }, "in_transit"),
-  amazonSends: card._refHtml({ ...order, amazon_shipment: "TAbCdE9fG" }, "in_transit"),
-  noId: card._refHtml({ ...order, amazon_shipment: null }, "in_transit"),
+  order: more(order, "in_transit"),
+  delivered: more(order, "delivered"),
+  cancelled: more(order, "cancelled"),
+  tracked: more({ ...order, tracking_ref: "00340999999999999901" }, "in_transit"),
+  parcel: more({ number: "00340999999999999901", carrier: "dhl" }, "in_transit"),
+  ebay: more({ number: "EBAY999999999901", carrier: "ebay" }, "in_transit"),
+  amazonSends: more({ ...order, amazon_shipment: "TAbCdE9fG" }, "in_transit"),
+  noId: more({ ...order, amazon_shipment: null }, "in_transit"),
 };
-out.inBlock = sandbox.__numbers(order, card._refHtml(order, "in_transit"));
+out.inBlock = sandbox.__numbers(order, ...card._refHtml(order, "in_transit"));
 
 const handlers = {};
 const input = { value: "", listeners: {},
@@ -60,7 +62,7 @@ card._call = async (service, data) => { calls.push([service, data]); return answ
 card._wireActions(item, order);
 click("ref");
 out.editing = { adding: card._refAdding.has(order.number), focus: card._pendingFocus,
-  html: card._refHtml(order, "in_transit") };
+  html: more(order, "in_transit") };
 click("ref-save").then(() => {
   out.empty = { calls: calls.length, error: errors[errors.length - 1] };
   input.value = " 0034 0999 9999 9999 9901 ";
@@ -92,11 +94,11 @@ click("ref-save").then(() => {
   const tOrder = { ...order, amazon_shipment: "TAbCdE9fG" };
   card._refAdding.clear();
   waiting("Amazon-Sendung (DHL)");
-  out.waits = card._refHtml(tOrder, "in_transit");
+  out.waits = more(tOrder, "in_transit");
   waiting("Beispielmarke GmbH");
-  out.otherWaits = card._refHtml(tOrder, "in_transit");
+  out.otherWaits = more(tOrder, "in_transit");
   waiting("Amazon-Sendung (DHL)", "delivered");
-  out.deliveredWaits = card._refHtml(tOrder, "in_transit");
+  out.deliveredWaits = more(tOrder, "in_transit");
   waiting("Beispielmarke GmbH");
   card._refAdding.clear();
   calls.length = 0;
@@ -106,7 +108,7 @@ click("ref-save").then(() => {
   return click("ref-save");
 }).then(() => {
   out.asked = { calls: calls.length, merging: card._refMerging.has(order.number),
-    focus: card._pendingFocus, html: card._refHtml(order, "in_transit") };
+    focus: card._pendingFocus, html: more(order, "in_transit") };
   click("ref-merge-cancel");
   out.back = { merging: card._refMerging.has(order.number),
     text: card._refAdding.get(order.number), focus: card._pendingFocus };

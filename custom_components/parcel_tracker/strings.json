@@ -265,7 +265,8 @@
     "already_delivered": {"message": "This parcel is already delivered."},
     "cancelled": {"message": "This order was cancelled, nothing more is coming."},
     "not_an_order": {"message": "Only a shop order (Amazon, eBay, AliExpress, Eventim) takes a tracking number."},
-    "has_tracking": {"message": "This order has a tracking number already."},
+    "has_tracking": {"message": "This order's tracking number came by mail or with a merged parcel and can't be changed."},
+    "no_carrier": {"message": "No carrier knows this number. Check it, or choose the carrier."},
     "own_number": {"message": "This is the order's own number, not the carrier's."},
     "not_a_carrier_parcel": {"message": "This number belongs to another order or a sent parcel."},
     "track17_off": {"message": "No 17track API key set. Add one in the Parcel Tracker options."},
@@ -380,10 +381,10 @@
     },
     "set_tracking_number": {
       "name": "Add tracking number",
-      "description": "Give a shop order the carrier's tracking number (DHL, DPD …). A number not tracked yet is asked about from now on; a parcel tracked under it is merged into the order.",
+      "description": "Give a shop order the carrier's tracking number (DHL, DPD …). A number not tracked yet is asked about from now on and can be changed until a mail names it; a parcel tracked under it is merged into the order.",
       "fields": {
         "number": {"name": "Order", "description": "Number of the order (as in the attribute number)."},
-        "tracking_number": {"name": "Tracking number", "description": "The carrier's tracking number."},
+        "tracking_number": {"name": "Tracking number", "description": "The carrier's tracking number. Empty: takes a number typed in away again."},
         "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, hes (Hermes Einrichtungs Service) or ups."}
       }
     },

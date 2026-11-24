@@ -118,11 +118,12 @@ def test_a_carrier_parcel_shows_its_tracking_number(card):
 
 def test_an_amazon_order_shows_the_order_number_as_amazon_writes_it_and_the_carrier_number(card):
     # A further shipment ("P2") belongs to the same order.
-    # The carrier's number comes first, Amazon's id of the shipment stays below it.
+    # Amazon's id of the shipment stays, the carrier's number comes last: where
+    # "Sendungsnummer: eintragen" stood, so the order is the same before and after.
     assert _lines(card["open"]["AMZ99990000000000001P2"]) == [
         ("Bestellnummer", "999-9000000-0000001"),
-        ("Sendungsnummer", "00340999999999999922"),
         ("Amazon-Sendung", "UhIjKl9mN"),
+        ("Sendungsnummer", "00340999999999999922"),
     ]
 
 

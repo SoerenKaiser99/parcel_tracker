@@ -36,10 +36,11 @@ const list = (attributes, state = "in_transit") => {
 list({ name: "Beispielmarke GmbH" });
 const seller = { number: "AMZ99999999999999901", carrier: "amazon", amazon_shipment: "DAbCdE9fG" };
 const out = {};
+const more = (a, s) => card._refHtml(a, s)[0]; // (the line below the numbers)
 out.line = {
-  delivered: card._refHtml(seller, "delivered"),
-  assumed: card._refHtml({ ...seller, assumed_delivered: true }, "delivered"),
-  manual: card._refHtml({ ...seller, manual_delivered: true }, "delivered"),
+  delivered: more(seller, "delivered"),
+  assumed: more({ ...seller, assumed_delivered: true }, "delivered"),
+  manual: more({ ...seller, manual_delivered: true }, "delivered"),
 };
 out.parcelOf = {
   plain: !!card._parcelOf("0034 0999-9999 9999 9901"),
@@ -57,7 +58,7 @@ list({ number: "99999999901", carrier: "dhl", name: null });
 out.parcelOf.notGls = !!card._parcelOf("999999999017");
 // A sent parcel naming Amazon (a return) opens nothing for Amazon's own delivery.
 list({ name: "Amazon Retoure", outgoing: true });
-out.returnOpens = card._refHtml({ ...seller, amazon_shipment: "TAbCdE9fG" }, "in_transit");
+out.returnOpens = more({ ...seller, amazon_shipment: "TAbCdE9fG" }, "in_transit");
 
 // An Amazon order Amazon sends: the line comes from the waiting DHL parcel ...
 const amazon = { ...seller, amazon_shipment: "TAbCdE9fG" };
@@ -65,9 +66,9 @@ list({ name: "Amazon-Sendung (DHL)" });
 card._refAdding.set(amazon.number, "0034");
 // ... which is delivered while the field is open: the field stays.
 list({ name: "Amazon-Sendung (DHL)" }, "delivered");
-out.stays = card._refHtml(amazon, "in_transit").includes('data-a="ref-input"');
+out.stays = more(amazon, "in_transit").includes('data-a="ref-input"');
 card._refAdding.clear();
-out.closedGone = card._refHtml(amazon, "in_transit");
+out.closedGone = more(amazon, "in_transit");
 
 // Enter twice: one call.
 const handlers = {};

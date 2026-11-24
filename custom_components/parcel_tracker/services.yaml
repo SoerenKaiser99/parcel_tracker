@@ -43,7 +43,6 @@ set_tracking_number:
       selector:
         text:
     tracking_number:
-      required: true
       selector:
         text:
     carrier:

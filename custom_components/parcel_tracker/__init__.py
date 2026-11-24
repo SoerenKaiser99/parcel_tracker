@@ -323,7 +323,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN, "set_tracking_number", set_tracking_number,
         schema=vol.Schema({
             vol.Required("number"): number,
-            vol.Required("tracking_number"): number,
+            # (empty or left out: a number typed in is taken away again)
+            vol.Optional("tracking_number", default=""): cv.string,
             vol.Optional("carrier", default=CARRIER_AUTO): vol.In(
                 [CARRIER_AUTO, *SELECTABLE_CARRIERS]
             ),

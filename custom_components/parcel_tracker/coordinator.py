@@ -116,6 +116,7 @@ from .mail.apply import (
     mark_received,
     order_of,
     tells_newer,
+    unlink_tracking,
 )
 from .mail.base import MailResult, MailUpdate, is_forwarded, sender, sent_at
 from .mail.imap import (
@@ -2535,6 +2536,20 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             return None
         return self._gls_other_form(parcel.number)
 
+    def _forget_typed(self, order: Parcel) -> None:
+        """Forget what was told about a number typed in that the order no longer has.
+
+        The order went back to its result from before (``unlink_tracking``): nothing the
+        wrong number told waits to be told, and the order's next change is measured
+        against what it has now, not against what was told about that number.
+        """
+        order.unannounced_from = None
+        if order.status is not ParcelStatus.DELIVERED:
+            order.delivery_announced = None
+        self._announced.pop(order.number, None)
+        self._told_along.pop(order.number, None)
+        self._untold_delivery.discard(order.number)
+
     def _gls_other_form(self, number: str) -> Parcel | None:
         """The GLS parcel stored under the other form (11 or 12 digits) of a GLS number."""
         short = gls_number(number)
@@ -2630,14 +2645,16 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             self.async_set_updated_data(dict(self.store.parcels))
 
     async def async_set_tracking(
-        self, number: str, tracking: str, carrier: str, user_id: str | None = None
+        self, number: str, tracking: str | None, carrier: str, user_id: str | None = None
     ) -> Parcel:
         """Give a shop order the carrier's number typed in ("Sendungsnummer eintragen").
 
         See ``mail.apply.link_tracking``. KeyError for an order that is not tracked,
         UnsupportedNumber for a number nobody can track (Amazon's own TBA…), ValueError
-        "unknown_carrier" and the refusals of ``link_tracking``; a gift (the order or the
-        parcel folded in) is changed only by someone who may see it.
+        "unknown_carrier", "no_carrier" for a number no carrier's format fits with
+        "Automatisch" (a typo would be asked about for nothing) and the refusals of
+        ``link_tracking``; a gift (the order or the parcel folded in) is changed only by
+        someone who may see it.
 
         - A new number is asked about right away, as if the parcel was added (UPS without
           its API as in ``async_add``: known as UPS, "missing_key"). What the carrier
@@ -2646,7 +2663,27 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
           number) is folded into the order, and its sensor goes. Its news was told with the
           parcel already, so the order tells nothing again (``fold_delivered`` the same): a
           change still waiting to be told goes over to the order.
+        - No number (empty) takes one typed in away again (``unlink_tracking``); a number
+          typed in before is replaced the same way. The order goes back quietly: what the
+          wrong number told is not taken back with a notification.
         """
+        if not (tracking or "").strip():
+            async with self._lock:
+                order = self.store.parcels[normalize(number)]  # KeyError: not tracked
+                self._guard_gift(order, user_id, "gift_tracking_not_allowed")
+                if order.carrier not in SHOP_CARRIERS:
+                    raise ValueError("not_an_order")
+                if order.tracking_ref is None:
+                    return order
+                unlink_tracking(order)
+                self._forget_typed(order)
+                now = dt_util.utcnow()
+                order.last_change_at = now
+                self._forget_idle_carriers()
+                self._settle_orders(now)
+                await self.store.async_save()
+                self.async_set_updated_data(dict(self.store.parcels))
+            return order
         tracking_number = normalize(tracking)
         keys = candidates(tracking_number, self.carriers)  # raises UnsupportedNumber
         key = None if carrier == CARRIER_AUTO else carrier
@@ -2664,10 +2701,20 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
                 # (12 digits are also a DHL number: not when another carrier was chosen)
                 twin = self._gls_other_form(tracking_number)
                 tracking_number = twin.number if twin is not None else tracking_number
-            if (own := self.store.parcels.get(tracking_number)) is not None:
+            own = self.store.parcels.get(tracking_number)
+            if own is not None:
                 self._guard_gift(own, user_id, "gift_tracking_not_allowed")
-            old = order.status
+            elif key is None and not keys and tracking_number != order.tracking_ref:
+                # No carrier knows the format, and no parcel is tracked under it: a typo.
+                raise ValueError("no_carrier")
+            typed = order.tracking_manual and order.tracking_ref != tracking_number
+            # (a number typed in before goes first: the order is back where it was then)
+            before = order.result_before_tracking if typed else order.result
+            old = before.status if before is not None else None
             folded = link_tracking(self.store.parcels, order, tracking_number, key)
+            if typed:
+                # (what was told about the number typed in before is gone with it)
+                self._forget_typed(order)
             now = dt_util.utcnow()
             if folded is not None:
                 # As in ``fold_delivered``: what the parcel still had to tell goes over to
