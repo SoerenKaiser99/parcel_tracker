@@ -165,6 +165,7 @@ const SERVICE_ERRORS = {
   no_carrier: "Zu dieser Nummer passt kein Paketdienst. Prüf, ob sie richtig abgetippt ist.",
   own_number: "Das ist die Nummer der Bestellung selbst, nicht die des Paketdienstes.",
   not_a_carrier_parcel: "Diese Nummer gehört zu einer anderen Bestellung oder einem versendeten Paket.",
+  other_owner: "Diese Nummer gehört zum Paket einer anderen Person.",
   gift_tracking_not_allowed: "Nur wer Geschenke sehen darf, kann bei einem Geschenk eine Sendungsnummer eintragen.",
 };
 
@@ -1730,11 +1731,12 @@ class ParcelTrackerCard extends HTMLElement {
   // The carrier's parcel already tracked under a number typed in, if any: one the service
   // folds in (not a shop order, not a sent parcel, none that is part of an order). A GLS
   // parcel also under the other form of its number, with or without the check digit
-  // (as the integration finds it, see _gls_other_form).
+  // (as the integration finds it, see _gls_other_form). Only one the card shows: another
+  // person's parcel or a hidden gift is not asked about (the service refuses it).
   _parcelOf(typed) {
     const number = normNumber(typed);
     const short = (n) => (/^\d{12}$/.test(n) ? n.slice(0, 11) : n);
-    return this._parcels().find((st) => {
+    return this._shown().find((st) => {
       const own = normNumber(st.attributes.number);
       return (own === number || (st.attributes.carrier === "gls" && short(own) === short(number)))
         && !SHOPS.includes(st.attributes.carrier) && !isOutgoing(st.attributes)

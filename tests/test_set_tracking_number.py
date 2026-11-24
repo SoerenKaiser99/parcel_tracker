@@ -37,7 +37,7 @@ def _carrier_parcel(mode="mail", **fields) -> Parcel:
 def test_a_new_number_is_kept_and_asked_about():
     order = _order()
     parcels = {ORDER: order}
-    assert link_tracking(parcels, order, DHL, "dhl") is None
+    assert link_tracking(parcels, order, DHL, "dhl", NOW) is None
     assert (order.tracking_ref, order.tracking_carrier) == (DHL, "dhl")
     assert order.poll_target == ("dhl", DHL)
     assert order.next_poll_at is None
@@ -49,7 +49,7 @@ def test_a_parcel_tracked_under_the_number_is_folded_into_the_order(mode):
     """Also one added by hand: the user joins them on purpose."""
     order, parcel = _order(), _carrier_parcel(mode)
     parcels = {ORDER: order, DHL: parcel}
-    assert link_tracking(parcels, order, DHL, None) is parcel
+    assert link_tracking(parcels, order, DHL, None, NOW) is parcel
     assert list(parcels) == [ORDER]
     assert (order.tracking_ref, order.tracking_carrier) == (DHL, "dhl")
     assert order.status is ParcelStatus.OUT_FOR_DELIVERY
@@ -59,7 +59,7 @@ def test_a_parcel_tracked_under_the_number_is_folded_into_the_order(mode):
 def test_a_name_typed_in_on_the_parcel_goes_along():
     order, parcel = _order(), _carrier_parcel(name_manual=True)
     parcel.name = "Regal für den Keller"
-    link_tracking({ORDER: order, DHL: parcel}, order, DHL, None)
+    link_tracking({ORDER: order, DHL: parcel}, order, DHL, None, NOW)
     assert order.name == "Regal für den Keller"
 
 
@@ -77,7 +77,7 @@ def test_what_cannot_take_a_number(make, reason):
     make(parcels)
     target = parcels[DHL] if reason == "not_an_order" else parcels[ORDER]
     with pytest.raises(ValueError, match=reason):
-        link_tracking(parcels, target, "00340999999999999903", None)
+        link_tracking(parcels, target, "00340999999999999903", None, NOW)
     assert len(parcels) == 2
 
 
@@ -98,10 +98,10 @@ def test_a_delivered_order_keeps_its_status(change, refused):
     parcels = {ORDER: order, DHL: parcel}
     if refused:
         with pytest.raises(ValueError, match="already_delivered"):
-            link_tracking(parcels, order, DHL, None)
+            link_tracking(parcels, order, DHL, None, NOW)
         assert DHL in parcels and order.status is ParcelStatus.DELIVERED
     else:
-        assert link_tracking(parcels, order, DHL, None) is parcel
+        assert link_tracking(parcels, order, DHL, None, NOW) is parcel
         assert order.status is ParcelStatus.OUT_FOR_DELIVERY and not order.assumed_delivered
 
 
@@ -119,7 +119,7 @@ def test_a_number_that_is_no_carriers_parcel_is_refused(kind, reason):
     if kind == "outgoing":
         parcels[DHL] = _carrier_parcel(outgoing=True)
     with pytest.raises(ValueError, match=reason):
-        link_tracking(parcels, order, number, None)
+        link_tracking(parcels, order, number, None, NOW)
     assert order.tracking_ref is None and ORDER in parcels
 
 
@@ -138,7 +138,7 @@ def test_the_order_number_as_shown_is_refused_as_well(number, typed):
     if number.startswith("ALI"):
         order.carrier = "aliexpress"
     with pytest.raises(ValueError, match="own_number"):
-        link_tracking({number: order}, order, typed, None)
+        link_tracking({number: order}, order, typed, None, NOW)
     assert order.tracking_ref is None
 
 
@@ -146,7 +146,7 @@ def test_a_parcel_marked_as_received_stays_so_in_the_order():
     order, parcel = _order(), _carrier_parcel()
     parcel.result = _result(ParcelStatus.DELIVERED, "Erhalten (von Hand markiert)")
     parcel.manual_delivered = True
-    link_tracking({ORDER: order, DHL: parcel}, order, DHL, None)
+    link_tracking({ORDER: order, DHL: parcel}, order, DHL, None, NOW)
     assert order.status is ParcelStatus.DELIVERED and order.manual_delivered is True
 
 
@@ -155,7 +155,7 @@ def test_a_parcel_followed_through_17track_only_gets_a_carrier_to_ask(chosen, ke
     """"Andere (über 17track)" is no carrier: the order would ask nobody every hour."""
     order, parcel = _order(), _carrier_parcel()
     parcel.carrier, parcel.track17 = "other", True
-    link_tracking({ORDER: order, DHL: parcel}, order, DHL, chosen)
+    link_tracking({ORDER: order, DHL: parcel}, order, DHL, chosen, NOW)
     assert order.tracking_carrier == kept and order.track17 is True
 
 

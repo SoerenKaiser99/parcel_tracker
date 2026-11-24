@@ -269,6 +269,7 @@
     "no_carrier": {"message": "No carrier knows this number. Check it, or choose the carrier."},
     "own_number": {"message": "This is the order's own number, not the carrier's."},
     "not_a_carrier_parcel": {"message": "This number belongs to another order or a sent parcel."},
+    "other_owner": {"message": "This number belongs to a parcel of another person."},
     "track17_off": {"message": "No 17track API key set. Add one in the Parcel Tracker options."},
     "track17_carrier": {"message": "17track couldn't recognise the carrier of this number."},
     "track17_quota": {"message": "Your 17track quota is used up."},

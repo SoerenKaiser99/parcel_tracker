@@ -269,6 +269,7 @@
     "no_carrier": {"message": "Zu dieser Nummer passt kein Paketdienst. Prüf die Nummer oder wähle den Paketdienst aus."},
     "own_number": {"message": "Das ist die Nummer der Bestellung selbst, nicht die des Paketdienstes."},
     "not_a_carrier_parcel": {"message": "Diese Nummer gehört zu einer anderen Bestellung oder einem versendeten Paket."},
+    "other_owner": {"message": "Diese Nummer gehört zum Paket einer anderen Person."},
     "track17_off": {"message": "Kein 17track-API-Key eingetragen. Trag ihn in den Optionen von Paket Tracker ein."},
     "track17_carrier": {"message": "17track hat den Carrier dieser Nummer nicht erkannt."},
     "track17_quota": {"message": "Das 17track-Kontingent ist erschöpft."},

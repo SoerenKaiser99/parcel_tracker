@@ -1,5 +1,5 @@
 """Card: a carrier's number typed in is changed or taken away again; the order of the
-numbers; another person's waiting Amazon box (run in Node)."""
+numbers; another person's waiting Amazon box and parcel (run in Node)."""
 
 import json
 import re
@@ -80,8 +80,10 @@ click("ref-save").then(() => {
   const tOrder = { number: "AMZ99999999999999902", carrier: "amazon",
     amazon_shipment: "TAbCdE9fG", owner: "person.anna" };
   out.othersBox = card._refHtml(tOrder, "in_transit")[0];
+  out.othersParcel = Boolean(card._parcelOf(DHL));
   states["sensor.paket_dhl"].attributes.owner = "person.anna";
   out.ownBox = card._refHtml(tOrder, "in_transit")[0];
+  out.ownParcel = Boolean(card._parcelOf(DHL));
   console.log(JSON.stringify(out));
 });
 """
@@ -147,3 +149,8 @@ def test_remove_takes_the_number_away(card):
 def test_another_persons_waiting_amazon_box_opens_no_line(card):
     assert card["othersBox"] == ""
     assert 'data-a="ref"' in card["ownBox"]
+
+
+def test_another_persons_parcel_is_not_asked_about(card):
+    # (the service refuses it: "other_owner")
+    assert card["othersParcel"] is False and card["ownParcel"] is True
