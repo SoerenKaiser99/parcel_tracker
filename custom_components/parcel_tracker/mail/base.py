@@ -145,6 +145,12 @@ _DPD_LABELLED = re.compile(
     r"\s*:?\s*(\d{14})\b",
     re.IGNORECASE,
 )
+# Shopify's shipping mail (issue #92): "dpd Trackingnummer: <14 digits>". The label starts
+# a word, and a return's label ("Retouren-Trackingnummer") does not count (``_SSCC_RETURN``).
+_DPD_TRACKING_LABELLED = re.compile(
+    r"(?<!\w)(?:Tracking-?nummer|Trackingnr\.?|Tracking\s+number)\s*:?\s*(\d{14})(?!\d)",
+    re.IGNORECASE,
+)
 DPD_DOMAINS = ("dpd.de", "service.dpd.de")
 # DHL eCommerce (shipments from the Netherlands) and other DHL shipments carry a GS1 SSCC: "00"
 # and 18 digits whose last one is a check digit. 20 digits say nothing on their own (DHL's own
@@ -207,6 +213,12 @@ def find_numbers(text: str, dpd: DpdMode = None) -> list[tuple[str, str]]:
     if dpd is not None:
         pattern = _DPD if dpd == "any" else _DPD_LABELLED
         found += [(m.start(1), "dpd", m.group(1)) for m in pattern.finditer(text)]
+        if dpd == "labelled":
+            found += [
+                (m.start(1), "dpd", m.group(1))
+                for m in _DPD_TRACKING_LABELLED.finditer(text)
+                if not _SSCC_RETURN.search(text, max(m.start() - 30, 0), m.start())
+            ]
     result: list[tuple[str, str]] = []
     for _, carrier, number in sorted(found):
         if all(number != known for _, known in result):

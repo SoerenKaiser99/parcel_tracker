@@ -1,0 +1,71 @@
+From: "BOKORA Shop" <info@bokora.de>
+To: adresse1@example.org
+Subject: Eine Sendung aus der Bestellung #1092 ist unterwegs
+Date: Mon, 23 Nov 2026 16:00:00 +0100
+Message-ID: <shopify-92@example.org>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============0000000000000000092=="
+
+--===============0000000000000000092==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+Ihre Bestellung ist auf dem Weg
+
+BOKORA Shop
+
+Bestellung #1092
+
+-------------------------------
+Ihre Bestellung ist auf dem Weg
+-------------------------------
+
+Ihre Bestellung ist auf dem Weg. Verfolgen Sie Ihre
+Sendung, um den Lieferstatus zu sehen.
+
+Bestellung ansehen 
+( https://example.org/ )
+
+
+oder Zu unserem Shop 
+( https://example.org/ )
+
+
+dpd Trackingnummer: 09999999999292 
+( https://example.org/ )
+
+Artikel in dieser Lieferung
+---------------------------
+
+Becker USB-Funk-Stick Centronic #10000000092 × 1
+
+Becker CentralControl CC41 #10000000092 /
+USB-Funk-Stick Centronic #10000000092 / Centronic PLUS
+#10000000092 Smart Home Steuerung × 1
+
+CC41 Central Control
+
+Falls du Fragen hast, antworte auf diese E-Mail
+oder kontaktiere uns unter info@bokora.de.
+
+--===============0000000000000000092==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Bestellung #1092</p>
+<p>Ihre Bestellung ist auf dem Weg</p>
+<p>Ihre Bestellung ist auf dem Weg. Verfolgen Sie Ihre Sendung, um den Lieferstatus zu sehen.</p>
+<p>Bestellung ansehen</p>
+<p>oder Zu unserem Shop</p>
+<p>dpd Trackingnummer: 09999999999292</p>
+<p>Artikel in dieser Lieferung</p>
+<p>Becker USB-Funk-Stick Centronic #10000000092 × 1</p>
+<p>Becker CentralControl CC41 #10000000092 / USB-Funk-Stick Centronic #10000000092 / Centronic PLUS #10000000092 Smart Home Steuerung × 1</p>
+<p>CC41 Central Control</p>
+<p>Falls du Fragen hast, antworte auf diese E-Mail oder kontaktiere uns unter info@bokora.de.</p>
+</body></html>
+
+--===============0000000000000000092==--

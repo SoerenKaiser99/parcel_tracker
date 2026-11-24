@@ -2,7 +2,7 @@
 
 Paket Tracker ist eine öffentliche Beta. Vieles ist gebaut und automatisch getestet, aber längst nicht alles ist mit echten Paketen und echten Mails bestätigt. Diese Seite sagt, **was gerade am meisten hilft**.
 
-*Stand: 23. November 2026, Version 0.3.66. Die Liste wird mit jeder Version aktualisiert.*
+*Stand: 24. November 2026, Version 0.3.67. Die Liste wird mit jeder Version aktualisiert.*
 
 !!! tip "Die schnellste Hilfe"
     Du nutzt eine der Funktionen unten und sie läuft? Dann reicht ein Satz: **Was** du genutzt hast, **mit welcher Version**, und **ob es gepasst hat**. Auch „läuft einfach“ ist eine Rückmeldung, die zählt.
@@ -78,6 +78,7 @@ Diese Funktionen sind fertig, aber im Alltag noch von niemandem oder nur von ein
 | **Einfuhrabgaben (Zoll) bei DHL** | Zeigt die Karte bei einer DHL-Sendung aus dem Ausland den Betrag („Einfuhrabgaben: … € in bar bei Zustellung“), kommt er in die Benachrichtigung „In Zustellung“, und verschwindet er nach der Zustellung? Stimmt der Betrag mit der Mail überein, auch bei Beträgen ab 1.000 €? | [Fehler melden](hilfe.md#fehler-melden) |
 | **„Absendernamen aus DHL-Mails übernehmen“** | Heißt ein Paket nach dem Namen aus dem DHL-Betreff „Ihre <Name> Sendung …“, auch bei einem kleinen Shop oder einer Privatperson? Fehlt das „..“ am Ende? Blendet „Namen ausblenden“ den Namen weiterhin aus? | [Fehler melden](hilfe.md#fehler-melden) |
 | **Benachrichtigung „Abholbereit“** | Kommt die Meldung, wenn ein Paket in Packstation, Filiale oder PaketShop liegt? | im Forum |
+| **Shopify-Shops: „dpd Trackingnummer: …“** | Wird die Versandmail eines Shopify-Shops („Eine Sendung aus der Bestellung #… ist unterwegs“) mit DPD-Nummer als DPD-Paket erkannt? Gesucht: dieselbe Mail mit „DHL Trackingnummer“ oder „GLS Trackingnummer“. Neu seit v0.3.67. | [Issue #92](https://github.com/SoerenKaiser99/parcel_tracker/issues/92) |
 | **Hermes Einrichtungs Service (HES)** | Wird eine HES-Sendung (21 Ziffern) mit dem Stand von myhes.de angezeigt, und rückt sie bis „Zugestellt“ vor? Legt die Mail „Auftragseingang“ das Paket auf „Angekündigt“ an? Gesucht: weitere HES-Mails. Neu seit v0.3.66 (Beitrag von danuvius92). | [PR #70](https://github.com/SoerenKaiser99/parcel_tracker/pull/70) |
 | **Geschenk einzeln kennzeichnen** | Markiert der Knopf „Geschenk“ im aufgeklappten Paket genau dieses Paket, auch bei ausgeschaltetem Geschenkmodus? Zeigt „Einzeln auswählen“ beim Einschalten die offenen Pakete zum Ankreuzen, und werden nur die angekreuzten zu Geschenken? Neu seit v0.3.65. | im Forum |
 | **Auslöser im Automations-Editor** | Findest du die neun Auslöser unter dem Gerät „Paket Tracker“, und lösen sie aus? | im Forum |

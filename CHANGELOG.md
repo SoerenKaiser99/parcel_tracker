@@ -36,6 +36,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.67 (2026-11-24)
+
+- **Shopify-Versandmails mit DPD:** Die Standard-Versandmail von Shopify-Shops („Eine Sendung aus der Bestellung #… ist unterwegs“) nennt die DPD-Nummer hinter „dpd Trackingnummer:“. Diese Bezeichnung zählt jetzt wie „Paketnummer“ oder „Sendungsnummer“, wenn DPD in der Mail steht; eine Rücksende-Nummer („Retouren-Trackingnummer“) nicht. ([Issue #92](https://github.com/SoerenKaiser99/parcel_tracker/issues/92))
+
 ### v0.3.66 (2026-11-23)
 
 - **Hermes Einrichtungs Service (HES):** Möbel- und Großstücksendungen von HES (21-stellige Nummern) werden über die öffentliche Sendungsverfolgung von myhes.de abgefragt, ohne Anmeldung. HES-Mails legen das Paket an und stoßen eine Abfrage an; nur die Mail „Auftragseingang“ setzt „Angekündigt“, alle anderen setzen weder Status noch Termin, den Stand liefert myhes.de. Danke an danuvius92. ([PR #70](https://github.com/SoerenKaiser99/parcel_tracker/pull/70))
