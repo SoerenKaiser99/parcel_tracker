@@ -281,7 +281,8 @@ def test_a_carrier_mail_naming_the_seller_joins_its_order():
         ("Beispielhandel Nord GmbH", "Beispielhandel GmbH", False),  # another seller
         ("Beispielhandel GmbH", "Beispielhandel Nord GmbH", False),
         ("Beispielhandel GmbH", "Beispielhandel", False),  # no company: the mail names no brand
-        ("Abcd GmbH", "Abcd GmbH", False),  # a brand too short to tell an order by
+        ("Abcd GmbH", "Abcd GmbH", True),  # four letters are enough
+        ("Abc GmbH", "Abc GmbH", False),  # a brand too short to tell an order by
     ],
 )
 def test_the_seller_must_be_the_brand_word_for_word(seller, title, joined):

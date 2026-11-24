@@ -569,7 +569,8 @@ def test_other_carrier_mails_are_merged_by_their_old_rule(status):
 
 
 def test_a_delivery_mail_that_names_a_day_keeps_its_old_rule():
-    order = _order(first=TODAY + _days(1), last=TODAY + _days(3))
+    # (three days ahead: close enough for a fold, too far for a mail's own day)
+    order = _order(first=TODAY + _days(3), last=TODAY + _days(5))
     parcels = {ORDER: order}
     apply_update(parcels, _delivered_mail(eta_date=TODAY), NOW)
     assert set(parcels) == {ORDER, DHL}  # the day it names is not one of the order's

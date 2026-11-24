@@ -509,6 +509,9 @@ _NO_BRAND = frozenset(
         "bio", "baby", "sport", "sports", "black", "smart", "premium", "plus", "pro", "max",
         "super", "direkt", "direct", "original", "set", "trade", "trading", "vertrieb",
         "vertriebs", "company", "solutions",
+        # (four letters make a brand too: the common ones of that length)
+        "euro", "tech", "mode", "bike", "kids", "life", "nord", "west", "star", "team",
+        "gold", "easy", "food", "tool", "mega", "info", "care", "line", "work", "farm",
     }
 )
 
@@ -524,7 +527,7 @@ def brand_of(title: str | None) -> str | None:
     ("Beispielmarke GmbH" -> "Beispielmarke"), its words joined by single spaces.
 
     None for anything that says too little to tell a shop order by: no company name, a shop
-    we know (it sells other makers' articles), a single word of fewer than five letters, and
+    we know (it sells other makers' articles), a single word of fewer than four letters, and
     a name without a word of its own ("Neu GmbH", "Smart Home GmbH"). A common word next to
     a word of its own stays part of the brand ("Beispielmarke Premium").
     """
@@ -537,7 +540,7 @@ def brand_of(title: str | None) -> str | None:
         return None
     letters = [re.sub(r"[\W\d_]", "", word) for word in words]
     own = [word for word in letters if len(word) >= 3 and word.lower() not in _NO_BRAND]
-    if not own or (len(words) == 1 and len(letters[0]) < 5):
+    if not own or (len(words) == 1 and len(letters[0]) < 4):
         return None
     return brand
 
