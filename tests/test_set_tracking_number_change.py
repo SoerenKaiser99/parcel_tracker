@@ -75,7 +75,8 @@ def test_taking_the_number_away_brings_the_order_back_and_drops_the_carriers_thi
     _typed_wrong(order)
     unlink_tracking(order)
     assert order.result is before and order.status is ParcelStatus.IN_TRANSIT
-    assert (order.tracking_ref, order.tracking_carrier, order.tracking_manual) == (None, None, False)
+    assert (order.tracking_ref, order.tracking_carrier) == (None, None)
+    assert order.tracking_manual is False
     assert order.carrier_status is None and order.last_poll_at is None
     assert order.last_error is None and order.active_code(NOW.date()) is None
     assert order.track17 is False and order.track17_carrier is None
