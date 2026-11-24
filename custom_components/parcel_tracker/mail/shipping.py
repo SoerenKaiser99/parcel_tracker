@@ -658,8 +658,14 @@ def parse_generic(msg: EmailMessage) -> list[MailUpdate]:
     name, nor is the one of a forwarded mail (it would be the forwarding person's name).
     Galaxus' own mail names its parcel after the item (``_galaxus_title``).
     Unnamed parcels show as "<Carrier> <number>".
+
+    Some shops write the number only into the HTML part and leave it out of (or turn it
+    into a link in) the plain one (Shopify, issue #92): when the plain text names no
+    number, the text of the HTML part is read as well.
     """
     text = f"{subject(msg)}\n{body_text(msg)}"
+    if not find_numbers(text, "labelled") and (html := html_body_text(msg)):
+        text = f"{text}\n{html}"
     address, display = sender(msg)
     sent = sent_at(msg)
     domain = domain_of(address)

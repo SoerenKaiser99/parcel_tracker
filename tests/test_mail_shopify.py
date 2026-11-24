@@ -40,3 +40,9 @@ def test_returns_and_other_numbers_are_no_dpd_parcel(text):
 
 def test_without_dpd_in_the_mail_a_trackingnummer_is_no_dpd_parcel():
     assert find_numbers("Trackingnummer: 09999999999901", None) == []
+
+
+def test_number_only_in_the_html_part_is_found():
+    # Issue #92: the plain part names "dpd Trackingnummer:" without the number.
+    result = parse_mail(load_mail("236_shopify_dpd_nur_im_html.eml"))
+    assert [(u.carrier, u.number) for u in result.updates] == [("dpd", "09999999999292")]

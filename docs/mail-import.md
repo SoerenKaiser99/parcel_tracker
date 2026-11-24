@@ -245,7 +245,7 @@ Am zuverlässigsten bleibt die automatische Filterregel: Sie leitet die Mail unv
 
 ??? note "Wenn der Block fehlt oder der Absender unbekannt ist"
     - Amazon- und GLS-Mails erkennt der Import am Betreff (mit „WG:“ oder „Fwd:“), ohne den Versender einer GLS-Mail als Namen zu übernehmen. „Heute“ und „morgen“ rechnet er ab dem Zeitpunkt der Weiterleitung.
-    - Aus allen anderen Mails übernimmt er nur eindeutige Sendungsnummern: DHL `00340…` und `JJD…`, UPS `1Z…`, Hermes `H…`. DPD-Nummern nur, wenn „DPD“ in der Mail steht und die Nummer direkt nach „Paketnummer“, „Sendungsnummer“, „Trackingnummer“ o. Ä. folgt (so z. B. in der Versandmail vieler Shopify-Shops: „dpd Trackingnummer: …“, seit v0.3.67), oder die Mail direkt von DPD kommt. Eine Rücksende-Nummer („Retouren-Trackingnummer“) zählt nicht.
+    - Aus allen anderen Mails übernimmt er nur eindeutige Sendungsnummern: DHL `00340…` und `JJD…`, UPS `1Z…`, Hermes `H…`. DPD-Nummern nur, wenn „DPD“ in der Mail steht und die Nummer direkt nach „Paketnummer“, „Sendungsnummer“, „Trackingnummer“ o. Ä. folgt (so z. B. in der Versandmail vieler Shopify-Shops: „dpd Trackingnummer: …“, seit v0.3.67), oder die Mail direkt von DPD kommt. Eine Rücksende-Nummer („Retouren-Trackingnummer“) zählt nicht. Steht im Textteil einer solchen Mail keine Nummer (manche Shops schreiben sie nur in den HTML-Teil), liest der Import seit v0.3.68 auch den HTML-Teil.
     - Solche Pakete tragen keinen Namen aus dem Absender, sondern heißen `<Carrier> <Nummer>`. Umbenennen geht auf der Karte.
 
 Mails, die älter als 14 Tage sind, markiert der Import nur als gelesen.

@@ -36,6 +36,10 @@ Die Doku-Seite steht unter <https://soerenkaiser99.github.io/parcel_tracker/>, d
 
 ## Versionen
 
+### v0.3.68 (2026-11-24)
+
+- **Shopify-Versandmails, Nachbesserung:** Manche Shops schreiben die Sendungsnummer nur in den HTML-Teil der Mail, der Textteil nennt sie nicht oder nur als Link. Findet der Import im Textteil einer Mail eines unbekannten Absenders keine Nummer, liest er jetzt auch den HTML-Teil. ([Issue #92](https://github.com/SoerenKaiser99/parcel_tracker/issues/92))
+
 ### v0.3.67 (2026-11-24)
 
 - **Shopify-Versandmails mit DPD:** Die Standard-Versandmail von Shopify-Shops („Eine Sendung aus der Bestellung #… ist unterwegs“) nennt die DPD-Nummer hinter „dpd Trackingnummer:“. Diese Bezeichnung zählt jetzt wie „Paketnummer“ oder „Sendungsnummer“, wenn DPD in der Mail steht; eine Rücksende-Nummer („Retouren-Trackingnummer“) nicht. ([Issue #92](https://github.com/SoerenKaiser99/parcel_tracker/issues/92))
