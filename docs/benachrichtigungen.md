@@ -64,7 +64,7 @@ Die frühen Ereignisse (Bestellt bis Im Zustelldepot) kommen oft, manche Paketdi
 
 „Kommt gleich“ kommt auch ohne Haken bei „In Zustellung“. Bringt erst diese Mail das Paket in Zustellung, kommt mit beiden Haken nur „Kommt gleich“, nicht zwei Meldungen hintereinander. DHL schickt die Mail oft zweimal innerhalb weniger Minuten: Die zweite verschiebt nur das Zeitfenster. Wird die Mail erst gelesen, wenn ihre Minuten schon vorbei sind (Postfach spät abgerufen, Home Assistant war aus), kommt keine Meldung.
 
-Hast du die Benachrichtigungen schon früher eingerichtet, behältst du deine Auswahl: Die neuen Ereignisse (auch „Storniert“ und „Kommt gleich“) sind dann nicht angehakt.
+Hast du die Benachrichtigungen schon früher eingerichtet, behältst du deine Auswahl, auch wenn du Ziele nur bei den Personen eingetragen und die Ereignisse nie gespeichert hast: Die neuen Ereignisse (auch „Storniert“ und „Kommt gleich“) sind dann nicht angehakt.
 
 Für ein **versendetes Paket** (Einlieferungsbeleg, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)) kommt genau eine Meldung, wenn es beim Empfänger zugestellt ist oder zur Abholung bereitliegt, und nur, wenn „Zugestellt“ gewählt ist. Sie lautet „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“. Andere Meldungen gibt es für versendete Pakete nicht. Die Ankunft sieht die Integration nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen) oder nach „Details über 17track holen“ auf der Karte. Ohne beides bleibt das Paket auf „unterwegs“, und die Meldung kommt nie.
 

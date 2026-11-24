@@ -116,7 +116,7 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | `owner` | Person, der das Paket gehört (Entität wie `person.anna`), oder leer, wenn es allen gehört (ab v0.3.41). Das ist der geltende Besitzer, auch die Standard-Person aus **Unklare Pakete gehören** | `person.anna` |
 | `outgoing` | `true`, wenn du das Paket verschickt hast (ab v0.3.48, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)). `new_status` ist dann z. B. `delivered` oder `awaiting_pickup` beim Empfänger | `false` |
 | `gift` | `true`, wenn das Paket ein Geschenk ist (ab v0.3.45). `name` ist dann der Geschenk-Name. Für wen es ist, steht nicht im Event | `false` |
-| `repeat` | `true`, wenn der Status für das Paket schon gemeldet war: eine Bestellung hat ein gemeldetes Paket übernommen, oder eine weitere Bestellung liegt im selben Paket. Der Blueprint lässt sie aus, die eingebaute Benachrichtigung auch (außer für eine zweite Person mit eigenen Zielen, die ihre Bestellung im selben Paket hat) | `false` |
+| `repeat` | `true`, wenn der Status für das Paket schon gemeldet war: eine Bestellung hat ein gemeldetes Paket übernommen, oder eine weitere Bestellung liegt im selben Paket. Der Blueprint lässt sie aus, die eingebaute Benachrichtigung auch (außer für eine zweite Person mit eigenen Zielen, die ihre Bestellung im selben Paket hat). `repeat` gilt für das Paket, nicht für die Person: Filtert deine Automation nach `owner`, lass `repeat` dort unbeachtet, sonst fehlt die Bestellung der zweiten Person | `false` |
 
 Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` (über 17track).
 

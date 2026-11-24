@@ -38,6 +38,8 @@ from .const import (
     CONF_IMAP_PORT,
     CONF_IMAP_SECURITY,
     CONF_IMAP_USER,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_TARGETS,
     CONF_TRACK17_API_KEY,
     CONF_UPS_BUDGET,
     CONF_UPS_CLIENT_ID,
@@ -46,6 +48,7 @@ from .const import (
     DOMAIN,
     IMAP_SECURITY_SSL,
     LEGACY_IMAP_HOST,
+    LEGACY_NOTIFY_EVENTS,
     SELECTABLE_CARRIERS,
     entry_country,
 )
@@ -55,6 +58,7 @@ from .device import async_register_device
 from .http import ImportMailView
 from .lovelace_resource import async_ensure_resource
 from .mail.imap import MailboxClient, clean_security, looks_local
+from .models import person_configs
 from .store import DuplicateParcel, ParcelStore
 from .websocket import async_register_websocket
 
@@ -356,6 +360,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ParcelConfigEntry) -> bo
     async_register_device(hass, entry.entry_id)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Bring an entry of an older version up to date (config entry 1.1 -> 1.2).
+
+    1.2 stores the notify events. Before, an entry whose choice was never saved (targets
+    only under "Personen") followed the default, so every event added to it ("Storniert"
+    in v0.3.64, "Kommt gleich") came unasked. Such an entry gets the default it had before
+    (``LEGACY_NOTIFY_EVENTS``), once; one without targets stores nothing and takes the
+    default of the day once notifications are set up. An entry of a later minor version
+    (downgrade) is left as it is.
+    """
+    if entry.minor_version < 2:
+        options = entry.options
+        targets = options.get(CONF_NOTIFY_TARGETS) or any(
+            person.notify_targets for person in person_configs(options)
+        )
+        if targets and CONF_NOTIFY_EVENTS not in options:
+            options = {**options, CONF_NOTIFY_EVENTS: list(LEGACY_NOTIFY_EVENTS)}
+            _LOGGER.info("Notifications: the previous default events are now stored")
+        hass.config_entries.async_update_entry(entry, options=options, minor_version=2)
     return True
 
 

@@ -145,6 +145,10 @@ DEFAULT_NOTIFY_EVENTS = (
     "delivered",
     "cancelled",
 )
+# The default up to v0.3.63, before "cancelled" and "arriving_soon" were added to it:
+# stored once for an entry that has targets but never saved its choice
+# (``async_migrate_entry``), so that a new default event is not switched on unasked.
+LEGACY_NOTIFY_EVENTS = ("out_for_delivery", "awaiting_pickup", "delivered")
 # A stored notify target is either the ID of a notify entity ("notify.tablet") or,
 # with this prefix, the name of a classic notify service ("service:pushover" is the
 # service notify.pushover). No entity ID contains a colon, so the two never collide.
