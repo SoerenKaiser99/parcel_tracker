@@ -1083,7 +1083,9 @@ def test_docs_say_when_a_carrier_mail_joins_a_shop_order():
         "nie zu einem eBay-Paket",
         "keinen anderen Versanddienstleister nennt",
         "muss das Paket schon „Versendet“ sein",
-        "ein Wort ab 5 Buchstaben oder mehrere Wörter",
+        "ein Wort ab 4 Buchstaben oder mehrere Wörter",
+        "bis zu 2 Tage davor oder 1 Tag danach",
+        "Über die Marke gefunden wird nur ein Paket ohne Sendungs-ID oder mit lauter „D“-IDs",
         "bekannte Shops (IKEA",
         "aus einem nur bestellten Paket nie ein zugestelltes",
     ))

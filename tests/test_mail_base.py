@@ -330,8 +330,12 @@ def test_carrier_display_names(text, broad, title, legacy):
         ("Kabelwerk Premium GmbH", "Kabelwerk Premium"),
         ("Premium  Kabelwerk GmbH & Co. KG", "Premium Kabelwerk"),
         ("AB Technik GmbH", "AB Technik"),
+        ("Abcd GmbH", "Abcd"),  # one word of four letters is enough
         # one short word, or nothing but words every other company carries
-        ("Abcd GmbH", None),
+        ("Abc GmbH", None),
+        ("Euro GmbH", None),  # four letters, but a word every other company carries
+        ("Tech Mode GmbH", None),
+        ("Euro Abcd GmbH", "Euro Abcd"),
         ("AB GmbH", None),
         ("AB CD GmbH", None),
         ("Neu GmbH", None),

@@ -624,7 +624,11 @@ def test_brand_merge_never_takes_an_ebay_order(carrier):
         ("today", "today", True),
         (None, "today", True),  # the order names no day, but it is shipped
         ("range", None, True),  # the mail names no day, but the order is shipped
-        ("later", "today", False),  # the day is outside of the order's range
+        # the carrier may come up to two days before the order's day or one day after it
+        ("tomorrow", "today", True),
+        ("in two days", "today", True),
+        ("yesterday", "today", True),
+        ("later", "today", False),
         ("earlier", "today", False),
     ],
 )
@@ -635,8 +639,11 @@ def test_brand_merge_needs_a_day_that_fits(order_day, mail_day, merged):
         "range": _range(),
         "today": (TODAY, None),
         None: (None, None),
-        "later": (TODAY + timedelta(days=2), TODAY + timedelta(days=4)),
-        "earlier": (TODAY - timedelta(days=5), TODAY - timedelta(days=1)),
+        "tomorrow": (TODAY + timedelta(days=1), None),
+        "in two days": (TODAY + timedelta(days=2), TODAY + timedelta(days=4)),
+        "yesterday": (TODAY - timedelta(days=3), TODAY - timedelta(days=1)),
+        "later": (TODAY + timedelta(days=3), TODAY + timedelta(days=5)),
+        "earlier": (TODAY - timedelta(days=5), TODAY - timedelta(days=2)),
     }[order_day]
     parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", *days)}
     status = ParcelStatus.OUT_FOR_DELIVERY if mail_day else ParcelStatus.IN_TRANSIT
@@ -676,7 +683,7 @@ def test_two_orders_of_the_brand_are_never_merged():
         ("Top Shop GmbH", "Top Shop Kabel 2 m"),
         ("Smart Home GmbH", "Smart Home Steckdose"),
         ("Premium Handel GmbH & Co. KG", "Premium Handel Kabel"),
-        ("Abcd GmbH", "Abcd Trinkflasche"),  # one word of fewer than five letters
+        ("Abc GmbH", "Abc Trinkflasche"),  # one word of fewer than four letters
         # a shop we know is a shop, never the brand of an article
         ("IKEA", "IKEA Kallax Regal weiß"),
         ("IKEA Deutschland GmbH & Co. KG", "IKEA Deutschland Kallax Regal"),
@@ -777,6 +784,8 @@ def test_delivered_mail_never_turns_an_ordered_parcel_into_delivered():
         (ParcelStatus.DELIVERED, None, None, ParcelStatus.IN_TRANSIT, True),
         # the day a mail was sent counts for "in Zustellung" and "zugestellt"
         (ParcelStatus.DELIVERED, None, "range", ParcelStatus.IN_TRANSIT, True),
+        (ParcelStatus.OUT_FOR_DELIVERY, None, "in two days", ParcelStatus.IN_TRANSIT, True),
+        (ParcelStatus.DELIVERED, None, "in two days", ParcelStatus.IN_TRANSIT, True),
         (ParcelStatus.OUT_FOR_DELIVERY, None, "later", ParcelStatus.IN_TRANSIT, False),
         (ParcelStatus.DELIVERED, None, "later", ParcelStatus.IN_TRANSIT, False),
         (ParcelStatus.DELIVERED, None, "earlier", ParcelStatus.IN_TRANSIT, False),
@@ -790,8 +799,9 @@ def test_brand_merge_day_and_shipping_rules(status, mail_day, order_days, order_
     days = {
         "range": _range(),
         None: (None, None),
-        "later": (TODAY + timedelta(days=2), TODAY + timedelta(days=4)),
-        "earlier": (TODAY - timedelta(days=5), TODAY - timedelta(days=1)),
+        "in two days": (TODAY + timedelta(days=2), TODAY + timedelta(days=4)),
+        "later": (TODAY + timedelta(days=3), TODAY + timedelta(days=5)),
+        "earlier": (TODAY - timedelta(days=5), TODAY - timedelta(days=2)),
     }[order_days]
     parcels = {ORDER: _order(ORDER, "Beispielmarke Trinkflasche", *days, status=order_status)}
     mail = _brand_mail(day=TODAY if mail_day else None, status=status)
@@ -1005,6 +1015,104 @@ def test_a_mail_naming_amazon_never_joins_an_order_the_seller_sends(ids, merged)
     assert change.created is not merged
     assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
     assert (SHORT_DHL in parcels) is not merged
+
+
+# ----- the carrier's day is often a day or two before the shop's -----
+def test_seller_box_with_a_four_letter_brand_a_day_early_joins_the_order():
+    """The reported case: the seller sends the box with DHL, whose mail names the seller's
+    four-letter brand and a day before the one Amazon gave."""
+    order = _order(ORDER, "Abcd Beispiel-Mühle Edelstahl…", TODAY + timedelta(days=1))
+    order.shipment_ids = [SELLER]
+    parcels = {ORDER: order}
+    mail = _brand_mail("Abcd GmbH", status=ParcelStatus.IN_TRANSIT)
+    change = apply_update(parcels, mail, NOW)
+    assert not change.created and change.parcel is order
+    assert list(parcels) == [ORDER]
+    assert (order.tracking_ref, order.tracking_carrier) == (SHORT_DHL, "dhl")
+
+
+@pytest.mark.parametrize(
+    ("ids", "merged"),
+    [
+        ([], True),  # Amazon named no shipment: as before
+        ([SELLER], True),
+        ([SELLER, SELLER_TOO], True),
+        ([AMAZON_NOW], False),  # Amazon sends it: its carrier names Amazon, not the brand
+        ([AMAZON_BEFORE], False),
+        ([SELLER, AMAZON_NOW], False),
+    ],
+)
+def test_a_mail_naming_the_brand_only_joins_an_order_amazon_does_not_send(ids, merged):
+    parcels = {ORDER: _shipped(ORDER, ids)}
+    change = apply_update(parcels, _brand_mail(), NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+
+
+def test_an_order_amazon_sends_never_makes_the_sellers_order_ambiguous():
+    parcels = {
+        ORDER: _shipped(ORDER, [AMAZON_NOW]),
+        OTHER_ORDER: _shipped(OTHER_ORDER, [SELLER], title="Beispielmarke Filter"),
+    }
+    change = apply_update(parcels, _brand_mail(), NOW)
+    assert not change.created and change.parcel is parcels[OTHER_ORDER]
+    assert parcels[ORDER].tracking_ref is None
+
+
+@pytest.mark.parametrize(
+    ("first", "last", "merged"),
+    [
+        (0, None, True),
+        (1, None, True),
+        (2, None, True),
+        (2, 4, True),
+        (3, None, False),  # too far ahead: another box
+        (-1, None, True),  # a day late
+        (-3, -1, True),
+        (-2, None, False),  # two days late: another box
+        (-4, -2, False),
+    ],
+)
+def test_a_mail_naming_amazon_may_come_two_days_early_or_one_day_late(first, last, merged):
+    later = None if last is None else TODAY + timedelta(days=last)
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Regal", TODAY + timedelta(days=first), later)}
+    change = apply_update(parcels, _amazon_dhl(), NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+
+
+def test_the_leeway_is_not_for_an_order_that_only_named_the_carrier():
+    """An eBay order whose seller named DHL keeps the exact day: a DHL mail naming a brand
+    for today is no box of that order for tomorrow, it is the Amazon order's."""
+    number = "EBAY999999999901"
+    ebay = _order(number, "Musterfirma Kabel", TODAY + timedelta(days=1), carrier="ebay")
+    ebay.shipping_carrier_hint = "dhl"
+    parcels = {number: ebay, ORDER: _order(ORDER, "Beispielmarke Trinkflasche", TODAY)}
+    change = apply_update(parcels, _brand_mail(), NOW)
+    assert not change.created and change.parcel is parcels[ORDER]
+    assert ebay.tracking_ref is None
+    # and without the brand's order, the mail is a parcel of its own
+    parcels = {number: _order(number, "Musterfirma Kabel", TODAY + timedelta(days=1),
+                              carrier="ebay")}
+    parcels[number].shipping_carrier_hint = "dhl"
+    assert apply_update(parcels, _brand_mail(), NOW).created
+
+
+def test_an_order_whose_day_fits_as_it_is_goes_before_one_the_carrier_is_early_for():
+    parcels = {
+        ORDER: _order(ORDER, "Beispielmarke Regal", TODAY + timedelta(days=1)),
+        OTHER_ORDER: _order(OTHER_ORDER, "Musterfirma Kabel", TODAY),
+    }
+    change = apply_update(parcels, _amazon_dhl(), NOW)
+    assert not change.created and change.parcel is parcels[OTHER_ORDER]
+    assert parcels[ORDER].tracking_ref is None
+    # two orders the carrier would both be early for: none of them
+    parcels = {
+        ORDER: _order(ORDER, "Beispielmarke Regal", TODAY + timedelta(days=1)),
+        OTHER_ORDER: _order(OTHER_ORDER, "Musterfirma Kabel", TODAY + timedelta(days=2)),
+    }
+    assert apply_update(parcels, _amazon_dhl(), NOW).created
+    assert parcels[ORDER].tracking_ref is None and parcels[OTHER_ORDER].tracking_ref is None
 
 
 def test_a_hermes_mail_from_amazon_never_joins_an_order_the_seller_sends():
