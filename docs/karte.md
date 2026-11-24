@@ -91,10 +91,10 @@ Aufgeklappt siehst du:
 :   Nur, wenn eine DHL-Mail für eine Sendung aus dem Ausland einen Zoll genannt hat: „Einfuhrabgaben: 12,34 € in bar bei Zustellung“ über der Sendungsnummer. „in bar“ steht nur da, wenn die Mail Barzahlung verlangt. In der zugeklappten Zeile steht dazu ein kleines Badge „Zoll 12,34 €“, damit man es sieht, ohne das Paket aufzuklappen. Beides verschwindet mit der Zustellung. Siehe [E-Mail-Import](mail-import.md).
 
 **Sendungsnummer, Bestellnummer**
-:   Unter dem Verlauf steht die Nummer des Pakets: „Sendungsnummer: …“. Bei einer Bestellung (Amazon, eBay, AliExpress, Eventim) steht dort „Bestellnummer: …“, so geschrieben wie beim Shop (z. B. `999-9999999-9999999` bei Amazon), und sobald eine Mail die Nummer des Paketdienstes genannt hat, darunter auch deren „Sendungsnummer: …“. Eine Amazon-Bestellung ohne diese Nummer zeigt stattdessen „Amazon-Sendung: …“ (ebenso unter einer Nummer, für deren Paketdienst es keine Verfolgungsseite gibt), Amazons eigene Kennung der Sendung aus den Mails ab „Versendet“; sie gilt nur auf Amazons Seite, nicht beim Zusteller. Ein Tipp auf die Nummer markiert sie ganz, dann lässt sie sich kopieren. Die Nummern stehen auch mit [Namen ausblenden](datenschutz.md#namen-ausblenden) da: Die Option blendet nur Namen aus. Seit v0.3.34.
+:   Unter dem Verlauf steht die Nummer des Pakets: „Sendungsnummer: …“. Bei einer Bestellung (Amazon, eBay, AliExpress, Eventim) steht dort „Bestellnummer: …“, so geschrieben wie beim Shop (z. B. `999-9999999-9999999` bei Amazon), und sobald eine Mail die Nummer des Paketdienstes genannt hat oder du sie [eingetragen](#sendungsnummer-eintragen) hast, darunter auch deren „Sendungsnummer: …“. Eine Amazon-Bestellung zeigt außerdem „Amazon-Sendung: …“, Amazons eigene Kennung der Sendung aus den Mails ab „Versendet“; sie gilt nur auf Amazons Seite, nicht beim Zusteller. Ein Tipp auf die Nummer markiert sie ganz, dann lässt sie sich kopieren. Die Nummern stehen auch mit [Namen ausblenden](datenschutz.md#namen-ausblenden) da: Die Option blendet nur Namen aus. Seit v0.3.34.
 
 **Sendung verfolgen**
-:   Das Symbol mit dem Lieferwagen hinter der Sendungsnummer. Öffnet die Sendungsverfolgung des Paketdienstes (DHL, DPD, GLS, Hermes, UPS) mit der Sendungsnummer in einem neuen Tab. Den Link gibt es auch bei einer Bestellung, sobald sie die Sendungsnummer des Paketdienstes kennt. Eine Amazon-Bestellung ohne diese Nummer führt stattdessen zur Sendungsverfolgung bei Amazon (mit Anmeldung), sobald eine Mail ab „Versendet“ die Sendung verlinkt hat; das Symbol steht dann hinter der Amazon-Sendung, bei mehreren Sendungen führt es zur neuesten. Sonst gibt es ohne Sendungsnummer eines dieser Paketdienste (Bestellung nur aus Mails, Paket nur über 17track, Paketdienst noch nicht erkannt) keinen Link. Es sind die deutschen Seiten der Paketdienste, auch mit Land Österreich oder Schweiz. Die Adresse steht auch im Attribut `tracking_url` des Paket-Sensors.
+:   Das Symbol mit dem Lieferwagen hinter der Sendungsnummer. Öffnet die Sendungsverfolgung des Paketdienstes (DHL, DPD, GLS, Hermes, UPS) mit der Sendungsnummer in einem neuen Tab. Den Link gibt es auch bei einer Bestellung, sobald sie die Sendungsnummer des Paketdienstes kennt. Hinter der Amazon-Sendung führt das Symbol zur Sendungsverfolgung bei Amazon (mit Anmeldung), sobald eine Mail ab „Versendet“ die Sendung verlinkt hat, bei mehreren Sendungen zur neuesten. Sonst gibt es ohne Sendungsnummer eines dieser Paketdienste (Bestellung nur aus Mails, Paket nur über 17track, Paketdienst noch nicht erkannt) keinen Link. Es sind die deutschen Seiten der Paketdienste, auch mit Land Österreich oder Schweiz. Die Adresse steht auch im Attribut `tracking_url` des Paket-Sensors.
 
 **Bestellung öffnen**
 :   Das Symbol mit dem Beleg hinter der Bestellnummer. Bei einer Amazon-, eBay- oder AliExpress-Bestellung: öffnet die Bestellseite des Shops in einem neuen Tab. Bei Eventim gibt es den Link nicht.
@@ -147,6 +147,20 @@ Was dann gilt:
 Auch eine Bestellung, die schon „Abgeschlossen (ohne Zustellbestätigung)“ ist, kannst du so bestätigen. Sie trägt dann den Text „Erhalten (von Hand markiert)“. Als heute zugestellt zählt sie nicht, und sie bleibt nicht länger in der Liste als vorher: Wann sie ankam, weiß niemand. Bei einem zugestellten Paket und einer stornierten Bestellung fehlt der Knopf.
 
 Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.mark_delivered`](sensoren.md#parcel_trackermark_delivered).
+
+### Sendungsnummer eintragen
+
+Verschickt ein Händler über Amazon mit DHL, DPD oder Hermes, kennt die Bestellung die Nummer des Paketdienstes oft nicht, und dessen Mail steht als eigenes Paket in der Liste. Dann trägst du die Nummer selbst ein.
+
+1. Bestellung aufklappen. Unter den Nummern steht **Sendungsnummer: eintragen**.
+2. Antippen, die Nummer des Paketdienstes eingeben und **Speichern**.
+3. Steht unter der Nummer schon ein Paket in der Liste, fragt die Karte nach: Mit **Zusammenführen** wird es Teil der Bestellung, mit **Abbrechen** geht es zurück ins Feld.
+
+Danach fragt die Bestellung den Paketdienst ab, mit dessen Link hinter der Sendungsnummer. Ein Paket, das es schon gab, verschwindet samt Sensor. Die Bestellung übernimmt seinen Status und Verlauf, ihr Name und die Amazon-Sendung bleiben. Was das Paket schon gemeldet hat, meldet die Bestellung nicht noch einmal.
+
+Die Zeile gibt es bei Bestellungen von eBay, AliExpress und Eventim ohne Sendungsnummer. Bei Amazon nur, wenn der Händler selbst verschickt (Amazon-Sendung beginnt mit „D“) oder ein Paket eines Paketdienstes mit „Amazon“ im Namen allein in der Liste steht: Amazons eigene Zustellung hat keine Nummer zum Eintragen. Grenze: Mit [Namen ausblenden](datenschutz.md#namen-ausblenden) sieht die Karte diesen Namen nicht, die Zeile gibt es dann nur, wenn der Händler selbst verschickt; der Dienst unten geht immer. Bei einer zugestellten oder stornierten Bestellung fehlt sie, bei „Abgeschlossen (ohne Zustellbestätigung)“ ist sie da.
+
+Für Automationen gibt es dasselbe als Dienst: [`parcel_tracker.set_tracking_number`](sensoren.md#parcel_trackerset_tracking_number).
 
 ### Geschenkmodus
 

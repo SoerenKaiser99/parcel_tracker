@@ -251,6 +251,7 @@
     "gift_remove_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk löschen."},
     "gift_rename_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ein Geschenk umbenennen."},
     "gift_owner_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört."},
+    "gift_tracking_not_allowed": {"message": "Nur wer Geschenke sehen darf, kann bei einem Geschenk eine Sendungsnummer eintragen."},
     "gift_outgoing": {"message": "Ein versendetes Paket kann kein Geschenk sein."},
     "owner_unknown": {"message": "Diese Person ist im Paket Tracker nicht eingerichtet."},
     "gift_target": {"message": "Gib entweder eine Sendungsnummer an oder wähle alle offenen Pakete."},
@@ -263,6 +264,10 @@
     "not_tracked": {"message": "Dieses Paket ist nicht in der Liste."},
     "already_delivered": {"message": "Dieses Paket ist schon zugestellt."},
     "cancelled": {"message": "Diese Bestellung ist storniert, es kommt nichts mehr."},
+    "not_an_order": {"message": "Eine Sendungsnummer lässt sich nur bei einer Bestellung (Amazon, eBay, AliExpress, Eventim) eintragen."},
+    "has_tracking": {"message": "Diese Bestellung hat schon eine Sendungsnummer."},
+    "own_number": {"message": "Das ist die Nummer der Bestellung selbst, nicht die des Paketdienstes."},
+    "not_a_carrier_parcel": {"message": "Diese Nummer gehört zu einer anderen Bestellung oder einem versendeten Paket."},
     "track17_off": {"message": "Kein 17track-API-Key eingetragen. Trag ihn in den Optionen von Paket Tracker ein."},
     "track17_carrier": {"message": "17track hat den Carrier dieser Nummer nicht erkannt."},
     "track17_quota": {"message": "Das 17track-Kontingent ist erschöpft."},
@@ -372,6 +377,15 @@
       "name": "Als erhalten markieren",
       "description": "Ein Paket von Hand als erhalten markieren: Es gilt ab jetzt als zugestellt und bleibt es. Für Bestellungen ohne Zustell-Mail und Pakete, deren „Zugestellt“ nie kommt.",
       "fields": {"number": {"name": "Sendungsnummer", "description": "Paket, das angekommen ist."}}
+    },
+    "set_tracking_number": {
+      "name": "Sendungsnummer eintragen",
+      "description": "Einer Bestellung die Sendungsnummer des Paketdienstes (DHL, DPD …) geben. Eine neue Nummer wird ab jetzt abgefragt, ein Paket, das es unter der Nummer schon gibt, wird mit der Bestellung zusammengeführt.",
+      "fields": {
+        "number": {"name": "Bestellung", "description": "Nummer der Bestellung (wie im Attribut number)."},
+        "tracking_number": {"name": "Sendungsnummer", "description": "Die Sendungsnummer des Paketdienstes."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, hes (Hermes Einrichtungs Service) oder ups."}
+      }
     },
     "refresh": {
       "name": "Aktualisieren",

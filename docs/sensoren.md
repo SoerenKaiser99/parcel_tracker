@@ -226,6 +226,29 @@ Die Nummer im Beispiel ist erfunden.
 - Das Event feuert mit `manual: true`, eine Benachrichtigung gibt es nicht.
 - Fehler: „Dieses Paket ist nicht in der Liste.“ bei einer unbekannten Nummer, „Dieses Paket ist schon zugestellt.“ bei einem zugestellten Paket, „Diese Bestellung ist storniert, es kommt nichts mehr.“ bei einer stornierten Bestellung (wie auf der Karte, wo ihr der Knopf fehlt). Eine Bestellung, die nur „Abgeschlossen ohne Zustellbestätigung“ ist, lässt sich markieren: Sie wird damit bestätigt, `delivered_at` bleibt leer, und sie zählt nicht als heute zugestellt.
 
+### `parcel_tracker.set_tracking_number`
+
+Einer Bestellung (Amazon, eBay, AliExpress, Eventim) die Sendungsnummer des Paketdienstes geben, etwa wenn ein Händler über Amazon mit DHL verschickt und keine Mail die Nummer der Bestellung zuordnet.
+
+| Feld | Pflicht | Inhalt |
+|---|---|---|
+| `number` | ja | Nummer der Bestellung (Attribut `number`) |
+| `tracking_number` | ja | Sendungsnummer des Paketdienstes |
+| `carrier` | nein | `auto` (Standard), `dhl`, `dpd`, `gls`, `hermes`, `hes` oder `ups` |
+
+```yaml
+action: parcel_tracker.set_tracking_number
+data:
+  number: "AMZ99999999999999900"
+  tracking_number: "00340999999999999901"
+```
+
+Die Nummern im Beispiel sind erfunden.
+
+- Ist die Nummer noch unbekannt, übernimmt die Bestellung sie und fragt ab jetzt den Paketdienst ab, als hätte eine Mail sie genannt.
+- Gibt es unter der Nummer schon ein eigenes Paket (etwa aus der Mail des Paketdienstes, bei GLS auch unter der Nummer mit oder ohne Prüfziffer), wird es mit der Bestellung zusammengeführt: Die Bestellung übernimmt Sendungsnummer, Status und Verlauf, das eigene Paket samt Sensor verschwindet. Das gilt auch für ein Paket, das du von Hand angelegt hast. Was das Paket schon gemeldet hat, meldet die Bestellung nicht noch einmal. War es als [erhalten](karte.md#erhalten) markiert, gilt die Markierung für die Bestellung weiter. Folgte es nur 17track („Andere“), fragt die Bestellung den gewählten Paketdienst ab, bei `auto` den passenden.
+- Fehler: „Diese Bestellung hat schon eine Sendungsnummer.“, „Diese Nummer gehört zu einer anderen Bestellung oder einem versendeten Paket.“, „Das ist die Nummer der Bestellung selbst, nicht die des Paketdienstes.“, bei einer zugestellten oder stornierten Bestellung, einem Geschenk und Amazons eigenen TBA-Nummern dieselben Meldungen wie sonst. Eine Bestellung, die nur „Abgeschlossen (ohne Zustellbestätigung)“ ist, nimmt eine Nummer an.
+
 ### `parcel_tracker.refresh`
 
 Jetzt abfragen – auch das Postfach, falls der E-Mail-Import eingerichtet ist.

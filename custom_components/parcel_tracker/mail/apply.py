@@ -13,6 +13,7 @@ from ..const import (
     CARRIER_DAYS_EARLY,
     CARRIER_DAYS_LATE,
     CARRIER_NAMES,
+    CARRIER_OTHER,
     FOLD_DAYS_AFTER,
     FOLD_DAYS_BEFORE,
     MAX_EVENTS,
@@ -1477,6 +1478,66 @@ def fold_delivered(
     order.unannounced_from = (order.unannounced_from or order.status) if waiting else None
     _fold(parcels, parcel, order)
     return order
+
+
+def link_tracking(
+    parcels: dict[str, Parcel], order: Parcel, number: str, carrier: str | None
+) -> Parcel | None:
+    """Give a shop order the carrier's number the user typed in; the parcel folded in.
+
+    For an order whose box a carrier brings, when no mail told the number or a carrier's
+    mail stayed a parcel of its own (``_merge_candidate`` found no unambiguous order).
+    ``number`` is normalized, ``carrier`` the carrier chosen (None: "Automatisch").
+
+    - A number nobody tracks yet: the order takes it, and the carrier is asked about it
+      from now on (``poll_target``), as if a shop mail had named it. Returns None.
+    - A carrier's parcel tracked under the number: it is folded into the order as a mail
+      would fold it (``_fold`` with ``keep``: the order keeps what only it knew), also one
+      added by hand (the user joins them on purpose). Returns that parcel, which is gone
+      from ``parcels`` now.
+
+    ValueError "not_an_order" for an entry that is no shop order, "has_tracking" for an
+    order that has a carrier's number already (a mail never replaces it either),
+    "cancelled" for a cancelled order, "already_delivered" for one that is delivered (the
+    parcel's status would take it back; one closed without a delivery mail is not
+    delivered, and one marked by hand is never changed again), "own_number" for the
+    order's own number and "not_a_carrier_parcel" for a number that is another shop order
+    or a sent parcel.
+    """
+    if order.carrier not in SHOP_CARRIERS:
+        raise ValueError("not_an_order")
+    if order.tracking_ref is not None:
+        raise ValueError("has_tracking")
+    if order.status is ParcelStatus.CANCELLED:
+        raise ValueError("cancelled")
+    if order.manual_delivered or (
+        order.status is ParcelStatus.DELIVERED and not order.assumed_delivered
+    ):
+        raise ValueError("already_delivered")
+    # The order number as the card shows it ("999-9999999-9999999") is the order's own, not
+    # the carrier's: its digits without the shop's prefix and a further shipment's "P2".
+    if number == re.sub(r"^[A-Z]+|P\d+$", "", order.number):
+        raise ValueError("own_number")
+    own = parcels.get(number)
+    if own is None:
+        order.tracking_ref = number
+        order.tracking_carrier = carrier
+        order.next_poll_at = None
+        return None
+    if own is order:
+        raise ValueError("own_number")
+    if own.carrier in SHOP_CARRIERS or own.outgoing or own.tracking_ref:
+        raise ValueError("not_a_carrier_parcel")
+    _fold(parcels, own, order, keep=True)
+    # "Andere (über 17track)" is no carrier to ask (17track goes along with the number):
+    # the one chosen now, or "Automatisch".
+    if order.tracking_carrier in (None, CARRIER_OTHER):
+        order.tracking_carrier = carrier
+    # "Erhalten" on the parcel stays the user's word about it, with its meaning: nothing
+    # changes it any more (``mark_received``).
+    if own.manual_delivered:
+        order.manual_delivered = True
+    return own
 
 
 def _joined(ours: TrackingResult | None, theirs: TrackingResult | None) -> TrackingResult | None:

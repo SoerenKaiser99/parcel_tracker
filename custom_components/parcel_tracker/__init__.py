@@ -242,6 +242,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         except ValueError as err:
             raise _err("cancelled" if str(err) == "cancelled" else "already_delivered") from err
 
+    async def set_tracking_number(call: ServiceCall) -> None:
+        try:
+            await _coordinator(hass).async_set_tracking(
+                call.data["number"],
+                call.data["tracking_number"],
+                call.data.get("carrier", CARRIER_AUTO),
+                call.context.user_id,
+            )
+        except UnsupportedNumber as err:
+            raise _err(err.reason) from err
+        except KeyError as err:
+            raise _err("not_tracked") from err
+        except ValueError as err:
+            raise _err(str(err)) from err
+
     async def refresh(call: ServiceCall) -> None:
         try:
             await _coordinator(hass).async_refresh_parcels(call.data.get("number"))
@@ -303,6 +318,16 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.services.async_register(
         DOMAIN, "mark_delivered", mark_delivered,
         schema=vol.Schema({vol.Required("number"): number}),
+    )
+    hass.services.async_register(
+        DOMAIN, "set_tracking_number", set_tracking_number,
+        schema=vol.Schema({
+            vol.Required("number"): number,
+            vol.Required("tracking_number"): number,
+            vol.Optional("carrier", default=CARRIER_AUTO): vol.In(
+                [CARRIER_AUTO, *SELECTABLE_CARRIERS]
+            ),
+        }),
     )
     hass.services.async_register(
         DOMAIN, "refresh", refresh, schema=vol.Schema({vol.Optional("number"): number})

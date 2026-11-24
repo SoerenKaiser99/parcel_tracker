@@ -118,10 +118,11 @@ def test_a_carrier_parcel_shows_its_tracking_number(card):
 
 def test_an_amazon_order_shows_the_order_number_as_amazon_writes_it_and_the_carrier_number(card):
     # A further shipment ("P2") belongs to the same order.
-    # The carrier's number comes instead of Amazon's id of the shipment.
+    # The carrier's number comes first, Amazon's id of the shipment stays below it.
     assert _lines(card["open"]["AMZ99990000000000001P2"]) == [
         ("Bestellnummer", "999-9000000-0000001"),
         ("Sendungsnummer", "00340999999999999922"),
+        ("Amazon-Sendung", "UhIjKl9mN"),
     ]
 
 
@@ -168,14 +169,16 @@ def test_a_closed_row_shows_no_number_line(card):
 
 
 def test_two_lines_are_as_far_apart_as_a_symbols_hit_area(card):
-    """A symbol is hit on 18px plus 3px above and below it: 24px (the WCAG minimum for a
-    target), and 30px wide. As high is each number line, so on a phone the areas of the
-    symbols in two lines never overlap."""
+    """A symbol of 18px is hit on 24px (the WCAG minimum for a target) and 30px wide. As high
+    is each number line, so on a phone the areas of the symbols in two lines never overlap.
+    The symbol stands in the middle of that area, as the text stands in the middle of its
+    line (not on the text's baseline, below it)."""
     [line] = re.findall(r"\.ids > div \{([^}]*)\}", card["template"])
     [link] = re.findall(r"\.ids a\.go \{([^}]*)\}", card["template"])
     [icon] = re.findall(r"\.ids a\.go ha-icon \{([^}]*)\}", card["template"])
     assert "line-height:24px" in line
-    assert "padding:3px 6px" in link and "margin:-3px 0 -3px 0" in link
+    assert "box-sizing:border-box; height:24px; padding:0 6px" in link
+    assert "align-items:center; vertical-align:top" in link and "line-height:0" in link
     assert "--mdc-icon-size:18px" in icon
 
 
