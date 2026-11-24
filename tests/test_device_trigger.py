@@ -18,6 +18,7 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.parcel_tracker.const import (
     CONF_POSTCODE,
     DOMAIN,
+    EVENT_ARRIVING_SOON,
     EVENT_STATUS_CHANGED,
     NOTIFY_EVENTS,
 )
@@ -31,8 +32,10 @@ NOW = datetime(2026, 9, 29, 9, 0, tzinfo=UTC)
 NUMBER = "00340999999999999901"
 TYPES = (
     "ordered", "announced", "in_transit", "at_delivery_depot", "out_for_delivery",
-    "awaiting_pickup", "delivered", "exception", "cancelled", "status_changed",
+    "arriving_soon", "awaiting_pickup", "delivered", "exception", "cancelled", "status_changed",
 )
+# Every event but "Kommt gleich", which is no status change.
+STATUS_EVENTS = [event for event in NOTIFY_EVENTS if event != "arriving_soon"]
 # The status behind each event: "pre_transit" is two of them.
 STATUS = {"ordered": "pre_transit", "announced": "pre_transit"}
 _SAME = object()
@@ -95,7 +98,9 @@ async def _automations(hass, device_id, types=TYPES):
     return calls
 
 
-def _event(entry_id, new, old="in_transit", assumed=False, manual=False, event=_SAME):
+def _event(
+    entry_id, new, old="in_transit", assumed=False, manual=False, event=_SAME, repeat=False
+):
     """The status event as the coordinator fires it."""
     return {
         "entry_id": entry_id,
@@ -115,12 +120,13 @@ def _event(entry_id, new, old="in_transit", assumed=False, manual=False, event=_
         "owner": None,
         "gift": False,
         "outgoing": False,
+        "repeat": repeat,
     }
 
 
-async def _fire(hass, calls, data):
+async def _fire(hass, calls, data, event_type=EVENT_STATUS_CHANGED):
     calls.clear()
-    hass.bus.async_fire(EVENT_STATUS_CHANGED, data)
+    hass.bus.async_fire(event_type, data)
     await hass.async_block_till_done()
     return sorted(call.data["type"] for call in calls)
 
@@ -159,7 +165,7 @@ async def test_another_device_offers_no_trigger_of_ours(hass, hass_storage):
     assert await async_get_triggers(hass, "no-such-device") == []
 
 
-@pytest.mark.parametrize("event", NOTIFY_EVENTS)
+@pytest.mark.parametrize("event", STATUS_EVENTS)
 async def test_an_event_fires_its_trigger_and_the_generic_one(hass, hass_storage, event):
     entry, device = await _setup(hass, hass_storage)
     calls = await _automations(hass, device.id)
@@ -175,6 +181,43 @@ async def test_an_event_fires_its_trigger_and_the_generic_one(hass, hass_storage
     assert call.data["number"] == NUMBER
     assert call.data["carrier"] == "dhl"
     assert (call.data["old"], call.data["new"]) == ("in_transit", status)
+
+
+async def test_arriving_soon_fires_only_its_own_trigger(hass, hass_storage):
+    """"Kommt gleich" is its own event: no status change, so not the generic trigger."""
+    entry, device = await _setup(hass, hass_storage)
+    calls = await _automations(hass, device.id)
+    soon = {
+        "entry_id": entry.entry_id,
+        "number": NUMBER,
+        "name": "Oma",
+        "carrier": "dhl",
+        "carrier_name": "DHL",
+        "event": "arriving_soon",
+        "eta_from": "2026-09-29T14:02:00+02:00",
+        "eta_to": "2026-09-29T14:17:00+02:00",
+        "owner": None,
+        "gift": False,
+        "outgoing": False,
+    }
+
+    assert await _fire(hass, calls, soon, EVENT_ARRIVING_SOON) == ["arriving_soon"]
+    assert calls[0].data["name"] == "Oma"
+    # Another entry's parcel does not fire this device's trigger.
+    assert await _fire(hass, calls, {**soon, "entry_id": "x"}, EVENT_ARRIVING_SOON) == []
+    # A status event that says "arriving_soon" is none of its.
+    status = _event(entry.entry_id, "out_for_delivery", event="arriving_soon")
+    assert await _fire(hass, calls, status) == ["status_changed"]
+
+
+async def test_a_repeat_fires_only_the_generic_trigger(hass, hass_storage):
+    """A status the box was told already (``repeat``): the built-in push leaves it out,
+    the triggers of the events as well."""
+    entry, device = await _setup(hass, hass_storage)
+    calls = await _automations(hass, device.id)
+
+    repeat = _event(entry.entry_id, "delivered", repeat=True)
+    assert await _fire(hass, calls, repeat) == ["status_changed"]
 
 
 async def test_unknown_fires_only_the_generic_trigger(hass, hass_storage):

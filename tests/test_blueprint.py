@@ -13,6 +13,7 @@ from pytest_homeassistant_custom_component.common import async_mock_service
 from custom_components.parcel_tracker.const import (
     CARRIER_NAMES,
     DEFAULT_NOTIFY_EVENTS,
+    EVENT_ARRIVING_SOON,
     EVENT_STATUS_CHANGED,
     NOTIFY_EVENTS,
 )
@@ -57,9 +58,10 @@ def test_blueprint_loads_and_has_the_required_keys():
     )
     for key in ("blueprint", "triggers", "conditions", "actions", "mode"):
         assert key in data, key
-    (trigger,) = data["triggers"]
-    assert trigger["trigger"] == "event"
-    assert trigger["event_type"] == EVENT_STATUS_CHANGED == "parcel_tracker_status_changed"
+    status, soon = data["triggers"]
+    assert status["trigger"] == soon["trigger"] == "event"
+    assert status["event_type"] == EVENT_STATUS_CHANGED == "parcel_tracker_status_changed"
+    assert soon["event_type"] == EVENT_ARRIVING_SOON == "parcel_tracker_arriving_soon"
 
 
 def test_blueprint_inputs():
@@ -76,7 +78,7 @@ def test_blueprint_inputs():
     assert [option["value"] for option in select["options"]] == list(NOTIFY_EVENTS)
     assert [option["label"] for option in select["options"]] == [
         "Bestellt", "Angekündigt", "Unterwegs", "Im Zustelldepot", "In Zustellung",
-        "Abholbereit", "Zugestellt", "Problem", "Storniert",
+        "Kommt gleich", "Abholbereit", "Zugestellt", "Problem", "Storniert",
     ]
     assert inputs["notify_service"]["default"] == "notify.notify"
     assert list(inputs["notify_service"]["selector"]) == ["text"]
@@ -121,6 +123,26 @@ async def _fire(hass, **changes) -> None:
     await hass.async_block_till_done()
 
 
+# "Kommt gleich" as the coordinator fires it: no statuses.
+SOON = {
+    "number": NUMBER,
+    "name": "Kopfhörer",
+    "carrier": "dhl",
+    "carrier_name": "DHL",
+    "event": "arriving_soon",
+    "eta_from": "2026-09-29T14:02:00+02:00",
+    "eta_to": "2026-09-29T14:17:00+02:00",
+    "owner": None,
+    "gift": False,
+    "outgoing": False,
+}
+
+
+async def _fire_soon(hass, **changes) -> None:
+    hass.bus.async_fire(EVENT_ARRIVING_SOON, {**SOON, **changes})
+    await hass.async_block_till_done()
+
+
 async def test_defaults_send_a_plain_text_without_app_data(hass):
     calls = async_mock_service(hass, "notify", "notify")
     await _automation(hass)
@@ -144,6 +166,9 @@ async def test_every_event_has_a_default_text(hass):
     calls = async_mock_service(hass, "notify", "notify")
     await _automation(hass, statuses=list(NOTIFY_EVENTS))
     for event in NOTIFY_EVENTS:
+        if event == "arriving_soon":
+            await _fire_soon(hass, eta_to=None)
+            continue
         status = "pre_transit" if event in ("ordered", "announced") else event
         await _fire(hass, new_status=status, old_status="unknown", event=event)
     assert [call.data["message"] for call in calls] == [
@@ -152,11 +177,45 @@ async def test_every_event_has_a_default_text(hass):
         "Kopfhörer (DHL) ist unterwegs",
         "Kopfhörer (DHL) ist im Zustelldepot",
         "Kopfhörer (DHL) ist in Zustellung",
+        "Kopfhörer (DHL) wird gleich zugestellt",
         "Kopfhörer (DHL) liegt zur Abholung bereit",
         "Kopfhörer (DHL) wurde zugestellt",
         "Kopfhörer (DHL): Problem bei der Zustellung",
         "Kopfhörer (DHL) wurde storniert",
     ]
+
+
+async def test_arriving_soon_tells_the_end_of_its_window(hass):
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass)
+    await _fire_soon(hass)
+    (call,) = calls
+    assert call.data["message"] == "Kopfhörer (DHL) wird gleich zugestellt – bis 14:17 Uhr"
+
+
+async def test_arriving_soon_only_when_chosen(hass):
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass, statuses=["out_for_delivery"])
+    await _fire_soon(hass)
+    assert calls == []
+
+
+async def test_a_sent_parcel_is_never_told_arriving_soon(hass):
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass, statuses=list(NOTIFY_EVENTS))
+    await _fire_soon(hass, outgoing=True)
+    assert calls == []
+
+
+async def test_a_repeat_is_not_announced(hass):
+    """The box was told the status already (``repeat``), like the built-in push."""
+    calls = async_mock_service(hass, "notify", "notify")
+    await _automation(hass)
+    await _fire(hass, repeat=True)
+    assert calls == []
+    await _fire(hass, repeat=False)
+    assert len(calls) == 1
 
 
 async def test_ordered_and_announced_are_chosen_apart(hass):

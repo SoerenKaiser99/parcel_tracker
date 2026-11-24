@@ -66,7 +66,7 @@ def _message(parcel, old=ParcelStatus.IN_TRANSIT, now=NOW) -> str:
 def test_the_events():
     assert NOTIFY_EVENTS == (
         "ordered", "announced", "in_transit", "at_delivery_depot", "out_for_delivery",
-        "awaiting_pickup", "delivered", "exception", "cancelled",
+        "arriving_soon", "awaiting_pickup", "delivered", "exception", "cancelled",
     )
 
 
@@ -365,3 +365,44 @@ def test_never_code_number_place_or_carrier_texts(status, carrier, named):
 
 def test_module_is_free_of_home_assistant():
     assert "homeassistant" not in inspect.getsource(notification)
+
+
+# ----- "Kommt gleich" (DHL "wird gleich zugestellt") -----
+def _soon_parcel(**more) -> Parcel:
+    start = NOW.replace(hour=14, minute=2)
+    return _parcel(ParcelStatus.OUT_FOR_DELIVERY, eta_date=NOW.date(), eta_from=start,
+                   eta_to=start + timedelta(minutes=15), **more)
+
+
+def test_soon_tells_the_end_of_its_window_and_nothing_private():
+    title, message = notification.build_soon_notification(_soon_parcel(), NOW)
+    assert title == TITLE
+    assert message == "🔔 Kopfhörer (DHL) wird gleich zugestellt – bis 14:17 Uhr"
+    for private in (CODE, NUMBER, STATUS_TEXT, EVENT_TEXT, LOCATION):
+        assert private not in message
+
+
+def test_soon_in_the_local_time_and_without_a_window():
+    utc = ZoneInfo("UTC")
+    _title, message = notification.build_soon_notification(_soon_parcel(), NOW.astimezone(utc))
+    assert message.endswith("– bis 12:17 Uhr")
+    bare = _parcel(ParcelStatus.OUT_FOR_DELIVERY)
+    assert notification.build_soon_notification(bare, NOW)[1] == (
+        "🔔 Kopfhörer (DHL) wird gleich zugestellt"
+    )
+
+
+def test_soon_names_the_duty_to_pay_at_the_door_and_hides_names():
+    parcel = _soon_parcel()
+    parcel.customs_amount, parcel.customs_currency, parcel.customs_cash = 12.34, "EUR", True
+    _title, message = notification.build_soon_notification(parcel, NOW, hide_names=True)
+    assert message == (
+        "🔔 DHL-Paket …2557 wird gleich zugestellt – bis 14:17 Uhr"
+        " – Einfuhrabgaben 12,34 € bar bereithalten"
+    )
+
+
+def test_soon_is_never_told_for_a_sent_parcel():
+    parcel = _soon_parcel()
+    parcel.outgoing = True
+    assert notification.build_soon_notification(parcel, NOW) is None

@@ -22,6 +22,8 @@ SERVICES = yaml.safe_load((COMPONENT / "services.yaml").read_text(encoding="utf-
 ENTITIES = set(re.findall(r'"((?:sensor|calendar)\.paket[a-z0-9_]*)"', SENSOR_PY + CALENDAR_PY))
 SERVICE_NAMES = {f"parcel_tracker.{name}" for name in SERVICES}
 EVENT = re.search(r'EVENT_STATUS_CHANGED = "([a-z_]+)"', CONST_PY).group(1)
+# "Kommt gleich": an event of its own, no status change.
+SOON_EVENT = re.search(r'EVENT_ARRIVING_SOON = "([a-z_]+)"', CONST_PY).group(1)
 # The fields of the status event, as coordinator._announce fires them.
 EVENT_FIELDS = set(
     re.findall(r'^\s+"([a-z_]+)": ', COORDINATOR_PY.split("EVENT_STATUS_CHANGED,\n", 2)[2]
@@ -70,13 +72,14 @@ def test_the_code_names_what_this_test_expects():
     }
     assert EVENT == "parcel_tracker_status_changed"
     assert ADDED_EVENT == "parcel_tracker_parcel_added"
+    assert SOON_EVENT == "parcel_tracker_arriving_soon"
     assert ADDED_FIELDS == {
         "entry_id", "number", "name", "carrier", "owner", "gift", "outgoing",
     }
     assert EVENT_FIELDS == {
         "entry_id", "number", "name", "carrier", "carrier_name", "old_status", "new_status",
         "eta_date", "eta_from", "eta_to", "location", "assumed", "manual", "owner", "gift",
-        "outgoing", "event",
+        "outgoing", "event", "repeat",
     }
 
 
@@ -130,14 +133,14 @@ def test_entities_services_and_the_event_exist_in_the_code():
         r"(?<![\w./-])(sensor\.pakete_\w+|sensor\.paket_tracker_\w+|calendar\.pakete\w*"
         r"|parcel_tracker\.\w+|parcel_tracker_[a-z_]+)"
     )
-    allowed = ENTITIES | SERVICE_NAMES | {EVENT, ADDED_EVENT} | NOT_AN_ID
+    allowed = ENTITIES | SERVICE_NAMES | {EVENT, ADDED_EVENT, SOON_EVENT} | NOT_AN_ID
     seen = set()
     for name, text in TEXTS.items():
         for found in pattern.findall(text):
             assert found in allowed, f"{name}: {found}"
             seen.add(found)
     # The reference names all of them.
-    assert seen >= ENTITIES | SERVICE_NAMES | {EVENT, ADDED_EVENT}
+    assert seen >= ENTITIES | SERVICE_NAMES | {EVENT, ADDED_EVENT, SOON_EVENT}
 
 
 def test_event_fields_and_attributes_exist_in_the_code():

@@ -2,7 +2,7 @@ blueprint:
   name: "Paket Tracker: Benachrichtigung"
   description: >-
     Schickt eine Benachrichtigung, sobald ein Paket des Paket Trackers den Status
-    wechselt – mit eigenem Text, eigenen Bedingungen und, für die Home-Assistant-App,
+    wechselt oder gleich zugestellt wird – mit eigenem Text, eigenen Bedingungen und, für die Home-Assistant-App,
     einem Dashboard, das sich beim Antippen öffnet. Die Sendungsnummer, der
     Zustell-Code und der Ort stehen in keinem der voreingestellten Texte.
   domain: automation
@@ -15,9 +15,12 @@ blueprint:
       name: Status
       description: >-
         Bei welchen neuen Status benachrichtigt wird. „Bestellt“ gilt für Bestellungen
-        bei einem Shop, „Angekündigt“ für Pakete eines Paketdienstes.
+        bei einem Shop, „Angekündigt“ für Pakete eines Paketdienstes. „Kommt gleich“
+        ist kein Status: Der Paketdienst kündigt die Zustellung in den nächsten Minuten
+        an (DHL „wird gleich zugestellt“).
       default:
         - out_for_delivery
+        - arriving_soon
         - awaiting_pickup
         - delivered
         - cancelled
@@ -35,6 +38,8 @@ blueprint:
               value: at_delivery_depot
             - label: In Zustellung
               value: out_for_delivery
+            - label: Kommt gleich
+              value: arriving_soon
             - label: Abholbereit
               value: awaiting_pickup
             - label: Zugestellt
@@ -62,8 +67,9 @@ blueprint:
       description: >-
         Vorlage für den Text. Variablen: `name` (Name des Pakets, ohne Namen
         „Paket …“ und die letzten vier Stellen der Nummer), `carrier` (z. B. DHL),
-        `new_status` und `old_status` (z. B. out_for_delivery), `event` (wie unter
-        Status, z. B. ordered oder announced statt pre_transit), `outgoing` (true bei
+        `new_status` und `old_status` (z. B. out_for_delivery, leer bei „Kommt
+        gleich“), `event` (wie unter Status, z. B. ordered oder announced statt
+        pre_transit, arriving_soon für „Kommt gleich“), `outgoing` (true bei
         einem versendeten Paket) sowie `text`
         (der fertige Standardsatz, z. B. „Kopfhörer (DHL) ist in Zustellung“).
       default: "{{ text }}"
@@ -101,14 +107,18 @@ max: 10
 triggers:
   - trigger: event
     event_type: parcel_tracker_status_changed
+  # "Kommt gleich": no status change, an event of its own.
+  - trigger: event
+    event_type: parcel_tracker_arriving_soon
 
 variables:
   statuses: !input statuses
   notify_service: !input notify_service
   dashboard_path: !input dashboard_path
   replace_previous: !input replace_previous
-  new_status: "{{ trigger.event.data.new_status }}"
-  old_status: "{{ trigger.event.data.old_status }}"
+  # (empty for "Kommt gleich")
+  new_status: "{{ trigger.event.data.new_status | default('') }}"
+  old_status: "{{ trigger.event.data.old_status | default('') }}"
   # What to choose the change by: the status, but "ordered" (a shop's order) or
   # "announced" (a carrier's parcel) for "pre_transit". An event of an older version
   # carries no such field.
@@ -136,6 +146,9 @@ variables:
     {% if outgoing and new_status == 'delivered' %}✅ Dein verschicktes Paket {{ label }} wurde zugestellt
     {%- elif outgoing %}✅ Dein verschicktes Paket {{ label }} liegt beim Empfänger zur Abholung bereit
     {%- elif new_status == 'exception' %}{{ label }}: Problem bei der Zustellung
+    {%- elif event == 'arriving_soon' %}{{ label }} wird gleich zugestellt
+    {{- ' – bis ' ~ (trigger.event.data.eta_to | as_datetime | as_local).strftime('%H:%M')
+        ~ ' Uhr' if trigger.event.data.get('eta_to') else '' }}
     {%- else %}{{ label }} {{ phrases.get(event, 'hat einen neuen Status') }}
     {%- endif %}
   # Extras of the Home Assistant app: `url` (iOS) and `clickAction` (Android) open the
@@ -168,6 +181,11 @@ conditions:
   # knows, so nothing is announced.
   - condition: template
     value_template: "{{ not trigger.event.data.get('manual', false) }}"
+  # The status was told for the parcel's box already (an order that took in a carrier's
+  # parcel, a further order in the same box): the built-in push leaves it out as well.
+  # An event of an older version carries no such field.
+  - condition: template
+    value_template: "{{ not trigger.event.data.get('repeat', false) }}"
   - condition: and
     conditions: !input extra_conditions
 

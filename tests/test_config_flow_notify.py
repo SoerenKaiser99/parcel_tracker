@@ -90,7 +90,7 @@ async def test_section_offers_targets_and_events_but_no_dashboard_path(hass):
     assert events["options"] == list(NOTIFY_EVENTS)
     assert events["translation_key"] == "notify_events"
     assert inner[CONF_NOTIFY_EVENTS]["default"] == [
-        "out_for_delivery", "awaiting_pickup", "delivered", "cancelled",
+        "out_for_delivery", "arriving_soon", "awaiting_pickup", "delivered", "cancelled",
     ]
     assert inner[CONF_NOTIFY_ENABLED]["default"] is False
 
@@ -214,7 +214,7 @@ async def test_setting_targets_switches_notifications_on(hass):
     )
     assert entry.options[CONF_NOTIFY_TARGETS] == [PHONE, TABLET]
     assert entry.options[CONF_NOTIFY_EVENTS] == [
-        "out_for_delivery", "awaiting_pickup", "delivered", "cancelled",
+        "out_for_delivery", "arriving_soon", "awaiting_pickup", "delivered", "cancelled",
     ]
     assert entry.options[CONF_POSTCODE] == "10115"
 

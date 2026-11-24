@@ -438,6 +438,7 @@ async def test_diagnostics_parcels(hass, hass_storage, freezer):
         "has_track17_result": False,
         "outgoing": False,
         "arrival_told": False,
+        "soon_until": None,
     }
 
     dhl = by_number[MASKED[DHL]]
@@ -759,7 +760,9 @@ async def test_diagnostics_notifications_off_by_default(hass, hass_storage, free
         "targets": 0,
         "entity_targets": 0,
         "service_targets": 0,
-        "events": ["out_for_delivery", "awaiting_pickup", "delivered", "cancelled"],
+        "events": [
+            "out_for_delivery", "arriving_soon", "awaiting_pickup", "delivered", "cancelled",
+        ],
     }
 
 

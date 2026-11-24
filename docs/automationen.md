@@ -3,7 +3,7 @@
 Für eigene Automationen gibt dir die Integration drei Bausteine:
 
 - **Auslöser im Automations-Editor** – ohne YAML, für die wichtigsten Statuswechsel.
-- **Das Event** `parcel_tracker_status_changed` – für alles, was du von Hand baust.
+- **Die Events** `parcel_tracker_status_changed` und `parcel_tracker_arriving_soon` – für alles, was du von Hand baust.
 - **Sensoren** – für Bedingungen wie „nur wenn heute ein Paket kommt“.
 
 Fertige Beispiele zum Kopieren stehen unter [Rezepte](rezepte.md).
@@ -35,13 +35,14 @@ Dieser Dienst ist seit v0.3.27 da. Sensoren und Kalender hängen bewusst nicht a
 | **Paket ist unterwegs** | der neue Status „Unterwegs“ ist |
 | **Paket ist im Zustelldepot** | der neue Status „Im Zustelldepot“ ist |
 | **Paket ist in Zustellung** | der neue Status „In Zustellung“ ist |
+| **Paket kommt gleich** | der Paketdienst die Zustellung in den nächsten Minuten ankündigt (DHL „wird gleich zugestellt“, Event [`parcel_tracker_arriving_soon`](#das-event-parcel_tracker_arriving_soon)) |
 | **Paket wurde zugestellt** | der neue Status „Zugestellt“ ist und der Paketdienst oder eine Mail die Zustellung gemeldet hat |
 | **Paket liegt zur Abholung bereit** | das Paket in Packstation, Filiale oder PaketShop liegt |
 | **Problem bei einem Paket** | der Paketdienst ein Problem meldet |
 | **Bestellung wurde storniert** | der Shop die Bestellung storniert hat |
 | **Paketstatus hat sich geändert** | bei jedem Statuswechsel |
 
-Die Auslöser feuern genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert, und gelten für alle Pakete.
+Die Auslöser feuern genau dann, wenn auch das Event `parcel_tracker_status_changed` feuert (bzw. für „Paket kommt gleich“ `parcel_tracker_arriving_soon`), und gelten für alle Pakete. Meldet eine Bestellung einen Status, der für ihr Paket schon gemeldet war (Feld `repeat`), feuert nur „Paketstatus hat sich geändert“.
 
 ### Daten des Pakets nutzen
 
@@ -115,6 +116,7 @@ Das Event feuert bei jedem Statuswechsel eines Pakets – egal, ob der neue Stat
 | `owner` | Person, der das Paket gehört (Entität wie `person.anna`), oder leer, wenn es allen gehört (ab v0.3.41). Das ist der geltende Besitzer, auch die Standard-Person aus **Unklare Pakete gehören** | `person.anna` |
 | `outgoing` | `true`, wenn du das Paket verschickt hast (ab v0.3.48, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)). `new_status` ist dann z. B. `delivered` oder `awaiting_pickup` beim Empfänger | `false` |
 | `gift` | `true`, wenn das Paket ein Geschenk ist (ab v0.3.45). `name` ist dann der Geschenk-Name. Für wen es ist, steht nicht im Event | `false` |
+| `repeat` | `true`, wenn der Status für das Paket schon gemeldet war: eine Bestellung hat ein gemeldetes Paket übernommen, oder eine weitere Bestellung liegt im selben Paket. Der Blueprint lässt sie aus, die eingebaute Benachrichtigung auch (außer für eine zweite Person mit eigenen Zielen, die ihre Bestellung im selben Paket hat) | `false` |
 
 Kürzel in `carrier`: `dhl`, `dpd`, `gls`, `hermes`, `ups`, `amazon`, `ebay`, `aliexpress`, `eventim`, `other` (über 17track).
 
@@ -156,6 +158,10 @@ Baust du selbst etwas auf „zugestellt“, prüf die angenommene Zustellung mit
 ```jinja
 {{ not trigger.event.data.assumed }}
 ```
+
+## Das Event `parcel_tracker_arriving_soon`
+
+Feuert, wenn der Paketdienst die Zustellung in den nächsten Minuten ankündigt (DHL-Mail „wird gleich zugestellt“), höchstens einmal am Tag pro Paket. Das ist kein Statuswechsel: Das Paket bleibt „In Zustellung“, `parcel_tracker_status_changed` feuert dafür nicht. Die Felder sind die des Status-Events ohne `old_status`, `new_status`, `eta_date`, `location`, `assumed`, `manual` und `repeat`; `event` ist `arriving_soon`, `eta_from` und `eta_to` sind das Zeitfenster aus der Mail (z. B. 14:02 bis 14:17 Uhr).
 
 ## Sensoren für Bedingungen
 

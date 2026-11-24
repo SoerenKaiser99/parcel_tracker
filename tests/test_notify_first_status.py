@@ -115,7 +115,22 @@ async def test_after_a_restart_the_order_does_not_push_the_parcels_status_again(
     await _import(coord, hass, _box_mail())
     assert list(coord.store.parcels) == [ALI_A]
     assert coord.store.parcels[ALI_A].status is OUT
-    # The order's own step is an event; the box is not pushed a second time.
+    # The order's own step is an event; the box is not pushed a second time, and the
+    # event says so (``repeat``), so an automation can leave it out as well.
     assert _events(events) == [(ALI_A, "pre_transit", "out_for_delivery")]
+    assert events[0].data["repeat"] is True
     assert calls == []
+    await coord.async_shutdown()
+
+
+async def test_a_status_the_box_did_not_tell_is_no_repeat(hass, hass_storage, freezer):
+    calls, events = await _prepared(hass, freezer)
+    order = _ali(ALI_A, None, status=ORDERED)
+    coord = await _coordinator(hass, hass_storage, [order, _told_parcel(MOVING)])
+    await _refresh(hass, coord)
+    await _start(hass)
+    await _import(coord, hass, _box_mail(OUT))
+    assert _events(events) == [(ALI_A, "pre_transit", "out_for_delivery")]
+    assert events[0].data["repeat"] is False
+    assert len(calls) == 1
     await coord.async_shutdown()

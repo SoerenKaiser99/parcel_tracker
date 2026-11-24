@@ -969,6 +969,91 @@ def test_a_mail_with_its_own_words_adds_a_history_line_without_a_new_status():
     assert apply_update(parcels, soon, NOW) is None
 
 
+SOON_DAY = date(2026, 10, 7)
+
+
+def _soon(hour: int, minute: int, day: date = SOON_DAY) -> MailUpdate:
+    """A "wird gleich zugestellt" sent at this time, with its 15 minutes."""
+    sent = datetime(day.year, day.month, day.day, hour, minute, tzinfo=BERLIN)
+    return _dhl(ParcelStatus.OUT_FOR_DELIVERY, sent, eta_date=day, eta_from=sent,
+                eta_to=sent + timedelta(minutes=15), status_text="Wird gleich zugestellt")
+
+
+def _out_today(hour: int) -> MailUpdate:
+    """'Ihre Sendung kommt heute zwischen 13:00 und 17:00 Uhr', sent at this hour."""
+    sent = datetime(2026, 10, 7, hour, 0, tzinfo=BERLIN)
+    return _dhl(ParcelStatus.OUT_FOR_DELIVERY, sent, eta_date=SOON_DAY,
+                eta_from=datetime(2026, 10, 7, 13, 0, tzinfo=BERLIN),
+                eta_to=datetime(2026, 10, 7, 17, 0, tzinfo=BERLIN))
+
+
+def _window(parcels) -> tuple:
+    result = parcels[_DHL].result
+    return (f"{result.eta_from:%H:%M}", f"{result.eta_to:%H:%M}") if result.eta_from else None
+
+
+def test_a_soon_mail_sets_its_window_and_is_news_once_a_day():
+    parcels: dict[str, Parcel] = {}
+    apply_update(parcels, _out_today(8), NOW)
+    assert _window(parcels) == ("13:00", "17:00")
+    first = apply_update(parcels, _soon(14, 2), _soon(14, 2).sent_at)
+    assert first is not None and first.soon
+    assert _window(parcels) == ("14:02", "14:17")
+    assert parcels[_DHL].soon_until == datetime(2026, 10, 7, 14, 17, tzinfo=BERLIN)
+    # DHL's second mail minutes later moves the window on, but is no news.
+    second = apply_update(parcels, _soon(14, 9), _soon(14, 9).sent_at)
+    assert second is not None and not second.soon
+    assert _window(parcels) == ("14:09", "14:24")
+    # The next day (the courier did not make it) it is news again.
+    nxt = date(2026, 10, 8)
+    again = apply_update(parcels, _soon(10, 0, nxt), _soon(10, 0, nxt).sent_at)
+    assert again is not None and again.soon
+
+
+def test_a_soon_mail_read_after_its_minutes_sets_no_window_and_is_no_news():
+    parcels: dict[str, Parcel] = {}
+    apply_update(parcels, _out_today(8), NOW)
+    late = _soon(14, 2).sent_at + timedelta(minutes=15)
+    change = apply_update(parcels, _soon(14, 2), late)
+    # The history line stays (it happened), the window that is over is not taken.
+    assert change is not None and not change.soon
+    assert parcels[_DHL].result.status_text == "Wird gleich zugestellt"
+    assert _window(parcels) is None
+    assert parcels[_DHL].soon_until is None
+
+
+def test_an_older_mail_read_late_keeps_the_window_of_the_soon_mail():
+    parcels: dict[str, Parcel] = {}
+    apply_update(parcels, _soon(14, 2), _soon(14, 2).sent_at)
+    # "kommt heute zwischen 13 und 17 Uhr" from the morning, read only now.
+    apply_update(parcels, _out_today(8), _soon(14, 2).sent_at + timedelta(minutes=1))
+    assert _window(parcels) == ("14:02", "14:17")
+    # Without a soon mail before, a mail read late sets its window as before.
+    other: dict[str, Parcel] = {}
+    apply_update(other, _out_today(10), NOW)
+    apply_update(other, _out_today(8), NOW)
+    assert _window(other) == ("13:00", "17:00")
+
+
+def test_a_soon_mail_after_the_delivery_is_no_news():
+    parcels: dict[str, Parcel] = {}
+    done = datetime(2026, 10, 7, 14, 0, tzinfo=BERLIN)
+    apply_update(parcels, _dhl(ParcelStatus.DELIVERED, done), done)
+    change = apply_update(parcels, _soon(13, 50), _soon(13, 50).sent_at)
+    assert change is None or not change.soon
+    assert parcels[_DHL].status is ParcelStatus.DELIVERED
+
+
+def test_the_window_of_a_soon_mail_survives_the_store():
+    parcels: dict[str, Parcel] = {}
+    apply_update(parcels, _soon(14, 2), _soon(14, 2).sent_at)
+    stored = Parcel.from_dict(parcels[_DHL].to_dict())
+    assert stored.soon_until == datetime(2026, 10, 7, 14, 17, tzinfo=BERLIN)
+    older = parcels[_DHL].to_dict()
+    del older["soon_until"]
+    assert Parcel.from_dict(older).soon_until is None
+
+
 # ----- "Versand durch Verkäufer": a mail naming Amazon is never about the seller's box -----
 SELLER = "DAbCdE9fG"  # Amazon's shipment ids begin with "D" for a box the seller sends
 SELLER_TOO = "DXyZaB8cD"

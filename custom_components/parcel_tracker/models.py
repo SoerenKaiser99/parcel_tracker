@@ -325,6 +325,11 @@ class Parcel:
     # A sent parcel's arrival (delivered or ready for pickup) was told: it is pushed at
     # most once, also after a step back of the carrier. Persisted; False in older stores.
     arrival_told: bool = False
+    # The end of the window of the newest "wird gleich zugestellt" this parcel took (see
+    # ``mail.apply._forward``): while it runs, a lookup or a mail read late does not
+    # replace it, and a second such mail of the same day is not told again. Persisted;
+    # None in older stores.
+    soon_until: datetime | None = None
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -421,6 +426,7 @@ class Parcel:
             "customs_cash": self.customs_cash,
             "outgoing": self.outgoing,
             "arrival_told": self.arrival_told,
+            "soon_until": _iso(self.soon_until),
         }
 
     @classmethod
@@ -480,6 +486,7 @@ class Parcel:
             customs_cash=data.get("customs_cash") is True,
             outgoing=data.get("outgoing") is True,
             arrival_told=data.get("arrival_told") is True,
+            soon_until=_dt(data.get("soon_until")),
         )
 
 

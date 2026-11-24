@@ -430,6 +430,7 @@ def test_dhl_status_comes_only_from_the_subject(subject, status, body):
     lower = subject.lower()
     if status is ParcelStatus.OUT_FOR_DELIVERY:
         assert u.eta_date == sent_at(msg).date()
+        # ("wird gleich zugestellt" without minutes takes a "zwischen" window like the rest)
         assert (u.eta_from is not None) is (body is WINDOW_BODY)
     elif "morgen" in lower:
         assert u.eta_date == sent_at(msg).date() + timedelta(days=1)
@@ -773,10 +774,52 @@ def test_dhl_soon_mail_stays_in_delivery_and_brings_its_own_words():
         "00340584515630525112", "dhl", "Beispiel GmbH & Co. KG"
     )
     assert (u.status, u.status_text) == (ParcelStatus.OUT_FOR_DELIVERY, "Wird gleich zugestellt")
-    # "innerhalb der nächsten 15 Minuten" is today, and no window.
-    assert (u.eta_date, u.eta_from, u.eta_to) == (sent_at(soon).date(), None, None)
+    # "innerhalb der nächsten 15 Minuten": today, from the minute of the mail on.
+    sent = sent_at(soon)
+    start = sent.replace(second=0)
+    assert (u.eta_date, u.eta_from, u.eta_to) == (
+        sent.date(), start, start + timedelta(minutes=15)
+    )
     today = _msg("Ihre Sendung wird heute zugestellt", WINDOW_BODY, "DHL Paket <noreply@dhl.de>")
     assert parse_mail(today).updates[0].status_text is None
+
+
+@pytest.mark.parametrize(
+    ("body", "minutes"),
+    [
+        ("— innerhalb der nächsten 15 Minuten —", 15),
+        ("In den nächsten 30 Minuten wird Ihre Sendung zugestellt.", 30),
+        ("innerhalb der nächsten 120 Minuten", 120),
+        # no number, or none that is "gleich": no window is guessed
+        ("Ihre Sendung wird in Kürze zugestellt.", None),
+        ("innerhalb der nächsten 0 Minuten", None),
+        ("innerhalb der nächsten 600 Minuten", None),
+        ("innerhalb der nächsten 15 Stunden", None),
+    ],
+)
+def test_dhl_soon_window_comes_from_the_minutes_the_mail_names(body, minutes):
+    msg = _msg(
+        "Ihre Sendung wird gleich zugestellt",
+        f"{body}\n{DHL_NUMBER}\n",
+        "DHL Paket <noreply@dhl.de>",
+    )
+    [u] = parse_mail(msg).updates
+    assert u.status_text == "Wird gleich zugestellt"
+    if minutes is None:
+        assert (u.eta_from, u.eta_to) == (None, None)
+    else:
+        start = sent_at(msg).replace(second=0)
+        assert (u.eta_from, u.eta_to) == (start, start + timedelta(minutes=minutes))
+
+
+def test_dhl_soon_window_is_read_fast_from_a_huge_text():
+    """No quadratic search: 300 KB of line breaks and 20,000 digits around the number."""
+    body = "\n" * 300_000 + "nächsten " + "9" * 20_000 + f"\n{DHL_NUMBER}\n"
+    msg = _msg("Ihre Sendung wird gleich zugestellt", body, "DHL Paket <noreply@dhl.de>")
+    started = time.perf_counter()
+    [u] = parse_mail(msg).updates
+    assert time.perf_counter() - started < 2
+    assert (u.eta_from, u.eta_to) == (None, None)
 
 
 # ----- "kommt früher als geplant" (layouts up to 2024-08): in delivery today, with window -----

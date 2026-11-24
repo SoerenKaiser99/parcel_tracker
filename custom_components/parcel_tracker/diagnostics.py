@@ -198,6 +198,7 @@ def _parcel(parcel: Parcel) -> dict[str, Any]:
         "has_track17_result": parcel.track17_result is not None,
         "outgoing": parcel.outgoing,
         "arrival_told": parcel.arrival_told,
+        "soon_until": _iso(parcel.soon_until),
     }
 
 

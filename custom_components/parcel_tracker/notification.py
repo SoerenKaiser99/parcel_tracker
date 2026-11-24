@@ -41,6 +41,7 @@ __all__ = [
     "NOTIFY_EVENTS",
     "TITLE",
     "build_notification",
+    "build_soon_notification",
     "notification_tag",
     "notify_event",
     "service_name",
@@ -255,3 +256,24 @@ def build_notification(
         case _:  # "cancelled"
             message = f"{label} wurde storniert"
     return TITLE, f"{icon} {message}"
+
+
+def build_soon_notification(
+    parcel: Parcel, now: datetime, hide_names: bool = False
+) -> tuple[str, str] | None:
+    """(title, message) for "Kommt gleich" (DHL "wird gleich zugestellt"), or None.
+
+    '🔔 Kopfhörer (DHL) wird gleich zugestellt – bis 14:17 Uhr', with import duty to pay
+    at the door. Nothing for a parcel the user sent: only its arrival is told.
+    """
+    result = parcel.result
+    if result is None or parcel.outgoing:
+        return None
+    until = ""
+    if result.eta_to is not None:
+        end = result.eta_to
+        if now.tzinfo is not None and end.tzinfo is not None:
+            end = end.astimezone(now.tzinfo)
+        until = f" – bis {end:%H:%M} Uhr"
+    label = _label(parcel, hide_names)
+    return TITLE, f"🔔 {label} wird gleich zugestellt{until}{_customs(parcel)}"
