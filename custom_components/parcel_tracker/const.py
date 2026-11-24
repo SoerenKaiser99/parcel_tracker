@@ -183,9 +183,9 @@ ORDER_NO_ETA_DAYS = 14
 FOLD_DAYS_BEFORE = 3
 FOLD_DAYS_AFTER = 3
 # A carrier's mail finds a shop order (mail.apply._merge_candidate) only if its day lies
-# in the order's day or window - or up to CARRIER_DAYS_EARLY days before it or
-# CARRIER_DAYS_LATE days after it: the shop's day is an estimate, the carrier knows the
-# real one and is often a day or two earlier, now and then a day later.
+# in the order's day or window - for a shipped Amazon order also up to CARRIER_DAYS_EARLY
+# days before it or CARRIER_DAYS_LATE days after it: Amazon's day is a cautious estimate,
+# the carrier knows the real one and is often a day or two earlier, now and then later.
 CARRIER_DAYS_EARLY = 2
 CARRIER_DAYS_LATE = 1
 # A carrier mail that makes a parcel which is delivered right away is announced if it

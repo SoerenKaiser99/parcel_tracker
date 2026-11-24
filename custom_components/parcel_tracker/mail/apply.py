@@ -1237,25 +1237,29 @@ def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
     empty) or named as all sent by the seller: a box Amazon sends itself is told by its
     carrier as Amazon's, never by the brand or the seller, also when another seller sells
     it. Such an order is no candidate at all, so it never makes the one of the seller
-    ambiguous.
+    ambiguous. A brand of one word of four letters needs all shipments named as sent by
+    the seller: such a word is often a plain one ("Glas", "Koch") that begins many a title.
 
     Deliberately narrow: only Amazon orders (never eBay), none that names another carrier
     than the mail's, and exactly one of them must be of the brand. The mail's day must lie
-    in the order's day or window or a little around it (``_in_window``); if one of the two
-    has no day, the order must be shipped ("Versendet"). A mail about a delivery never
-    takes an order that is only "Bestellt".
+    in the order's day or window, for a shipped order ("Versendet") also a little around
+    it (``_in_window``); if one of the two has no day, the order must be shipped. A mail
+    about a delivery never takes an order that is only "Bestellt".
     """
     brand = brand_of(update.title)
     if brand is None:
         return None
     words = r"\s+".join(re.escape(word) for word in brand.split())
     begins = re.compile(rf"{words}(?![^\W_])", re.IGNORECASE)
+    # (one word of four letters, "Abcd": often a plain word too, "Glas", "Koch", that
+    # begins many a title; only an order Amazon says the seller sends is found by it)
+    short = " " not in brand and len(re.sub(r"[\W\d_]", "", brand)) < 5
     matches = [
         p
         for p in orders
         if p.carrier == "amazon"
         and _hint_key(p) in (None, update.carrier)
-        and (not p.shipment_ids or _seller_shipped(p))
+        and (_seller_shipped(p) or not (short or p.shipment_ids))
         and (
             begins.match((p.mail_title or p.name or "").strip())
             or (
@@ -1274,7 +1278,10 @@ def _brand_candidate(orders: list[Parcel], update: MailUpdate) -> Parcel | None:
     day = _mail_day(update)
     dated = order.result is not None and order.result.eta_date is not None
     if day and dated:
-        return order if _in_window(order, day) else None
+        # (a little around the order's days only once it is shipped, as in _merge_candidate)
+        if order.status is ParcelStatus.IN_TRANSIT:
+            return order if _in_window(order, day) else None
+        return order if _in_window(order, day, 0, 0) else None
     return order if order.status is ParcelStatus.IN_TRANSIT else None
 
 
@@ -1302,10 +1309,11 @@ def _merge_candidate(
 
     The order qualifies when the carrier mail names its shop or the shop mail named
     this carrier; the day must match the order's day or window. If no order's does, the
-    day may lie a little around it (``_in_window``), but only for an order of the shop the
-    mail names. Without a day, the order must be in transit. A mail that names another
-    company than the shop (the brand or the marketplace seller that sells at Amazon) may
-    still belong to an order: see ``_brand_candidate``.
+    day may lie a little around it (``_in_window``), but only for a shipped Amazon order
+    of a mail that names Amazon, whose shop mail named no other carrier; one that is only
+    ordered there leaves the mail to none. Without a day, the order must be in transit. A
+    mail that names another company than the shop (the brand or the marketplace seller
+    that sells at Amazon) may still belong to an order: see ``_brand_candidate``.
 
     A mail that names Amazon never goes to an Amazon order whose shipments are all sent by
     the seller (``_seller_shipped``): the seller's carrier names the seller, so a mail
@@ -1354,13 +1362,21 @@ def _merge_candidate(
         ]
     elif update.eta_date:
         # An order whose own day fits wins over one the carrier is a little early or late
-        # for; that leeway only for an order of the shop the mail names, not for one that
-        # merely named this carrier (an eBay seller's, mostly: its days are the seller's).
-        matches = [p for p in open_orders if _in_window(p, update.eta_date, 0, 0)] or [
+        # for. That leeway only for an Amazon order the mail names Amazon for (its day is
+        # Amazon's cautious estimate; an eBay or AliExpress order's is the seller's), not
+        # for one that merely named this carrier or named another one, and only once it
+        # is shipped: an order that is only "Bestellt" may be quite another box. It still
+        # makes the shipped one ambiguous, as the box may as well be its own.
+        exact = [p for p in open_orders if _in_window(p, update.eta_date, 0, 0)]
+        near = [
             p
             for p in open_orders
-            if p.carrier == update.shop and _in_window(p, update.eta_date)
+            if p.carrier == update.shop == "amazon"
+            and _hint_key(p) in (None, update.carrier)
+            and _in_window(p, update.eta_date)
         ]
+        shipped = all(p.status is ParcelStatus.IN_TRANSIT for p in near)
+        matches = exact or (near if shipped else [])
     else:
         matches = [p for p in open_orders if p.status is ParcelStatus.IN_TRANSIT]
     if len(matches) == 1:

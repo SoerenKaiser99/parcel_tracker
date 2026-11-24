@@ -1115,6 +1115,108 @@ def test_an_order_whose_day_fits_as_it_is_goes_before_one_the_carrier_is_early_f
     assert parcels[ORDER].tracking_ref is None and parcels[OTHER_ORDER].tracking_ref is None
 
 
+@pytest.mark.parametrize("shop", ["ebay", "aliexpress"])
+@pytest.mark.parametrize(("days", "merged"), [(0, True), (1, False), (2, False), (-1, False)])
+def test_the_leeway_is_only_for_amazon(shop, days, merged):
+    """An eBay or AliExpress order's day is the seller's, not a cautious estimate: a
+    carrier mail naming that shop keeps the exact day, as before."""
+    number = "EBAY999999999901"
+    parcels = {number: _order(number, "Musterfirma Kabel", TODAY + timedelta(days=days),
+                              carrier=shop)}
+    mail = MailUpdate(SHORT_DHL, "dhl", ParcelStatus.IN_TRANSIT, NOW.astimezone(BERLIN),
+                      title="Sendung", eta_date=TODAY, shop=shop)
+    change = apply_update(parcels, mail, NOW)
+    assert change.created is not merged
+    assert (parcels[number].tracking_ref == SHORT_DHL) is merged
+
+
+@pytest.mark.parametrize(
+    ("hint", "days", "merged"),
+    [
+        ("dpd", 0, True),  # the exact day: as before
+        ("dpd", 1, False),  # Amazon's mail named DPD: a DHL box a day early is another one
+        ("dhl", 1, True),
+        (None, 1, True),
+    ],
+)
+def test_the_leeway_is_not_for_an_order_whose_mail_named_another_carrier(hint, days, merged):
+    order = _order(ORDER, "Beispielmarke Regal", TODAY + timedelta(days=days))
+    order.shipping_carrier_hint = hint
+    parcels = {ORDER: order}
+    change = apply_update(parcels, _amazon_dhl(), NOW)
+    assert change.created is not merged
+    assert (order.tracking_ref == SHORT_DHL) is merged
+
+
+_SHIPPED_OR_NOT = [
+    (ParcelStatus.PRE_TRANSIT, 0, True),  # the exact day: as before
+    # only "Bestellt": a box two days ahead may be quite another one (a gift of somebody
+    # else's account), and its "Zugestellt" would close the wrong order
+    (ParcelStatus.PRE_TRANSIT, 2, False),
+    (ParcelStatus.PRE_TRANSIT, -1, False),
+    (ParcelStatus.IN_TRANSIT, 2, True),
+]
+
+
+@pytest.mark.parametrize(("status", "days", "merged"), _SHIPPED_OR_NOT)
+def test_the_leeway_is_only_for_an_order_that_is_shipped(status, days, merged):
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Regal", TODAY + timedelta(days=days),
+                             status=status)}
+    change = apply_update(parcels, _amazon_dhl(), NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+
+
+@pytest.mark.parametrize(
+    ("status", "hint", "merged"),
+    [
+        (ParcelStatus.IN_TRANSIT, None, False),  # two shipped orders: as before
+        # only "Bestellt" takes no mail a day early, but the box may still be its own
+        (ParcelStatus.PRE_TRANSIT, None, False),
+        # Amazon's mail named DPD: that box is surely not the one DHL tells of
+        (ParcelStatus.IN_TRANSIT, "dpd", True),
+    ],
+)
+def test_an_order_outside_the_leeway_may_still_make_it_ambiguous(status, hint, merged):
+    other = _order(OTHER_ORDER, "Musterfirma Kabel", TODAY + timedelta(days=2), status=status)
+    other.shipping_carrier_hint = hint
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Regal", TODAY + timedelta(days=1)),
+               OTHER_ORDER: other}
+    change = apply_update(parcels, _amazon_dhl(), NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+    assert other.tracking_ref is None
+
+
+@pytest.mark.parametrize(("status", "days", "merged"), _SHIPPED_OR_NOT)
+def test_the_leeway_by_the_brand_is_only_for_an_order_that_is_shipped(status, days, merged):
+    parcels = {ORDER: _order(ORDER, "Beispielmarke Regal", TODAY + timedelta(days=days),
+                             status=status)}
+    change = apply_update(parcels, _brand_mail(status=ParcelStatus.IN_TRANSIT), NOW)
+    assert change.created is not merged
+    assert (parcels[ORDER].tracking_ref == SHORT_DHL) is merged
+
+
+@pytest.mark.parametrize(
+    ("brand", "ids", "merged"),
+    [
+        ("Glas GmbH", [], False),  # four letters, often a plain word: "Glas Vorratsdosen"
+        ("Glas GmbH", [SELLER], True),  # the seller sends it: its carrier names the seller
+        ("Glas GmbH", [AMAZON_NOW], False),
+        ("Glasmanufaktur GmbH", [], True),  # five letters or more: as before
+        ("Glas Werk GmbH", [], True),  # two words
+    ],
+)
+def test_a_four_letter_brand_only_finds_an_order_the_seller_sends(brand, ids, merged):
+    title = brand.removesuffix(" GmbH") + " Vorratsdosen 3er-Set"
+    order = _order(ORDER, title, TODAY)
+    order.shipment_ids = ids
+    parcels = {ORDER: order}
+    change = apply_update(parcels, _brand_mail(brand, status=ParcelStatus.IN_TRANSIT), NOW)
+    assert change.created is not merged
+    assert (order.tracking_ref == SHORT_DHL) is merged
+
+
 def test_a_hermes_mail_from_amazon_never_joins_an_order_the_seller_sends():
     """Hermes names Amazon as well ("Deine Sendung von Amazon EU SARL"), not only DHL."""
     parcels: dict[str, Parcel] = {}
