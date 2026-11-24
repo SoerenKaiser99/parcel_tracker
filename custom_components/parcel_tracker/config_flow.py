@@ -672,6 +672,8 @@ class ParcelTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle setup."""
 
     VERSION = 1
+    # 1.2: the notify events are stored once targets are (see ``async_migrate_entry``).
+    MINOR_VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if self._async_current_entries():

@@ -329,6 +329,7 @@ async def test_box_of_two_owners_pushes_once_to_each_owner(hass):
     coordinator.store.add(third)
     first.owner, second.owner, third.owner = ANNA, BEN, BEN
     calls = async_mock_service(hass, "notify", "send_message")
+    events = async_capture_events(hass, EVENT_STATUS_CHANGED)
     coordinator._announcing = True
     for parcel in (first, second, third):
         parcel.result = TrackingResult.from_dict({"status": "delivered", "events": []})
@@ -336,6 +337,33 @@ async def test_box_of_two_owners_pushes_once_to_each_owner(hass):
     await hass.async_block_till_done()
     # Each owner of the shared box hears of it once; the same owner not twice.
     assert [c.data["entity_id"] for c in calls] == [ANNA_PHONE, BEN_PHONE]
+    # For the blueprint and the device triggers (no owners there) the box told it once.
+    assert [e.data["repeat"] for e in events] == [False, True, True]
+
+
+async def test_a_box_without_built_in_targets_marks_the_repeat_all_the_same(hass):
+    """Only the blueprint notifies: the second order of the box is a repeat although no
+    built-in push went out for the first."""
+    coordinator = await _setup(hass, {CONF_NOTIFY_TARGETS: [], CONF_PERSONS: []})
+    first, second = await _box(hass, coordinator)
+    calls = async_mock_service(hass, "notify", "send_message")
+    events = async_capture_events(hass, EVENT_STATUS_CHANGED)
+    coordinator._announcing = True
+    for parcel in (first, second):
+        parcel.result = TrackingResult.from_dict({"status": "delivered", "events": []})
+        coordinator._announce(parcel, ParcelStatus.IN_TRANSIT)
+    await hass.async_block_till_done()
+    assert calls == []
+    assert [e.data["repeat"] for e in events] == [False, True]
+    # An assumed closing of one order says nothing about the box.
+    out = TrackingResult.from_dict({"status": "out_for_delivery", "events": []})
+    first.result = second.result = out
+    first.assumed_delivered = True
+    events.clear()
+    for parcel in (first, second):
+        coordinator._announce(parcel, ParcelStatus.IN_TRANSIT)
+    await hass.async_block_till_done()
+    assert [e.data["repeat"] for e in events] == [False, False]
 
 
 async def test_owner_that_is_no_configured_person_counts_as_unassigned(hass):

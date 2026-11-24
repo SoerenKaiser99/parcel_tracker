@@ -52,6 +52,7 @@ Welche Ereignisse gemeldet werden, gilt für alle gleich.
 | Unterwegs | Das Paket ist verschickt oder auf dem Weg. Auch ein Zustellversuch oder eine Verspätung führt oft zurück auf „Unterwegs“. | nein |
 | Im Zustelldepot | Das Paket liegt im Depot, aus dem zugestellt wird (nur über die Abfrage bei DHL, Hermes, GLS und DPD). | nein |
 | In Zustellung | | ja |
+| Kommt gleich | Der Paketdienst stellt in den nächsten Minuten zu (DHL-Mail „wird gleich zugestellt“). Kein eigener Status: Das Paket bleibt „In Zustellung“. Höchstens einmal am Tag pro Paket. | ja |
 | Abholbereit | | ja |
 | Zugestellt | | ja |
 | Problem | | nein |
@@ -61,7 +62,9 @@ Die Namen sind dieselben wie auf der Karte. „Bestellt“ und „Angekündigt�
 
 Die frühen Ereignisse (Bestellt bis Im Zustelldepot) kommen oft, manche Paketdienste springen zwischen „Unterwegs“ und „Im Zustelldepot“ hin und her. Sind es dir zu viele Meldungen, nimm den Haken dort einfach wieder heraus.
 
-Hast du die Benachrichtigungen schon früher eingerichtet, behältst du deine Auswahl: Die neuen Ereignisse (auch „Storniert“) sind dann nicht angehakt.
+„Kommt gleich“ kommt auch ohne Haken bei „In Zustellung“. Bringt erst diese Mail das Paket in Zustellung, kommt mit beiden Haken nur „Kommt gleich“, nicht zwei Meldungen hintereinander. DHL schickt die Mail oft zweimal innerhalb weniger Minuten: Die zweite verschiebt nur das Zeitfenster. Wird die Mail erst gelesen, wenn ihre Minuten schon vorbei sind (Postfach spät abgerufen, Home Assistant war aus), kommt keine Meldung.
+
+Hast du die Benachrichtigungen schon früher eingerichtet, behältst du deine Auswahl, auch wenn du Ziele nur bei den Personen eingetragen und die Ereignisse nie gespeichert hast: Die neuen Ereignisse (auch „Storniert“ und „Kommt gleich“) sind dann nicht angehakt.
 
 Für ein **versendetes Paket** (Einlieferungsbeleg, siehe [Versendete Pakete](mail-import.md#versendete-pakete-einlieferungsbelege)) kommt genau eine Meldung, wenn es beim Empfänger zugestellt ist oder zur Abholung bereitliegt, und nur, wenn „Zugestellt“ gewählt ist. Sie lautet „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“. Andere Meldungen gibt es für versendete Pakete nicht. Die Ankunft sieht die Integration nur mit [DHL-API-Key](dienste.md#dhl-api-key-anlegen) oder nach „Details über 17track holen“ auf der Karte. Ohne beides bleibt das Paket auf „unterwegs“, und die Meldung kommt nie.
 
@@ -77,6 +80,7 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 | Im Zustelldepot | `🏭 Kopfhörer (DHL) ist im Zustelldepot` |
 | In Zustellung | `📦 Kopfhörer (DHL) ist in Zustellung – heute 14:00–16:00 Uhr` |
 | In Zustellung, mit Zoll | `📦 Kopfhörer (DHL) ist in Zustellung – Einfuhrabgaben 12,34 € bar bereithalten` |
+| Kommt gleich | `🔔 Kopfhörer (DHL) wird gleich zugestellt – bis 14:17 Uhr` |
 | Abholbereit | `📍 Kopfhörer (DHL) liegt zur Abholung bereit – Bonn bis 06.10.` |
 | Zugestellt | `✅ Kopfhörer (DHL) wurde zugestellt` |
 | Problem | `⚠️ Kopfhörer (DHL): Problem bei der Zustellung` |
@@ -85,7 +89,7 @@ Der Titel ist „Paket Tracker“, der Text eine Zeile:
 Hat die Mail eigene Worte für den Status, stehen sie statt des Satzes da, z. B. `🚚 Kopfhörer (Amazon): Zustellung versucht`. Das gilt nur für diese festen Begriffe: „Zustellung versucht“, „Lieferung verspätet“, „Lieferprobleme“ (Amazon, eBay), „Versandbereit“, „Dem Versandunternehmen übergeben“, „Zollabfertigung beendet“ (AliExpress) und „Verpackung beschädigt“ (DHL). Der Betreff einer Mail oder der Text eines Paketdienstes steht nie in einer Benachrichtigung.
 
 - Das Zeitfenster steht nur da, wenn eines für heute bekannt ist.
-- Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da. Meldet die DHL-Abfrage (mit API-Key) „In Zustellung“, bevor die Mail mit dem Betrag da ist, geht die Meldung ohne Zoll raus, und die spätere Mail löst keine zweite aus; der Betrag steht dann trotzdem auf der Karte und in den Attributen.
+- Einfuhrabgaben (Zoll) stehen nur bei „In Zustellung“ und „Kommt gleich“ da, und nur wenn eine DHL-Mail den Betrag genannt hat: `Einfuhrabgaben 12,34 € bar bereithalten`, bei einer anderen Zahlart `Einfuhrabgaben 12,34 € bei Zustellung`. Sie stehen nach dem Zeitfenster. Ohne bekannten Betrag steht nichts da. Meldet die DHL-Abfrage (mit API-Key) „In Zustellung“, bevor die Mail mit dem Betrag da ist, geht die Meldung ohne Zoll raus, und die spätere Mail löst keine zweite aus; der Betrag steht dann trotzdem auf der Karte und in den Attributen.
 - Abholort und letzter Abholtag stehen da, wenn der Paketdienst oder eine Abholmail sie nennt (Amazon „Paket zur Abholung bereit“, bei DHL nur der Abholort). Der Ort ist höchstens 40 Zeichen lang.
 - Genannt wird der Name des Pakets (bei Paketen aus Mails der Artikeltitel, höchstens 40 Zeichen).
 - Hat ein Paket keinen Namen, steht dort `Paket …2557` mit den letzten vier Stellen der Nummer.
@@ -106,7 +110,8 @@ Gesendet wird genau dann, wenn auch das Event `parcel_tracker_status_changed` fe
 - **Angenommene Zustellung:** Schließt die Integration eine Amazon-, eBay-, AliExpress- oder Eventim-Bestellung, für die keine „Zugestellt“-Mail kam („Abgeschlossen ohne Zustellbestätigung“, siehe [Bestellungen ohne Zustellmail](mail-import.md#bestellungen-ohne-zustellmail)), feuert das Event mit dem Feld `assumed` auf `true`. Es geht aber keine Benachrichtigung raus – weder über die Optionen noch über den Blueprint.
 - **Von Hand erhalten:** Markierst du ein Paket mit [„Erhalten“](karte.md#erhalten) selbst als erhalten, feuert das Event mit dem Feld `manual` auf `true`. Eine Benachrichtigung gibt es auch dafür nicht.
 - **Storniert:** Storniert ein Shop eine ganze Bestellung oder bringt der Paketdienst einen Amazon-Karton zurück („Zurück an Amazon“), feuert das Event mit `new_status` `cancelled`, und mit „Storniert“ kommt eine Benachrichtigung. Werden nur einzelne Artikel storniert (siehe [E-Mail-Import](mail-import.md#was-aus-welcher-mail-wird)), gibt es keine.
-- **Mehrere Bestellungen in einem Paket** (AliExpress, Amazon): Das Event feuert für jede Bestellung, die Benachrichtigung aus den Optionen geht für das Paket einmal raus.
+- **Mehrere Bestellungen in einem Paket** (AliExpress, Amazon): Das Event feuert für jede Bestellung, die Benachrichtigung aus den Optionen geht für das Paket einmal raus, an jede Person einmal. Dasselbe gilt, wenn eine Bestellung ein Paket übernimmt, dessen Status schon gemeldet war. Eine solche Wiederholung trägt im Event das Feld `repeat` auf `true`; der Blueprint und die [Geräte-Auslöser](automationen.md) der einzelnen Ereignisse lassen sie aus.
+- **Kommt gleich** ist kein Statuswechsel und hat ein eigenes Event, `parcel_tracker_arriving_soon`, siehe [Automationen](automationen.md#das-event-parcel_tracker_arriving_soon). Kommt die Mail, während Home Assistant startet, folgen Event und Meldung nach dem Start, wenn das Zeitfenster dann noch läuft.
 
 Schlägt das Senden fehl, steht eine Warnung ohne Paketdaten im Log. Die Paketabfrage läuft unverändert weiter.
 
@@ -138,7 +143,7 @@ Danach legst du unter **Einstellungen → Automationen & Szenen → Blueprints**
 
 | Eingabe | Bedeutung | Standard |
 |---|---|---|
-| **Status** | Bei welchen neuen Status benachrichtigt wird. Wählbar wie in den Optionen: Bestellt, Angekündigt, Unterwegs, Im Zustelldepot, In Zustellung, Abholbereit, Zugestellt, Problem, Storniert. | In Zustellung, Abholbereit, Zugestellt, Storniert |
+| **Status** | Bei welchen neuen Status benachrichtigt wird. Wählbar wie in den Optionen: Bestellt, Angekündigt, Unterwegs, Im Zustelldepot, In Zustellung, Kommt gleich, Abholbereit, Zugestellt, Problem, Storniert. | In Zustellung, Kommt gleich, Abholbereit, Zugestellt, Storniert |
 | **Benachrichtigungsdienst** | Ein klassischer Dienst als Text, z. B. `notify.mobile_app_mein_handy`. | `notify.notify` |
 | **Titel** | Überschrift der Benachrichtigung. | Paket Tracker |
 | **Text** | Vorlage für den Text, siehe unten. | `{{ text }}` |
@@ -148,7 +153,7 @@ Danach legst du unter **Einstellungen → Automationen & Szenen → Blueprints**
 
 Sind Dashboard-Pfad und Ersetzen nicht gesetzt, schickt der Blueprint nur Titel und Text und passt damit zu jedem Benachrichtigungsdienst.
 
-Hast du unter **Status** nie etwas geändert, gilt nach dem erneuten Import der neue Standard: Dann meldet die Automation auch „Storniert“. Willst du das nicht, nimm den Haken dort heraus. Eine Automation mit „Angekündigt“ aus einer älteren Fassung meldet weiterhin Bestellt und Angekündigt.
+Hast du unter **Status** nie etwas geändert, gilt nach dem erneuten Import der neue Standard: Dann meldet die Automation auch „Storniert“ und „Kommt gleich“. Willst du das nicht, nimm den Haken dort heraus. Eine Automation mit „Angekündigt“ aus einer älteren Fassung meldet weiterhin Bestellt und Angekündigt.
 
 ### Variablen für den Text
 
@@ -156,10 +161,10 @@ Hast du unter **Status** nie etwas geändert, gilt nach dem erneuten Import der 
 |---|---|
 | `name` | Name des Pakets, weitere Artikel als „(+2)“ dahinter; ohne Namen „Paket …“ und die letzten vier Stellen der Nummer |
 | `carrier` | Anzeigename des Paketdienstes, z. B. DHL |
-| `new_status` | neuer Status, z. B. `out_for_delivery` |
-| `event` | das Ereignis wie unter **Status**: der neue Status, für `pre_transit` aber `ordered` (Bestellt) oder `announced` (Angekündigt) |
-| `old_status` | vorheriger Status |
-| `text` | der fertige Standardsatz, z. B. „Kopfhörer (DHL) ist in Zustellung“ |
+| `new_status` | neuer Status, z. B. `out_for_delivery`; leer bei „Kommt gleich“ |
+| `event` | das Ereignis wie unter **Status**: der neue Status, für `pre_transit` aber `ordered` (Bestellt) oder `announced` (Angekündigt), `arriving_soon` für „Kommt gleich“ |
+| `old_status` | vorheriger Status; leer bei „Kommt gleich“ |
+| `text` | der fertige Standardsatz, z. B. „Kopfhörer (DHL) ist in Zustellung“ oder „Kopfhörer (DHL) wird gleich zugestellt – bis 14:17 Uhr“ |
 | `outgoing` | `true` bei einem versendeten Paket, sonst `false` |
 
 Ein Beispiel für das Feld **Text**:
@@ -168,7 +173,7 @@ Ein Beispiel für das Feld **Text**:
 {{ name }} kommt mit {{ carrier }}
 ```
 
-Die Sendungsnummer, der Zustell-Code und der Ort stehen in keinem der voreingestellten Texte. Bestellungen, die ohne Zustellmail abgeschlossen wurden (`assumed`), und Pakete, die von Hand als erhalten markiert wurden (`manual`), meldet der Blueprint nicht.
+Die Sendungsnummer, der Zustell-Code und der Ort stehen in keinem der voreingestellten Texte. Bestellungen, die ohne Zustellmail abgeschlossen wurden (`assumed`), Pakete, die von Hand als erhalten markiert wurden (`manual`), und Wiederholungen für ein schon gemeldetes Paket (`repeat`) meldet der Blueprint nicht.
 
 Ein **versendetes Paket** (`outgoing`) meldet der Blueprint wie die Benachrichtigungen aus den Optionen nur bei der Ankunft und nur, wenn unter **Status** „Zugestellt“ gewählt ist: „✅ Dein verschicktes Paket … wurde zugestellt“ bzw. „✅ Dein verschicktes Paket … liegt beim Empfänger zur Abholung bereit“. Liegt es erst zur Abholung bereit und wird dann abgeholt, kommt nur die erste Meldung. Andere Status meldet er für versendete Pakete nicht.
 

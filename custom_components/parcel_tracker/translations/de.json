@@ -130,7 +130,7 @@
             "data_description": {
               "notify_enabled": "Schaltet sich mit dem ersten Ziel von selbst ein. Ausschalten entfernt die gewählten Ziele.",
               "notify_targets": "Benachrichtigungs-Entitäten (z. B. die Home-Assistant-App auf dem Handy) und klassische Dienste wie Pushover, in der Liste als „Dienst notify.…“. Ohne Ziel wird nichts gesendet.",
-              "notify_events": "Bei welchen Statuswechseln benachrichtigt wird."
+              "notify_events": "Bei welchen Ereignissen benachrichtigt wird."
             }
           },
           "gift": {
@@ -277,6 +277,7 @@
       "in_transit": "Paket ist unterwegs",
       "at_delivery_depot": "Paket ist im Zustelldepot",
       "out_for_delivery": "Paket ist in Zustellung",
+      "arriving_soon": "Paket kommt gleich",
       "awaiting_pickup": "Paket liegt zur Abholung bereit",
       "delivered": "Paket wurde zugestellt",
       "exception": "Problem bei einem Paket",
@@ -335,6 +336,7 @@
         "in_transit": "Unterwegs",
         "at_delivery_depot": "Im Zustelldepot",
         "out_for_delivery": "In Zustellung",
+        "arriving_soon": "Kommt gleich",
         "awaiting_pickup": "Abholbereit",
         "delivered": "Zugestellt",
         "exception": "Problem",

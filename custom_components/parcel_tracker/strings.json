@@ -130,7 +130,7 @@
             "data_description": {
               "notify_enabled": "Switches itself on with the first target. Switching it off removes the chosen targets.",
               "notify_targets": "Notify entities (e.g. the Home Assistant app on your phone) and classic notify services such as Pushover, listed as “Dienst notify.…”. Without a target nothing is sent.",
-              "notify_events": "The status changes you are notified about."
+              "notify_events": "The events you are notified about."
             }
           },
           "gift": {
@@ -277,6 +277,7 @@
       "in_transit": "Parcel is in transit",
       "at_delivery_depot": "Parcel is at the delivery depot",
       "out_for_delivery": "Parcel is out for delivery",
+      "arriving_soon": "Parcel is arriving soon",
       "awaiting_pickup": "Parcel is ready for pickup",
       "delivered": "Parcel was delivered",
       "exception": "Problem with a parcel",
@@ -335,6 +336,7 @@
         "in_transit": "In transit",
         "at_delivery_depot": "At delivery depot",
         "out_for_delivery": "Out for delivery",
+        "arriving_soon": "Arriving soon",
         "awaiting_pickup": "Ready for pickup",
         "delivered": "Delivered",
         "exception": "Problem",

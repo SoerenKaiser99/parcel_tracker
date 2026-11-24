@@ -264,6 +264,7 @@ async def test_marking_fires_the_event_marked_manual_and_sends_nothing(
         "owner": None,
         "gift": False,
         "outgoing": False,
+        "repeat": False,
     }
     assert calls == []  # the user tapped it: no push
     saved = {p["number"]: p for p in hass_storage[DOMAIN]["data"]["parcels"]}
@@ -532,8 +533,11 @@ async def test_service_errors(hass, entry):
 
 def test_the_delivered_trigger_asks_for_a_delivery_nobody_marked_by_hand():
     assert _event_data("abc", "delivered") == {
-        "entry_id": "abc", "event": "delivered", "assumed": False, "manual": False,
+        "entry_id": "abc", "event": "delivered", "repeat": False, "assumed": False,
+        "manual": False,
     }
     assert _event_data("abc", "status_changed") == {"entry_id": "abc"}
-    assert _event_data("abc", "exception") == {"entry_id": "abc", "event": "exception"}
+    assert _event_data("abc", "exception") == {
+        "entry_id": "abc", "event": "exception", "repeat": False,
+    }
 

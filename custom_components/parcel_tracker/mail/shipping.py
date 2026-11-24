@@ -162,6 +162,11 @@ _DHL_TODAY = re.compile(
 # its own in the history.
 _DHL_SOON = re.compile(r"\bwird\s+gleich\b.*\bzugestellt\b")
 SOON_TEXT = "Wird gleich zugestellt"
+# "— innerhalb der nächsten 15 Minuten —" (text part), "In den nächsten 15 Minuten" (HTML):
+# the window from the mail on. Every such mail seen so far says 15; a number past two hours
+# is no "gleich".
+_DHL_SOON_MINUTES = re.compile(r"\bnächsten\s+(\d{1,3})\s+Minuten\b", re.IGNORECASE)
+_SOON_MAX_MINUTES = 120
 _DHL_TOMORROW = re.compile(r"\bkommt\s+morgen\b|\bwird\s+morgen\b.*\bzugestellt\b")
 _DHL_NOT = re.compile(r"\bnicht\b|\bkonnte\b|zustellversuch")
 _UPS_DELIVERED = re.compile(
@@ -219,6 +224,21 @@ def _dhl_words(subj: str, status: ParcelStatus | None) -> str | None:
         return SOON_TEXT
     if status is ParcelStatus.IN_TRANSIT and _DHL_DAMAGED.search(lower):
         return DAMAGED_TEXT
+    return None
+
+
+def _dhl_soon_window(
+    msg: EmailMessage, text: str, sent: datetime
+) -> tuple[datetime, datetime] | None:
+    """(from, to) of a "wird gleich zugestellt" mail: from the minute it was sent until the
+    minutes it names have passed; None if it names none (no window is guessed)."""
+    for source in (text, html_body_text(msg)):
+        if found := _DHL_SOON_MINUTES.search(source):
+            minutes = int(found.group(1))
+            if not 0 < minutes <= _SOON_MAX_MINUTES:
+                return None
+            start = sent.replace(second=0, microsecond=0)
+            return start, start + timedelta(minutes=minutes)
     return None
 
 
@@ -322,8 +342,9 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
 
     Every sender at dhl.de comes here, so the status is read from the subject only: "ist
     unterwegs", "kommt morgen" (the day after the mail), "kommt heute" / "wird heute
-    zugestellt" / "wird gleich zugestellt" (told in its own words) / "kommt früher als
-    geplant", "wurde … zugestellt",
+    zugestellt" / "wird gleich zugestellt" (told in its own words, with the window of the
+    minutes the text names, ``_dhl_soon_window``) / "kommt früher als geplant", "wurde …
+    zugestellt",
     "liegt am gewünschten Ablageort" / "liegt im Briefkasten" / "liegt nebenan" and, for a
     Packstation or branch, "liegt zur Abholung
     bereit" / "wurde an Packstation … zugestellt" (with the branch and its street as the
@@ -367,9 +388,14 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
     customs = _dhl_customs(text) or _dhl_customs(html_body_text(msg))
     eta_date = eta_from = eta_to = delivered_at = None
     postponed = False
+    words = _dhl_words(subj, status)
     if status is ParcelStatus.OUT_FOR_DELIVERY:
         eta_date = sent.date()
-        if window := _DHL_WINDOW.search(text):
+        # ("wird gleich zugestellt" counts its minutes; should it name a "zwischen" window
+        # instead, that one holds as for any other mail of the day)
+        if words == SOON_TEXT and (soon := _dhl_soon_window(msg, text, sent)):
+            eta_from, eta_to = soon
+        elif window := _DHL_WINDOW.search(text):
             eta_from, eta_to = window_at(eta_date, window.groups()) or (None, None)
     elif ahead:
         eta_date = sent.date() + timedelta(days=ahead)
@@ -396,7 +422,7 @@ def parse_dhl_mail(msg: EmailMessage, plain_names: bool = False) -> list[MailUpd
             delivered_at=delivered_at,
             shop=shop_name,
             postponed=postponed,
-            status_text=_dhl_words(subj, status),
+            status_text=words,
             customs_amount=customs[0] if customs else None,
             customs_currency="EUR" if customs else None,
             customs_cash=customs[1] if customs else False,

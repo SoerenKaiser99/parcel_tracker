@@ -50,6 +50,7 @@ from .base import (
     shop_of,
     title_key,
 )
+from .shipping import SOON_TEXT
 
 _DROP_ETA = NO_ETA_STATUSES - {ParcelStatus.DELIVERED}
 # A postponed delivery (MailUpdate.postponed) never takes these back.
@@ -99,6 +100,9 @@ class Change:
     # carrier's parcel (see ``_apply_tracking``) or a further box of a known order (see
     # ``_apply_order``). The coordinator announces it once as delivered.
     announce: bool = False
+    # The mail was a "wird gleich zugestellt" whose window the parcel took, the first of
+    # its day for this parcel (see ``apply_update``): the coordinator tells "Kommt gleich".
+    soon: bool = False
 
 
 def _step(status: ParcelStatus | None) -> int:
@@ -176,6 +180,15 @@ def _delivery_told(parcel: Parcel) -> bool:
     if parcel.delivery_announced is not None:
         return parcel.delivery_announced
     return parcel.result is not None and len(parcel.result.events) > 1
+
+
+def _soon_window(parcel: Parcel, result: TrackingResult | None) -> bool:
+    """Is the window shown the one of a "wird gleich zugestellt" (``Parcel.soon_until``)?"""
+    return (
+        result is not None
+        and parcel.soon_until is not None
+        and result.eta_to == parcel.soon_until
+    )
 
 
 def _remember_mail(parcel: Parcel, update: MailUpdate) -> None:
@@ -267,8 +280,17 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         events = list(old.events) if old else []
         if old is None or old.status is not update.status or assumed or own_words:
             events.insert(0, TrackingEvent(update.sent_at, text, None))
-        if update.eta_date:
-            eta = (update.eta_date, update.eta_from, update.eta_to, update.eta_latest)
+        soon = update.status_text == SOON_TEXT and update.eta_to is not None
+        window = (update.eta_from, update.eta_to)
+        if soon and update.eta_to <= now:
+            # "Wird gleich zugestellt" read after its minutes have passed (the mailbox
+            # was read late, Home Assistant was down): a window that is over says nothing.
+            soon = False
+            window = (None, None)
+        if update.eta_date and not (stale and _soon_window(parcel, old)):
+            # (a mail read late, "kommt heute zwischen …", keeps the window of the newer
+            # "wird gleich zugestellt")
+            eta = (update.eta_date, *window, update.eta_latest)
         elif (
             old
             and update.status not in _DROP_ETA
@@ -324,6 +346,9 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         if shown is None or assumed or shown.to_dict() != result.to_dict():
             parcel.result = result
             parcel.last_change_at = now
+            changed = True
+        if soon and eta[2] == update.eta_to and parcel.soon_until != update.eta_to:
+            parcel.soon_until = update.eta_to
             changed = True
     if parcel.status is ParcelStatus.DELIVERED:
         if parcel.delivery_code:
@@ -1504,6 +1529,11 @@ def _fold(parcels: dict[str, Parcel], parcel: Parcel, order: Parcel, keep: bool 
         order.customs_amount = parcel.customs_amount
         order.customs_currency = parcel.customs_currency
         order.customs_cash = parcel.customs_cash
+    if parcel.soon_until is not None and (
+        order.soon_until is None or parcel.soon_until > order.soon_until
+    ):
+        # (the window of a "wird gleich zugestellt" goes along with the carrier's result)
+        order.soon_until = parcel.soon_until
     if keep:
         order.result = _joined(order.result, parcel.result)
         order.last_change_at = max(order.last_change_at, parcel.last_change_at)
@@ -2053,6 +2083,9 @@ def apply_update(
     ``owner``: the person the mail's headers name (None: unclear). A parcel created here
     gets it; one that exists gets it only while it has no owner (``_claim``). Setting the
     owner alone is no change that is told.
+
+    A "wird gleich zugestellt" is news once a day per parcel (``Change.soon``): DHL often
+    sends it twice within minutes, and the second one only moves the window on.
     """
     if update.carrier in SHOP_CARRIERS:
         if update.status is ParcelStatus.CANCELLED:
@@ -2060,4 +2093,15 @@ def apply_update(
         if not update.number:
             return _apply_orderless(parcels, update, now, owner)
         return _apply_order(parcels, update, now, gift, owner)
-    return _apply_tracking(parcels, update, now, gift, owner)
+    if update.status_text != SOON_TEXT:
+        return _apply_tracking(parcels, update, now, gift, owner)
+    # (the parcel the mail lands on may be an order that took in the carrier's parcel: both
+    # numbers are looked at)
+    before = {n: p.soon_until for n, p in parcels.items() if p.soon_until is not None}
+    change = _apply_tracking(parcels, update, now, gift, owner)
+    if change is not None and update.eta_to is not None:
+        parcel = change.parcel
+        if parcel.soon_until == update.eta_to:
+            known = before.get(parcel.number) or before.get(parcel.tracking_ref or "")
+            change.soon = known is None or known.date() != update.eta_to.date()
+    return change
