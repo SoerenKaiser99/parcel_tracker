@@ -330,6 +330,20 @@ class Parcel:
     # replace it, and a second such mail of the same day is not told again. Persisted;
     # None in older stores.
     soon_until: datetime | None = None
+    # When the carrier's number of a shop order was typed in ("Sendungsnummer eintragen",
+    # see ``mail.apply.link_tracking``), while no mail named it since (``tracking_manual``):
+    # it may be changed or taken away again (``mail.apply.unlink_tracking``), and the order
+    # goes back to its result without the number (``result_before_tracking``, None if it
+    # had none). The shop's mails after the typing go on into that result too
+    # (``mail.apply._forward``), so nothing they told is lost then. A mail naming the
+    # number confirms it (``mail.apply.confirm_tracking``). Persisted; None in older stores.
+    tracking_typed_at: datetime | None = None
+    result_before_tracking: TrackingResult | None = None
+
+    @property
+    def tracking_manual(self) -> bool:
+        """The carrier's number was typed in, and no mail named it yet."""
+        return self.tracking_typed_at is not None
 
     @property
     def status(self) -> ParcelStatus | None:
@@ -427,6 +441,10 @@ class Parcel:
             "outgoing": self.outgoing,
             "arrival_told": self.arrival_told,
             "soon_until": _iso(self.soon_until),
+            "tracking_typed_at": _iso(self.tracking_typed_at),
+            "result_before_tracking": (
+                self.result_before_tracking.to_dict() if self.result_before_tracking else None
+            ),
         }
 
     @classmethod
@@ -487,6 +505,12 @@ class Parcel:
             outgoing=data.get("outgoing") is True,
             arrival_told=data.get("arrival_told") is True,
             soon_until=_dt(data.get("soon_until")),
+            tracking_typed_at=_dt(data.get("tracking_typed_at")),
+            result_before_tracking=(
+                TrackingResult.from_dict(data["result_before_tracking"])
+                if data.get("result_before_tracking")
+                else None
+            ),
         )
 
 

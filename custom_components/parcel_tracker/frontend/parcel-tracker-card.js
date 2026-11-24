@@ -160,6 +160,13 @@ const SERVICE_ERRORS = {
   gift_owner_not_allowed: "Nur wer Geschenke sehen darf, kann ändern, wem ein Geschenk gehört.",
   gift_outgoing: "Ein versendetes Paket kann kein Geschenk sein.",
   owner_unknown: "Diese Person ist im Paket Tracker nicht eingerichtet.",
+  not_an_order: "Eine Sendungsnummer lässt sich nur bei einer Bestellung eintragen.",
+  has_tracking: "Die Sendungsnummer dieser Bestellung kam per Mail oder mit einem zusammengeführten Paket und lässt sich nicht ändern.",
+  no_carrier: "Zu dieser Nummer passt kein Paketdienst. Prüf, ob sie richtig abgetippt ist.",
+  own_number: "Das ist die Nummer der Bestellung selbst, nicht die des Paketdienstes.",
+  not_a_carrier_parcel: "Diese Nummer gehört zu einer anderen Bestellung oder einem versendeten Paket.",
+  other_owner: "Diese Nummer gehört zum Paket einer anderen Person.",
+  gift_tracking_not_allowed: "Nur wer Geschenke sehen darf, kann bei einem Geschenk eine Sendungsnummer eintragen.",
 };
 
 // Geschenkmodus. Without the switch (an older integration) nothing of it shows; the card asks the integration once per
@@ -385,12 +392,22 @@ const ORDER_LINK = ["mdi:receipt-text-outline", "Bestellung öffnen"];
 // Amazon's own tracking page of a shipment (see links.py).
 const AMAZON_TRACKING = "https://www.amazon.de/progress-tracker/";
 
+// Amazon's page of the shipment, built like links.py builds it: for Amazon's id that stays
+// below a carrier's number (the integration's tracking_url leads to the carrier then).
+function amazonPage(a) {
+  const order = AMAZON_ORDER.exec(a.number || "");
+  if (!order || typeof a.amazon_shipment !== "string" || !a.amazon_shipment) return null;
+  return `${AMAZON_TRACKING}package?orderId=${order.slice(1).join("-")}&packageIndex=0`
+    + `&shipmentId=${encodeURIComponent(a.amazon_shipment)}`;
+}
+
 // The numbers in a parcel's details, to be read off or copied, each with the pages it leads
 // to: a carrier's parcel has its tracking number; a shop order its order number and, once a
 // mail named it, the carrier's tracking number, else an Amazon order Amazon's id of its
 // newest shipment (attribute amazon_shipment). The tracking page stands behind the number of
 // the shipment, or behind the order number of an order that knows none. Numbers are shown
-// also with "Namen ausblenden" (that hides names only).
+// also with "Namen ausblenden" (that hides names only). The carrier's number is always the
+// last line, where "Sendungsnummer: eintragen" stood before it came.
 function numberLines(a) {
   const track = [trackingUrl(a), TRACK_LINK];
   if (SHOPS.includes(a.carrier)) {
@@ -402,8 +419,13 @@ function numberLines(a) {
     // belongs behind Amazon's shipment, not behind the carrier's number.
     const atAmazon = amazon && (trackingUrl(a) || "").startsWith(AMAZON_TRACKING);
     const lines = [["Bestellnummer", order, [shop]]];
+    // Amazon's id stays when a carrier's number came: it tells who sends the box ("D…": the
+    // seller), and Amazon's page of it stays behind it (the carrier's is at its number).
+    if (amazon) {
+      lines.push(["Amazon-Sendung", amazon,
+        !a.tracking_ref || atAmazon ? [track] : [[amazonPage(a), TRACK_LINK]]]);
+    }
     if (a.tracking_ref) lines.push(["Sendungsnummer", a.tracking_ref, atAmazon ? [] : [track]]);
-    if (amazon && (!a.tracking_ref || atAmazon)) lines.push(["Amazon-Sendung", amazon, [track]]);
     return lines;
   }
   return a.number ? [["Sendungsnummer", a.number, [track]]] : [];
@@ -458,12 +480,39 @@ const pageLink = ([url, [icon, words]]) => (url
 
 // A gift leads nowhere: its pages would tell what is inside (the gift viewer gets them with
 // the real name, see _giftInfoHtml).
-function numbersHtml(a) {
-  const lines = numberLines(a);
+// `more`: a line of the card's own after the numbers ("Sendungsnummer: eintragen", or the
+// field that takes the place of a carrier's number typed in while it is changed); `change`:
+// the end of the line of the carrier's number ("ändern"), or null while `more` takes its
+// place.
+function numbersHtml(a, more = "", change = "") {
+  const ref = (label) => label === "Sendungsnummer" && SHOPS.includes(a.carrier);
+  const lines = numberLines(a).filter(([label]) => change !== null || !ref(label));
   return lines.length
-    ? `<div class="detail ids">${lines.map(([label, value, links]) => `<div>${label}: <span class="num">${esc(value)}</span>${isGift(a) ? "" : links.map(pageLink).join("")}</div>`).join("")}</div>`
+    ? `<div class="detail ids">${lines.map(([label, value, links]) => `<div>${label}: <span class="num">${esc(value)}</span>${isGift(a) ? "" : links.map(pageLink).join("")}${ref(label) ? change || "" : ""}</div>`).join("")}${more}</div>`
     : "";
 }
+
+// A shop order whose box no carrier's number is known for takes one typed in
+// (set_tracking_number): not a cancelled one, nothing comes, and not a delivered one (one
+// closed without a delivery mail is not delivered; one marked by hand stays as it is). An
+// Amazon order only if a carrier
+// of its own brings the box: the seller sends it (Amazon's shipment id begins with "D"), or a
+// carrier's parcel naming Amazon waits alone in the list (`amazonWaits`). Amazon's own
+// delivery has no number to type in, and its ids ("T…", "U…") are those of a box Amazon hands
+// to DHL as well.
+const canAddRef = (a, s, amazonWaits = false) => SHOPS.includes(a.carrier) && !a.tracking_ref
+  && s !== "cancelled" && (s !== "delivered" || a.assumed_delivered === true)
+  && a.manual_delivered !== true
+  && (a.carrier !== "amazon" || amazonWaits
+    || (typeof a.amazon_shipment === "string" && a.amazon_shipment.startsWith("D")));
+
+// A carrier's number typed in that no mail named yet is changed or taken away again
+// (set_tracking_number): not on an order marked as received by hand or cancelled.
+const canChangeRef = (a, s) => SHOPS.includes(a.carrier) && Boolean(a.tracking_ref)
+  && a.tracking_manual === true && a.manual_delivered !== true && s !== "cancelled";
+
+// The card's form of a number as the integration stores it (detect.normalize).
+const normNumber = (text) => String(text).replace(/[\s-]+/g, "").toUpperCase();
 
 // Import duty (Zoll) still to pay at delivery, as a DHL mail named it (attributes
 // customs_amount, customs_currency, customs_cash). null without an amount; the integration
@@ -707,6 +756,9 @@ class ParcelTrackerCard extends HTMLElement {
     this._formOpen = this._mode === "button" && this._formOpen === true;
     this._open = new Set();
     this._renaming = new Map(); // number -> current input text
+    this._refAdding = new Map(); // number of an order -> carrier's number typed in so far
+    this._refMerging = new Set(); // orders asked whether the parcel of that number joins them
+    this._refSending = new Set(); // orders whose number is on its way to the integration
     this._confirming = new Set(); // numbers awaiting delete confirmation
     this._receiving = new Set(); // numbers awaiting the "Erhalten" confirmation
     this._code = new Map(); // number -> "ask" | "show" (delivery code reveal)
@@ -927,6 +979,8 @@ class ParcelTrackerCard extends HTMLElement {
       + "|today:" + (today ? today.last_updated : "")
       + "|open:" + Array.from(this._open).sort().join(",")
       + "|ren:" + Array.from(this._renaming.keys()).sort().join(",")
+      + "|ref:" + Array.from(this._refAdding.keys()).sort().join(",")
+      + "|refm:" + Array.from(this._refMerging).sort().join(",")
       + "|del:" + Array.from(this._confirming).sort().join(",")
       + "|rcv:" + Array.from(this._receiving).sort().join(",")
       + "|gmk:" + Array.from(this._giftMarking).sort().join(",")
@@ -1055,8 +1109,15 @@ class ParcelTrackerCard extends HTMLElement {
         .ids > div { line-height:24px; }
         /* (the padding makes the symbol easier to hit, wider than high to keep the lines close;
            the negative margin keeps the line) */
-        .ids a.go { display:inline-flex; vertical-align:middle; margin:-3px 0 -3px 0; padding:3px 6px; border-radius:6px; color:var(--primary-color); }
-        .ids a.go ha-icon { --mdc-icon-size:18px; }
+        /* As high as the line and at its top, the symbol in its middle: the text stands in the
+           middle of its 24px line too. (Without line-height:0 the icon builds a line of its own
+           inside and sits on its baseline, below the text.) */
+        .ids a.go { display:inline-flex; align-items:center; vertical-align:top; box-sizing:border-box; height:24px; padding:0 6px; line-height:0; border-radius:6px; color:var(--primary-color); }
+        .ids a.go ha-icon { --mdc-icon-size:18px; display:flex; }
+        /* "eintragen": a word in the link colour where the number would stand, not a button
+           of the action row (same hit area as the symbols beside the numbers) */
+        .ids button.add { margin:-3px 0; padding:3px 6px; border:none; border-radius:6px; background:none; font:inherit; color:var(--primary-color); cursor:pointer; }
+        .ids button.add:focus-visible { outline:2px solid var(--primary-color); outline-offset:-2px; }
         .num { color:var(--primary-text-color); -webkit-user-select:all; user-select:all; cursor:text; overflow-wrap:anywhere; }
         .actions { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
         .actions input { flex:1 1 140px; }
@@ -1621,6 +1682,68 @@ class ParcelTrackerCard extends HTMLElement {
     return `<div class="actions">${received}<button type="button" data-a="rename" data-number="${n}">Umbenennen</button>${mark}<button type="button" data-a="remove" data-number="${n}">Löschen</button></div>`;
   }
 
+  // "Sendungsnummer: eintragen" below an order's numbers; a tap turns the line into a field
+  // like "Umbenennen". A number typed in that no mail named yet (tracking_manual) gets
+  // "ändern" at the end of its line instead: the field takes the place of the line, with
+  // "Entfernen" as well. Not for a gift someone may not see (its row says nothing about it).
+  // [more, change] for numbersHtml.
+  _refHtml(a, s) {
+    // (a field that is open stays open: the parcel that made the line show up may change
+    // while typing)
+    const open = this._refAdding.has(a.number) || this._refMerging.has(a.number);
+    const typed = canChangeRef(a, s);
+    if ((!typed && !canAddRef(a, s, open || this._amazonWaits()))
+      || (isGift(a) && !this._seesGift(a))) {
+      this._refAdding.delete(a.number);
+      this._refMerging.delete(a.number);
+      return ["", ""];
+    }
+    const n = esc(a.number);
+    const line = typed ? null : ""; // (the line of the number typed in gives way to the field)
+    // A parcel of that number is in the list: it becomes part of the order, asked first.
+    // "Abbrechen" first and focused (like "Erhalten"): a double tap never joins them.
+    if (this._refMerging.has(a.number)) {
+      return [`<div class="actions" role="group" aria-label="Zusammenführen bestätigen">
+        <span>Das Paket mit dieser Nummer wird mit der Bestellung zusammengeführt.</span>
+        <button type="button" data-a="ref-merge-cancel" data-number="${n}">Abbrechen</button>
+        <button type="button" data-a="ref-merge" data-number="${n}">Zusammenführen</button></div>`, line];
+    }
+    if (this._refAdding.has(a.number)) {
+      return [`<div class="actions">
+        <input type="text" data-a="ref-input" data-number="${n}" aria-label="Sendungsnummer des Paketdienstes" placeholder="Sendungsnummer von DHL, DPD …" value="${esc(this._refAdding.get(a.number))}" autocomplete="off" spellcheck="false">
+        <button type="button" data-a="ref-save" data-number="${n}">Speichern</button>
+        ${typed ? `<button type="button" data-a="ref-remove" data-number="${n}">Entfernen</button>` : ""}
+        <button type="button" data-a="ref-cancel" data-number="${n}">Abbrechen</button></div>`, line];
+    }
+    if (typed) return ["", `<button type="button" class="add" data-a="ref" data-number="${n}">ändern</button>`];
+    return [`<div>Sendungsnummer: <button type="button" class="add" data-a="ref" data-number="${n}">eintragen</button></div>`, ""];
+  }
+
+  // A carrier's parcel naming Amazon ("Amazon-Sendung (DHL)") waits alone, not delivered:
+  // a box Amazon handed to a carrier whose mail found no order. Only among the parcels the
+  // card shows (option `person`, hidden gifts): another person's box says nothing here.
+  _amazonWaits() {
+    return this._shown().some((st) => !SHOPS.includes(st.attributes.carrier)
+      && !st.attributes.tracking_ref && st.state !== "delivered" && !isOutgoing(st.attributes)
+      && /amazon/i.test(String(st.attributes.name || "")));
+  }
+
+  // The carrier's parcel already tracked under a number typed in, if any: one the service
+  // folds in (not a shop order, not a sent parcel, none that is part of an order). A GLS
+  // parcel also under the other form of its number, with or without the check digit
+  // (as the integration finds it, see _gls_other_form). Only one the card shows: another
+  // person's parcel or a hidden gift is not asked about (the service refuses it).
+  _parcelOf(typed) {
+    const number = normNumber(typed);
+    const short = (n) => (/^\d{12}$/.test(n) ? n.slice(0, 11) : n);
+    return this._shown().find((st) => {
+      const own = normNumber(st.attributes.number);
+      return (own === number || (st.attributes.carrier === "gls" && short(own) === short(number)))
+        && !SHOPS.includes(st.attributes.carrier) && !isOutgoing(st.attributes)
+        && !st.attributes.tracking_ref;
+    });
+  }
+
   _codeHtml(a) {
     if (a.has_delivery_code !== true || isOutgoing(a)) return "";
     const n = esc(a.number);
@@ -1720,6 +1843,66 @@ class ParcelTrackerCard extends HTMLElement {
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") { e.preventDefault(); save(); }
         else if (e.key === "Escape") { e.preventDefault(); this._renaming.delete(num); this._renderList(); }
+      });
+    }
+    const ref = (adding, focus) => {
+      // (changing a number typed in starts from that number)
+      adding ? this._refAdding.set(num, a.tracking_manual === true ? a.tracking_ref || "" : "")
+        : this._refAdding.delete(num);
+      this._pendingFocus = { number: num, a: focus };
+      this._renderList();
+    };
+    on("ref", () => ref(true, "ref-input"));
+    on("ref-cancel", () => ref(false, "ref"));
+    // `typed` "": the number typed in is taken away again ("Entfernen").
+    const sendRef = async (typed = (this._refAdding.get(num) || "").trim()) => {
+      // (Enter twice in a row: the second would be refused, the order has the number then)
+      if (this._refSending.has(num)) return;
+      this._refSending.add(num);
+      let done;
+      try {
+        done = await this._call("set_tracking_number", { number: num, tracking_number: typed });
+      } finally {
+        this._refSending.delete(num);
+      }
+      if (done) {
+        this._refAdding.delete(num);
+        this._refMerging.delete(num);
+        // The field is gone (the order shows the number, or "eintragen" again): put the
+        // focus on the row.
+        this._pendingFocus = { number: num, a: "toggle" };
+        this._renderList();
+      }
+    };
+    on("ref-remove", () => sendRef(""));
+    const saveRef = async () => {
+      const typed = (this._refAdding.get(num) || "").trim();
+      if (!typed) { this._setError(SERVICE_ERRORS.empty); return; }
+      if (a.tracking_ref && normNumber(typed) === normNumber(a.tracking_ref)) {
+        ref(false, "ref"); // (unchanged)
+        return;
+      }
+      if (this._parcelOf(typed)) {
+        this._refMerging.add(num);
+        this._pendingFocus = { number: num, a: "ref-merge-cancel" };
+        this._renderList();
+        return;
+      }
+      await sendRef();
+    };
+    on("ref-save", saveRef);
+    on("ref-merge", () => sendRef()); // (not the click event as the number)
+    on("ref-merge-cancel", () => {
+      this._refMerging.delete(num); // back to the field, with what was typed
+      this._pendingFocus = { number: num, a: "ref-input" };
+      this._renderList();
+    });
+    const refInput = item.querySelector('[data-a="ref-input"]');
+    if (refInput) {
+      refInput.addEventListener("input", () => this._refAdding.set(num, refInput.value));
+      refInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); saveRef(); }
+        else if (e.key === "Escape") { e.preventDefault(); ref(false, "ref"); }
       });
     }
     const code = (mode, focus) => {
@@ -1891,7 +2074,7 @@ class ParcelTrackerCard extends HTMLElement {
     item.innerHTML = `
       ${isGift(a) ? `<div class="gline">${this._giftBoxHtml(a)}${toggle}</div>` : toggle}
       <div class="sub">${sub}${outgoingBadge(a)}${customsBadge(a)}</div>${this._giftInfoHtml(a)}${bar}${stale}
-      ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${customsDetail(a)}${numbersHtml(a)}${note}${this._ownerHtml(a)}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
+      ${open ? `<div class="detail">${events || "Noch keine Ereignisse"}</div>${customsDetail(a)}${numbersHtml(a, ...this._refHtml(a, s))}${note}${this._ownerHtml(a)}${this._codeHtml(a)}${this._track17Html(a, s, t17)}${this._actionsHtml(a, s)}` : ""}`;
     item.querySelector(".row-toggle").addEventListener("click", () => {
       if (open) {
         this._open.delete(a.number);

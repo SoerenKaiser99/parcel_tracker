@@ -224,7 +224,7 @@ def test_readme_lists_what_it_can_do_with_a_link_per_line():
         f"[Benachrichtigungen]({SITE}benachrichtigungen/)",
         f"[Namen ausblenden]({SITE}datenschutz/#namen-ausblenden)",
         "`parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`,"
-        " `refresh`, `track_17track`",
+        " `set_tracking_number`, `refresh`, `track_17track`",
         "`parcel_tracker_status_changed`",
         "`sensor.pakete_heute`",
         "`calendar.pakete`",

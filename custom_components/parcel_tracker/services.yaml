@@ -36,6 +36,20 @@ mark_delivered:
       required: true
       selector:
         text:
+set_tracking_number:
+  fields:
+    number:
+      required: true
+      selector:
+        text:
+    tracking_number:
+      selector:
+        text:
+    carrier:
+      default: auto
+      selector:
+        select:
+          options: ["auto", "dhl", "dpd", "gls", "hermes", "hes", "ups"]
 refresh:
   fields:
     number:

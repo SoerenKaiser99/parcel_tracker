@@ -125,15 +125,23 @@ def test_amazons_page_for_a_carrier_without_a_page_stands_behind_amazons_shipmen
     assert card["pagelessCarrier"] == (
         '<div class="detail ids">'
         + _line("Bestellnummer", "999-9156534-2587125", _order_link())
-        + _line("Sendungsnummer", "LP00999999999999", "")
         + _line("Amazon-Sendung", "TAbCdE9fG", _link(AMAZON_TRACKING))
+        + _line("Sendungsnummer", "LP00999999999999", "")
         + "</div>"
     )
 
 
 def test_a_carriers_page_keeps_its_place_behind_the_carriers_number(card):
-    # The carrier's own page comes first (links.py): Amazon's shipment is not shown then.
-    assert card["carrierAndAmazon"] == card["order"]
+    # The carrier's own page stands behind its number (links.py). Amazon's id stays above
+    # it, with Amazon's page of it, built by the card as links.py builds it: it tells who
+    # sends the box. The carrier's number comes last, where "eintragen" stood.
+    assert card["carrierAndAmazon"] == (
+        '<div class="detail ids">'
+        + _line("Bestellnummer", "999-9156534-2587125", _order_link())
+        + _line("Amazon-Sendung", "TAbCdE9fG", _link(AMAZON_TRACKING))
+        + _line("Sendungsnummer", "1Z999AA10123456784", _link(UPS))
+        + "</div>"
+    )
 
 
 def test_a_tracking_page_without_any_shipment_number_stands_behind_the_order_number(card):

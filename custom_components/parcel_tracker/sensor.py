@@ -179,6 +179,9 @@ class ParcelSensor(CoordinatorEntity[ParcelCoordinator], SensorEntity):
             "events": [e.to_dict() for e in r.events] if r else [],
             "tracking_ref": p.tracking_ref,
             "tracking_carrier": p.tracking_carrier,
+            # The carrier's number was typed in and no mail named it yet: the card offers
+            # to change it ("ändern").
+            "tracking_manual": p.tracking_manual,
             # The carrier's public tracking page (None: shop order without a carrier
             # number, 17track only, carrier unknown); the card links to it.
             # (a gift gives out neither this nor the shipment id)

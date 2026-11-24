@@ -33,7 +33,7 @@ Ich war es leid, ständig in verschiedenen Apps Zustelltage und -zeiten zu check
 - **Automationen**: Auslöser im Automations-Editor ohne YAML, das Event `parcel_tracker_status_changed` und `parcel_tracker_parcel_added` für neue Pakete – [Automationen](https://soerenkaiser99.github.io/parcel_tracker/automationen/)
 - **Rezepte**: elf Beispiele für Automationen und Karten zum Kopieren – [Rezepte](https://soerenkaiser99.github.io/parcel_tracker/rezepte/)
 - **Sensoren und Kalender**: `sensor.paket_<nummer>` pro Paket, `sensor.pakete_heute`, vier Zählsensoren und `calendar.pakete` – [Sensoren, Kalender und Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/)
-- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `refresh`, `track_17track`, `set_gift`, `set_owner` – [Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/#dienste)
+- **Dienste**: `parcel_tracker.add_parcel`, `remove_parcel`, `rename_parcel`, `mark_delivered`, `set_tracking_number`, `refresh`, `track_17track`, `set_gift`, `set_owner` – [Dienste](https://soerenkaiser99.github.io/parcel_tracker/sensoren/#dienste)
 - **17track** (optional): ergänzt Ort, Zeitfenster und Verlauf und verfolgt Carrier ohne eigene Anbindung, z. B. FedEx – [17track](https://soerenkaiser99.github.io/parcel_tracker/dienste/#17track-optional)
 - **Namen ausblenden** (optional): Pakete heißen überall nur nach dem Paketdienst, für Geschenke auf einem gemeinsamen Dashboard; dazu der Geschenkmodus, in dem nur festgelegte Personen sehen, was in einem Paket steckt – [Namen ausblenden](https://soerenkaiser99.github.io/parcel_tracker/datenschutz/#namen-ausblenden)
 
