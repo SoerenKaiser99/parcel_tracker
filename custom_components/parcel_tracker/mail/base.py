@@ -133,7 +133,7 @@ class MailResult:
 
 _NUMBERS = (
     ("dhl", re.compile(r"\b(00340\d{15})\b")),
-    ("dhl", re.compile(r"\b(JJD\d{12,22})\b")),
+    ("dhl", re.compile(r"\b(JJD\d{12,24})\b")),
     ("ups", re.compile(r"\b(1Z[0-9A-Z]{16})\b")),
     ("hermes", re.compile(r"\b(H\d{19})\b")),
 )
