@@ -52,7 +52,7 @@ class MailUpdate:
     # for a shop's status mail that names no order (see ``apply._apply_orderless``)
     number: str
     # "amazon" | "ebay" | "aliexpress" | "eventim" | "dhl" | "dpd" | "gls" | "hermes" | "hes"
-    # | "ups"
+    # | "ups" | "post_at"
     carrier: str
     status: ParcelStatus | None
     sent_at: datetime  # Date header in Europe/Berlin
@@ -329,6 +329,7 @@ _CARRIER_WORDS = (
     ("hermes", "hermes"),
     ("dhl", "dhl"),
     ("deutsche post", "dhl"),
+    ("österreichische post", "post_at"),
     ("dpd", "dpd"),
     ("gls", "gls"),
     ("ups", "ups"),

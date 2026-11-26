@@ -10,6 +10,7 @@ from .dpd import DpdCarrier
 from .gls import GlsCarrier
 from .hermes import HermesCarrier
 from .hes import HesCarrier
+from .post_at import PostAtCarrier
 
 
 def build_carriers(
@@ -25,4 +26,5 @@ def build_carriers(
         "hermes": HermesCarrier(session),
         "hes": HesCarrier(session),
         "gls": GlsCarrier(session, country),
+        "post_at": PostAtCarrier(session),
     }

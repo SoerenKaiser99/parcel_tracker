@@ -211,10 +211,10 @@ NEW_DELIVERY_MAX_AGE = timedelta(hours=24)
 # Polled only while their optional API is configured; otherwise mail-only.
 OPTIONAL_API_CARRIERS = frozenset({"ups"})
 # Carriers a user can pick for a manually added parcel.
-SELECTABLE_CARRIERS = ("dhl", "dpd", "gls", "hermes", "hes", "ups")
+SELECTABLE_CARRIERS = ("dhl", "dpd", "gls", "hermes", "hes", "post_at", "ups")
 # Their lookup often tells no delivery day: the day a mail named is kept then. (DPD names
 # a day only once the parcel is out for delivery; its announcement mail gives an estimate.)
-MAIL_ETA_CARRIERS = frozenset({"hermes", "gls", "dpd"})
+MAIL_ETA_CARRIERS = frozenset({"hermes", "gls", "dpd", "post_at"})
 # Their answer "unknown" (a step nobody knows yet) keeps the status known before instead of
 # replacing it: HES may add steps to its page at any time.
 KEEP_STATUS_CARRIERS = frozenset({"hes"})
@@ -237,6 +237,7 @@ CARRIER_NAMES = {
     "gls": "GLS",
     "hermes": "Hermes",
     "hes": "Hermes Einrichtungs Service",
+    "post_at": "Österreichische Post",
     "ups": "UPS",
     "amazon": "Amazon",
     "ebay": "eBay",

@@ -106,6 +106,7 @@
     gls: "https://www.gls-pakete.de/sendungsverfolgung?match=",
     hermes: "https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#",
     hes: "https://myhes.de/de/tracking/",
+    post_at: "https://www.post.at/s/sendungsdetails?snr=",
     ups: "https://www.ups.com/track?loc=de_DE&tracknum=",
   };
   const trackingUrl = (carrier, number) => (

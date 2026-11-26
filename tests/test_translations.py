@@ -74,7 +74,8 @@ def test_ups_translations_present():
         assert {"ups_auth", "ups_budget"} <= set(strings["issues"])
     services = _load("strings.json")["services"]["add_parcel"]["fields"]["carrier"]
     assert services["description"] == (
-        "auto, dhl, dpd, gls, hermes, hes (Hermes Einrichtungs Service), ups or other (via "
+        "auto, dhl, dpd, gls, hermes, hes (Hermes Einrichtungs Service), "
+        "post_at (Österreichische Post), ups or other (via "
         "17track, needs a 17track API key)."
     )
 

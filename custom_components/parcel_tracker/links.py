@@ -17,6 +17,7 @@ _PAGES: dict[str, str] = {
     "gls": "https://www.gls-pakete.de/sendungsverfolgung?match={}",
     "hermes": "https://www.myhermes.de/empfangen/sendungsverfolgung/sendungsinformation#{}",
     "hes": "https://myhes.de/de/tracking/{}",
+    "post_at": "https://www.post.at/s/sendungsdetails?snr={}",
     "ups": "https://www.ups.com/track?loc=de_DE&tracknum={}",
 }
 # The form of a number a page knows the parcel by, where it differs from the stored one:

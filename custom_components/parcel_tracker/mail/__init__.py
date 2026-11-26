@@ -47,6 +47,7 @@ from .forward import original_message
 from .gls import GLS_GROUP_SENDERS, GLS_SENDER, parse_gls_group_mail, parse_gls_mail
 from .hermes import HERMES_SENDER, parse_hermes_mail
 from .hes import HES_DOMAINS, HES_SENDER, parse_hes_mail
+from .post_at import POST_AT_DOMAIN, POST_AT_SENDERS, is_post_at_parcel_mail, parse_post_at_mail
 from .shipping import (
     DHL_COM_DOMAIN,
     DHL_DOMAIN,
@@ -89,6 +90,7 @@ _KNOWN_SENDERS = (
     DPD_AT_SENDER,
     HERMES_SENDER,
     HES_SENDER,
+    *POST_AT_SENDERS,
     DHL_SENDER,
     DHL_EXPRESS_SENDER,
     DHL_ECOMMERCE_SENDER,
@@ -250,6 +252,12 @@ def _route(msg: EmailMessage, read_otp: bool, plain_names: bool) -> MailResult:
         return MailResult(updates=updates)
     if domain in DPD_DOMAINS and (updates := parse_dpd_de_mail(msg)):
         return MailResult(updates=updates)
+    # Österreichische Post. Its other mails (receipts, invoices, labels,
+    # shop orders) never go to the generic parser: they would make parcels of numbers.
+    if domain == POST_AT_DOMAIN or domain.endswith(f".{POST_AT_DOMAIN}"):
+        if not is_post_at_parcel_mail(subj):
+            return MailResult(ignored=True)
+        return MailResult(updates=parse_post_at_mail(msg, read_otp))
     # GLS numbers (11 digits) are never read by the generic parser: a GLS mail someone
     # forwarded by hand is recognised by its subject instead.
     if (address == GLS_SENDER or is_forwarded(msg)) and (updates := parse_gls_mail(msg)):

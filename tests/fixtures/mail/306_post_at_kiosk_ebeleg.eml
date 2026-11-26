@@ -1,0 +1,16 @@
+X-Fixture: built after a real mail of meinesendung@post.at; number,
+ names, customer number, place and code replaced by invented values
+From: Post AG <versandstation@post.at>
+To: max@example.org
+Subject: PostAG Kiosk - eBeleg
+Date: Thu, 04 Jun 2026 12:00:00 +0200
+Message-ID: <fixture-306@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Vielen Dank für Ihren Einkauf. Sendungsnummer 1099999999999995012301</p>
+<p>Freundliche Grüße,<br>Ihr Post-Team</p>
+<p>Österreichische Post AG, Rochusplatz 1, 1030 Wien</p>
+</body></html>

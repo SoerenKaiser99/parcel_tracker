@@ -53,7 +53,7 @@ async def test_setup_with_credentials_adds_ups_and_uses_the_stored_budget(hass, 
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     coordinator = entry.runtime_data
-    assert list(coordinator.carriers) == ["dhl", "dpd", "hermes", "hes", "gls", "ups"]
+    assert list(coordinator.carriers) == ["dhl", "dpd", "hermes", "hes", "gls", "post_at", "ups"]
     assert coordinator.carriers["ups"].budget is coordinator.store.ups_budget
     assert coordinator.store.ups_budget.count == 7
 
