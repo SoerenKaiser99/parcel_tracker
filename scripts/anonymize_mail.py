@@ -368,8 +368,10 @@ Macht aus gespeicherten Paketmails (.eml) anonymisierte Beispielmails für ein G
                         und nicht in den Zielordner legen: Mit ihr lassen sich die erfundenen
                         Nummern zurückrechnen.
 
-Ersetzt werden außerdem alle Mail-Adressen außer dem Absender, Telefonnummern, Links (nur
-der Servername bleibt), Sendungs-, Bestell- und andere lange Nummern (gleiche Form, erfundene
+Ersetzt werden außerdem alle Mail-Adressen außer dem Absender, Telefonnummern, Links (im
+Text bleibt nur der Servername, im HTML-Teil Server, Pfad und Namen der Parameter mit erfundenen
+Werten; dort bleiben auch Bilder und Bildtexte, erfunden, was die Mail nicht ohnehin zeigt),
+Sendungs-, Bestell- und andere lange Nummern (gleiche Form, erfundene
 Ziffern), Ablageorte, Anreden, Adressblöcke, Zeilen mit Postleitzahl und Ort, Namen von
 Nachbarn, Empfängern und privaten Absendern sowie Nummer und Straße einer Filiale oder
 Packstation. Technische Kopfzeilen und Anhänge entfallen.
@@ -1128,6 +1130,11 @@ class _TScrubber:
         self._salt = secrets.token_hex(16) if salt is None else salt
         self._runs = {}
         self._mailboxes, self._tags = {}, {}  # real address / plus part (lower case) -> number
+        self.items = {}  # Amazon item's ASIN -> its invented name (_THtml)
+        self.titles = {}  # Amazon item's name in any mail of the run -> its ASIN (_t_learn_amazon)
+        self.sellers = {}  # marketplace seller's brand (lower case) -> invented one (seller)
+        self._sellers = None  # (compiled from ``sellers``)
+        self.html_parts = {}  # part of a link or an attribute -> scrubbed (_THtml._scrub)
         # what must not be readable in a result: every value and every part of a name
         self._check = {v.casefold() for key in values for v in values[key] if len(v) >= 3}
         self._check.update(t.casefold() for v in values["name"] for t in v.split() if len(t) >= 3)
@@ -1614,6 +1621,38 @@ class _TScrubber:
         tag_number = self._tags.setdefault(tag, len(self._tags) + 1)
         return f"adresse{number}+person{tag_number}@example.org"
 
+    def seller(self, name):
+        """An Amazon marketplace seller (first pass): its brand gets an invented one, the same
+        in every mail of the run, also where a carrier's mail names the seller as the sender
+        ("Ihre Echthandel Sendung"): the integration takes the box for that seller's then."""
+        brand = _t_brand(name)
+        key = brand.lower()
+        if len(brand) < 4 or key in self.sellers or key in _T_NOT_SELLERS:
+            return
+        taken, count = set(self.sellers.values()), len(_T_AMZ_SELLERS)
+        first = int(hashlib.sha256(key.encode()).hexdigest(), 16) % count
+        free = [_T_AMZ_SELLERS[(first + step) % count] for step in range(count)]
+        self.sellers[key] = next((n for n in free if n not in taken),
+                                 f"Beispielhandel {len(taken) + 1}")
+        self._sellers = None
+
+    def sellers_in(self, text):
+        """``text`` with the brand of each seller ``seller`` learnt as its invented one."""
+        if not self.sellers:
+            return text
+        if self._sellers is None:
+            brands = sorted(self.sellers, key=len, reverse=True)
+            self._sellers = re.compile(
+                r"(?i)(?<!\w)(?:" + "|".join(re.escape(b).replace(r"\ ", r"\s+") for b in brands)
+                + r")(?!\w)"
+            )
+
+        def invented(m):
+            name = self.sellers[" ".join(m.group(0).split()).lower()]
+            return name.upper() if m.group(0).isupper() else name
+
+        return self._sellers.sub(invented, text)
+
     def left(self, text):
         """True if a given value can still be read in ``text``."""
         text = text.casefold()
@@ -1862,10 +1901,10 @@ def _t_quoted_sender(head, value, private):
     return address, head + value
 
 
-def _t_passed_on(msg):
+def _t_passed_on(msg, texts=None):
     """A mail that looks forwarded: subject prefix (WG:, Fwd:, Fw:), a quoted header block or
-    an attribution line ("Am … schrieb DHL <…>:")."""
-    plain, markup = _t_texts(msg)[:2]
+    an attribution line ("Am … schrieb DHL <…>:"). ``texts``: ``_t_texts(msg)``, if known."""
+    plain, markup = (texts or _t_texts(msg))[:2]
     text = (plain + "\n" + markup).replace("\r\n", "\n")
     return bool(
         _T_PASSED_ON.match(_t_header(msg, "Subject"))
@@ -1950,10 +1989,545 @@ def _t_eventim(text, order_mail, count):
     return "\n".join(head + [body])
 
 
-def _t_build(msg, number, scrubber):
-    """(anonymised mail, file name, private sender?, value left?)."""
+# ----- tester mode: the HTML part -----
+# A mail with an HTML part keeps it with what carries text or meaning where it stands, every
+# value replaced; only what is known to be layout or technique goes, so whatever a carrier or
+# shop brings later (an attribute nobody knows yet) shows up in the result:
+# - Gone: <head>, <style>, <script>, drawn icons (<svg>), comments (Outlook's [if mso] layout),
+#   <meta>, pictures of one pixel (counters with the reader's ids) and the layout attributes
+#   (_T_LAYOUT_ATTRS). Tables, rows and cells only break the lines.
+# - Kept: every text (one line per block), every link with its text, every picture, hidden
+#   text (it keeps style="display:none") and every other attribute. Texts and the attributes
+#   that hold text (_T_TEXT_ATTRS) are scrubbed like the text part; any other attribute is
+#   invented in its form, and its name is told at the end.
+# - A link keeps its server, its path and the names of its parameters: plain words and
+#   numbers of up to three digits stay, every other value is scrubbed like the text (a number
+#   reads the same in both parts) or invented in its form, a link in a link the same way.
+#   Amazon's shipment keeps its first letter ("D": sent by the seller). A picture keeps its
+#   server only.
+# - Amazon: an item's number (ASIN) becomes "ZZ" and invented digits (the same for the same
+#   item; "ZZ" begins no real ASIN), its name an invented one (_T_AMZ_ITEMS, _T_AMZ_KINDS:
+#   the same for the same item) in the subject, the text, the alt text, the title and the
+#   link's text, cut where the real one was cut (see _THtml.shop); the
+#   marketplace seller Beispielhandel e.K. (a company) or Beispielhändler (none).
+# A mail that looks forwarded (subject, quoted header block, "Am … schrieb …:"), one from a
+# private address and an Eventim mail keep the simple HTML part (one <p> per line of the
+# scrubbed text): what stands above the quoted header is cut from the text only, and
+# Eventim's rules work on the text.
+_T_HTML_SKIP = frozenset({"head", "style", "script", "title", "noscript", "xml", "svg"})
+_T_HTML_VOID = frozenset({"br", "img", "hr", "input", "wbr", "area", "col"})
+_T_HTML_INLINE = frozenset({"a", "span", "b", "strong", "i", "em", "u", "font", "small", "img"})
+_T_LAYOUT_ATTRS = frozenset({
+    "style", "class", "id", "align", "valign", "width", "height", "border", "cellpadding",
+    "cellspacing", "bgcolor", "background", "color", "role", "dir", "lang", "colspan",
+    "rowspan", "target", "face", "size", "padding", "nowrap", "xml:lang", "hspace", "vspace",
+    "frame", "rules", "scope", "summary", "aria-hidden", "border-collapse", "bordercolor",
+    "leftmargin", "topmargin", "marginwidth", "marginheight", "type", "rel", "alink", "vlink",
+    "link", "text", "tabindex", "translate", "spellcheck", "start", "headers", "for", "yahoo",
+})
+_T_TEXT_ATTRS = frozenset({"alt", "title", "aria-label", "aria-describedby", "aria-description",
+                           "aria-roledescription", "data-sonar-role"})
+# Marks of the tools a template was made with: invented like any attribute, but never told.
+_T_TEMPLATE_ATTRS = frozenset({"data-bee-code", "data-bee-name", "data-bee-type", "elaine-attr",
+                               "link-id", "name"})
+_T_KNOWN_ATTRS = _T_LAYOUT_ATTRS | _T_TEXT_ATTRS | _T_TEMPLATE_ATTRS | {"href", "src"}
+# Words of the templates in such attributes that stay although the mail does not show them.
+_T_ATTR_WORDS = frozenset({
+    "Abgeschlossen", "Ausstehend", "Amazon", "Logo", "Visit", "Bild", "Status", "Paket",
+    "Pakete", "Sendung", "Sendungen", "Bestellung", "Lieferung", "Zustellung", "Abholung",
+    "Artikel", "Ihr", "Ihre", "Dein", "Deine", "Der", "Die", "Das",
+})
+# A name an attribute can have; anything else is broken HTML (a piece of a link in the tag).
+_T_ATTR_NAME = re.compile(r"[A-Za-z][A-Za-z_:-]{0,40}")
+_T_HIDDEN_STYLE = re.compile(r"(?i)display\s*:\s*none|max-height\s*:\s*0|mso-hide\s*:\s*all")
+# One character of the private use area per element that stays: open, close, picture.
+_T_MARK_BASE = {"o": 0xF0000, "c": 0xF4000, "v": 0xF8000}
+_T_MARK_RANGE = r"\U000F0000-\U000FBFFF"
+_T_HTML_MARK = re.compile(f"[{_T_MARK_RANGE}]")
+_T_LINE_END = re.compile(rf"[\n{_T_MARK_RANGE}]")  # (a line's end, also between elements)
+# An id of letters and digits (an item's ASIN as the title of its link, in older Amazon mails).
+_T_IDENT = re.compile(r"(?<![\w-])(?=[\w-]*\d)(?=[\w-]*[A-Za-z])[A-Za-z0-9_-]{6,}(?![\w-])")
+_T_PICTURE = re.compile(r"(?i)(https?://[^/?#\s]+)[^?#\s]*?(\.(?:png|jpe?g|gif|webp))?(?:[?#]\S*)?$")
+_T_URL = re.compile(r"(?i)(https?://)([^/?#\s]+)([^?#\s]*)(\?[^#\s]*)?(#\S*)?")
+_T_URL_WORD = re.compile(r"[a-z]+(?:[-_.][a-z]+)*|[a-z]{2}[-_][A-Z]{2}|\d{0,3}")
+_T_URL_NAME = re.compile(r"(?!(?:\D*\d){4})[A-Za-z_][\w.\[\]-]{0,40}")
+_T_AMZ_PRODUCT = re.compile(r"/(?:dp|gp/product)/([A-Z0-9]{10})")
+# Amazon's marketplace seller ("Verkauf durch Echthandel GmbH, Händler & Versand aus …").
+_T_AMZ_SELLER = re.compile(
+    rf"(Verkauf durch[ \t]+)(?!Amazon\b|einen Drittanbieter\b)([^,\n<>{_T_MARK_RANGE}]+)"
+)
+# A seller's legal form, as the integration's ``base.LEGAL_FORM`` cuts it from its name.
+_T_LEGAL_FORM = re.compile(
+    r"(?<![\w.])(?:GmbH|GMBH|AG|KG|UG|SE|OHG|GbR|Ltd\.?|e\.\s?K\.?|B\.\s?V\.|SARL"
+    r"|S\.\s?[aà]\.?\s?r\.\s?[lL]\.)(?!\w)"
+)
+# Invented brands of the sellers of a run (_TScrubber.seller), each with its legal form.
+_T_AMZ_SELLERS = tuple(
+    f"{name} {part}".strip()
+    for name in ("Beispielhandel", "Musterladen")
+    for part in ("", "Nord", "Süd", "West", "Ost", "Mitte", "Plus", "Direkt")
+)
+# Brands no seller's name may change in every mail: the words the mails of shops and
+# carriers live by.
+_T_NOT_SELLERS = frozenset({"amazon", "dhl", "dpd", "gls", "hermes", "ups", "ebay", "post",
+                            "deutsche post", "fedex", "versand", "shop", "store", "online"})
+# Each begins with a letter of its own: Amazon cuts a name in a subject to a few characters
+# ("WAGO…"), and two items of one order must not look the same there.
+_T_AMZ_ITEMS = (
+    "Akkuschrauber Beispielmarke 18 V mit zwei Akkus und Ladegerät",
+    "Batterien Musterfirma AA 12 Stück Alkaline langlebig",
+    "Campingbecher Beispielmarke 4er Set Edelstahl mit Deckel",
+    "Duschkopf Musterfirma mit fünf Strahlarten und Kalkschutz",
+    "Eierkocher Beispielmarke für 1 bis 7 Eier mit Messbecher",
+    "Fahrradlicht-Set Beispielmarke LED mit USB-Akku und Halterung",
+    "Gartenschlauch Beispielmarke 20 m mit Brause und Kupplung grün",
+    "Handtücher Musterfirma 4er Set Baumwolle 50 x 100 cm grau",
+    "Isolierband Musterfirma 10 Rollen farbig sortiert 19 mm",
+    "Kopfhörer Beispielmarke kabellos mit Ladeetui und Mikrofon",
+    "LED-Schreibtischlampe Beispielmarke dimmbar mit USB-Anschluss",
+    "Notizbücher Musterfirma A5 liniert 4 Stück Hardcover",
+    "Rucksack Beispielmarke 25 l wasserabweisend mit Laptopfach",
+    "Thermoskanne Musterfirma 1 l Edelstahl doppelwandig grau",
+    "Wasserkocher Beispielmarke 1,7 l Edelstahl mit Kalkfilter",
+    "Zollstock Musterfirma 2 m Holz mit Winkelanzeige",
+)
+# A word behind the name: 16 × 16 names, enough for each item of a run its own (_THtml._item).
+_T_AMZ_KINDS = (
+    "", "kompakt", "robust", "leicht", "faltbar", "wetterfest", "rutschfest", "platzsparend",
+    "nachfüllbar", "ergonomisch", "matt", "glänzend", "extra stark", "für unterwegs",
+    "vielseitig", "pflegeleicht",
+)
+_t_html_notes = {"attributes": set()}
+
+
+def _t_brand(name):
+    """A company's name in front of its legal form (all of it without one)."""
+    form = _T_LEGAL_FORM.search(name)
+    return " ".join((name[: form.start()] if form else name).strip(" ,;:&+-*_").split())
+
+
+def _t_words(text, pattern=r"[^\W_]{3,}"):
+    """The words of ``text`` (by default of three letters or digits or more), in lower case."""
+    return {word.casefold() for word in re.findall(pattern, text)}
+
+
+def _t_unquote(text):
+    """%XX read as UTF-8 (no urllib: see the module's docstring); a byte that is none goes back
+    as it came (``_t_quote``)."""
+    return re.sub(
+        r"(?:%[0-9A-Fa-f]{2})+",
+        lambda m: bytes.fromhex(m.group(0).replace("%", "")).decode("utf-8", "surrogateescape"),
+        text,
+    )
+
+
+def _t_quote(text):
+    return "".join(
+        c if c.isascii() and (c.isalnum() or c in "-._~+")
+        else "".join(f"%{b:02X}" for b in c.encode("utf-8", "surrogateescape"))
+        for c in text
+    )
+
+
+def _t_amz_asin(url):
+    """The ASIN a link to an item's page at amazon.de names, also behind Amazon's redirect."""
+    url = html.unescape(url or "")
+    if "/gp/r.html" in url and (inner := re.search(r"[?&]U=([^&]+)", url)):
+        url = _t_unquote(inner.group(1))
+    found = _T_AMZ_PRODUCT.search(url.split("?")[0]) if "amazon.de" in url else None
+    return found.group(1) if found else None
+
+
+class _TMarkup(HTMLParser):
+    """The text of an HTML part, with a mark for each element that stays (see above)."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts, self.elements, self.stack, self.skip = [], [], [], 0
+
+    def _mark(self, kind, index, block):
+        if index >= _T_MARK_BASE["c"] - _T_MARK_BASE["o"]:
+            raise ValueError("too many elements")  # (the simple HTML part instead)
+        nl = "\n" if block else ""
+        self.parts.append(f"{nl}{chr(_T_MARK_BASE[kind] + index)}{nl}")
+
+    def handle_starttag(self, tag, attrs):
+        if tag in _T_HTML_SKIP:
+            self.skip += 1
+            return
+        if self.skip or tag in ("meta", "link"):
+            return
+        values = dict(attrs)
+        hidden = _T_HIDDEN_STYLE.search(values.get("style") or "")
+        kept = [(k, v) for k, v in attrs if v is not None and _T_ATTR_NAME.fullmatch(k)
+                and k not in _T_LAYOUT_ATTRS and not k.startswith("xmlns")]
+        _t_html_notes["attributes"].update(k for k, _ in kept if k not in _T_KNOWN_ATTRS)
+        if tag == "br":
+            self.parts.append("\n")
+        elif tag == "img":
+            if "0" not in (values.get("width"), values.get("height")) and not (
+                values.get("width") == values.get("height") == "1"
+            ):  # (not a counter)
+                self._mark("v", len(self.elements), False)
+                self.elements.append(("img", kept))
+        elif tag in _T_HTML_VOID:
+            pass
+        elif kept or tag == "a" or hidden:
+            name = tag if tag in _T_HTML_INLINE else "div"
+            if hidden:
+                kept.append(("style", "display:none"))
+            index = len(self.elements)
+            self.elements.append((name, kept))
+            self._mark("o", index, name == "div")
+            self.stack.append((tag, index, name))
+        else:
+            if tag not in _T_HTML_INLINE:
+                self.parts.append("\n")
+            self.stack.append((tag, None, None))
+
+    def handle_endtag(self, tag):
+        if tag in _T_HTML_SKIP:
+            self.skip = max(0, self.skip - 1)
+            return
+        if self.skip:
+            return
+        for pos in range(len(self.stack) - 1, -1, -1):
+            if self.stack[pos][0] == tag:
+                while len(self.stack) > pos:
+                    self._close(*self.stack.pop())
+                return
+
+    def _close(self, tag, index, name):
+        if index is not None:
+            self._mark("c", index, name == "div")
+        elif tag not in _T_HTML_INLINE:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if not self.skip:
+            # (a character of the private use area, as icon fonts use them, is no mark)
+            self.parts.append(_T_HTML_MARK.sub("", data))
+
+    def close(self):
+        super().close()
+        while self.stack:
+            self._close(*self.stack.pop())
+
+
+class _TAmazonTitles(HTMLParser):
+    """The name of each item an Amazon mail links: the alt text of its picture, else the
+    link's title, else the link's text (older mails: the picture beside the link, the ASIN as
+    its title, the name in a second link)."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.asin, self.names, self.asins, self.text = None, {}, set(), []
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        if tag == "a":
+            self.asin, self.text = _t_amz_asin(values.get("href")), []
+            if self.asin:
+                self.asins.add(self.asin)
+            if self.asin and values.get("title") and values["title"].strip() != self.asin:
+                self.names.setdefault(self.asin, " ".join(values["title"].split()))
+        elif tag == "img" and self.asin and values.get("alt"):
+            self.names[self.asin] = " ".join(values["alt"].split())
+
+    def handle_data(self, data):
+        if self.asin:
+            self.text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a":
+            if self.asin and (text := " ".join("".join(self.text).split())):
+                self.names.setdefault(self.asin, text)
+            self.asin = None
+
+
+class _THtml:
+    """The HTML part of one mail as described above."""
+
+    def __init__(self, scrubber, keep, markup, amazon):
+        self.scrubber, self.keep, self.markup, self.amazon = scrubber, keep, markup, amazon
+        self.titles, self.asins, self.gone, self.inside = [], set(), frozenset(), ()
+        self.named, self.inserted = {}, set()  # ASIN -> real name; invented names put in
+        self.context = ""  # the whole mail as it came (``shop``)
+        if amazon:
+            learner = _TAmazonTitles()
+            learner.feed(markup)
+            self.asins = learner.asins
+            self.named = {asin: real for asin, real in learner.names.items() if len(real) >= 12}
+            products = set()  # (the items of one mail never share the product)
+            for asin, real in self.named.items():
+                invented = self._item(asin, products)
+                products.add(invented.split(",")[0])
+                self.titles.append((real, invented))
+            self.titles.sort(key=lambda rule: -len(rule[0]))
+
+    def _item(self, asin, products=frozenset()):
+        """An item's invented name, the same in every mail of the run: from its invented
+        number, the next free one if another item has that already (all taken: shared), and
+        none of ``products``, the products of the other items of the mail, if one is free."""
+        names = self.scrubber.items
+        if asin not in names:
+            count, taken = len(_T_AMZ_ITEMS) * len(_T_AMZ_KINDS), set(names.values())
+            first = int(self._asin(asin)[2:]) % count
+            free = []
+            for step in range(count):
+                # (the next step is another product first: their names differ at once)
+                kind, product = divmod((first + step) % count, len(_T_AMZ_ITEMS))
+                name = ", ".join(filter(None, (_T_AMZ_ITEMS[product], _T_AMZ_KINDS[kind])))
+                if name not in taken:
+                    free.append(name)
+            names[asin] = next((n for n in free if n.split(",")[0] not in products),
+                               free[0] if free else _T_AMZ_ITEMS[first % len(_T_AMZ_ITEMS)])
+        return names[asin]
+
+    def shop(self, text):
+        """An Amazon mail's item names and sellers, invented; in any other mail the sellers
+        (``_TScrubber.sellers_in``).
+
+        The items are those the mail links and those of the run's other mails it names
+        (a cancellation names its item without a link). A name cut short counts where the
+        cut shows ("Echtmarke Maßband 5 m mi…", also just "WAGO..." of an item the mail
+        links). A text that begins like the name for 12 characters and then goes on
+        otherwise (older mails list an item longer than its picture names it) is the same
+        item, unless another item begins the same ("Amazon Basics HDMI-Kabel" beside
+        "Amazon Basics USB-C-Kabel"): alone in its line it becomes the invented name as a
+        whole, within a sentence only its start."""
+        if not self.amazon:
+            return self.scrubber.sellers_in(text)
+        # (the mail's own items first: another item of the run that begins the same never
+        # takes the place of one the mail links; of the others first those the mail names
+        # in full somewhere, so that a name cut short is cut from the right one)
+        own = {real for real, _ in self.titles}
+        titles = self.titles + sorted(
+            ((real, self._item(asin)) for real, asin in self.scrubber.titles.items()
+             if real not in own and real[:8] in text),
+            key=lambda rule: (rule[0] not in self.context, -len(rule[0])),
+        )
+        for real, invented in titles:
+            others = [other for other, _ in titles if other != real]
+            start, out = 0, []
+            for m in re.finditer(r"(?<!\w)" + re.escape(real[:3]), text):
+                pos = m.start()
+                if pos < start:
+                    continue
+                k = 3
+                while k < len(real) and pos + k < len(text) and text[pos + k] == real[k]:
+                    k += 1
+                end, name = pos + k, None
+                if k == len(real):
+                    name = invented
+                elif text[end:end + 4].lstrip(" ").startswith(("…", "...")):
+                    name = invented[:k].rstrip()
+                elif k >= 12 and not any(other.startswith(real[:k]) for other in others):
+                    line = text[text.rfind("\n", 0, pos) + 1:pos]
+                    if _T_HTML_MARK.sub("", line).strip():
+                        name = invented[:k].rstrip()
+                    else:
+                        stop = _T_LINE_END.search(text, end)
+                        end, name = stop.start() if stop else len(text), invented
+                if name is None:
+                    continue
+                self.inserted.add(name)
+                out += [text[start:pos], name]
+                start = end
+            text = "".join(out) + text[start:]
+
+        # (a seller too short to learn: invented here only)
+        text, invented = self.scrubber.sellers_in(text), set(self.scrubber.sellers.values())
+        return _T_AMZ_SELLER.sub(lambda m: m.group(0) if _t_brand(m.group(2)) in invented
+                                 else m.group(1) + ("Beispielhandel e.K." if _t_company(m.group(2))
+                                                    else "Beispielhändler"), text)
+
+    def _scrub(self, text):
+        """``scrubber.scrub`` for a part of a link or an attribute: they repeat (Amazon's
+        redirect has the same parameters in every mail), and writing learns nothing new."""
+        done, key = self.scrubber.html_parts, (self.keep, text)
+        if key not in done:
+            done[key] = self.scrubber.scrub(text, self.keep)
+        return self._safe(done[key])
+
+    def _safe(self, text):
+        """No word the scrubbing of the HTML part as plain text took out (``gone``) stays: the
+        marks of the elements may hide what a rule looks for ("Hallo <span>Name</span>").
+        An invented name ``shop`` put in stays as it is ("mit" may be such a word)."""
+        kept = sorted(self.inserted | set(self.scrubber.sellers.values()), key=len, reverse=True)
+        parts = re.split(r"((?<!\w)(?:" + "|".join(map(re.escape, kept)) + r")(?!\w))",
+                         text) if kept else [text]
+        return "".join(
+            part if n % 2 else self._fake_words(part, lambda word: word.casefold() in self.gone)
+            for n, part in enumerate(parts)
+        )
+
+    def _fake_words(self, text, when=None):
+        """``text`` with its words (of letters and digits) invented in their form; with
+        ``when`` only those it says."""
+        return re.sub(r"[^\W_]+", lambda m: self.scrubber.fake(m.group(0))
+                      if when is None or when(m.group(0)) else m.group(0), text)
+
+    def _asin(self, asin):
+        digits = f"{int(hashlib.sha256(asin.encode()).hexdigest(), 16) % 10**8:08d}"
+        return "ZZ" + self.scrubber.fake(digits)
+
+    def _value(self, raw, depth, name=""):
+        """A part of a link (a segment of its path, a parameter, its fragment)."""
+        once = _t_unquote(raw)
+        for times, text in enumerate((raw, once, _t_unquote(once))):
+            if depth < 3 and re.match(r"(?i)https?://", text):
+                inner = self.link(text, depth + 1)
+                for _ in range(times):
+                    inner = _t_quote(inner)
+                return inner
+        if _T_URL_WORD.fullmatch(once):
+            # (``gone`` also within a word of the link: "wquandtberg" for "W. Quandtberg")
+            safe = self._fake_words(once, lambda word: word.casefold() in self.gone
+                                    or any(w in word.casefold() for w in self.inside))
+            return raw if safe == once else _t_quote(safe)
+        if name == "shipmentId" and len(once) > 1:
+            return _t_quote(once[0] + self.scrubber.fake(once[1:]))
+        value = self._scrub(once)
+        return _t_quote(self._fake_words(once) if value == once else value)
+
+    def link(self, url, depth=0):
+        """A link with its server, path and the names of its parameters; values invented."""
+        url = html.unescape(url.strip())
+        low = url.lower()
+        if low.startswith("mailto:"):
+            return f"mailto:{_T_MAIL}"
+        if low.startswith("tel:"):
+            return "tel:+490000000000"
+        match = _T_URL.fullmatch(url)
+        if match is None:
+            return "#"
+        scheme, host, path, query, fragment = match.groups()
+        asin = _t_amz_asin(scheme + host + path)
+        link = scheme + host.lower() + "/".join(
+            self._asin(s) if s == asin else self._value(s, depth) if s else s
+            for s in path.split("/")
+        )
+        if query:
+            params = []
+            for param in query[1:].split("&"):
+                name, eq, value = param.partition("=")
+                if not _T_URL_NAME.fullmatch(_t_unquote(name)):
+                    name = self._value(name, depth)
+                params.append(name + eq + (self._value(value, depth, name) if eq else ""))
+            link += "?" + "&".join(params)
+        if fragment:
+            link += "#" + self._value(fragment[1:], depth)
+        return link
+
+    def attribute(self, name, value):
+        if name == "href":
+            return self.link(value)
+        if name == "src":
+            found = _T_PICTURE.match(html.unescape(value.strip()))
+            if not found:
+                return "cid:bild"
+            return f"{found.group(1).lower()}/bild{(found.group(2) or '.png').lower()}"
+        if name == "style":
+            return value
+        if name not in _T_TEXT_ATTRS:
+            return self._fake_words(value)
+        named = self.shop(value)
+        text = self._scrub(named)
+        if named != value:
+            return text  # (an Amazon item's name: invented as a whole)
+        # An id the scrubbing left as it was: an ASIN of the mail becomes its number of the
+        # links, any other is invented in its form.
+        left = set(_T_IDENT.findall(named))
+        text = _T_IDENT.sub(
+            lambda m: m.group(0) if m.group(0) not in left
+            else self._asin(m.group(0)) if m.group(0) in self.asins
+            else self.scrubber.fake(m.group(0)),
+            text,
+        )
+
+        # A word the mail shows anyway, a word in lower case ("amount", "footer"), a short
+        # code ("EUR", "DHL") or one of Amazon's stages stays; any other (a name nobody
+        # recognised in a picture's text) is invented in its form.
+        def word(m):
+            found = m.group(0)
+            if (found.casefold() in self.shown or found.islower() or found in _T_ATTR_WORDS
+                    or (found.isupper() and len(found) <= 4)):
+                return found
+            return self.scrubber.fake(found)
+
+        return re.sub(r"[^\W\d_]{2,}", word, text)
+
+    def render(self, gone=frozenset()):
+        """The HTML part; ``gone`` are the words the scrubbing of it as plain text took out
+        (see ``_safe``)."""
+        self.gone = gone
+        self.inside = tuple(w for w in gone if len(w) >= 4 and not w.isdigit())
+        parser = _TMarkup()
+        parser.feed(self.markup)
+        parser.close()
+        lines = (_T_INVISIBLE.sub("", re.sub(r"[ \t\xa0]+", " ", line)).strip()
+                 for line in "".join(parser.parts).splitlines())
+        text = self._safe(
+            self.scrubber.scrub(self.shop("\n".join(line for line in lines if line)), self.keep)
+        )
+        self.shown = _t_words(_T_HTML_MARK.sub(" ", text), r"[^\W\d_]{2,}")
+        tags = [(f"<{tag}" + "".join(
+            f' {name}="{html.escape(self.attribute(name, value), quote=True)}"'
+            for name, value in attrs
+        ) + ">", f"</{tag}>") for tag, attrs in parser.elements]
+        # A rule may have taken a mark with what it replaced: an element whose end went is
+        # closed at the end, an end whose element went is left out.
+        out, opened = [], set()
+        for line in text.splitlines():
+            shown = []
+            for part in re.split(f"({_T_HTML_MARK.pattern})", line):
+                if not part or not _T_HTML_MARK.fullmatch(part):
+                    shown.append(html.escape(part, quote=False))
+                    continue
+                code = ord(part)
+                kind = max((base, kind) for kind, base in _T_MARK_BASE.items() if code >= base)[1]
+                index = code - _T_MARK_BASE[kind]
+                if kind == "o":
+                    opened.add(index)
+                    shown.append(tags[index][0])
+                elif kind == "c" and index in opened:
+                    opened.discard(index)
+                    shown.append(tags[index][1])
+                elif kind == "v":
+                    shown.append(tags[index][0])
+            bare = not _T_HTML_MARK.sub("", line).strip()
+            out.append("".join(shown) if bare else f"<p>{''.join(shown)}</p>")
+        out.extend(tags[index][1] for index in sorted(opened, reverse=True))
+        return "<!DOCTYPE html>\n<html><body>\n" + "\n".join(out) + "\n</body></html>\n"
+
+
+def _t_learn_amazon(scrubber, texts, markup):
+    """First pass, a mail of Amazon: the names of the items it links and its marketplace
+    sellers, so that every mail of the run gets the same invented ones (``_THtml.shop``).
+    The names are given here already: the items of a mail get products of their own."""
+    if markup:
+        for asin, real in _THtml(scrubber, (), markup, True).named.items():
+            scrubber.titles.setdefault(real, asin)
+    for text in texts:
+        for match in _T_AMZ_SELLER.finditer(text):
+            scrubber.seller(match.group(2))
+
+
+def _t_html_part(msg):
+    for part in msg.walk():
+        if part.get_content_type() == "text/html":
+            return _t_content(part)
+    return None
+
+
+def _t_build(msg, number, scrubber, texts=None):
+    """(anonymised mail, file name, private sender?, value left?, looks forwarded?);
+    ``texts``: ``_t_texts(msg)``, if known."""
     display, address = _t_sender(msg)
-    plain, markup, has_plain, has_html = _t_texts(msg)
+    texts = texts or _t_texts(msg)
+    looks_passed_on = _t_passed_on(msg, texts)
+    plain, markup, has_plain, has_html = texts
     raw_subject = _t_header(msg, "Subject")
     private = _t_private(msg, address, scrubber, raw_subject, plain + "\n" + markup)
     keep = () if private else (address,)
@@ -1991,11 +2565,22 @@ def _t_build(msg, number, scrubber):
     if private:
         _t_set(out, "From", f"Max Mustermann <{_T_MAIL}>")
     else:
-        display = scrubber.scrub(display, keep).replace('"', "").strip()
+        display = scrubber.scrub(scrubber.sellers_in(display), keep).replace('"', "").strip()
         _t_set(out, "From", f'"{display}" <{address}>' if display else address)
         if "From" not in out:
             _t_set(out, "From", address)
     _t_address_headers(msg, out, scrubber)
+    # The HTML part with its links, pictures and attributes, see above (not for a mail that
+    # looks forwarded, one from a private address or Eventim: see there).
+    passed_on = forward or quoted_markup or private or looks_passed_on
+    raw_markup = _t_html_part(msg) if has_html and not passed_on and not evt else None
+    amazon = address.endswith("@amazon.de")
+    rich = _THtml(scrubber, keep, raw_markup, amazon) if raw_markup else None
+    # The run's item names and sellers also in a mail without a rich HTML part (a
+    # cancellation, a carrier's mail that names the seller).
+    names = rich or _THtml(scrubber, keep, "", amazon)
+    names.context = "\n".join((raw_subject, plain, markup))
+    raw_subject, plain = names.shop(raw_subject), names.shop(plain)
     subject = " ".join(scrubber.scrub(raw_subject, keep).split())
     _t_set(out, "Subject", subject)
     if evt:
@@ -2004,18 +2589,26 @@ def _t_build(msg, number, scrubber):
         _t_set(out, "Date", _t_header(msg, "Date"))
     label = scrubber.label(msg, number)
     out["Message-ID"] = f"<beispiel-{label}@example.org>"
+    # (names and sellers first: their words are no words the scrubbing took out, see ``gone``)
+    unscrubbed = markup = names.shop(markup)
     plain, markup = scrubber.scrub(plain, keep), scrubber.scrub(markup, keep)
+    # (what the scrubbing of the HTML part as plain text took out never stays in the rich one)
+    gone = _t_words(unscrubbed) - _t_words(markup)
     if has_plain or not has_html:
         _t_body(out, plain if plain.endswith("\n") or not plain else plain + "\n", "plain")
     if has_html:
-        _t_body(out, as_html(markup), "html", alternative=has_plain)
+        try:
+            page = rich.render(gone) if rich else as_html(markup)
+        except ValueError:  # (more elements than marks)
+            page = as_html(markup)
+        _t_body(out, page, "html", alternative=has_plain)
     if scrubber.fixed and out.is_multipart():
         out.set_boundary(f"===============beispiel-{label}==")  # else a random one
     domain = re.sub(r"[^a-z0-9.-]", "", address.rsplit("@", 1)[-1])
     domain = "privat" if private else domain or "unbekannt"
     name = f"{_t_day(out)}_{domain}_{label}" if scrubber.fixed else f"{label}_{domain}"
-    left = scrubber.left(f"{out['From']}\n{subject}\n{plain}\n{markup}")
-    return out, f"{name}.eml", private, left
+    left = scrubber.left(f"{out['From']}\n{subject}\n{plain}\n{page if has_html else markup}")
+    return out, f"{name}.eml", private, left, looks_passed_on
 
 
 def _t_day(out):
@@ -2161,11 +2754,14 @@ def _t_run(args):
     for path in files:
         try:
             mail = load(path)
+            texts = _t_texts(mail)
             scrubber.learn(
-                "\n".join(_t_texts(mail)[:2]), _t_header(mail, "Subject"),
+                "\n".join(texts[:2]), _t_header(mail, "Subject"),
                 *_t_sender(mail), _t_recipients(mail),
             )
-            mails.append((os.path.basename(path), mail))
+            if _t_sender(mail)[1].endswith("@amazon.de"):
+                _t_learn_amazon(scrubber, texts[:2], _t_html_part(mail))
+            mails.append((os.path.basename(path), mail, texts))
         except Exception:
             unreadable.append(os.path.basename(path))
     try:
@@ -2174,10 +2770,10 @@ def _t_run(args):
     except OSError:
         raise _TUsage("Der Zielordner lässt sich nicht anlegen oder leeren.") from None
     written, forwarded, doubtful, passed_on = [], 0, [], []
-    for source, mail in mails:
+    for source, mail, texts in mails:
         number = len(written) + 1
         try:
-            out, name, private, left = _t_build(mail, number, scrubber)
+            out, name, private, left, looks_passed_on = _t_build(mail, number, scrubber, texts)
             data = bytes(out)
         except Exception:  # no traceback: it could show a part of a mail
             unreadable.append(source)
@@ -2188,7 +2784,7 @@ def _t_run(args):
         forwarded += private
         if left:
             doubtful.append(name)
-        if _t_passed_on(mail):
+        if looks_passed_on:
             passed_on.append(name)
     print(f"{len(written)} Mail(s) anonymisiert, Ordner: {os.path.abspath(out_dir)}")
     for name, _ in written:
@@ -2221,6 +2817,10 @@ def _t_run(args):
     if stale:
         print("ACHTUNG: Diese Dateien im Zielordner stammen aus einem früheren Lauf, nicht aus")
         print("diesem. Nicht mit hochladen: " + ", ".join(stale))
+    if _t_html_notes["attributes"]:
+        # (names only: a value may be private) For the developers: a rule of its own needed?
+        print("Hinweis: Attribute ohne eigene Regel (mit erfundenem Wert geschrieben): "
+              + ", ".join(sorted(_t_html_notes["attributes"])))
     print()
     print("WICHTIG: Jede Datei vor dem Hochladen selbst öffnen und durchlesen (ein Texteditor")
     print("genügt). Das Skript erkennt nicht alles: Steht noch etwas Privates drin, die Stelle")

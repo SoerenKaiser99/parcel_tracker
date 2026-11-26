@@ -32,7 +32,7 @@ ORDER = "HW-2025-004711"
 SECRETS = [
     "jörg", "joerg", "j&ouml;rg", "probst", "lindenweg", "54321", "beispielhausen",
     "12345678", "privatpost", JJD.lower(), UPS.lower(), HERMES.lower(), ORDER.lower(),
-    "blauen tonne", "regentonne", "secret-host", "mx.gateway", "geheimer-mailer", "piececode",
+    "blauen tonne", "regentonne", "secret-host", "mx.gateway", "geheimer-mailer",
     "kundin-4711", "beleg", "erika", "sonnenschein", "zweitadresse", "selector1",
 ]
 ALLOWED_HEADERS = {
@@ -269,19 +269,30 @@ def test_numbers_keep_their_format_and_map_identically_in_every_mail(run):
     [customer] = re.findall(r"Kundennummer: (\d{5})\n", unknown)
     assert customer != "48213"
     html_part = _msg(files["002_holzwurm-shop.example.eml"]).get_body(("html",)).get_content()
-    assert f"<p>Bestellnummer: {order}</p>" in html_part and f"<p>Sendung {jjd}</p>" in html_part
+    assert f"<p>Bestellnummer: {order}</p>" in html_part
+    # (the link keeps its form: the same invented number as the text)
+    assert f'<p>Sendung <a href="https://dhl.example/t?piececode={jjd}">{jjd}</a></p>' in html_part
 
 
-def test_html_only_mail_stays_html_without_attributes_and_attachments(run):
+def test_html_only_mail_stays_html_with_invented_attributes_and_without_attachments(run):
+    # Links, pictures and attributes stay where they stand, every value replaced (see
+    # test_anonymize_html.py); comments and the attachment go.
     _, _, files = run
     msg = _msg(files["003_paketflitzer.example.eml"])
     assert [part.get_content_type() for part in msg.walk()] == ["text/html"]
     markup = msg.get_content()
     assert "<p>Hallo Max Mustermann,</p>" in markup
-    assert "<p>Sendung verfolgen</p>" in markup
+    assert (
+        '<p><a href="https://paketflitzer.example/t?name=Mustermann&amp;plz=12345" '
+        'title="Paket für Max Mustermann">Sendung verfolgen</a></p>'
+    ) in markup
+    assert (
+        '<img alt="Max Mustermann, Musterstraße 1" src="https://img.paketflitzer.example/bild.gif">'
+    ) in markup
+    assert re.search(r'<div data-kunde="[a-z]{6}-\d{4}">', markup)
     assert "<p>Zustellung an Musterstraße 1 in Musterstadt</p>" in markup
     assert "<p>Wir haben deinen Wunschort Garage gespeichert.</p>" in markup
-    assert "href" not in markup and "<img" not in markup and "<!--" not in markup
+    assert "<!--" not in markup and "<table" not in markup
     both = _msg(files["002_holzwurm-shop.example.eml"])
     assert [part.get_content_type() for part in both.walk()] == [
         "multipart/alternative", "text/plain", "text/html",

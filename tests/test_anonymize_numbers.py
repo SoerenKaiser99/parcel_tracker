@@ -71,7 +71,7 @@ def _run(tmp_path: Path, *mails: bytes) -> list[tuple[str, str]]:
     result = []
     for path in sorted((src / "anonymisiert").glob("*.eml")):
         raw = path.read_bytes()
-        assert NUMBER.encode() not in raw and b"piececode" not in raw
+        assert NUMBER.encode() not in raw  # (a link's parameter names stay, never its values)
         msg = email.message_from_bytes(raw, policy=policy.default)
         parts = {p.get_content_type(): p.get_content() for p in msg.walk() if not p.is_multipart()}
         result.append((parts.get("text/plain", ""), parts.get("text/html", "")))
@@ -95,24 +95,28 @@ def test_number_in_a_table_cell_of_the_text_part_survives(tmp_path):
 def test_number_only_in_a_link_is_noted_as_an_invented_number(tmp_path, html_only):
     href = f"{TRACK_URL}?piececode={NUMBER}&zip=54321"
     [(plain, markup)] = _run(tmp_path, _mail(href=href, html_only=html_only))
-    for text in filter(None, (plain, markup)):
-        [invented] = NOTE.findall(text)  # once, although three links carry it
-        assert INVENTED.fullmatch(invented) and invented != NUMBER
-        # (the invented number is random digits and may hold "54321" by chance)
-        assert "54321" not in text.replace(invented, "")
+    # The HTML part keeps its links, each with the same invented number: no note needed.
+    [linked] = set(re.findall(r"piececode=(\d+)", markup))
+    assert INVENTED.fullmatch(linked) and linked != NUMBER
+    assert not NOTE.search(markup)
+    # (the invented number is random digits and may hold "54321" by chance)
+    assert "54321" not in markup.replace(linked, "")
     if plain:
-        assert "https://www.dhl.de/… [Nummer nur" in plain  # the link itself is still cut
-    if not html_only:
-        assert NOTE.findall(plain) == NOTE.findall(markup)  # the same invented number
+        [invented] = NOTE.findall(plain)  # once, although three links carry it
+        assert invented == linked  # the same invented number in both parts
+        assert "https://www.dhl.de/… [Nummer nur" in plain  # the text's link is still cut
 
 
-def test_number_only_in_an_image_text_is_noted_without_the_text_around_it(tmp_path):
-    image = f'alt="Sendung {NUMBER} von Erika Beispiel" title="Paket {NUMBER}"'
+def test_a_number_in_an_image_text_is_invented_and_so_is_a_name_the_mail_does_not_show(tmp_path):
+    image = f'alt="Sendung {NUMBER} von Erika Muster" title="Paket {NUMBER}"'
     [(plain, markup)] = _run(tmp_path, _mail(image=image, html_only=True))
     assert plain == ""
-    [invented] = NOTE.findall(markup)
-    assert INVENTED.fullmatch(invented) and invented != NUMBER
-    assert "Erika" not in markup and "von Max" not in markup  # only the number is taken
+    [invented] = set(_numbers(markup))
+    assert invented != NUMBER and not NOTE.search(markup)
+    assert re.search(rf'alt="Sendung {invented} von [A-Z][a-z]+ [A-Z][a-z]+"', markup)
+    assert f'title="Paket {invented}"' in markup
+    # A name the visible text does not show is invented in its form.
+    assert "Erika" not in markup and "Muster\"" not in markup
 
 
 def test_a_number_that_is_visible_gets_no_note_and_one_replacement(tmp_path):
