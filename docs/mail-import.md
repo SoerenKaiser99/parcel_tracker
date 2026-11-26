@@ -162,6 +162,7 @@ Nimm diese Absender in die Filterregel auf:
 | `noreply@notifications.galaxus.de` | Galaxus („Dein Paket ist auf dem Weg zu dir“: die Sendungsnummer des Paketdienstes, das Paket heißt nach dem Artikel, bei mehreren Artikeln „Galaxus“; Bestellbestätigung und Verzögerungsmail liest der Import nicht) |
 | `no-reply@gls-pakete.de` | GLS |
 | `noreply@gls-group.eu` und `noreply@gls-rtt.com` | GLS Österreich |
+| `meinesendung@post.at` (älter: `meinepost@post.at`) | Österreichische Post (in Verteilung, in Zustellung, umgeleitet, abholbereit), siehe [Österreich und Schweiz](dienste.md#osterreich-und-schweiz) |
 
 !!! tip "DHL: am einfachsten die ganze Domain"
     DHL schreibt von mehreren Adressen. Am einfachsten ist eine Regel auf die ganze Domain `dhl.de`, wenn dein Mail-Anbieter das kann: Der Import liest jeden Absender unter `dhl.de`.
@@ -182,6 +183,7 @@ if address :is "from" [
   "noreply@service.dpd.de", "pkginfo@ups.com", "mcinfo@ups.com",
   "noreply@paketankuendigung.myhermes.de", "ebay@ebay.com",
   "no_reply@dpd.at", "noreply@gls-group.eu", "noreply@gls-rtt.com",
+  "meinesendung@post.at", "meinepost@post.at",
   "transaction@notice.aliexpress.com",
   "bestellstatus@eventim.de", "noreply@notifications.galaxus.de",
   "no-reply@gls-pakete.de"
@@ -210,7 +212,7 @@ Gmail leitet nur an Adressen weiter, die du vorher bestätigt hast. Deshalb sind
 2. In das Feld **Von** alle Absender eintragen. Gmail trennt sie mit `OR`:
 
     ```text
-    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@dhlecommerce.nl OR noreply@service.dpd.de OR pkginfo@ups.com OR mcinfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR noreply@notifications.galaxus.de OR no-reply@gls-pakete.de
+    bestellbestaetigung@amazon.de OR versandbestaetigung@amazon.de OR shipment-tracking@amazon.de OR order-update@amazon.de OR pickup-point@amazon.de OR noreply@dhl.de OR paketankuendigung@dhl.de OR zustellung@dhl.de OR sendungsupdate@dhl.de OR abholung@dhl.de OR noreply.odd@dhl.com OR noreply@dhlecommerce.nl OR noreply@service.dpd.de OR pkginfo@ups.com OR mcinfo@ups.com OR noreply@paketankuendigung.myhermes.de OR ebay@ebay.com OR no_reply@dpd.at OR noreply@gls-group.eu OR noreply@gls-rtt.com OR meinesendung@post.at OR meinepost@post.at OR transaction@notice.aliexpress.com OR bestellstatus@eventim.de OR noreply@notifications.galaxus.de OR no-reply@gls-pakete.de
     ```
 
 3. **Filter erstellen** anklicken, dann den Haken bei **Weiterleiten an** setzen und dein Paket-Postfach auswählen.

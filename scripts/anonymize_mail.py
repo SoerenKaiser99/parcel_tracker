@@ -804,7 +804,7 @@ _T_ATTRIBUTION_START = re.compile(r"^[> \t]*(?:Am|On)[ \t]")
 _T_KNOWN_DOMAINS = frozenset({
     "aliexpress.com", "amazon.de", "dhl.com", "dhl.de", "dhlecommerce.nl", "dpd.at", "dpd.de",
     "ebay.com", "eventim.de", "gls-group.eu", "gls-pakete.de", "gls-rtt.com", "hes.de",
-    "myhes.de", "paketankuendigung.myhermes.de", "service.dpd.de", "ups.com",
+    "myhes.de", "paketankuendigung.myhermes.de", "post.at", "service.dpd.de", "ups.com",
 })
 # One line of the header block a mail program quotes above a forwarded mail: the label
 # (maybe bold or behind quote marks) and its value.

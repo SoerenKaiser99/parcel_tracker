@@ -1,0 +1,20 @@
+X-Fixture: built after a real mail of meinesendung@post.at; number,
+ names, customer number, place and code replaced by invented values
+From: Post <MeineSendung@post.at>
+To: max@example.org
+Subject: So stellen wir Ihre Sendung (1099999999999996012306) zu
+Date: Sun, 07 Jun 2026 16:51:40 +0200
+Message-ID: <fixture-305@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>So stellen wir Ihre Sendung (1099999999999996012306) zu</p>
+<p>Kundennummer: 999999</p>
+<p>Guten Tag Max Mustermann,</p>
+<p>wie von Ihnen gewünscht, wird Ihr Paket 1099999999999996012306 direkt in die von Ihnen gewählte Abholstation 9999, Musterstraße 1, 9999 Musterstadt zugestellt.</p>
+<p>Ihren persönlichen Abholcode erhalten Sie, wenn Ihr Paket in der Abholstation eingelangt ist.</p>
+<p>Freundliche Grüße,<br>Ihr Post-Team</p>
+<p>Österreichische Post AG, Rochusplatz 1, 1030 Wien</p>
+</body></html>

@@ -357,7 +357,7 @@
       "description": "Start tracking a parcel.",
       "fields": {
         "number": {"name": "Tracking number", "description": "As printed, spaces allowed."},
-        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, hes (Hermes Einrichtungs Service), ups or other (via 17track, needs a 17track API key)."},
+        "carrier": {"name": "Carrier", "description": "auto, dhl, dpd, gls, hermes, hes (Hermes Einrichtungs Service), post_at (Österreichische Post), ups or other (via 17track, needs a 17track API key)."},
         "name": {"name": "Name", "description": "Optional label."},
         "owner": {"name": "Owner", "description": "Optional: the person the parcel belongs to (a person set up under Persons, such as person.anna, or all for everybody)."}
       }

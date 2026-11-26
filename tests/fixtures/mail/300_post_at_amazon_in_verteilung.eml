@@ -1,0 +1,20 @@
+X-Fixture: built after a real mail of meinesendung@post.at; number,
+ names, customer number, place and code replaced by invented values
+From: Post <MeineSendung@post.at>
+To: max@example.org
+Subject: Ihre AMAZON-Sendung ist in Verteilung
+Date: Fri, 13 Nov 2026 08:33:07 +0100
+Message-ID: <fixture-300@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Ihre AMAZON-Sendung ist in Verteilung</p>
+<p>Guten Tag,</p>
+<p>wir haben Ihre AMAZON-Sendung 1099999999999998212303 zum Transport erhalten.</p>
+<p>Voraussichtliche Zustellung am Samstag, 14.11.2026</p>
+<p>In der Sendungsverfolgung finden Sie rund um die Uhr die aktuellsten Informationen zur Sendung.</p>
+<p>Freundliche Grüße,<br>Ihr Post-Team</p>
+<p>Österreichische Post AG, Rochusplatz 1, 1030 Wien</p>
+</body></html>

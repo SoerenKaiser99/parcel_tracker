@@ -34,6 +34,7 @@ from .carriers.base import (
     RateLimited,
 )
 from .carriers.gls import gls_number, has_check_digit
+from .carriers.post_at import PostAtCarrier
 from .carriers.track17 import (
     NotRegistered,
     Quota,
@@ -1388,10 +1389,17 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
         else:
             keys = candidates(number, self.carriers)
         probing = carrier_key is None  # "Automatisch": no carrier failure counted yet
+        # Only a guess at Österreichische Post (24 digits, "…AT"): asked until it answers
+        # "not found" once, with DHL after it as for an unknown number.
+        guess = probing and keys == ["post_at"] and (
+            PostAtCarrier.matches(number) is Match.POSSIBLE
+        )
+        if guess and parcel.last_error == "carrier_not_found":
+            keys = []
         # No rule takes the number: DHL is the last candidate (see _dhl_fallback).
-        fallback = not keys and self._dhl_fallback(parcel)
+        fallback = (not keys or guess) and self._dhl_fallback(parcel)
         if fallback:
-            keys = ["dhl"]
+            keys = [*keys, "dhl"]
         parcel.last_poll_at = now
         if not keys:
             parcel.last_error = "carrier_not_found"
@@ -1442,7 +1450,7 @@ class ParcelCoordinator(DataUpdateCoordinator[dict[str, Parcel]]):
             else:
                 self._fail(parcel, now, key, "unavailable", backoff_only=probing)
             return
-        if fallback:
+        if fallback or (guess and keys):
             # DHL does not know it either: unknown as without a key, and never asked again.
             last_error = "carrier_not_found"
             parcel.error_streak = 0

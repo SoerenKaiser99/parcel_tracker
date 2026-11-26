@@ -1,0 +1,22 @@
+X-Fixture: built after a real mail of meinesendung@post.at; number,
+ names, customer number, place and code replaced by invented values
+From: Post <MeineSendung@post.at>
+To: max@example.org
+Subject: Ihr Paket ist da! (1099999999999997012309)
+Date: Tue, 13 Oct 2026 10:25:09 +0200
+Message-ID: <fixture-304@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Ihr Paket ist da! (1099999999999997012309)</p>
+<p>Kundennummer: 999999</p>
+<p>Guten Tag Max Mustermann,</p>
+<p>Ihr Paket 1099999999999997012309 ist in der Abholstation 9999, Musterstraße 1, 9999 Musterstadt mit dem Code<br>
+ABC123 abholbereit.<br>
+Bitte folgen Sie den Anweisungen auf dem Bildschirm der Poststation.</p>
+<p>Gewicht: 0,40 kg Abholfrist: Dienstag, 20.10.2026 Öffnungszeiten: Mo-So 0:00-24:00</p>
+<p>Freundliche Grüße,<br>Ihr Post-Team</p>
+<p>Österreichische Post AG, Rochusplatz 1, 1030 Wien</p>
+</body></html>

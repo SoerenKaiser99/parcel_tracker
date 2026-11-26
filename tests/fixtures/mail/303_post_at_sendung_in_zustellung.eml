@@ -1,0 +1,18 @@
+X-Fixture: built after a real mail of meinesendung@post.at; number,
+ names, customer number, place and code replaced by invented values
+From: Post <MeineSendung@post.at>
+To: max@example.org
+Subject: Ihre Sendung ist in Zustellung
+Date: Wed, 02 Sep 2026 10:13:41 +0200
+Message-ID: <fixture-303@example.org>
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+MIME-Version: 1.0
+
+<html><body>
+<p>Ihre Sendung ist in Zustellung</p>
+<p>Guten Tag,</p>
+<p>Ihre Sendung 158999999999999999901230 wird voraussichtlich heute zugestellt.</p>
+<p>Freundliche Grüße,<br>Ihr Post-Team</p>
+<p>Österreichische Post AG, Rochusplatz 1, 1030 Wien</p>
+</body></html>
