@@ -12,6 +12,7 @@ from custom_components.parcel_tracker.carriers.base import (
     Match,
     NotFound,
     ParseError,
+    RateLimited,
 )
 from custom_components.parcel_tracker.carriers.post_at import (
     POST_AT_URL,
@@ -46,8 +47,11 @@ DELIVERED = _shipment(
 
 def test_matches():
     assert PostAtCarrier.matches(NUMBER) is Match.SURE
-    assert PostAtCarrier.matches("158999999999999999901230") is Match.SURE
-    assert PostAtCarrier.matches("RR123456789AT") is Match.SURE
+    # 24 digits and "…AT" are only a guess: other posts and DHL use them too
+    assert PostAtCarrier.matches("158999999999999999901230") is Match.POSSIBLE
+    assert PostAtCarrier.matches("RR123456789AT") is Match.POSSIBLE
+    # 22 digits without Post's "10" (e.g. USPS 9400…) are not Post's
+    assert PostAtCarrier.matches("9400111899223197428490") is Match.NO
     assert PostAtCarrier.matches("RR123456789DE") is Match.NO
     assert PostAtCarrier.matches("09999999999901") is Match.NO
     assert PostAtCarrier.matches("00340434161234567890") is Match.NO
@@ -114,7 +118,7 @@ def test_pickup_and_problems():
     assert returning.status is ParcelStatus.EXCEPTION
 
 
-def test_known_without_scans_is_announced_and_unknown_keys_are_skipped():
+def test_known_without_scans_is_announced_and_an_unknown_newest_state_is_unknown():
     assert parse_post_at(_shipment(status=None)).status is ParcelStatus.PRE_TRANSIT
     result = parse_post_at(
         _shipment(
@@ -122,7 +126,9 @@ def test_known_without_scans_is_announced_and_unknown_keys_are_skipped():
             _event("somethingNew", "2026-11-13T09:00:00", "Neu"),
         )
     )
-    assert result.status is ParcelStatus.IN_TRANSIT
+    # no skipping back to the older state
+    assert result.status is ParcelStatus.UNKNOWN
+    assert result.status_text == "Neu"
     assert result.events[0].text == "Neu"
     with pytest.raises(ParseError):
         parse_post_at({"sendungsEvents": "nope"})
@@ -180,3 +186,26 @@ def test_status_text_is_the_newest_scan_not_posts_code():
     )
     assert parse_post_at(shipment).status_text == "Sendung von Post-Empfangsbox abgeholt"
     assert parse_post_at(_shipment(status="ZU")).status_text == "ZU"
+
+
+@pytest.mark.parametrize("key", ["deliveryAttemptFailed", "returnedToSender"])
+def test_failed_attempt_after_delivery_is_no_longer_in_delivery(key):
+    result = parse_post_at(
+        _shipment(
+            _event("inDelivery", "2026-11-13T07:30:00", "In Zustellung"),
+            _event(key, "2026-11-13T13:00:00", "Nicht zugestellt"),
+        )
+    )
+    assert result.status is ParcelStatus.EXCEPTION
+
+
+async def test_rate_limit_keeps_retry_after():
+    with pytest.raises(RateLimited) as err:
+        await _fetch(status=429, body="Too Many Requests", headers={"Retry-After": "120"})
+    assert err.value.retry_after == 120
+
+
+@pytest.mark.parametrize("status", [403, 502])
+async def test_html_error_page_is_unavailable_not_a_parse_error(status):
+    with pytest.raises(CarrierUnavailable):
+        await _fetch(status=status, body="<html>error</html>")

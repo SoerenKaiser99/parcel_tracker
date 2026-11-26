@@ -11,6 +11,7 @@ Post stamps in Austrian local time without an offset.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime, time
 from typing import Any
@@ -20,8 +21,17 @@ import aiohttp
 
 from ..const import MAX_EVENTS
 from ..models import ParcelStatus, TrackingEvent, TrackingResult
-from .base import Carrier, CarrierUnavailable, Match, NotFound, ParseError, plain_text
+from .base import (
+    Carrier,
+    CarrierUnavailable,
+    Match,
+    NotFound,
+    ParseError,
+    RateLimited,
+    plain_text,
+)
 
+_LOGGER = logging.getLogger(__name__)
 VIENNA = ZoneInfo("Europe/Vienna")
 POST_AT_URL = "https://api.post.at/sendungen/sv/graphqlPublic"
 _TIMEOUT = aiohttp.ClientTimeout(total=25)
@@ -37,8 +47,11 @@ query ShipmentPublic($id: String!) {
 }
 """
 
-# Domestic parcels: 22 digits ("10…") or 24 digits; international: UPU S10 ending "AT".
-_DOMESTIC = re.compile(r"\d{22}|\d{24}")
+# Domestic parcels: 22 digits starting "10" (sure); 24 digits are Post's too but not only
+# Post's (a guess). International UPU S10 ending "AT": sent from Austria, but on its way
+# the parcel may belong to another post or to DHL (a guess, DHL stays in the game).
+_DOMESTIC = re.compile(r"10\d{20}")
+_DOMESTIC_24 = re.compile(r"\d{24}")
 _S10_AT = re.compile(r"[A-Z]{2}\d{9}AT")
 
 # Post's TrackingState vocabulary (after camelCase -> UPPER_SNAKE).
@@ -63,7 +76,10 @@ _STATUS: dict[str, ParcelStatus] = {
     "DELIVERY_DELAYED": ParcelStatus.EXCEPTION,
     "DELIVERY_INTERUPTED": ParcelStatus.EXCEPTION,  # (sic, Post's spelling)
     "NOT_REACHABLE": ParcelStatus.EXCEPTION,
+    "DELIVERY_ATTEMPT_FAILED": ParcelStatus.EXCEPTION,
+    "RETURNED_TO_SENDER": ParcelStatus.EXCEPTION,
 }
+_WARNED: set[str] = set()
 _CAMEL = re.compile(r"([a-z0-9])([A-Z])")
 
 
@@ -116,11 +132,21 @@ def parse_post_at(shipment: dict[str, Any]) -> TrackingResult:
     ]
     dated.sort(key=lambda item: item[0], reverse=True)
 
+    # The newest scan with a state decides. A state not known here is reported as unknown
+    # rather than skipping back to an older one ("in delivery" followed by a failed attempt
+    # must not stay "in delivery").
     status = ParcelStatus.UNKNOWN
-    for _, event in dated:
-        if (mapped := _STATUS.get(state_key(event.get("trackingStateKey")) or "")) is not None:
+    newest = next((key for _, e in dated if (key := state_key(e.get("trackingStateKey")))), None)
+    if newest is not None:
+        mapped = _STATUS.get(newest)
+        if mapped is not None:
             status = mapped
-            break
+        elif newest not in _WARNED:
+            _WARNED.add(newest)
+            _LOGGER.warning(
+                "Unknown Österreichische Post state %s; please report it to Paket Tracker",
+                newest,
+            )
     if not dated:
         # Post knows the number, nothing is scanned yet: the label is printed.
         status = ParcelStatus.PRE_TRANSIT
@@ -174,8 +200,10 @@ class PostAtCarrier(Carrier):
 
     @staticmethod
     def matches(number: str) -> Match:
-        if _DOMESTIC.fullmatch(number) or _S10_AT.fullmatch(number):
+        if _DOMESTIC.fullmatch(number):
             return Match.SURE
+        if _DOMESTIC_24.fullmatch(number) or _S10_AT.fullmatch(number):
+            return Match.POSSIBLE
         return Match.NO
 
     async def fetch(self, number: str, postcode: str | None) -> TrackingResult:
@@ -185,9 +213,16 @@ class PostAtCarrier(Carrier):
                 POST_AT_URL, json=body, headers=_HEADERS, timeout=_TIMEOUT
             ) as resp:
                 status = resp.status
+                if status == 429:
+                    retry = resp.headers.get("Retry-After")
+                    raise RateLimited(int(retry) if retry and retry.isdigit() else None)
+                if status >= 500 or status in (401, 403):
+                    raise CarrierUnavailable(f"Post HTTP {status}")
                 try:
                     payload = await resp.json(content_type=None)
                 except ValueError as err:
+                    if status != 200:
+                        raise CarrierUnavailable(f"Post HTTP {status}") from err
                     raise ParseError("Post returned no JSON") from err
         except (TimeoutError, aiohttp.ClientError) as err:
             raise CarrierUnavailable(str(err)) from err
@@ -202,8 +237,6 @@ class PostAtCarrier(Carrier):
             ):
                 raise NotFound(f"Post rejects {number}")
             raise CarrierUnavailable(f"Post HTTP {status}: GraphQL error")
-        if status >= 500:
-            raise CarrierUnavailable(f"Post HTTP {status}")
         if status != 200:
             raise ParseError(f"Post HTTP {status}")
         data = payload.get("data")

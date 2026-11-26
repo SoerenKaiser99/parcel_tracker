@@ -95,3 +95,23 @@ def test_amazon_post_mail_joins_the_amazon_order():
     assert (order.tracking_ref, order.tracking_carrier) == (AMAZON_POST, "post_at")
     assert order.poll_target == ("post_at", AMAZON_POST)
     assert AMAZON_POST not in parcels
+
+
+def test_pickup_code_holds_until_the_last_day_to_pick_up_and_a_reminder_carries_it_on():
+    from dataclasses import replace
+    from datetime import UTC, datetime, timedelta
+
+    from custom_components.parcel_tracker.mail.apply import apply_update
+
+    now = datetime(2026, 11, 14, 8, 0, tzinfo=UTC)
+    update = _one("304_post_at_paket_ist_da.eml", read_otp=True)
+    assert update.pickup_until is not None
+    parcels: dict = {}
+    apply_update(parcels, update, now)
+    [parcel] = parcels.values()
+    assert parcel.delivery_code == "ABC123"
+    assert parcel.delivery_code_day == update.pickup_until  # not only the day of the mail
+    # "Erinnerung: Ihr Paket ist da!" with the same code and a later last day
+    later = replace(update, pickup_until=update.pickup_until + timedelta(days=2))
+    apply_update(parcels, later, now + timedelta(days=3))
+    assert parcel.delivery_code_day == later.pickup_until

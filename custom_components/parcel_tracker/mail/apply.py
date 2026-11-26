@@ -358,14 +358,18 @@ def _forward(parcel: Parcel, update: MailUpdate, now: datetime) -> bool:
         if parcel.delivery_code:
             parcel.delivery_code = parcel.delivery_code_day = None
             changed = True
-    elif (
-        update.delivery_code
-        and not parcel.outgoing
-        and update.delivery_code != parcel.delivery_code
-    ):
-        parcel.delivery_code = update.delivery_code
-        parcel.delivery_code_day = update.eta_date or update.sent_at.date()
-        changed = True
+    elif update.delivery_code and not parcel.outgoing:
+        # A pickup code holds until the last day to pick the parcel up; a reminder with the
+        # same code and a later last day carries it on.
+        day = update.pickup_until or update.eta_date or update.sent_at.date()
+        if (
+            update.delivery_code != parcel.delivery_code
+            or parcel.delivery_code_day is None
+            or day > parcel.delivery_code_day
+        ):
+            parcel.delivery_code = update.delivery_code
+            parcel.delivery_code_day = day
+            changed = True
     if parcel.status is ParcelStatus.DELIVERED:
         # Due at delivery: once delivered there is nothing left to pay or to tell.
         changed = parcel.clear_customs() or changed
